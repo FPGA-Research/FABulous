@@ -1,33 +1,38 @@
-"""Tests for switch matrix construction and generation."""
+"""Tests for genTileSwitchMatrix.
+
+Tests the feature that allows users to redirect CSV output to a custom directory when
+converting .list files to .csv for switch matrix generation.
+"""
 
 import re
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, MultiplexerStyle
-from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.define import IO, Direction, MultiplexerStyle, Side
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     _unconnected_port_diagnostic,
-    gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
 )
-from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
-from fabulous.fabric_generator.parser.parse_switchmatrix import (
+from fabulous.fabric_generator.parser.parse_csv import (
     parse_port_line,
-    parseMatrix,
+    parseFabricCSV,
+    parseSupertilesCSV,
 )
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 from fabulous.fabulous_settings import init_context
-from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
+from tests.conftest import make_empty_tile, make_muladd_bel
 from tests.fabric_gen_test.conftest import (
     create_switchmatrix_list,
     find_switch_matrix_tile,
@@ -190,6 +195,7 @@ class TestHdlSwitchMatrix:
         tile = make_empty_tile(
             "T", tile_dir=tmp_path, matrix_dir=v, pin_order_config={}
         )
+        tile.switch_matrix = SwitchMatrix.from_file(v, "T")
         # No writer is needed: an HDL matrix returns before any RTL is emitted.
         # (A non-HDL matrix would dereference the None writer and raise.)
         genTileSwitchMatrix(None, tile, False)
@@ -323,11 +329,27 @@ class TestPreserveListOrderGeneration:
             assert set(default_inputs[port]) == set(preserved_inputs[port])
 
 
-class TestSuperTileSwitchMatrixConstants:
-    """The supertile switch matrix exposes GND/VCC/VDD constants like normal tiles.
+def _jump_port(name: str, in_out: IO, wire_count: int = 1) -> TilePort:
+    """Build a JUMP port facing the composite wrapper matrix."""
+    return TilePort(
+        name=name,
+        io_direction=in_out,
+        width=wire_count,
+        side_of_tile=Side.ANY,
+        wire_direction=Direction.JUMP,
+        source_name=name if in_out == IO.OUTPUT else "NULL",
+        x_offset=0,
+        y_offset=0,
+        destination_name=name if in_out == IO.INPUT else "NULL",
+        wire_count=wire_count,
+    )
 
-    `gen_super_tile_switch_matrix` reuses the shared matrix-body generator, so a
-    `supertile_matrix.list` may drive a BEL input from a constant (tie-off) or
+
+class TestCompositeSwitchMatrixConstants:
+    """The composite wrapper switch matrix exposes GND/VCC/VDD constants.
+
+    ``genTileSwitchMatrix`` reuses the shared matrix-body generator for composite
+    tiles, so a wrapper matrix may drive a BEL input from a constant (tie-off) or
     offer one as a mux option. This guards that behaviour against a refactor.
     """
 
@@ -335,37 +357,40 @@ class TestSuperTileSwitchMatrixConstants:
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        mocker: MockerFixture,
         connections: list[tuple[str, str]],
     ) -> str:
-        mat = tmp_path / "supertile_matrix.list"
+        mat = tmp_path / "DSP_matrix.list"
         create_switchmatrix_list(mat, connections)
         bot = make_empty_tile(
             "DSP_bot",
-            [sjump_port("x", IO.OUTPUT, wire_count=1)],
+            [_jump_port("x", IO.OUTPUT, wire_count=1)],
             tile_dir=tmp_path,
             matrix_dir=tmp_path / "DSP_bot_switch_matrix.list",
             pin_order_config={},
         )
         bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_B0", IO.INPUT)])
-        supertile = SuperTile(
-            name="DSP",
-            tile_dir=tmp_path,
-            tiles=[bot],
-            tile_map=[[bot]],
-            bels=[bel],
-            switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
+        mocker.patch(
+            "fabulous.fabric_definition.bel.Bel.from_hdl",
+            return_value=bel,
         )
+        body = "BEL,MULADD.v\nMATRIX,DSP_matrix.list\nDSP_bot\n"
+        csv_path = tmp_path / "DSP.csv"
+        csv_path.write_text(f"SuperTILE,DSP\n{body}EndSuperTILE\n")
+        (composite,) = parseSupertilesCSV(csv_path, {"DSP_bot": bot})
+
         writer = code_generator_factory(".v", "DSP_switch_matrix")
-        gen_super_tile_switch_matrix(writer, supertile)
+        genTileSwitchMatrix(writer, composite, switch_matrix_debug_signal=False)
         return writer.outFileName.read_text()
 
     def test_constants_declared(
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        mocker: MockerFixture,
     ) -> None:
         rtl = self._gen(
-            tmp_path, code_generator_factory, [("SUPER_A0", "[DSP_bot_A0]")]
+            tmp_path, code_generator_factory, mocker, [("SUPER_A0", "[DSP_bot_x0]")]
         )
         assert "parameter GND0 = 1'b0;" in rtl
         assert "parameter VCC0 = 1'b1;" in rtl
@@ -375,17 +400,24 @@ class TestSuperTileSwitchMatrixConstants:
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        mocker: MockerFixture,
     ) -> None:
-        rtl = self._gen(tmp_path, code_generator_factory, [("SUPER_A0", "[GND0]")])
+        rtl = self._gen(
+            tmp_path, code_generator_factory, mocker, [("SUPER_A0", "[GND0]")]
+        )
         assert "assign SUPER_A0 = GND0;" in rtl
 
     def test_constant_as_mux_input(
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        mocker: MockerFixture,
     ) -> None:
         rtl = self._gen(
-            tmp_path, code_generator_factory, [("SUPER_B0{2}", "[VCC0|DSP_bot_x0]")]
+            tmp_path,
+            code_generator_factory,
+            mocker,
+            [("SUPER_B0{2}", "[VCC0|DSP_bot_x0]")],
         )
         assert "SUPER_B0_input = {DSP_bot_x0,VCC0}" in rtl
         assert "cus_mux21 inst_cus_mux21_SUPER_B0" in rtl

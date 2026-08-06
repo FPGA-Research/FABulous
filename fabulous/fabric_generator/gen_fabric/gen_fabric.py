@@ -17,7 +17,7 @@ from collections.abc import Generator
 
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
@@ -36,34 +36,157 @@ _SIDE_INPUT_CONNECTIONS = (
 )
 
 
-def iter_super_tile_anchors(
+def iter_composite_anchors(
     fabric: Fabric,
-) -> Generator[tuple[int, int, SuperTile], None, None]:
-    """Yield `(anchor_x, anchor_y, superTile)` for every supertile placement.
+) -> Generator[tuple[int, int, Tile], None, None]:
+    """Yield ``(anchor_x, anchor_y, composite_tile)`` for every composite placement.
 
-    The anchor is the first non-NULL child tile in row-major order for each
-    placement -- the same position at which `generateFabric` instantiates the
-    supertile wrapper.
+    The anchor is the top-left (first non-None in row-major order) cell of each
+    composite placement -- the same position at which ``generateFabric``
+    instantiates the composite wrapper and names its external ports.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric whose grid is scanned for supertile placements.
+        The fabric whose grid is scanned for composite tile placements.
 
     Yields
     ------
-    tuple[int, int, SuperTile]
-        The anchor `(x, y)` and the `SuperTile` placed there.
+    tuple[int, int, Tile]
+        The anchor ``(x, y)`` and the composite ``Tile`` placed there.
     """
-    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        for ly, row in enumerate(superTile.tile_map):
-            for lx, tile in enumerate(row):
-                if tile is not None:
-                    yield base_fx + lx, base_fy + ly, superTile
-                    break
-            else:
+    seen: set[tuple[int, int]] = set()
+    for composite in fabric.get_all_unique_tiles():
+        if not composite.is_composite:
+            continue
+        positions = fabric.find_tile_positions(composite)
+        if positions is None:
+            continue
+        # The composite anchor is its top-left cell (top-first tile_map origin).
+        # The fabric grid is stored bottom row first, so that cell maps to the
+        # fabric offset (anchor_dx, (max_height - 1) - anchor_dy) from each
+        # placement's bottom-left origin.
+        anchor_dx, anchor_dy = composite.get_anchor_offset()
+        fabric_anchor_dy = (composite.max_height - 1) - anchor_dy
+        for base_fx, base_fy in _composite_placement_origins(positions):
+            anchor = (base_fx + anchor_dx, base_fy + fabric_anchor_dy)
+            if anchor not in seen:
+                seen.add(anchor)
+                yield anchor[0], anchor[1], composite
+
+
+def _composite_placement_origins(
+    positions: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """Return the top-left origin cell of each placement of a composite tile.
+
+    A placement occupies a contiguous block of grid cells. The origin of a block
+    is the covered cell with no covered neighbour immediately to its north
+    (``y - 1``) or west (``x - 1``); each such cell marks the start of a distinct
+    placement.
+
+    Parameters
+    ----------
+    positions : list[tuple[int, int]]
+        Every grid cell covered by any placement of the composite tile.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        One ``(min_x, min_y)`` origin per placement, in sorted order.
+    """
+    cells = set(positions)
+    origins: list[tuple[int, int]] = []
+    for x, y in sorted(cells):
+        if (x - 1, y) not in cells and (x, y - 1) not in cells:
+            origins.append((x, y))
+    return origins
+
+
+def _composite_cell_offsets(composite: Tile) -> list[tuple[int, int, int, int]]:
+    """Return the wrapper label and fabric offset of every populated cell.
+
+    Each entry is ``(label_x, label_y, fabric_dx, fabric_dy)`` where:
+
+    - ``(label_x, label_y)`` is the cell's TOP-FIRST ``tile_map`` index. The
+      composite wrapper module (:func:`_generate_composite_tile`) names its own
+      per-cell ports ``Tile_X{label_x}Y{label_y}_<sig>`` using this index, so any
+      reference to the wrapper's OWN port must use it.
+    - ``(fabric_dx, fabric_dy)`` is the offset of the cell within the fabric grid,
+      which is stored BOTTOM row first, so ``fabric_dy = (max_height - 1) -
+      label_y``. Any reference to a fabric grid net, or any grid indexing, must
+      use this offset.
+
+    Entries are returned in fabric scan order (bottom row first, left to right)
+    so they match the order in which ``generateFabric`` walks the grid.
+
+    Parameters
+    ----------
+    composite : Tile
+        The composite tile whose cells are enumerated.
+
+    Returns
+    -------
+    list[tuple[int, int, int, int]]
+        One ``(label_x, label_y, fabric_dx, fabric_dy)`` entry per populated cell.
+    """
+    rows = composite.tile_map
+    if rows is None:
+        return [(0, 0, 0, 0)]
+    height = len(rows)
+    offsets: list[tuple[int, int, int, int]] = []
+    for ly, row in enumerate(rows):
+        for lx, cell in enumerate(row):
+            if cell is not None:
+                offsets.append((lx, ly, lx, (height - 1) - ly))
+    offsets.sort(key=lambda o: (o[3], o[2]))
+    return offsets
+
+
+def _composite_perimeter_by_offset(
+    composite: Tile,
+) -> dict[tuple[int, int], tuple[tuple[int, int], list]]:
+    """Return each composite cell's wrapper label and perimeter ports, by offset.
+
+    Keyed by the cell's fabric ``(fabric_dx, fabric_dy)`` offset so the caller can
+    address the fabric grid net, the value carries both the cell's TOP-FIRST
+    wrapper label index ``(label_x, label_y)`` (for naming the wrapper's own port)
+    and its perimeter side-port lists. A side is included only when it faces the
+    composite boundary, mirroring the pre-migration supertile wiring.
+
+    Parameters
+    ----------
+    composite : Tile
+        The composite tile whose perimeter ports are collected.
+
+    Returns
+    -------
+    dict[tuple[int, int], tuple[tuple[int, int], list]]
+        Mapping from ``(fabric_dx, fabric_dy)`` offset to
+        ``((label_x, label_y), perimeter_side_port_lists)``.
+    """
+    rows = composite.tile_map
+    if rows is None:
+        return {}
+    height = len(rows)
+    result: dict[tuple[int, int], tuple[tuple[int, int], list]] = {}
+    for ly, row in enumerate(rows):
+        for lx, cell in enumerate(row):
+            if cell is None:
                 continue
-            break
+            offset = (lx, (height - 1) - ly)
+            sides: list = []
+            # Top-first storage: ly-1 is physically north, ly+1 is south.
+            if ly - 1 < 0 or rows[ly - 1][lx] is None:
+                sides.append(cell.get_port_on_side(Side.NORTH))
+            if lx + 1 >= len(row) or row[lx + 1] is None:
+                sides.append(cell.get_port_on_side(Side.EAST))
+            if ly + 1 >= len(rows) or rows[ly + 1][lx] is None:
+                sides.append(cell.get_port_on_side(Side.SOUTH))
+            if lx - 1 < 0 or row[lx - 1] is None:
+                sides.append(cell.get_port_on_side(Side.WEST))
+            result[offset] = ((lx, ly), sides)
+    return result
 
 
 def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
@@ -105,7 +228,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
     # supertile-level BEL external ports (the BEL lives in the wrapper, not a
     # child tile); declare them at the wrapper's anchor coordinates.
-    for ax, ay, superTile in iter_super_tile_anchors(fabric):
+    for ax, ay, superTile in iter_composite_anchors(fabric):
         for bel in superTile.bels:
             for i in bel.external_input:
                 writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
@@ -139,23 +262,19 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addNewLine()
 
     if isinstance(writer, VHDLCodeGenerator):
-        # Declare a component per entity the fabric body instantiates: regular
-        # tiles by their own name, supertiles by the wrapper name. Subtiles are
-        # instantiated inside the wrapper, not the fabric, so they are skipped.
+        # Declare a component per entity the fabric body instantiates: leaf tiles
+        # and composite tiles by their own name. Sub-tiles are instantiated inside
+        # the composite wrapper, not the fabric, so they are skipped.
         # Every tile HDL lives at Tile/<name>/<name>.vhdl under the project root
         # (fabric_dir is the fabric.csv, so its parent is that root). This is
         # correct for both per-tile CSVs and the legacy inline fabric.csv, where
         # every tileDir is the fabric.csv itself rather than a per-tile directory.
         tileRoot = fabric.fabric_dir.parent / "Tile"
         for tile in fabric.tileDic.values():
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 continue
             writer.addComponentDeclarationForFile(
                 str(tileRoot / tile.name / f"{tile.name}.vhdl")
-            )
-        for superTile in fabric.superTileDic.values():
-            writer.addComponentDeclarationForFile(
-                str(tileRoot / superTile.name / f"{superTile.name}.vhdl")
             )
 
     # VHDL signal declarations
@@ -208,12 +327,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 seenPorts = set()
                 for p in tile.ports_info:
                     wireLength = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
-                    # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
-                    # supertile wrapper), so they need no tile-to-tile fabric wire.
-                    if p.source_name == "NULL" or p.wire_direction in (
-                        Direction.JUMP,
-                        Direction.SJUMP,
-                    ):
+                    # JUMP ports stay inside the tile (a composite's wrapper
+                    # matrix handles them), so they need no tile-to-tile wire.
+                    if p.source_name == "NULL" or p.wire_direction == Direction.JUMP:
                         continue
                     if p.source_name in seenPorts:
                         continue
@@ -252,10 +368,24 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             )
 
     instantiatedPosition = []
+
+    # Index each composite by the names of its sub-tiles so the owning composite
+    # of a placed sub-tile is an O(1) lookup instead of a per-cell rescan of every
+    # unique tile. ``setdefault`` keeps the first owner in ``get_all_unique_tiles``
+    # order, matching the original linear scan's break-on-first behavior.
+    composite_owner_by_subtile: dict[str, Tile] = {}
+    for candidate in fabric.get_all_unique_tiles():
+        if not candidate.is_composite:
+            continue
+        for sub_tile in candidate.get_sub_tiles():
+            composite_owner_by_subtile.setdefault(sub_tile.name, candidate)
+
     # Tile instantiations
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
-            tileLocationOffset: list[tuple[int, int]] = []
+            # Each entry is (label_x, label_y, fabric_dx, fabric_dy): the wrapper
+            # top-first label index and the fabric-grid offset of the cell.
+            tileLocationOffset: list[tuple[int, int, int, int]] = []
             superTileLoc = []
             superTile = None
             if tile is None:
@@ -264,42 +394,37 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if (x, y) in instantiatedPosition:
                 continue
 
-            # instantiate super tile when encountered
-            # get all the ports of the tile. If is a super tile, we loop over the
-            # tile map and find all the offset of the subtile, and all their related
-            # ports.
+            # instantiate composite tile when encountered: find the composite
+            # that owns this sub-tile, then map its cells to fabric offsets.
             if tile.part_of_super_tile:
-                for k, v in fabric.superTileDic.items():
-                    if tile.name in [i.name for i in v.tiles]:
-                        superTile = fabric.superTileDic[k]
-                        break
+                superTile = composite_owner_by_subtile.get(tile.name)
 
             if superTile:
-                ports_around = superTile.get_ports_around_tile()
-                cord = [
-                    (i.split(",")[0], i.split(",")[1])
-                    for i in list(ports_around.keys())
-                ]
-                for i, j in cord:
-                    tileLocationOffset.append((int(i), int(j)))
-                    instantiatedPosition.append((x + int(i), y + int(j)))
-                    superTileLoc.append((x + int(i), y + int(j)))
+                for label_x, label_y, dx, dy in _composite_cell_offsets(superTile):
+                    tileLocationOffset.append((label_x, label_y, dx, dy))
+                    instantiatedPosition.append((x + dx, y + dy))
+                    superTileLoc.append((x + dx, y + dy))
             else:
-                tileLocationOffset.append((0, 0))
+                tileLocationOffset.append((0, 0, 0, 0))
 
             portsPairs = []
             # use the offset to find all the related tile input, output signal
-            # if is a normal tile then the offset is (0, 0)
-            for i, j in tileLocationOffset:
+            # if is a normal tile then the offset is (0, 0). ``li``/``lj`` are the
+            # wrapper top-first label index (for the wrapper's own port name);
+            # ``i``/``j`` are the fabric-grid offset (for grid lookups and nets).
+            for li, lj, i, j in tileLocationOffset:
                 here = fabric.tile[y + j][x + i]
                 in_super = here.part_of_super_tile
 
                 def _local_names(
-                    ports: list, _i: int = i, _j: int = j, in_super: bool = in_super
+                    ports: list,
+                    _li: int = li,
+                    _lj: int = lj,
+                    in_super: bool = in_super,
                 ) -> list[str]:
                     """Return local port names."""
                     return (
-                        [f"Tile_X{_i}Y{_j}_{p.name}" for p in ports]
+                        [f"Tile_X{_li}Y{_lj}_{p.name}" for p in ports]
                         if in_super
                         else [p.name for p in ports]
                     )
@@ -330,20 +455,15 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             # output signal name is same as the output port name
             if superTile:
-                ports_around = superTile.get_ports_around_tile()
-                cord = [
-                    (i.split(",")[0], i.split(",")[1])
-                    for i in list(ports_around.keys())
-                ]
-                cord = list(zip(cord, ports_around.values(), strict=False))
-                for (i, j), around in cord:
+                perimeter = _composite_perimeter_by_offset(superTile)
+                for (i, j), ((li, lj), around) in perimeter.items():
                     for ports in around:
                         for port in ports:
                             if port.is_output and port.name != "NULL":
                                 portsPairs.append(
                                     (
-                                        f"Tile_X{int(i)}Y{int(j)}_{port.name}",
-                                        f"Tile_X{x + int(i)}Y{y + int(j)}_{port.name}",
+                                        f"Tile_X{li}Y{lj}_{port.name}",
+                                        f"Tile_X{x + i}Y{y + j}_{port.name}",
                                     )
                                 )
             else:
@@ -356,7 +476,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 onNewLine=True,
                 indentLevel=0,
             )
-            for i, j in tileLocationOffset:
+            for _li, _lj, i, j in tileLocationOffset:
                 for b in fabric.tile[y + j][x + i].bels:
                     for p in b.external_input:
                         portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
@@ -392,9 +512,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     # for userCLKo
                     portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
                 else:
-                    for i, j in tileLocationOffset:
-                        # prefix for super tile port
-                        pre = f"Tile_X{i}Y{j}_"
+                    for li, lj, i, j in tileLocationOffset:
+                        # prefix for the wrapper's own port (top-first label index)
+                        pre = f"Tile_X{li}Y{lj}_"
 
                         # UserCLK signal
                         next_row = y + j + 1
@@ -418,11 +538,11 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                             )
 
             if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-                for i, j in tileLocationOffset:
-                    # prefix for super tile port
+                for li, lj, i, j in tileLocationOffset:
+                    # prefix for the wrapper's own port (top-first label index)
                     pre = ""
                     if superTile:
-                        pre = f"Tile_X{i}Y{j}_"
+                        pre = f"Tile_X{li}Y{lj}_"
 
                     supertile_x = x + i
                     supertile_y = y + j
@@ -542,11 +662,11 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             emulateParamPairs = []
             if superTile:
                 name = superTile.name
-                for i, j in tileLocationOffset:
+                for li, lj, i, j in tileLocationOffset:
                     if (y + j) not in (0, fabric.numberOfRows - 1):
                         emulateParamPairs.append(
                             (
-                                f"Tile_X{i}Y{j}_Emulate_Bitstream",
+                                f"Tile_X{li}Y{lj}_Emulate_Bitstream",
                                 f"`Tile_X{x + i}Y{y + j}_Emulate_Bitstream",
                             )
                         )

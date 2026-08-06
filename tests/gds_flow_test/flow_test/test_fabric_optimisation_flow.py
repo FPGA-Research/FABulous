@@ -38,8 +38,12 @@ def mock_flow_with_validate_project_dir(mocker: MockerFixture) -> MagicMock:
 def mock_fabric(mocker: MockerFixture) -> MagicMock:
     """Create a mock fabric for testing."""
     fabric: MagicMock = mocker.MagicMock()
-    fabric.tileDic = {"tile1": mocker.MagicMock(), "tile2": mocker.MagicMock()}
-    fabric.superTileDic = {}
+    tile1 = mocker.MagicMock()
+    tile1.is_composite = False
+    tile2 = mocker.MagicMock()
+    tile2.is_composite = False
+    fabric.tileDic = {"tile1": tile1, "tile2": tile2}
+    fabric.get_all_unique_tiles.return_value = [tile1, tile2]
     return fabric
 
 
@@ -122,21 +126,25 @@ class TestValidateProjectDir:
         mocker: MockerFixture,
         tmp_path: Path,
     ) -> None:
-        """Test validation with SuperTiles."""
+        """Test validation with composite tiles."""
         flow: MagicMock = mock_flow_with_validate_project_dir
         fabric: MagicMock = mocker.MagicMock()
-        fabric.tileDic = {"subtile1": mocker.MagicMock()}
 
-        # SuperTile containing subtile1
-        supertile: MagicMock = mocker.MagicMock()
-        supertile.tiles = [mocker.MagicMock(name="subtile1")]
-        supertile.tiles[0].name = "subtile1"
-        fabric.superTileDic = {"SuperTile1": supertile}
+        # A composite tile containing subtile1; the subtile needs no directory.
+        subtile = mocker.MagicMock()
+        subtile.name = "subtile1"
+        subtile.is_composite = False
+        composite: MagicMock = mocker.MagicMock()
+        composite.name = "Composite1"
+        composite.is_composite = True
+        composite.get_sub_tiles.return_value = [subtile]
+        fabric.tileDic = {"subtile1": subtile, "Composite1": composite}
+        fabric.get_all_unique_tiles.return_value = [composite]
 
         tile_dir: Path = tmp_path / "Tile"
         tile_dir.mkdir()
-        # SubTiles don't need directories, but SuperTiles do
-        (tile_dir / "SuperTile1").mkdir()
+        # SubTiles don't need directories, but composite tiles do.
+        (tile_dir / "Composite1").mkdir()
 
         flow._validate_project_dir(flow, tmp_path, fabric)
 
@@ -146,19 +154,21 @@ class TestValidateProjectDir:
         mocker: MockerFixture,
         tmp_path: Path,
     ) -> None:
-        """Test validation fails when SuperTile directory is missing."""
+        """Test validation fails when a composite tile directory is missing."""
         flow: MagicMock = mock_flow_with_validate_project_dir
         fabric: MagicMock = mocker.MagicMock()
-        fabric.tileDic = {}
 
-        supertile: MagicMock = mocker.MagicMock()
-        supertile.tiles = []
-        fabric.superTileDic = {"SuperTile1": supertile}
+        composite: MagicMock = mocker.MagicMock()
+        composite.name = "Composite1"
+        composite.is_composite = True
+        composite.get_sub_tiles.return_value = []
+        fabric.tileDic = {"Composite1": composite}
+        fabric.get_all_unique_tiles.return_value = [composite]
 
         tile_dir: Path = tmp_path / "Tile"
         tile_dir.mkdir()
 
-        with pytest.raises(FileNotFoundError, match="SuperTile"):
+        with pytest.raises(FileNotFoundError, match="Composite1"):
             flow._validate_project_dir(flow, tmp_path, fabric)
 
 

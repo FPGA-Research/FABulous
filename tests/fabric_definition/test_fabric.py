@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from tests.fabric_definition.conftest import make_empty_tile
 
@@ -116,6 +116,7 @@ class TestFabricValidation:
     ) -> None:
         tile = MagicMock(spec=Tile)
         tile.name = "test_tile"
+        tile.is_composite = False
         tile.bels = [MagicMock() for _ in range(num_bels)]
         if should_raise:
             with pytest.raises(ValueError, match="cannot have more than 26 BELs"):
@@ -125,39 +126,81 @@ class TestFabricValidation:
             assert len(fabric.tileDic["test_tile"].bels) == num_bels
 
 
-class TestGetSuperTileContaining:
-    """Resolve which SuperTile (if any) a tile belongs to."""
+def _composite(name: str, tile_map: list[list[Tile | None]]) -> Tile:
+    """Build a composite Tile carrying a top-first object tile_map."""
+    sub_tiles = [t for row in tile_map for t in row if t is not None]
+    return Tile(
+        name=name,
+        ports=[],
+        bels=[],
+        tile_dir=Path(),
+        matrix_dir=Path(),
+        gen_ios=[],
+        user_clk=False,
+        switch_matrix=SwitchMatrix(matrix_file=Path()),
+        tile_map=tile_map,
+        sub_tiles=sub_tiles,
+        pin_order_config={},
+    )
 
-    @staticmethod
-    def _make_super_tile(name: str, tile_names: list[str]) -> SuperTile:
-        tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
-        return SuperTile(
-            name=name,
-            tile_dir=Path(),
-            tiles=tiles,
-            tile_map=[tiles],
+
+class TestFabricCompositeQueries:
+    """``find_tile_positions`` and ``get_all_unique_tiles`` over a composite.
+
+    Layout: a single column with DSP_top over DSP_bot. The composite ``tile_map``
+    is top-first ``[[DSP_top], [DSP_bot]]`` while the fabric grid is bottom-first
+    ``[[DSP_bot], [DSP_top]]``.
+    """
+
+    def _fabric(self, make_fabric: Callable[..., Fabric]) -> tuple[Fabric, Tile]:
+        # Leaf sub-tiles for the composite; mark them as belonging to a supertile
+        # exactly as the parser does.
+        top_def = make_empty_tile("DSP_top", pin_order_config={})
+        bot_def = make_empty_tile("DSP_bot", pin_order_config={})
+        top_def.part_of_super_tile = True
+        bot_def.part_of_super_tile = True
+        composite = _composite("DSP", [[top_def], [bot_def]])
+
+        # Grid is bottom-first: row 0 is the bottom (DSP_bot).
+        grid_bot = make_empty_tile("DSP_bot", pin_order_config={})
+        grid_top = make_empty_tile("DSP_top", pin_order_config={})
+        grid_bot.part_of_super_tile = True
+        grid_top.part_of_super_tile = True
+        plain = make_empty_tile("LUT", pin_order_config={})
+
+        fabric = make_fabric(
+            tile=[[grid_bot], [grid_top]],
+            numberOfColumns=1,
+            tileDic={
+                "DSP": composite,
+                "DSP_top": grid_top,
+                "DSP_bot": grid_bot,
+                "LUT": plain,
+            },
         )
+        return fabric, composite
 
-    def test_returns_supertile_for_member_tile(
+    def test_find_tile_positions_for_composite(
         self, make_fabric: Callable[..., Fabric]
     ) -> None:
-        super_tile = self._make_super_tile("SUPER_X", ["SUB_A", "SUB_B"])
-        fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
+        fabric, composite = self._fabric(make_fabric)
+        positions = fabric.find_tile_positions(composite)
+        # Both covered cells are reported: bottom (y=0) and top (y=1).
+        assert positions is not None
+        assert set(positions) == {(0, 0), (0, 1)}
 
-        assert fabric.get_super_tile_containing("SUB_A") is super_tile
-        assert fabric.get_super_tile_containing("SUB_B") is super_tile
-
-    def test_returns_none_for_non_member_tile(
+    def test_find_tile_positions_for_leaf(
         self, make_fabric: Callable[..., Fabric]
     ) -> None:
-        super_tile = self._make_super_tile("SUPER_X", ["SUB_A"])
-        fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
+        fabric, _ = self._fabric(make_fabric)
+        positions = fabric.find_tile_positions(fabric.tileDic["DSP_top"])
+        assert positions == [(0, 1)]
 
-        assert fabric.get_super_tile_containing("OTHER") is None
-
-    def test_returns_none_without_supertiles(
+    def test_get_all_unique_tiles_includes_composite_not_subtiles(
         self, make_fabric: Callable[..., Fabric]
     ) -> None:
-        fabric = make_fabric()
-
-        assert fabric.get_super_tile_containing("ANY") is None
+        fabric, _ = self._fabric(make_fabric)
+        names = {t.name for t in fabric.get_all_unique_tiles()}
+        # The composite and the standalone leaf are returned; the composite's
+        # sub-tiles (part_of_super_tile) are not.
+        assert names == {"DSP", "LUT"}

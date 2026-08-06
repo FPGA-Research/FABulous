@@ -16,7 +16,6 @@ from fabulous.fabric_definition.define import (
     MultiplexerStyle,
     Side,
 )
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
 
@@ -74,18 +73,12 @@ class Fabric:
         binary bitstream.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
-        the value is the tile.
-    superTileDic : dict[str, SuperTile]
-        A dictionary of super tiles used in the fabric. The key is the name of the
-        supertile and the value is the supertile.
+        the value is the tile. A former supertile is stored here as a composite
+        ``Tile`` keyed by its name.
     unusedTileDic: dict[str, Tile]
-        A dictionary of tiles that are not used in the fabric,
-        but defined in the fabric.csv.
-        The key is the name of the tile and the value is the tile.
-    unusedSuperTileDic : dict[str, SuperTile]
-        A dictionary of super tiles that are not used in the fabric,
-        but defined in the fabric.csv.
-        The key is the name of the tile and the value is the tile.
+        A dictionary of tiles (leaf or composite) that are defined in the
+        fabric.csv but not used in the fabric. The key is the name of the tile and
+        the value is the tile.
     commonWirePair : list[tuple[str, str]]
         A list of common wire pairs in the fabric.
     """
@@ -112,9 +105,7 @@ class Fabric:
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
-    superTileDic: dict[str, SuperTile] = field(default_factory=dict)
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
-    unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -160,42 +151,27 @@ class Fabric:
             raise ValueError("Due to bitstream limitations, desync_flag must be 20.")
 
         for tile in self.tileDic.values():
-            if len(tile.bels) > 26:
+            if tile.is_composite:
+                # A composite tile's wrapper BELs are emitted at its master
+                # sub-tile, sharing the BEL letter space (A, B, ...) with the
+                # master sub-tile's own BELs, so the two together must fit in
+                # 26 letters.
+                mx, my = tile.get_master_offset()
+                master_tile = tile.tile_map[my][mx]
+                if (
+                    master_tile is not None
+                    and len(master_tile.bels) + len(tile.bels) > 26
+                ):
+                    raise ValueError(
+                        "Due to naming limitations, composite tile "
+                        f"{tile.name} and its master sub-tile {master_tile.name} "
+                        "together cannot have more than 26 BELs."
+                    )
+            elif len(tile.bels) > 26:
                 raise ValueError(
                     "Due to naming limitations, "
                     f"tile {tile.name} cannot have more than 26 BELs."
                 )
-
-        # A supertile's BELs are emitted at its master tile, sharing the BEL
-        # letter space (A, B, ...) with the master tile's own BELs, so the two
-        # together must fit in 26 letters.
-        for superTile in self.superTileDic.values():
-            mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tile_map[my][mx]
-            if (
-                master_tile is not None
-                and len(master_tile.bels) + len(superTile.bels) > 26
-            ):
-                raise ValueError(
-                    "Due to naming limitations, supertile "
-                    f"{superTile.name} and its master tile {master_tile.name} "
-                    "together cannot have more than 26 BELs."
-                )
-
-        # SJUMP wires route a basic tile to a BEL hosted in its supertile's
-        # master tile; they are only meaningful inside a supertile. A tile that
-        # belongs to a supertile carries part_of_super_tile (set by the parser), so
-        # reject any SJUMP-declaring tile that is not flagged as such.
-        for row in self.tile:
-            for tile in row:
-                if tile is None:
-                    continue
-                if tile.get_sjump_ports() and not tile.part_of_super_tile:
-                    raise ValueError(
-                        f"Tile '{tile.name}' declares SJUMP wires but is not part "
-                        "of any supertile. SJUMP wires route to a supertile-hosted "
-                        "BEL and are only valid inside a supertile's tiles."
-                    )
 
         for row in self.tile:
             for tile in row:
@@ -338,103 +314,39 @@ class Fabric:
                             )
                 tile.wire_list = list(dict.fromkeys(tile.wire_list))
 
-        # SJUMP wire pass: for every supertile placement, add SJUMP wires from the
-        # child tiles to the master tile (forward) and back (reverse).
-        touched: set[tuple[int, int]] = set()
-        for base_fx, base_fy, superTile in self.iter_super_tile_placements():
-            tx_local, ty_local = superTile.get_master_tile_coords()
-            ftx = base_fx + tx_local
-            fty = base_fy + ty_local
-            master_tile = self.tile[fty][ftx]
-            if master_tile is None:
-                continue
+    def _composite_matches_grid(
+        self, composite: Tile, base_fx: int, base_fy: int
+    ) -> bool:
+        """Return whether a composite's ``tile_map`` matches the grid at the base.
 
-            for ly, st_row in enumerate(superTile.tile_map):
-                for lx, st_tile in enumerate(st_row):
-                    if st_tile is None:
-                        continue
-                    fy = base_fy + ly
-                    fx = base_fx + lx
-                    grid_tile = self.tile[fy][fx]
-
-                    for p in grid_tile.get_sjump_ports():
-                        if not p.is_output:
-                            continue
-                        for i in range(p.wire_count):
-                            grid_tile.wire_list.append(
-                                Wire(
-                                    direction=Direction.SJUMP,
-                                    source=f"{p.name}{i}",
-                                    x_offset=ftx - fx,
-                                    y_offset=fty - fy,
-                                    destination=f"{st_tile.name}_{p.name}{i}",
-                                    sourceTile=f"X{fx}Y{fy}",
-                                    destinationTile=f"X{ftx}Y{fty}",
-                                )
-                            )
-
-                    # Reverse: supertile SM output ({child_name}_{port}) back down to
-                    # the child tile's INPUT port. The source lives in the wrapper at
-                    # the master tile, so the wire is owned by the master.
-                    for p in grid_tile.get_sjump_ports():
-                        if not p.is_input:
-                            continue
-                        for i in range(p.wire_count):
-                            master_tile.wire_list.append(
-                                Wire(
-                                    direction=Direction.SJUMP,
-                                    source=f"{st_tile.name}_{p.name}{i}",
-                                    x_offset=fx - ftx,
-                                    y_offset=fy - fty,
-                                    destination=f"{p.name}{i}",
-                                    sourceTile=f"X{ftx}Y{fty}",
-                                    destinationTile=f"X{fx}Y{fy}",
-                                )
-                            )
-                    touched.add((fx, fy))
-                    touched.add((ftx, fty))
-
-        for fx, fy in touched:
-            tile = self.tile[fy][fx]
-            tile.wire_list = list(dict.fromkeys(tile.wire_list))
-
-    def iter_super_tile_placements(
-        self, superTile: SuperTile | None = None
-    ) -> Generator[tuple[int, int, SuperTile], None, None]:
-        """Yield `(base_fx, base_fy, superTile)` for every supertile placement.
-
-        Each supertile type's ``tile_map`` pattern is matched against the fabric
-        grid; ``(base_fx, base_fy)`` is the top-left corner of a match. Shared by
-        the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
-        locate supertile instances identically.
+        The composite ``tile_map`` is stored top row first while the fabric grid
+        ``self.tile`` is stored bottom row first, so the composite rows are walked
+        from the bottom up. ``(base_fx, base_fy)`` is the bottom-left corner of the
+        candidate placement in the fabric grid.
 
         Parameters
         ----------
-        superTile : SuperTile | None, optional
-            If given, only placements of this supertile are yielded; otherwise
-            every supertile type in the fabric is scanned.
+        composite : Tile
+            The composite tile whose ``tile_map`` pattern is matched.
+        base_fx : int
+            The column of the placement's bottom-left corner in the fabric grid.
+        base_fy : int
+            The row of the placement's bottom-left corner in the fabric grid.
 
-        Yields
-        ------
-        tuple[int, int, SuperTile]
-            The placement's top-left grid coordinates and the supertile there.
+        Returns
+        -------
+        bool
+            ``True`` if every composite cell matches the corresponding grid cell.
         """
-        candidates = (
-            [superTile] if superTile is not None else list(self.superTileDic.values())
-        )
-        for st in candidates:
-            for base_fy in range(len(self.tile) - st.max_height + 1):
-                for base_fx in range(len(self.tile[base_fy]) - st.max_width + 1):
-                    if self._matches_super_tile(st, base_fx, base_fy):
-                        yield base_fx, base_fy, st
-
-    def _matches_super_tile(
-        self, superTile: SuperTile, base_fx: int, base_fy: int
-    ) -> bool:
-        """Return whether ``superTile``'s tile_map matches the grid at the base."""
-        for ly, st_row in enumerate(superTile.tile_map):
+        rows = composite.tile_map
+        if rows is None:
+            return False
+        height = len(rows)
+        for ly, st_row in enumerate(rows):
+            # tile_map is top-first; the bottom row (ly == height - 1) lands on
+            # base_fy in the bottom-first fabric grid.
+            fy = base_fy + (height - 1 - ly)
             for lx, st_tile in enumerate(st_row):
-                fy = base_fy + ly
                 fx = base_fx + lx
                 grid_tile = self.tile[fy][fx]
                 if st_tile is None:
@@ -490,11 +402,12 @@ class Fabric:
             for x, tile in enumerate(row):
                 yield (x, y), tile
 
-    def getTileByName(self, name: str) -> Tile | SuperTile:
+    def getTileByName(self, name: str) -> Tile:
         """Get a tile by its name from the fabric.
 
-        Search for the tile first in the used tiles dictionary, then in the unused tiles
-        dictionary then in the supertiles if not found.
+        Search for the tile first in the used tiles dictionary, then in the unused
+        tiles dictionary. Composite tiles (former supertiles) live in the same
+        dictionaries keyed by their name.
 
         Parameters
         ----------
@@ -503,8 +416,8 @@ class Fabric:
 
         Returns
         -------
-        Tile | SuperTile
-            The tile or supertile object if found.
+        Tile
+            The (leaf or composite) tile object if found.
 
         Raises
         ------
@@ -515,53 +428,23 @@ class Fabric:
         if ret is None:
             ret = self.unusedTileDic.get(name)
         if ret is None:
-            ret = self.getSuperTileByName(name)  # Check if it's a supertile
-        if ret is None:
             raise KeyError(f"Tile {name} not found in fabric.")
         return ret
 
-    def getSuperTileByName(self, name: str) -> SuperTile:
-        """Get a supertile by its name from the fabric.
-
-        Searches for the supertile first in the used supertiles dictionary, then in the
-        unused supertiles dictionary if not found.
-
-        Parameters
-        ----------
-        name : str
-            The name of the supertile to retrieve.
-
-        Returns
-        -------
-        SuperTile
-            The super tile object if found.
-
-        Raises
-        ------
-        KeyError
-            If the super tile name is not found in either used or unused super tiles.
-        """
-        ret = self.superTileDic.get(name)
-        if ret is None:
-            ret = self.unusedSuperTileDic.get(name)
-        if ret is None:
-            raise KeyError(f"SuperTile {name} not found in fabric.")
-
-        return ret
-
     def getAllUniqueBels(self) -> list[Bel]:
-        """Get all unique BELs from all tiles and supertiles in the fabric.
+        """Get all unique BELs from all tiles in the fabric.
+
+        Includes wrapper BELs of composite tiles, which are stored on the
+        composite ``Tile.bels``.
 
         Returns
         -------
         list[Bel]
-            A list of all unique BELs across all tiles and supertiles.
+            A list of all BELs across all tiles.
         """
         bels = list()
         for tile in self.tileDic.values():
             bels.extend(tile.bels)
-        for superTile in self.superTileDic.values():
-            bels.extend(superTile.bels)
         return bels
 
     def getBelsByTileXY(self, x: int, y: int) -> list[Bel]:
@@ -594,45 +477,80 @@ class Fabric:
 
         return self.tile[y][x].bels
 
-    def find_tile_positions(
-        self, tile: Tile | SuperTile
-    ) -> list[tuple[int, int]] | None:
-        """Find all positions where a tile or supertile appears in the fabric grid.
+    def find_tile_positions(self, tile: Tile) -> list[tuple[int, int]] | None:
+        """Find all positions where a tile appears in the fabric grid.
+
+        For a composite tile the ``tile_map`` pattern is matched against the grid,
+        and every grid cell covered by a matching placement is reported. For a
+        leaf tile every grid cell with the same name is reported.
 
         Parameters
         ----------
-        tile : Tile | SuperTile
-            The tile or supertile to search for
+        tile : Tile
+            The (leaf or composite) tile to search for.
 
         Returns
         -------
         list[tuple[int, int]] | None
-            List of (x, y) positions where the tile/supertile appears,
-            or None if not found
+            List of (x, y) positions where the tile appears, or None if not found.
         """
         positions = []
-        if isinstance(tile, SuperTile):
-            # For SuperTiles, find where they appear
-            for y, row in enumerate(self.tile):
-                for x, fabric_tile in enumerate(row):
-                    if fabric_tile is None:
+        if tile.is_composite:
+            rows = tile.tile_map
+            if rows is None:
+                return None
+            height = len(rows)
+            for base_fy in range(len(self.tile) - height + 1):
+                for base_fx in range(len(self.tile[base_fy]) - tile.max_width + 1):
+                    if not self._composite_matches_grid(tile, base_fx, base_fy):
                         continue
-                    # Check if this fabric tile belongs to the supertile
-                    for st in self.superTileDic.values():
-                        if st == tile:
-                            # Check if fabric_tile is part of this supertile
-                            for st_row in st.tile_map:
-                                for st_tile in st_row:
-                                    if st_tile and st_tile.name == fabric_tile.name:
-                                        positions.append((x, y))
+                    # Report every covered grid cell (every non-None sub-tile).
+                    for ly, st_row in enumerate(rows):
+                        fy = base_fy + (height - 1 - ly)
+                        for lx, st_tile in enumerate(st_row):
+                            if st_tile is not None:
+                                positions.append((base_fx + lx, fy))
         else:
-            # For regular Tiles, find where they appear
             for y, row in enumerate(self.tile):
                 for x, fabric_tile in enumerate(row):
                     if fabric_tile and fabric_tile.name == tile.name:
                         positions.append((x, y))
 
         return positions or None
+
+    def find_composite_placement_origins(
+        self, composite: Tile
+    ) -> list[tuple[int, int]]:
+        """Find the bottom-left origin of each placement of a composite tile.
+
+        The composite ``tile_map`` pattern is matched against the grid via the same
+        scan as :meth:`find_tile_positions`, but instead of every covered cell only
+        the bottom-left corner ``(base_fx, base_fy)`` of each matching placement is
+        reported. This yields one origin per real placement, which is correct even
+        when the same composite is repeated contiguously (reconstructing origins
+        from the flattened covered-cell set would merge such placements).
+
+        Parameters
+        ----------
+        composite : Tile
+            The composite tile to locate.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            One ``(base_fx, base_fy)`` bottom-left origin per placement. Empty when
+            the composite has no ``tile_map`` or does not appear in the grid.
+        """
+        rows = composite.tile_map
+        if rows is None:
+            return []
+        height = len(rows)
+        origins: list[tuple[int, int]] = []
+        for base_fy in range(len(self.tile) - height + 1):
+            for base_fx in range(len(self.tile[base_fy]) - composite.max_width + 1):
+                if self._composite_matches_grid(composite, base_fx, base_fy):
+                    origins.append((base_fx, base_fy))
+        return origins
 
     def determine_border_side(self, x: int, y: int) -> Side | None:
         """Determine which border side a tile position is on, if any.
@@ -673,42 +591,24 @@ class Fabric:
 
         return None
 
-    def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
+    def get_all_unique_tiles(self) -> list[Tile]:
         """Get list of unique tile types used in the fabric.
 
-        Returns
-        -------
-        list[Tile | SuperTile]
-            List of unique tile types (one instance per type name)
-        """
-        result: list[Tile | SuperTile] = []
-
-        # Add all regular tiles from tileDic
-        result.extend([i for i in self.tileDic.values() if not i.part_of_super_tile])
-
-        # Add all SuperTiles from superTileDic
-        result.extend(self.superTileDic.values())
-
-        return result
-
-    def get_super_tile_containing(self, tile_name: str) -> SuperTile | None:
-        """Return the SuperTile that contains the named tile, if any.
-
-        Parameters
-        ----------
-        tile_name : str
-            Name of the (sub-)tile to look up.
+        Returns the leaf tiles that are not part of any composite, plus the
+        composite tiles themselves. Both kinds live in ``tileDic``; a composite
+        is identified by ``is_composite`` and a leaf belonging to a composite
+        carries ``part_of_super_tile``.
 
         Returns
         -------
-        SuperTile | None
-            The SuperTile whose constituent tiles include ``tile_name``, or None
-            if the tile is not part of any SuperTile.
+        list[Tile]
+            List of unique tile types (one instance per type name).
         """
-        for super_tile in self.superTileDic.values():
-            if any(tile.name == tile_name for tile in super_tile.tiles):
-                return super_tile
-        return None
+        return [
+            tile
+            for tile in self.tileDic.values()
+            if tile.is_composite or not tile.part_of_super_tile
+        ]
 
     def get_tile_row_column_indices(self, tile_name: str) -> tuple[set[int], set[int]]:
         """Get all row and column indices where a tile type appears.

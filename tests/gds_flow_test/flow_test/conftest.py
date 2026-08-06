@@ -16,7 +16,6 @@ from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
 # PDK track info content for realistic routing grid
@@ -145,6 +144,9 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     mock: MagicMock = mocker.MagicMock(spec=Tile)
     mock.name = "TestTile"
     mock.tile_dir = tile_dir
+    mock.is_composite = False
+    mock.max_width = 1
+    mock.max_height = 1
     mock.bels = []
     mock.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
 
@@ -153,22 +155,23 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
 
 @pytest.fixture
 def mock_supertile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
-    """Create a mock SuperTile object with realistic attributes."""
+    """Create a mock composite (former supertile) ``Tile`` with realistic attrs."""
     tile_dir: Path = tmp_path / "tiles" / "test_supertile"
     tile_dir.mkdir(parents=True)
 
-    # Create a Verilog file for the supertile
+    # Create a Verilog file for the composite tile
     verilog_file: Path = tile_dir.parent / "test.v"
     if not verilog_file.exists():
-        verilog_file.write_text("module TestSuperTile(); endmodule")
+        verilog_file.write_text("module TestComposite(); endmodule")
 
-    mock: MagicMock = mocker.MagicMock(spec=SuperTile)
-    mock.name = "TestSuperTile"
+    mock: MagicMock = mocker.MagicMock(spec=Tile)
+    mock.name = "TestComposite"
     mock.tile_dir = tile_dir
+    mock.is_composite = True
     mock.max_width = 4
     mock.max_height = 3
     mock.bels = []
-    mock.tiles = []
+    mock.get_sub_tiles.return_value = []
     mock.get_min_die_area.return_value = (Decimal("200.0"), Decimal("150.0"))
 
     return mock
@@ -215,7 +218,7 @@ def mock_fabric(mocker: MockerFixture) -> MagicMock:
     fabric.name = "TestFabric"
     fabric.numberOfRows = 2
     fabric.numberOfColumns = 2
-    fabric.superTileDic = {}
+    fabric.get_all_unique_tiles.return_value = []
     return fabric
 
 

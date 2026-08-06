@@ -29,7 +29,6 @@ from fabulous.fabric_cad.timing_model.models import (
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import ConfigBitMode, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
@@ -52,19 +51,10 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
-from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    generate_super_tile_config_mem,
-    generateConfigMem,
-)
+from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
-from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
-    gen_super_tile_switch_matrix,
-    genTileSwitchMatrix,
-)
-from fabulous.fabric_generator.gen_fabric.gen_tile import (
-    generateSuperTile,
-    generateTile,
-)
+from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
+from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile
 from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
@@ -153,7 +143,7 @@ class FABulous_API:
             List data to be converted.
         matrix : Path
             Destination `.csv` file (created or overwritten).
-        preserve_list_order : bool, optional
+        preserve_list_order : bool
             Keep the mux-input order (MSB-first) so the conversion is
             order-faithful; otherwise the reader falls back to column order.
             Defaults to False.
@@ -173,7 +163,7 @@ class FABulous_API:
             CSV matrix data to be converted.
         listFile : Path
             Destination `.list` file (created or overwritten).
-        preserve_list_order : bool, optional
+        preserve_list_order : bool
             Keep the cell-encoded mux-input order so the conversion is
             order-faithful; otherwise the reader falls back to column order.
             Defaults to False.
@@ -210,9 +200,11 @@ class FABulous_API:
             raise ValueError(f"Tile {tileName} not found")
 
     def genSwitchMatrix(self, tileName: str) -> None:
-        """Generate switch matrix RTL for the specified tile.
+        """Generate switch matrix for specified tile.
 
-        Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
+        Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'. The matrix is
+        taken from the tile's already-parsed ``switch_matrix``; leaf `.list`
+        tiles were canonicalised to CSV when the fabric was loaded.
 
         Parameters
         ----------
@@ -286,113 +278,6 @@ class FABulous_API:
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSuperTile(
-        self,
-        tileName: str,
-        frame_bit_per_row: int | None = None,
-        max_frame_per_col: int | None = None,
-        disable_user_clk: bool | None = None,
-        config_bit_mode: ConfigBitMode | None = None,
-    ) -> None:
-        """Generate a super tile based on its name.
-
-        Using 'generateSuperTile' defined in 'fabric_gen.py'.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the super tile generated.
-        frame_bit_per_row : int | None
-            Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
-            from ``self.fabric`` is used.
-        max_frame_per_col : int | None
-            Override for the fabric's ``maxFramesPerCol``. If ``None``, the value
-            from ``self.fabric`` is used.
-        disable_user_clk : bool | None
-            Override for the fabric's ``disableUserCLK``. If ``None``, the value
-            from ``self.fabric`` is used.
-        config_bit_mode : ConfigBitMode | None
-            Override for the fabric's ``configBitMode``. If ``None``, the value
-            from ``self.fabric`` is used.
-
-        Raises
-        ------
-        ValueError
-            If super tile is not found in fabric.
-        """
-        if tile := self.fabric.getSuperTileByName(tileName):
-            generateSuperTile(
-                self.writer,
-                tile,
-                frame_bit_per_row or self.fabric.frameBitsPerRow,
-                max_frame_per_col or self.fabric.maxFramesPerCol,
-                disable_user_clk or self.fabric.disableUserCLK,
-                config_bit_mode or self.fabric.configBitMode,
-            )
-        else:
-            raise ValueError(f"SuperTile {tileName} not found")
-
-    def gen_super_tile_switch_matrix(self, tileName: str) -> None:
-        """Generate the switch matrix RTL for a supertile.
-
-        Only has an effect when the supertile directory contains a
-        `supertile_matrix.csv` or `supertile_matrix.list` file.  If no such
-        file exists the call is a no-op.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the super tile.
-
-        Raises
-        ------
-        ValueError
-            If the super tile is not found in the fabric.
-        """
-        if tile := self.fabric.getSuperTileByName(tileName):
-            gen_super_tile_switch_matrix(
-                self.writer,
-                tile,
-                config_bit_mode=self.fabric.configBitMode,
-                multiplexer_style=self.fabric.multiplexerStyle,
-                default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
-            )
-        else:
-            raise ValueError(f"SuperTile {tileName} not found")
-
-    def gen_super_tile_config_mem(self, tileName: str) -> None:
-        """Generate the ConfigMem RTL for a supertile.
-
-        Uses the free slots in the master tile's frame space to place the
-        supertile SM and BEL config bits.  No-op when the supertile has no
-        config bits.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the super tile.
-
-        Raises
-        ------
-        ValueError
-            If the super tile is not found in the fabric.
-        """
-        if tile := self.fabric.getSuperTileByName(tileName):
-            mx, my = tile.get_master_tile_coords()
-            master_tile = tile.tile_map[my][mx]
-            master_config_mem_csv = (
-                master_tile.tile_dir.parent / f"{master_tile.name}_ConfigMem.csv"
-            )
-            generate_super_tile_config_mem(
-                self.writer,
-                tile,
-                master_config_mem_csv,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
-            )
-        else:
-            raise ValueError(f"SuperTile {tileName} not found")
-
     def genFabric(self) -> None:
         """Generate the entire fabric layout.
 
@@ -448,10 +333,8 @@ class FABulous_API:
         """
         return self.fabric.getAllUniqueBels()
 
-    def getTile(
-        self, tileName: str, raises_on_miss: bool = False
-    ) -> Tile | SuperTile | None:
-        """Return 'Tile' or 'SuperTile' object based on 'tileName'.
+    def getTile(self, tileName: str, raises_on_miss: bool = False) -> Tile | None:
+        """Return the leaf or composite 'Tile' object based on 'tileName'.
 
         Parameters
         ----------
@@ -462,8 +345,9 @@ class FABulous_API:
 
         Returns
         -------
-        Tile | SuperTile | None
-            'Tile' or 'SuperTile' object based on tile name, or 'None' if not found.
+        Tile | None
+            The (leaf or composite) 'Tile' object based on tile name, or 'None'
+            if not found.
 
         Raises
         ------
@@ -487,46 +371,6 @@ class FABulous_API:
             Collection of all Tile objects in the fabric.
         """
         return self.fabric.tileDic.values()
-
-    def getSuperTile(
-        self, tileName: str, raises_on_miss: bool = False
-    ) -> SuperTile | None:
-        """Return 'SuperTile' object based on 'tileName'.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the SuperTile.
-        raises_on_miss : bool, optional
-            Whether to raise an error if the supertile is not found, by default 'False'.
-
-        Returns
-        -------
-        SuperTile | None
-            SuperTile object based on tile name, or None if not found.
-
-        Raises
-        ------
-        KeyError
-            If the supertile specified by 'tileName' is not found and 'raises_on_miss'
-            is 'True'.
-        """
-        try:
-            return self.fabric.getSuperTileByName(tileName)
-        except KeyError as e:
-            if raises_on_miss:
-                raise KeyError from e
-            return None
-
-    def getSuperTiles(self) -> Iterable[SuperTile]:
-        """Return all SuperTiles within a fabric.
-
-        Returns
-        -------
-        Iterable[SuperTile]
-            Collection of all SuperTile objects in the fabric.
-        """
-        return self.fabric.superTileDic.values()
 
     def generateUserDesignTopWrapper(self, userDesign: Path, topWrapper: Path) -> None:
         """Generate the top wrapper for the user design.
@@ -617,18 +461,19 @@ class FABulous_API:
 
     def gen_io_pin_order_config(
         self,
-        tile: Tile | SuperTile,
+        tile: Tile,
         outfile: Path,
         prefix: str = "",
         *,
         external_port_side: Side = Side.SOUTH,
     ) -> None:
-        """Generate IO pin order configuration YAML for a tile or super tile.
+        """Generate IO pin order configuration YAML for a leaf or composite tile.
 
         Parameters
         ----------
-        tile : Tile | SuperTile
-            The fabric element for which to generate the configuration.
+        tile : Tile
+            The (leaf or composite) fabric element for which to generate the
+            configuration.
         outfile : Path
             Output YAML path.
         prefix : str

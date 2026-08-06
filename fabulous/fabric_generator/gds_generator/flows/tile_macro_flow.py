@@ -10,7 +10,6 @@ from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
 from librelane.logging.logger import err, info
 
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     check_steps,
@@ -63,7 +62,7 @@ class FABulousTileMacroFlow(SequentialFlow):
 
     def __init__(
         self,
-        tile_type: Tile | SuperTile,
+        tile_type: Tile,
         io_pin_config: Path,
         opt_mode: OptMode,
         pdk: str,
@@ -96,20 +95,16 @@ class FABulousTileMacroFlow(SequentialFlow):
 
         # Collect out of tree Bels
         bels = list(tile_type.bels)
-        if isinstance(tile_type, SuperTile):
-            for sub_tile in tile_type.tiles:
+        if tile_type.is_composite:
+            for sub_tile in tile_type.get_sub_tiles():
                 bels.extend(sub_tile.bels)
         for bel in bels:
             if (bel_path := str(bel.src)) not in file_list:
                 file_list.append(bel_path)
 
-        # Determine logical dimensions
-        if isinstance(tile_type, SuperTile):
-            logical_width = tile_type.max_width
-            logical_height = tile_type.max_height
-        else:
-            logical_width = 1
-            logical_height = 1
+        # Determine logical dimensions (a leaf tile reports 1x1).
+        logical_width = tile_type.max_width
+        logical_height = tile_type.max_height
 
         # casting opt_mode
         opt_mode = OptMode(opt_mode)
@@ -225,7 +220,7 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
 
 def _apply_tile_die_area_config(
     config: GenericDict[str, object],
-    tile_type: Tile | SuperTile,
+    tile_type: Tile,
     opt_mode: OptMode | None = None,
 ) -> GenericDict[str, object]:
     """Populate and validate tile `DIE_AREA` using the routing pitch."""

@@ -71,12 +71,17 @@ class DummyFabric:
 class DummyTile:
     def __init__(self, name: object) -> None:
         self.name = name
+        self.is_composite = False
 
 
-class DummySuperTile:
-    def __init__(self, name: object, tiles: object) -> None:
+class DummyCompositeTile:
+    def __init__(self, name: object, tiles: list[DummyTile]) -> None:
         self.name = name
         self.tiles = tiles
+        self.is_composite = True
+
+    def get_sub_tiles(self) -> list[DummyTile]:
+        return self.tiles
 
 
 class DummySynthTool:
@@ -179,8 +184,6 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
 def test_init_sets_attributes_and_calls_helpers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
-
     called = {"init_tm": 0, "extract": 0}
 
     def fake_init_tm(self: FABulousTileTimingModel) -> None:
@@ -223,9 +226,8 @@ def test_init_sets_attributes_and_calls_helpers(
 
 
 def test_get_unique_tile_name_regular_tile_keeps_name(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+    bare_model: FABulousTileTimingModel,
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
     bare_model.fabric = DummyFabric([DummyTile("OTHER")])
 
     bare_model._get_unique_tile_name()  # noqa: SLF001
@@ -235,10 +237,9 @@ def test_get_unique_tile_name_regular_tile_keeps_name(
 
 
 def test_get_unique_tile_name_inside_supertile(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+    bare_model: FABulousTileTimingModel,
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
-    st = DummySuperTile("SUPER_X", [DummyTile("TILE_A"), DummyTile("TILE_B")])
+    st = DummyCompositeTile("SUPER_X", [DummyTile("TILE_A"), DummyTile("TILE_B")])
     bare_model.fabric = DummyFabric([st])
 
     bare_model._get_unique_tile_name()  # noqa: SLF001
@@ -815,7 +816,8 @@ def test_extract_switch_matrix_info_regular_multiple_raises(
 
     with pytest.raises(
         ValueError,
-        match="Multiple switch matrix instances or modules found for a non-SuperTile",
+        match="Multiple switch matrix instances or modules found for a non-composite "
+        "tile.",
     ):
         bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
@@ -861,7 +863,7 @@ def test_extract_switch_matrix_info_supertile_none_raises(
 
     with pytest.raises(
         ValueError,
-        match="No switch matrix instance or module found for SuperTile SUPER_X",
+        match="No switch matrix instance or module found for composite tile SUPER_X",
     ):
         bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
@@ -885,7 +887,7 @@ def test_extract_switch_matrix_info_supertile_multiple_raises(
         ValueError,
         match=(
             "Multiple switch matrix instances or modules found Tile TILE_A "
-            "in SuperTile SUPER_X"
+            "in composite tile SUPER_X."
         ),
     ):
         bare_model._extract_switch_matrix_info()  # noqa: SLF001

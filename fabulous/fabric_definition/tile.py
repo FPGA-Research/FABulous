@@ -202,39 +202,20 @@ class Tile:
             ports = [p for p in ports if p.io_direction == io]
         return ports
 
-    def get_sjump_ports(self) -> list[TilePort]:
-        """Get all ports with SJUMP wire direction.
-
-        SJUMP ports are one-way connections between the tile and a supertile
-        BEL: OUTPUT ports exit toward the supertile switch matrix, INPUT ports
-        receive results back. Both directions are returned; callers filter by
-        `in_out` as needed.
-
-        Returns
-        -------
-        list[TilePort]
-            List of SJUMP-direction ports, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.wire_direction == Direction.SJUMP and not p.name_is_null
-        ]
-
     def get_tile_output_names(self) -> list[str]:
         """Get all output port source names for the tile.
 
         Returns
         -------
         list[str]
-            List of source names for output ports, excluding NULL, JUMP, and
-            SJUMP direction ports.
+            List of source names for output ports, excluding NULL and JUMP
+            direction ports.
         """
         return [
             p.source_name
             for p in self.ports_info
             if p.source_name != "NULL"
-            and p.wire_direction not in (Direction.JUMP, Direction.SJUMP)
+            and p.wire_direction != Direction.JUMP
             and p.is_output
         ]
 
