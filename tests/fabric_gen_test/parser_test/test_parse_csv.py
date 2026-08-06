@@ -2,27 +2,30 @@
 
 import pytest
 
-from fabulous.custom_exception import InvalidPortType
+from fabulous.custom_exception import InvalidPortType, InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 
-# (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
+# (kind, OUTPUT/start side, INPUT/end side, unit x_offset, unit y_offset) with a
+# canonical bottom-left unit offset for the direction (north is +y, east is +x).
 DIRECTIONAL_CASES = [
-    ("NORTH", Side.NORTH, Side.SOUTH),
-    ("SOUTH", Side.SOUTH, Side.NORTH),
-    ("EAST", Side.EAST, Side.WEST),
-    ("WEST", Side.WEST, Side.EAST),
+    ("NORTH", Side.NORTH, Side.SOUTH, 0, 1),
+    ("SOUTH", Side.SOUTH, Side.NORTH, 0, -1),
+    ("EAST", Side.EAST, Side.WEST, 1, 0),
+    ("WEST", Side.WEST, Side.EAST, -1, 0),
 ]
 
 
 class TestDirectionalPorts:
     """NORTH/SOUTH/EAST/WEST lines produce an OUTPUT/INPUT port pair."""
 
-    @pytest.mark.parametrize(("kind", "startSide", "endSide"), DIRECTIONAL_CASES)
+    @pytest.mark.parametrize(
+        ("kind", "startSide", "endSide", "x_off", "y_off"), DIRECTIONAL_CASES
+    )
     def test_two_ports_with_expected_io_and_sides(
-        self, kind: str, startSide: Side, endSide: Side
+        self, kind: str, startSide: Side, endSide: Side, x_off: int, y_off: int
     ) -> None:
-        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,0,-1,N1END,4")
+        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,{x_off},{y_off},N1END,4")
 
         assert len(ports) == 2
         output, input_ = ports
@@ -37,17 +40,50 @@ class TestDirectionalPorts:
 
         assert commonWirePair == ("N1BEG", "N1END")
 
-    @pytest.mark.parametrize("kind", [c[0] for c in DIRECTIONAL_CASES])
-    def test_shared_attributes_carry_through(self, kind: str) -> None:
-        ports, _ = parse_port_line(f"{kind},N2BEG,0,-2,N2END,8")
+    @pytest.mark.parametrize(
+        ("kind", "x_off", "y_off"), [(c[0], c[3], c[4]) for c in DIRECTIONAL_CASES]
+    )
+    def test_shared_attributes_carry_through(
+        self, kind: str, x_off: int, y_off: int
+    ) -> None:
+        ports, _ = parse_port_line(f"{kind},N2BEG,{x_off * 2},{y_off * 2},N2END,8")
 
         for port in ports:
             assert port.wire_direction is Direction[kind]
             assert port.source_name == "N2BEG"
             assert port.destination_name == "N2END"
-            assert port.x_offset == 0
-            assert port.y_offset == -2
+            assert port.x_offset == x_off * 2
+            assert port.y_offset == y_off * 2
             assert port.wire_count == 8
+
+    @pytest.mark.parametrize(
+        ("kind", "x_off", "y_off"), [(c[0], c[3], c[4]) for c in DIRECTIONAL_CASES]
+    )
+    def test_legacy_top_first_offset_is_normalized(
+        self, kind: str, x_off: int, y_off: int
+    ) -> None:
+        """Legacy top-first offsets parse to the same bottom-left model.
+
+        Pre-bottom-left fabric definitions authored NORTH/SOUTH with the
+        opposite y sign. The direction token is authoritative, so the sign is
+        derived from it and the authored one is ignored, leaving existing
+        projects readable without change.
+        """
+        # Feed the sign-flipped (legacy) offset; expect the canonical one back.
+        ports, _ = parse_port_line(f"{kind},N1BEG,{-x_off},{-y_off},N1END,4")
+
+        for port in ports:
+            assert port.x_offset == x_off
+            assert port.y_offset == y_off
+
+    @pytest.mark.parametrize(
+        "bad_line",
+        ["NORTH,N1BEG,1,1,N1END,4", "EAST,E1BEG,1,1,E1END,4"],
+    )
+    def test_diagonal_cardinal_wire_rejected(self, bad_line: str) -> None:
+        """A cardinal wire with a non-zero orthogonal offset is rejected."""
+        with pytest.raises(InvalidSwitchMatrixDefinition):
+            parse_port_line(bad_line)
 
     def test_null_destination_keeps_name_and_pairs(self) -> None:
         ports, commonWirePair = parse_port_line("SOUTH,S4BEG,0,4,NULL,4")
