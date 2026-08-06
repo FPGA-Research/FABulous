@@ -7,7 +7,7 @@ tasks:
     desc: Clean and build the documentation
     dir: docs
     cmds:
-      - uv sync
+      - uv sync --project .. --group docs
       - make clean
       - make html
 
@@ -15,9 +15,9 @@ tasks:
     desc: Run the documentation live-reload server
     dir: docs
     cmds:
-      - uv sync
+      - uv sync --project .. --group docs
       - make clean
-      - uv run --directory . make livehtml
+      - make livehtml
 
   smoke-test:
     desc: Create the demo project and run the simulation flow

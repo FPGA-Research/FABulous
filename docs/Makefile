@@ -3,8 +3,11 @@
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
+# The docs share the repository-root environment; `--project ..` keeps uv
+# pointed at the single pyproject.toml/uv.lock pair while make runs in docs/.
+UVRUN         ?= uv run --project .. --group docs --quiet
 SPHINXOPTS    ?= -q -n
-SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
+SPHINXBUILD   ?= $(UVRUN) sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
 PACKAGEDIR    = ../FABulous
@@ -25,9 +28,7 @@ help:
 # Setup uv environment and install dependencies
 setup:
 	@echo "Setting up uv environment for documentation..."
-	uv sync
-	@echo "Installing FABulous package in editable mode..."
-	uv pip install -e ..
+	uv sync --project .. --group docs
 	@echo "Documentation environment ready!"
 
 # Build HTML documentation
@@ -53,7 +54,7 @@ serve:
 # Live reload development server
 livehtml: setup
 	@echo "Starting live documentation server..."
-	uv run --directory . sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
+	$(UVRUN) sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
 
 # Clean build directory and generated API docs
 clean:
