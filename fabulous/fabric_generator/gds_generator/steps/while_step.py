@@ -4,17 +4,27 @@ Will be replaced into librelane eventually.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from librelane.common.misc import slugify
+from librelane.config.variable import Variable
 from librelane.flows.flow import FlowProgressBar
 from librelane.logging.logger import warn
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
-if TYPE_CHECKING:
-    from librelane.config.variable import Variable
+from fabulous.fabric_generator.gds_generator.steps.step_substitution import (
+    apply_step_substitutions,
+)
+
+_SUBSTITUTE_STEPS_VAR = Variable(
+    "FABULOUS_LOOP_SUBSTITUTE_STEPS",
+    dict,
+    "Substitutions to apply to this step's internal loop body, using the same "
+    "syntax as LibreLane's `meta.substituting_steps`: a bare step id replaces, "
+    "`+id` appends after, `-id` prepends before, and a `null` value removes.",
+    default=None,
+)
 
 
 class WhileStep(Step):
@@ -62,6 +72,7 @@ class WhileStep(Step):
             Self.outputs = list(output_set)
         if Self.config_vars:
             config_var_dict.update({v.name: v for v in Self.config_vars})
+        config_var_dict.setdefault(_SUBSTITUTE_STEPS_VAR.name, _SUBSTITUTE_STEPS_VAR)
         Self.config_vars = list(config_var_dict.values())
 
     def condition(self, _state: State) -> bool:
@@ -105,7 +116,11 @@ class WhileStep(Step):
         total_metrics_update: dict = {}
         progress_bar = FlowProgressBar(self.name)
 
-        ordinal_length = len(str(len(self.Steps) - 1))
+        loop_steps = self.Steps
+        if substitutions := self.config.get(_SUBSTITUTE_STEPS_VAR.name):
+            loop_steps = apply_step_substitutions(loop_steps, substitutions)
+
+        ordinal_length = len(str(len(loop_steps) - 1))
         start_state = state_in.copy()
         progress_bar.start()
         progress_bar.set_max_stage_count(self.max_iterations)
@@ -117,7 +132,7 @@ class WhileStep(Step):
             current_state = self.pre_iteration_callback(current_state)
             full_iter_completed = False
             # loop body
-            for si, cStep in enumerate(self.Steps):
+            for si, cStep in enumerate(loop_steps):
                 step = cStep(self.config, current_state)
                 try:
                     self._current_iter_dir = Path(self.step_dir) / f"iter_{i}"

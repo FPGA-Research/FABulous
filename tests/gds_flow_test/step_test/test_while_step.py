@@ -26,6 +26,19 @@ class _InnerStep(Step):
         return {}, {}
 
 
+class _ReplacementStep(Step):
+    """Marker sub-step used to verify config-driven step substitution."""
+
+    id = "Test.Replacement"
+    name = "Replacement"
+    inputs = []  # noqa: RUF012
+    outputs = []  # noqa: RUF012
+    config_vars = []  # noqa: RUF012
+
+    def run(self, state_in: State, **kwargs: dict) -> tuple[dict, dict]:  # noqa: D102, ARG002
+        return {}, {}
+
+
 class TestWhileStep:
     """Test suite for WhileStep base class."""
 
@@ -149,3 +162,47 @@ class TestWhileStep:
         views_update, metrics_update = step.run(mock_state)
         assert views_update == {}
         assert metrics_update == {}
+
+    def test_substitute_steps_replaces_loop_body_step(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mocker: MockerFixture,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        """FABULOUS_LOOP_SUBSTITUTE_STEPS swaps a step inside the loop body.
+
+        Config-driven substitution reaches WhileStep's internal Steps list, the
+        gap LibreLane's meta.substituting_steps cannot cross since it only
+        walks a flow's top-level Steps.
+        """
+
+        class SubstitutableWhileStep(WhileStep):
+            Steps = [_InnerStep]  # noqa: RUF012
+            outputs = []  # noqa: RUF012
+            max_iterations = 1
+
+        config = Config(
+            dict(
+                mock_config,
+                FABULOUS_LOOP_SUBSTITUTE_STEPS={"Test.Inner": _ReplacementStep},
+            )
+        )
+        inner_start = mocker.patch.object(_InnerStep, "start")
+        replacement_start = mocker.patch.object(
+            _ReplacementStep, "start", return_value=mock_state
+        )
+
+        mocker.patch.object(Config, "dumps", return_value="{}")
+        mocker.patch("pathlib.Path.write_text")
+
+        step = SubstitutableWhileStep(config)
+        step.config = config
+        step.step_dir = str(tmp_path)
+        step.toolbox = mocker.MagicMock()
+        step.name = "SubstitutableWhileStep"
+
+        step.run(mock_state)
+
+        inner_start.assert_not_called()
+        replacement_start.assert_called_once()
