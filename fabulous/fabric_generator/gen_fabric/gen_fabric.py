@@ -91,12 +91,12 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 for bel in tile.bels:
-                    for i in bel.externalInput:
+                    for i in bel.external_input:
                         writer.addPortScalar(
                             f"Tile_X{x}Y{y}_{i}", IO.INPUT, indentLevel=2
                         )
                         writer.addComment("EXTERNAL", onNewLine=False)
-                    for i in bel.externalOutput:
+                    for i in bel.external_output:
                         writer.addPortScalar(
                             f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2
                         )
@@ -106,10 +106,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # child tile); declare them at the wrapper's anchor coordinates.
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
-            for i in bel.externalInput:
+            for i in bel.external_input:
                 writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
                 writer.addComment("EXTERNAL", onNewLine=False)
-            for i in bel.externalOutput:
+            for i in bel.external_output:
                 writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.OUTPUT, indentLevel=2)
                 writer.addComment("EXTERNAL", onNewLine=False)
 
@@ -355,24 +355,24 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             )
             for i, j in tileLocationOffset:
                 for b in fabric.tile[y + j][x + i].bels:
-                    for p in b.externalInput:
+                    for p in b.external_input:
                         portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 
-                    for p in b.externalOutput:
+                    for p in b.external_output:
                         portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 
                     if not fabric.disableUserCLK:
-                        for p in b.sharedPort:
-                            if "UserCLK" not in p[0]:
-                                portsPairs.append(("UserCLK", p[0]))
+                        for p in b.shared_port:
+                            if "UserCLK" not in p.name:
+                                portsPairs.append(("UserCLK", p.name))
 
             # supertile-level BEL external ports: connect the wrapper's external
             # ports to the top-level nets declared at the anchor coordinates.
             if superTile:
                 for b in superTile.bels:
-                    for p in b.externalInput:
+                    for p in b.external_input:
                         portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
-                    for p in b.externalOutput:
+                    for p in b.external_output:
                         portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
 
             if not fabric.disableUserCLK:

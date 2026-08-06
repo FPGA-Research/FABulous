@@ -135,18 +135,19 @@ def belLines(
     if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
         cType = "FABULOUS_LC"
     v1_line = (
-        f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel.inputs + bel.outputs)}"
+        f"X{x}Y{y},X{x},Y{y},{letter},{cType},"
+        f"{','.join(bel.input_names + bel.output_names)}"
     )
-    inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
-    outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
+    inputs = [p.removeprefix(bel.prefix) for p in bel.input_names]
+    outputs = [p.removeprefix(bel.prefix) for p in bel.output_names]
 
     def block(timing: bool) -> list[str]:
         lines = [f"BelBegin,X{x}Y{y},{letter},{cType},{bel.prefix}"]
-        for inp, stripped in zip(bel.inputs, inputs, strict=True):
+        for inp, stripped in zip(bel.input_names, inputs, strict=True):
             lines.append(f"I,{stripped},X{x}Y{y}.{inp}")
-        for outp, stripped in zip(bel.outputs, outputs, strict=True):
+        for outp, stripped in zip(bel.output_names, outputs, strict=True):
             lines.append(f"O,{stripped},X{x}Y{y}.{outp}")
-        for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
+        for feat, _cfg in sorted(bel.bel_feature_map.items(), key=lambda x: x[0]):
             lines.append(f"CFG,{feat}")
         if timing and cType == "FABULOUS_LC":
             lutInputs = [p for p in inputs if p.startswith("I") and p[1:].isdigit()]
@@ -174,7 +175,7 @@ def belLines(
             for p in outputs:
                 if p.startswith("O") and p[1:].isdigit():
                     lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")
-        if bel.withUserCLK:
+        if bel.with_user_clock:
             lines.append("GlobalClk")
         lines.append("BelEnd")
         return lines

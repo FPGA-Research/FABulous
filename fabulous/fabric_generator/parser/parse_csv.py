@@ -3,7 +3,6 @@
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -16,6 +15,7 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
     IO,
     SWITCH_MATRIX_CONSTANTS,
@@ -35,11 +35,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
     generateSwitchmatrixList,
 )
-from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.bel import Bel
 
 
 def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
@@ -330,19 +326,19 @@ def parseTilesCSV(
                         raise InvalidTileDefinition(
                             "LOCAL SHARED_ Ports can only be used with JUMP ports."
                         )
-                    localShared = temp[6].split("_")[1]
-                    if localShared is None or localShared == "":
+                    local_shared = temp[6].split("_")[1]
+                    if local_shared is None or local_shared == "":
                         raise InvalidTileDefinition("SHARED_ cannot be empty.")
-                    if localShared not in ["RESET", "ENABLE"]:
+                    if local_shared not in ["RESET", "ENABLE"]:
                         raise InvalidTileDefinition(
-                            f"LOCAL SHARED_ port {localShared} is not supported. "
+                            f"LOCAL SHARED_ port {local_shared} is not supported. "
                             "Only SHARED_RESET and SHARED_ENABLE are supported."
                         )
-                    if localShared not in localSharedPorts:
-                        localSharedPorts[localShared] = port
+                    if local_shared not in localSharedPorts:
+                        localSharedPorts[local_shared] = port
                     else:
                         raise InvalidTileDefinition(
-                            f"LOCAL SHARED_ port {localShared} already exists."
+                            f"LOCAL SHARED_ port {local_shared} already exists."
                         )
 
                 ports.extend(port)
@@ -357,7 +353,7 @@ def parseTilesCSV(
                     or temp[1].endswith(".v")
                     or temp[1].endswith(".sv")
                 ):
-                    bels.append(parseBelFile(belFilePath, bel_prefix))
+                    bels.append(Bel.from_hdl(belFilePath, bel_prefix))
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl, .v, or .sv file. "
@@ -370,7 +366,7 @@ def parseTilesCSV(
                     addBelsToPrim(primsFile, [bels[-1]])
 
             elif temp[0] == "GEN_IO":
-                configBit = 0
+                config_bit = 0
                 configAccess = False
                 inverted = False
                 clocked = False
@@ -397,7 +393,7 @@ def parseTilesCSV(
                                 f"but is {temp[2]}"
                             )
                         configAccess = True
-                        configBit = int(temp[1])
+                        config_bit = int(temp[1])
                     elif param == "INVERTED":
                         inverted = True
                     elif param == "CLOCKED":
@@ -406,7 +402,7 @@ def parseTilesCSV(
                         clockedComb = True
                     elif param == "CLOCKED_MUX":
                         clockedMux = True
-                        configBit = int(temp[1])
+                        config_bit = int(temp[1])
                     elif param is None or param == "":
                         continue
                     else:
@@ -432,7 +428,7 @@ def parseTilesCSV(
                             temp[3],
                             int(temp[1]),
                             IO[temp[2]],
-                            configBit,
+                            config_bit,
                             configAccess,
                             inverted,
                             clocked,
@@ -505,7 +501,7 @@ def parseTilesCSV(
                     "BEL, GEN_IO, MATRIX, and INCLUDE."
                 )
 
-        withUserCLK = any(bel.withUserCLK for bel in bels)
+        withUserCLK = any(bel.with_user_clock for bel in bels)
 
         if matrixDir is None:
             raise InvalidTileDefinition(
@@ -646,7 +642,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
             if line[0] == "BEL":
                 belFilePath = filePath.joinpath(line[1])
-                bels.append(parseBelFile(belFilePath, line[2] if len(line) > 2 else ""))
+                bels.append(Bel.from_hdl(belFilePath, line[2] if len(line) > 2 else ""))
                 continue
             if line[0] == "MATRIX":
                 # The supertile switch matrix is given by this line's path,
@@ -693,7 +689,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 master_set = True
             tileMap.append(row)
 
-        withUserCLK = any(bel.withUserCLK for bel in bels)
+        withUserCLK = any(bel.with_user_clock for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
         # consumers use `tileDir.parent` for the supertile's directory.
         super_tile = SuperTile(

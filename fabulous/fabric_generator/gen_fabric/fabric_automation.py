@@ -19,7 +19,6 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_settings import get_context
 
@@ -122,10 +121,10 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     has_reset = False
     has_enable = False
     for file in tile_bels:
-        bel = parseBelFile(file, "")
-        if "RESET" in bel.localShared:
+        bel = Bel.from_hdl(file, "")
+        if "RESET" in bel.local_shared:
             has_reset = True
-        if "ENABLE" in bel.localShared:
+        if "ENABLE" in bel.local_shared:
             has_enable = True
         for carry in bel.carry:
             if carry not in tile_carrys:
@@ -198,11 +197,11 @@ def generateSwitchmatrixList(
     ) as dummy_file_path:
         CLBDummyFile = dummy_file_path
 
-    belIns = sum((bel.inputs for bel in bels), [])
-    belOuts = sum((bel.outputs for bel in bels), [])
+    belIns = sum(([p.name for p in bel.inputs] for bel in bels), [])
+    belOuts = sum(([p.name for p in bel.outputs] for bel in bels), [])
     belCarrys = [bel.carry for bel in bels]
     portPairs = parseList(CLBDummyFile)
-    belLocalSharedPorts = [bel.localShared for bel in bels]
+    belLocalSharedPorts = [bel.local_shared for bel in bels]
 
     # build carryports datastructure and
     # remove carrys from bel ports for further processing
@@ -229,11 +228,11 @@ def generateSwitchmatrixList(
 
     # Remove local shared ports from bel ports for further processing
     for bel in belLocalSharedPorts:
-        for belType in bel:
-            if bel[belType][0] in belIns:
-                belIns.remove(bel[belType][0])
-            if bel[belType][0] in belOuts:
-                belOuts.remove(bel[belType][0])
+        for bel_type in bel:
+            if bel[bel_type][0] in belIns:
+                belIns.remove(bel[bel_type][0])
+            if bel[bel_type][0] in belOuts:
+                belOuts.remove(bel[bel_type][0])
 
     if len(belIns) > 32:
         raise ValueError(
@@ -441,14 +440,14 @@ def addBelsToPrim(
             first = True
 
             # ports contain the bel prefix, but this is not needed in the prims file
-            inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
-            outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
-            shared_ports = [p.removeprefix(bel.prefix) for p, _ in bel.sharedPort]
+            inputs = [p.name.removeprefix(bel.prefix) for p in bel.inputs]
+            outputs = [p.name.removeprefix(bel.prefix) for p in bel.outputs]
+            shared_ports = [p.name.removeprefix(bel.prefix) for p in bel.shared_port]
             external_inputs: list[str] = []
             external_outputs: list[str] = []
-            for external_port in bel.externalInput:
+            for external_port in bel.external_input:
                 external_inputs.append(external_port.removeprefix(bel.prefix))
-            for external_port in bel.externalOutput:
+            for external_port in bel.external_output:
                 external_outputs.append(external_port.removeprefix(bel.prefix))
             external_ports = external_inputs + external_outputs
 
@@ -514,7 +513,12 @@ def addBelsToPrim(
                             modline += f"    output {port}"
 
                     if port in shared_ports:
-                        direction = dict(bel.sharedPort)[port]
+                        # Find the SharedPort by matching the port name
+                        direction = next(
+                            p.io_direction
+                            for p in bel.shared_port
+                            if p.name.removeprefix(bel.prefix) == port
+                        )
                         if port == "UserCLK":
                             # Rename UserCLK to CLK
                             # Otherwise Yosys can't map the CLK
@@ -524,7 +528,7 @@ def addBelsToPrim(
             modline += "\n);"
 
             belparams: dict[str, int] = {}
-            for parameter in bel.belFeatureMap:
+            for parameter in bel.bel_feature_map:
                 parameter = parameter.split("[")[0]
                 if parameter not in belparams:
                     belparams[parameter] = 0
@@ -623,20 +627,20 @@ def genIOBel(
             bel_path.unlink()
         else:
             logger.info(f"Return existing Gen_IO BEL file: {bel_path}")
-            return parseBelFile(bel_path, "")
+            return Bel.from_hdl(bel_path, "")
 
     configBits = 0
     for gio in gen_ios:
-        configBits += gio.configBit
+        configBits += gio.config_bit
 
-    belMap: list[tuple[str, int]] = [("INIT", configBits)]
+    bel_map: list[tuple[str, int]] = [("INIT", configBits)]
 
     writer.addComment(f"Generative IO BEL for {bel_name}", onNewLine=True)
     writer.addComment("This is a generated file, please don't edit!", onNewLine=True)
     writer.addNewLine()
 
     if configBits > 0:
-        writer.addBelMapAttribute(belMap)
+        writer.addBelMapAttribute(bel_map)
 
     writer.addHeader(f"{bel_name}")
     writer.addParameterStart(indentLevel=1)
@@ -867,7 +871,7 @@ def genIOBel(
     writer.addNewLine()
     writer.writeToFile()
 
-    bel: Bel = parseBelFile(writer.outFileName, "")
+    bel: Bel = Bel.from_hdl(writer.outFileName, "")
 
     prims_file = get_context().proj_dir / "user_design" / "custom_prims.v"
     if not prims_file.exists():

@@ -172,6 +172,26 @@ class FeatureType(StrEnum):
     FEATURE_MAP = "FEATURE_MAP"
 
 
+class BelType(StrEnum):
+    """Enumeration for BEL (Basic Element of Logic) types.
+
+    This enumeration includes the following values:
+    - ARITH: Arithmetic elements (DSP, carry chains)
+    - LOGIC: Logic elements (LUTs, combinational logic)
+    - REG: Register elements (flip-flops, latches)
+    - MEM: Memory elements (BRAM, distributed RAM)
+    - CTRL: Control elements (clock management, reset)
+    - IO: I/O elements (pads, buffers)
+    """
+
+    ARITH = "ARITH"
+    LOGIC = "LOGIC"
+    REG = "REG"
+    MEM = "MEM"
+    CTRL = "CTRL"
+    IO = "IO"
+
+
 class FeatureValue(NamedTuple):
     """Named tuple representing a feature value for configuration.
 
