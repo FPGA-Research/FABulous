@@ -43,6 +43,9 @@ dependencies = [
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
   "jinja2>=3.1.6",
+  # Drives `FABulous plugins install/uninstall`.
+  "uv>=0.11.19",
+  "pluggy>=1.6.0",
 ]
 
 [project.urls]
@@ -171,6 +174,8 @@ DEP002 = ["go-task-bin", "FABulous-bit-gen"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
+PyYAML = "yaml"
+python-dotenv = "dotenv"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }

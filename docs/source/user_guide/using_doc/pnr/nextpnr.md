@@ -26,7 +26,7 @@ nextpnr selects the BEL file as follows:
   defaults baked into the viaduct);
 - legacy projects with no `.FABulous` directory use `npnroutput/bel.txt`.
 
-All of these files are produced together by the `gen_model_npnr` CLI command.
+All of these files are produced together by the `gen_pnr_model` CLI command.
 
 ## `bel.txt` (legacy)
 
@@ -324,7 +324,7 @@ report is per-instance.
 :::{note}
 `bel.v3.txt` and `placement_estimate.txt` are written
 together; if only one is present nextpnr warns (regenerate with
-`gen_model_npnr`).
+`gen_pnr_model`).
 
 Like `delayScale`/`delayOffset`, this block only steers
 placement, the final report always uses `bel.v3.txt`'s arcs.

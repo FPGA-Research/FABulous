@@ -389,6 +389,52 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     csv_path.write_text("".join(result), encoding="utf-8")
 
 
+def write_pnr_model(
+    artifacts: dict[str, str | bytes], out_dir: Path, backup_existing: bool = False
+) -> None:
+    """Write a place-and-route model's files into `out_dir`.
+
+    The backend owns the file names and the file contents, so this only
+    decides where they land and logs each one.
+
+    Parameters
+    ----------
+    artifacts : dict[str, str | bytes]
+        File names, relative to `out_dir`, mapped to their content.
+    out_dir : Path
+        Directory the files are written to. Created if it does not exist.
+    backup_existing : bool
+        Whether to rename an existing file to `<name>.backup<suffix>` before
+        overwriting it. Defaults to False. The timed model overwrites the
+        untimed one in place, so that path keeps the previous generation
+        around.
+
+    Raises
+    ------
+    ValueError
+        If an artifact name would land outside `out_dir`.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    resolved_out_dir = out_dir.resolve()
+    for name, content in artifacts.items():
+        # A backend can come from a plugin, so its file names are untrusted:
+        # an absolute or '..' name would write outside the project.
+        path = (resolved_out_dir / name).resolve()
+        if Path(name).is_absolute() or not path.is_relative_to(resolved_out_dir):
+            raise ValueError(f"Artifact '{name}' would be written outside '{out_dir}'.")
+        # A backend may name a file inside a subdirectory of its own.
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if backup_existing and path.exists():
+            backup_path = path.with_suffix(f".backup{path.suffix}")
+            logger.info(f"Backing up existing {path.name} to {backup_path}")
+            path.rename(backup_path)
+        logger.info(f"output file: {path}")
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
+
+
 def make_hex(binfile: Path, outfile: Path) -> None:
     """Convert a binary file into hex file.
 
