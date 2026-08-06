@@ -14,8 +14,13 @@ from loguru import logger
 
 from fabulous.custom_exception import (
     InvalidListFileDefinition,
+    InvalidPortType,
     InvalidSwitchMatrixDefinition,
 )
+from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
+
+oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
 
 def parseMatrix(
@@ -240,3 +245,182 @@ def parseList(
         return dict(grouped)
 
     return unique_pairs
+
+
+def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
+    """Parse a single line of the port configuration from the CSV file.
+
+    Parameters
+    ----------
+    line : str
+        CSV line containing port configuration data.
+
+    Raises
+    ------
+    InvalidPortType
+        If the port definition is invalid.
+
+    Returns
+    -------
+    tuple[list[TilePort], tuple[str, str] | None]
+        A tuple containing a list of parsed ports and an optional common wire pair.
+    """
+    fields: list[str] = line.split(",")
+    port_type = fields[0]
+
+    try:
+        wire_direction = Direction[port_type]
+    except KeyError:
+        raise InvalidPortType(f"Unknown port type: {port_type}") from None
+
+    if len(fields) < 6:
+        raise InvalidPortType(
+            f"Invalid port definition line {line!r}: port type {port_type!r} "
+            "requires 6 comma-separated fields (DIRECTION, source_name, "
+            "x_offset, y_offset, destination_name, wire_count), "
+            f"got {len(fields)}."
+        )
+
+    source_name = fields[1]
+    x_offset = int(fields[2])
+    y_offset = int(fields[3])
+    destination_name = fields[4]
+    wire_count = int(fields[5])
+
+    # The trailing digits are read back as that index. A name that ends in a
+    # digit is ambiguous once expanded.
+    for wire_name in (source_name, destination_name):
+        if wire_name != NULL_PORT_NAME and wire_name[-1:].isdigit():
+            raise InvalidPortType(
+                f"Wire name '{wire_name}' ends in a digit, which is ambiguous: "
+                "wire expansion appends the index as a trailing digit, so a name "
+                "ending in a digit cannot be distinguished from an indexed wire. "
+                "Rename the wire so it does not end in a digit."
+            )
+
+    ports: list[TilePort] = []
+    commonWirePair: tuple[str, str] | None
+
+    if wire_direction in (
+        Direction.NORTH,
+        Direction.EAST,
+        Direction.SOUTH,
+        Direction.WEST,
+    ):
+        # Output port (source side)
+        ports.append(
+            TilePort(
+                name=source_name,
+                io_direction=IO.OUTPUT,
+                width=wire_count,
+                side_of_tile=Side[port_type],
+                wire_direction=wire_direction,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+
+        # Input port (destination side)
+        ports.append(
+            TilePort(
+                name=destination_name,
+                io_direction=IO.INPUT,
+                width=wire_count,
+                side_of_tile=Side[port_type].opposite,
+                wire_direction=wire_direction,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        commonWirePair = (f"{source_name}", f"{destination_name}")
+
+    elif wire_direction is Direction.JUMP:
+        # Output port
+        ports.append(
+            TilePort(
+                name=source_name,
+                io_direction=IO.OUTPUT,
+                width=wire_count,
+                side_of_tile=Side.ANY,
+                wire_direction=Direction.JUMP,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        # Input port
+        ports.append(
+            TilePort(
+                name=destination_name,
+                io_direction=IO.INPUT,
+                width=wire_count,
+                side_of_tile=Side.ANY,
+                wire_direction=Direction.JUMP,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        commonWirePair = None
+
+    else:
+        # SJUMP,source,0,0,NULL,n  -> OUTPUT: signal exits tile toward supertile SM
+        # SJUMP,NULL,0,0,dest,n    -> INPUT: signal enters tile from supertile SM
+        # An SJUMP line is one-way: exactly one of source/destination must be NULL.
+        if (source_name == NULL_PORT_NAME) == (destination_name == NULL_PORT_NAME):
+            raise InvalidPortType(
+                f"Invalid SJUMP line '{line.strip()}': exactly one of source and "
+                "destination must be NULL (use 'SJUMP,src,0,0,NULL,n' for an output "
+                "or 'SJUMP,NULL,0,0,dst,n' for an input)."
+            )
+        # SJUMP wires terminate at the supertile switch matrix and carry no
+        # spatial offset; a nonzero offset is a definition error, not silently 0.
+        if x_offset != 0 or y_offset != 0:
+            raise InvalidPortType(
+                f"Invalid SJUMP line '{line.strip()}': X/Y offset must be 0,0 "
+                f"(got {x_offset},{y_offset})."
+            )
+
+        if source_name != NULL_PORT_NAME:
+            ports.append(
+                TilePort(
+                    name=source_name,
+                    io_direction=IO.OUTPUT,
+                    width=wire_count,
+                    side_of_tile=Side.ANY,
+                    wire_direction=Direction.SJUMP,
+                    source_name=source_name,
+                    x_offset=0,
+                    y_offset=0,
+                    destination_name=NULL_PORT_NAME,
+                    wire_count=wire_count,
+                )
+            )
+        if destination_name != NULL_PORT_NAME:
+            ports.append(
+                TilePort(
+                    name=destination_name,
+                    io_direction=IO.INPUT,
+                    width=wire_count,
+                    side_of_tile=Side.ANY,
+                    wire_direction=Direction.SJUMP,
+                    source_name=NULL_PORT_NAME,
+                    x_offset=0,
+                    y_offset=0,
+                    destination_name=destination_name,
+                    wire_count=wire_count,
+                )
+            )
+        commonWirePair = None
+
+    return (ports, commonWirePair)
