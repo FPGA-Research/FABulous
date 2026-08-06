@@ -114,12 +114,12 @@ class BelGeometry:
         internalPortX = 0
         internalPortY = padding // 2
         for port in self.internalInputs:
-            portName = port
+            port_name = port
             portGeom = PortGeometry()
             portGeom.generateGeometry(
-                portName,
-                portName,
-                portName,
+                port_name,
+                port_name,
+                port_name,
                 PortType.BEL,
                 IO.INPUT,
                 internalPortX,
@@ -129,12 +129,12 @@ class BelGeometry:
             internalPortY += 1
 
         for port in self.internalOutputs:
-            portName = port
+            port_name = port
             portGeom = PortGeometry()
             portGeom.generateGeometry(
-                portName,
-                portName,
-                portName,
+                port_name,
+                port_name,
+                port_name,
                 PortType.BEL,
                 IO.OUTPUT,
                 internalPortX,
@@ -146,12 +146,12 @@ class BelGeometry:
         externalPortX = self.width
         externalPortY = padding // 2
         for port in self.external_inputs:
-            portName = port.removeprefix(bel.prefix)
+            port_name = port.removeprefix(bel.prefix)
             portGeom = PortGeometry()
             portGeom.generateGeometry(
-                portName,
-                portName,
-                portName,
+                port_name,
+                port_name,
+                port_name,
                 PortType.BEL,
                 IO.INPUT,
                 externalPortX,
@@ -161,12 +161,12 @@ class BelGeometry:
             externalPortY += 1
 
         for port in self.external_outputs:
-            portName = port.removeprefix(bel.prefix)
+            port_name = port.removeprefix(bel.prefix)
             portGeom = PortGeometry()
             portGeom.generateGeometry(
-                portName,
-                portName,
-                portName,
+                port_name,
+                port_name,
+                port_name,
                 PortType.BEL,
                 IO.OUTPUT,
                 externalPortX,

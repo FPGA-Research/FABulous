@@ -124,7 +124,7 @@ def genTileSwitchMatrix(
     connections = tile.switch_matrix.connections
     for port_name in connections:
         if not connections[port_name]:
-            hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
+            hint = _unconnected_port_diagnostic(tile.ports_info, port_name)
             raise ValueError(f"{port_name} not connected to anything!{hint}")
     noConfigBits = tile.switch_matrix.total_config_bits
 
@@ -142,7 +142,7 @@ def genTileSwitchMatrix(
     writer.addPortStart(indentLevel=1)
 
     # normal wire input (excludes JUMP and SJUMP which are handled separately)
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_input:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
@@ -153,13 +153,13 @@ def genTileSwitchMatrix(
             writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
 
     # jump wire input
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.JUMP and i.is_input:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
     # normal wire output (excludes JUMP and SJUMP which are handled separately)
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_output:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
@@ -170,19 +170,19 @@ def genTileSwitchMatrix(
             writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
 
     # jump wire output
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.JUMP and i.is_output:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire output - SM drives OUTPUT signals exiting to supertile SM
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.SJUMP and i.is_output:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire input - SM receives INPUT signals arriving from supertile SM
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.SJUMP and i.is_input:
             for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
@@ -262,21 +262,21 @@ def _gen_switch_matrix_body(
     writer.addNewLine()
 
     # signal declaration - one input-concat vector per multi-input mux
-    for portName in connections:
-        if len(connections[portName]) > 1:
+    for port_name in connections:
+        if len(connections[port_name]) > 1:
             writer.addConnectionVector(
-                f"{portName}_input", f"{len(connections[portName])}-1"
+                f"{port_name}_input", f"{len(connections[port_name])}-1"
             )
 
     ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     if switch_matrix_debug_signal:
         writer.addNewLine()
-        for portName in connections:
-            muxSize = len(connections[portName])
+        for port_name in connections:
+            muxSize = len(connections[port_name])
             if muxSize >= 2:
                 paddedMuxSize = 2 ** (muxSize - 1).bit_length() - 1
                 writer.addConnectionVector(
-                    f"DEBUG_select_{portName}",
+                    f"DEBUG_select_{port_name}",
                     f"{paddedMuxSize.bit_length() - 1}",
                 )
     writer.addComment(
@@ -314,27 +314,27 @@ def _gen_switch_matrix_body(
     # we use the following variable to count the configuration bits of a
     # long shift register which actually holds the switch matrix configuration
     configBitstreamPosition = 0
-    for portName in connections:
-        muxSize = len(connections[portName])
+    for port_name in connections:
+        muxSize = len(connections[port_name])
         writer.addComment(
-            f"switch matrix multiplexer {portName} MUX-{muxSize}", onNewLine=True
+            f"switch matrix multiplexer {port_name} MUX-{muxSize}", onNewLine=True
         )
         if muxSize == 0:
             logger.warning(
-                f"Input port {portName} of switch matrix in {name} is unused"
+                f"Input port {port_name} of switch matrix in {name} is unused"
             )
             writer.addComment(
-                f"WARNING unused multiplexer MUX-{portName}", onNewLine=True
+                f"WARNING unused multiplexer MUX-{port_name}", onNewLine=True
             )
         elif muxSize == 1:
-            if connections[portName][0] == "0":
-                writer.addAssignScalar(portName, 0)
-            elif connections[portName][0] == "1":
-                writer.addAssignScalar(portName, 1)
+            if connections[port_name][0] == "0":
+                writer.addAssignScalar(port_name, 0)
+            elif connections[port_name][0] == "1":
+                writer.addAssignScalar(port_name, 1)
             else:
                 writer.addAssignScalar(
-                    portName,
-                    connections[portName][0],
+                    port_name,
+                    connections[port_name][0],
                     delay=default_pip_delay,
                 )
             writer.addNewLine()
@@ -345,7 +345,7 @@ def _gen_switch_matrix_body(
             portsPairs = []
             start = 0
             for start in range(muxSize):
-                portsPairs.append((f"A{start}", f"{portName}_input[{start}]"))
+                portsPairs.append((f"A{start}", f"{port_name}_input[{start}]"))
             for end in range(start + 1, paddedMuxSize):
                 portsPairs.append((f"A{end}", "GND0"))
 
@@ -364,24 +364,24 @@ def _gen_switch_matrix_body(
                             )
                         )
 
-            portsPairs.append(("X", f"{portName}"))
+            portsPairs.append(("X", f"{port_name}"))
 
             # Drive the mux input vector for both mux styles.
             writer.addAssignScalar(
-                f"{portName}_input",
-                connections[portName][::-1],
+                f"{port_name}_input",
+                connections[port_name][::-1],
                 delay=default_pip_delay,
             )
 
             if multiplexer_style == MultiplexerStyle.CUSTOM:
                 writer.addInstantiation(
                     compName=muxComponentName,
-                    compInsName=f"inst_{muxComponentName}_{portName}",
+                    compInsName=f"inst_{muxComponentName}_{port_name}",
                     portsPairs=portsPairs,
                 )
                 if muxSize not in (2, 4, 8, 16):
                     logger.warning(
-                        f"creating a MUX-{muxSize} for port {portName} using "
+                        f"creating a MUX-{muxSize} for port {port_name} using "
                         f"MUX-{muxSize} in switch matrix for {name}"
                     )
             else:
@@ -390,8 +390,8 @@ def _gen_switch_matrix_body(
                 # in language-correct syntax for Verilog and VHDL.
                 select_width = paddedMuxSize.bit_length() - 1
                 writer.addMuxAssign(
-                    portName,
-                    f"{portName}_input",
+                    port_name,
+                    f"{port_name}_input",
                     "ConfigBits",
                     configBitstreamPosition,
                     select_width,
@@ -405,13 +405,13 @@ def _gen_switch_matrix_body(
         writer.addNewLine()
         configBitstreamPosition = 0
         old_ConfigBitstreamPosition = 0
-        for portName in connections:
-            muxSize = len(connections[portName])
+        for port_name in connections:
+            muxSize = len(connections[port_name])
             if muxSize >= 2:
                 paddedMuxSize = 2 ** (muxSize - 1).bit_length()
                 configBitstreamPosition += paddedMuxSize.bit_length() - 1
                 writer.addAssignVector(
-                    f"DEBUG_select_{portName:<15}",
+                    f"DEBUG_select_{port_name:<15}",
                     "ConfigBits",
                     f"{configBitstreamPosition - 1}",
                     old_ConfigBitstreamPosition,
@@ -467,7 +467,7 @@ def gen_super_tile_switch_matrix(
         writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
 
-    # Inputs: SJUMP OUTPUT signals from each child tile ({tileName}_{portName}{i})
+    # Inputs: SJUMP OUTPUT signals from each child tile ({tileName}_{port_name}{i})
     all_sjump_ports = superTile.get_all_sjump_ports()
     if all_sjump_ports:
         writer.addComment("SJUMP inputs from child tiles", onNewLine=True)

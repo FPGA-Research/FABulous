@@ -330,13 +330,13 @@ class FABulousFabricOptimisationFlow(Flow):
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
             ):
-                io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                io_config_path: Path = tile_type.tile_dir.parent / "io_pin_order.yaml"
                 generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
                 base_config_path: Path = (
                     proj_dir / "Tile" / "include" / "gds_config.yaml"
                 )
                 override_config_path: Path = (
-                    tile_type.tileDir.parent / "gds_config.yaml"
+                    tile_type.tile_dir.parent / "gds_config.yaml"
                 )
 
                 result: Future[WorkerResult] = executor.submit(
@@ -480,7 +480,7 @@ class FABulousFabricOptimisationFlow(Flow):
         # Ensure IO pin order configs exist (they may be missing when Step 1
         # was skipped via --tile-opt-info).
         for tile_type in fabric.get_all_unique_tiles():
-            io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
+            io_config_path: Path = tile_type.tile_dir.parent / "io_pin_order.yaml"
             if not io_config_path.exists():
                 generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
 
@@ -488,19 +488,19 @@ class FABulousFabricOptimisationFlow(Flow):
         handlers: list[tuple[Future[WorkerResult], Tile | SuperTile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for tile_type in fabric.get_all_unique_tiles():
-                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                io_config_path = tile_type.tile_dir.parent / "io_pin_order.yaml"
                 base_config_path: Path = (
                     proj_dir / "Tile" / "include" / "gds_config.yaml"
                 )
                 override_config_path: Path = (
-                    tile_type.tileDir.parent / "gds_config.yaml"
+                    tile_type.tile_dir.parent / "gds_config.yaml"
                 )
 
                 die_area: tuple[int, int, Decimal, Decimal] = nlp_state.metrics[
                     "nlp__tile__area"
                 ][tile_type.name]
                 optimised_design_dir: Path = (
-                    tile_type.tileDir.parent / "macro" / "fabric_optimised"
+                    tile_type.tile_dir.parent / "macro" / "fabric_optimised"
                 )
                 # Submit tile compilation with optimal dimensions
                 result: Future[WorkerResult] = executor.submit(
