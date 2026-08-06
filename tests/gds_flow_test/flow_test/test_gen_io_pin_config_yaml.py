@@ -126,16 +126,16 @@ class TestSerializeTilePorts:
 
         # Mock ports
         north_port = mocker.MagicMock()
-        north_port.getPortRegex.return_value = r"N\[\d+\]"
+        north_port.get_port_regex.return_value = r"N\[\d+\]"
 
         east_port = mocker.MagicMock()
-        east_port.getPortRegex.return_value = r"E\[\d+\]"
+        east_port.get_port_regex.return_value = r"E\[\d+\]"
 
         south_port = mocker.MagicMock()
-        south_port.getPortRegex.return_value = r"S\[\d+\]"
+        south_port.get_port_regex.return_value = r"S\[\d+\]"
 
         west_port = mocker.MagicMock()
-        west_port.getPortRegex.return_value = r"W\[\d+\]"
+        west_port.get_port_regex.return_value = r"W\[\d+\]"
 
         # Set up side port methods
         tile.getNorthSidePorts.return_value = [north_port]
@@ -259,7 +259,7 @@ class TestSerializeTilePorts:
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
-        mock_tile.getNorthSidePorts.return_value[0].getPortRegex.return_value = ""
+        mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 
@@ -294,15 +294,15 @@ class TestSerializeSupertilePorts:
 
         # Mock port with side information
         north_port = mocker.MagicMock()
-        north_port.sideOfTile = Side.NORTH
-        north_port.getPortRegex.return_value = r"N\[\d+\]"
+        north_port.side_of_tile = Side.NORTH
+        north_port.get_port_regex.return_value = r"N\[\d+\]"
 
         south_port = mocker.MagicMock()
-        south_port.sideOfTile = Side.SOUTH
-        south_port.getPortRegex.return_value = r"S\[\d+\]"
+        south_port.side_of_tile = Side.SOUTH
+        south_port.get_port_regex.return_value = r"S\[\d+\]"
 
         # Return ports around tile
-        supertile.getPortsAroundTile.return_value = {
+        supertile.get_ports_around_tile.return_value = {
             "0,0": [[south_port]],
             "1,1": [[north_port]],
         }
@@ -322,7 +322,7 @@ class TestSerializeSupertilePorts:
         """Test handling of empty port lists."""
         supertile = mocker.MagicMock()
         supertile.bels = []
-        supertile.getPortsAroundTile.return_value = {}
+        supertile.get_ports_around_tile.return_value = {}
 
         result = _serialize_supertile_ports(supertile)
 
@@ -364,19 +364,19 @@ class TestSerializeSupertilePorts:
 
         # tile_top (0,0): only EAST has routing ports; NORTH and WEST do not
         east_port_top = mocker.MagicMock()
-        east_port_top.sideOfTile = Side.EAST
-        east_port_top.getPortRegex.return_value = r"Tile_X0Y0_E1BEG\[\d+\]"
+        east_port_top.side_of_tile = Side.EAST
+        east_port_top.get_port_regex.return_value = r"Tile_X0Y0_E1BEG\[\d+\]"
 
         # tile_bot (0,1): only EAST has routing ports; SOUTH and WEST do not
         east_port_bot = mocker.MagicMock()
-        east_port_bot.sideOfTile = Side.EAST
-        east_port_bot.getPortRegex.return_value = r"Tile_X0Y1_E1BEG\[\d+\]"
+        east_port_bot.side_of_tile = Side.EAST
+        east_port_bot.get_port_regex.return_value = r"Tile_X0Y1_E1BEG\[\d+\]"
 
-        # getPortsAroundTile() mirrors the real function:
+        # get_ports_around_tile() mirrors the real function:
         #   tile_top (0,0) perimeter: NORTH, EAST, WEST  (SOUTH is interior)
         #   tile_bot (0,1) perimeter: EAST, SOUTH, WEST  (NORTH is interior)
         # Empty lists represent perimeter sides with no routing ports.
-        supertile.getPortsAroundTile.return_value = {
+        supertile.get_ports_around_tile.return_value = {
             "0,0": [[], [east_port_top], []],  # NORTH=[], EAST=[port], WEST=[]
             "0,1": [[east_port_bot], [], []],  # EAST=[port], SOUTH=[], WEST=[]
         }
@@ -444,10 +444,10 @@ class TestSerializeSupertilePorts:
         supertile.tileMap = [[None]]
 
         port = mocker.MagicMock()
-        port.sideOfTile = Side.SOUTH
-        port.getPortRegex.return_value = r"S\[\d+\]"
+        port.side_of_tile = Side.SOUTH
+        port.get_port_regex.return_value = r"S\[\d+\]"
 
-        supertile.getPortsAroundTile.return_value = {
+        supertile.get_ports_around_tile.return_value = {
             "0,0": [[port]],
         }
 
@@ -558,7 +558,7 @@ class TestGenerateIOPinOrderConfig:
         mock_tile.bels = []
 
         mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.getPortsAroundTile.return_value = {}
+        mock_supertile.get_ports_around_tile.return_value = {}
 
         outfile = tmp_path / "test_supertile_config.yaml"
 
@@ -664,7 +664,7 @@ class TestGenerateIOPinOrderConfig:
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.getPortsAroundTile.return_value = {"0,0": [[]]}
+        mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         mock_fabric = mocker.MagicMock(spec=Fabric)
         mock_fabric.find_tile_positions.return_value = [(2, 0)]
@@ -707,7 +707,7 @@ class TestGenerateIOPinOrderConfig:
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.getPortsAroundTile.return_value = {"0,0": [[]]}
+        mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         outfile = tmp_path / "test_config.yaml"
 

@@ -30,7 +30,7 @@ import pytest
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -94,8 +94,8 @@ def _tile_stub(tile: Tile) -> str:
         + tile.getWestSidePorts()
         + tile.getSouthSidePorts()
     ):
-        width = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
-        direction = "input" if p.inOut == IO.INPUT else "output"
+        width = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
+        direction = "input" if p.io_direction == IO.INPUT else "output"
         decls.append(f"    {direction} [{width}:0] {p.name}")
     for bel in tile.bels:
         decls += [f"    input {p}" for p in bel.externalInput]
@@ -351,16 +351,17 @@ class TestInterTileRouting:
         left = Tile(
             name="Left",
             ports=[
-                Port(
-                    Direction.EAST,
-                    "E_out",
-                    1,
-                    0,
-                    "E_out",
-                    2,
-                    "E_out",
-                    IO.OUTPUT,
-                    Side.EAST,
+                TilePort(
+                    name="E_out",
+                    io_direction=IO.OUTPUT,
+                    width=2,
+                    side_of_tile=Side.EAST,
+                    wire_direction=Direction.EAST,
+                    source_name="E_out",
+                    x_offset=1,
+                    y_offset=0,
+                    destination_name="E_out",
+                    wire_count=2,
                 )
             ],
             bels=[],
@@ -372,8 +373,17 @@ class TestInterTileRouting:
         right = Tile(
             name="Right",
             ports=[
-                Port(
-                    Direction.EAST, "E_in", 1, 0, "E_in", 2, "E_in", IO.INPUT, Side.WEST
+                TilePort(
+                    name="E_in",
+                    io_direction=IO.INPUT,
+                    width=2,
+                    side_of_tile=Side.WEST,
+                    wire_direction=Direction.EAST,
+                    source_name="E_in",
+                    x_offset=1,
+                    y_offset=0,
+                    destination_name="E_in",
+                    wire_count=2,
                 )
             ],
             bels=[],

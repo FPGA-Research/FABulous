@@ -156,6 +156,56 @@ class PinSortMode(StrEnum):
     CUSTOM = "custom"
 
 
+class FeatureType(StrEnum):
+    """Enumeration for feature types used in configuration ports.
+
+    Defines how configuration features are encoded:
+    - ENUMERATE: Sequential enumeration
+    - INIT: Initialization value
+    - ONE_HOT: One-hot encoding
+    - FEATURE_MAP: Feature map encoding
+    """
+
+    ENUMERATE = "ENUMERATE"
+    INIT = "INIT"
+    ONE_HOT = "ONE_HOT"
+    FEATURE_MAP = "FEATURE_MAP"
+
+
+class FeatureValue(NamedTuple):
+    """Named tuple representing a feature value for configuration.
+
+    Attributes
+    ----------
+    name : str
+        The name of the feature
+    value : int | None
+        The value of the feature, or None if undefined
+    """
+
+    name: str
+    value: int | None
+
+    def value_as_bitstring(self) -> str:
+        """Convert the feature value to a bitstring representation.
+
+        Returns
+        -------
+        str
+            A bitstring representation of the value, or 'x' if value is None.
+
+        Raises
+        ------
+        ValueError
+            If the value is not None or an integer.
+        """
+        if self.value is None:
+            return "x"
+        if isinstance(self.value, int):
+            return f"{self.value:01b}"
+        raise ValueError(f"Invalid value type: {type(self.value)} for {self.name}")
+
+
 class TileSize(NamedTuple):
     """Named tuple representing the size of a tile."""
 

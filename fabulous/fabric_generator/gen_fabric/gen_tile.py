@@ -123,13 +123,13 @@ def generateTile(
 
     side_of_port = None
     for port in portList:
-        if side_of_port is not port.sideOfTile:
-            side_of_port = port.sideOfTile
+        if side_of_port is not port.side_of_tile:
+            side_of_port = port.side_of_tile
             writer.addComment(str(side_of_port), onNewLine=True)
         # destination port are input to the tile
         # source port are output of the tile
-        wireSize = (abs(port.xOffset) + abs(port.yOffset)) * port.wireCount - 1
-        writer.addPortVector(port.name, port.inOut, wireSize, indentLevel=2)
+        wireSize = (abs(port.x_offset) + abs(port.y_offset)) * port.wire_count - 1
+        writer.addPortVector(port.name, port.io_direction, wireSize, indentLevel=2)
         writer.addComment(str(port), indentLevel=2, onNewLine=False)
 
     # SJUMP ports: OUTPUT exits toward supertile SM; INPUT enters from supertile SM
@@ -139,7 +139,9 @@ def generateTile(
             "SJUMP ports (supertile BEL interface)", onNewLine=True, indentLevel=1
         )
         for p in sjump_ports:
-            writer.addPortVector(p.name, p.inOut, f"{p.wireCount}-1", indentLevel=2)
+            writer.addPortVector(
+                p.name, p.io_direction, f"{p.wire_count}-1", indentLevel=2
+            )
 
     # now we have to scan all BELs if they use external pins,
     # because they have to be exported to the tile entity
@@ -238,15 +240,11 @@ def generateTile(
     # Jump wires
     writer.addComment("Jump wires", onNewLine=True)
     for p in tile.portsInfo:
-        if p.wireDirection == Direction.JUMP:
-            if (
-                p.sourceName != "NULL"
-                and p.destinationName != "NULL"
-                and p.inOut == IO.OUTPUT
-            ):
-                writer.addConnectionVector(p.name, f"{p.wireCount}-1")
+        if p.wire_direction == Direction.JUMP:
+            if p.source_name != "NULL" and p.destination_name != "NULL" and p.is_output:
+                writer.addConnectionVector(p.name, f"{p.wire_count}-1")
 
-            for k in range(p.wireCount):
+            for k in range(p.wire_count):
                 allJumpWireList.append(f"{p.name}( {k} )")
 
     # SJUMP ports are module ports (declared above) and are wired to the switch
@@ -286,16 +284,16 @@ def generateTile(
 
     added = set()
     for port in tile.portsInfo:
-        span = abs(port.xOffset) + abs(port.yOffset)
-        if (port.sourceName, port.destinationName) in added:
+        span = abs(port.x_offset) + abs(port.y_offset)
+        if (port.source_name, port.destination_name) in added:
             continue
-        if span >= 2 and port.sourceName != "NULL" and port.destinationName != "NULL":
-            highBoundIndex = span * port.wireCount - 1
-            writer.addConnectionVector(f"{port.destinationName}_i", highBoundIndex)
+        if span >= 2 and port.source_name != "NULL" and port.destination_name != "NULL":
+            highBoundIndex = span * port.wire_count - 1
+            writer.addConnectionVector(f"{port.destination_name}_i", highBoundIndex)
             writer.addConnectionVector(
-                f"{port.sourceName}_i", highBoundIndex - port.wireCount
+                f"{port.source_name}_i", highBoundIndex - port.wire_count
             )
-            added.add((port.sourceName, port.destinationName))
+            added.add((port.source_name, port.destination_name))
 
     writer.addNewLine()
     writer.addLogicStart()
@@ -341,39 +339,39 @@ def generateTile(
 
     added = set()
     for port in tile.portsInfo:
-        span = abs(port.xOffset) + abs(port.yOffset)
-        if (port.sourceName, port.destinationName) in added:
+        span = abs(port.x_offset) + abs(port.y_offset)
+        if (port.source_name, port.destination_name) in added:
             continue
-        if span >= 2 and port.sourceName != "NULL" and port.destinationName != "NULL":
-            highBoundIndex = span * port.wireCount - 1
+        if span >= 2 and port.source_name != "NULL" and port.destination_name != "NULL":
+            highBoundIndex = span * port.wire_count - 1
             # using scalar assignment to connect the two vectors
             # could replace with assign as vector,
-            # but will lose the - wireCount readability
+            # but will lose the - wire_count readability
             writer.addAssignScalar(
-                f"{port.sourceName}_i[{highBoundIndex}-{port.wireCount}:0]",
-                f"{port.destinationName}_i[{highBoundIndex}:{port.wireCount}]",
+                f"{port.source_name}_i[{highBoundIndex}-{port.wire_count}:0]",
+                f"{port.destination_name}_i[{highBoundIndex}:{port.wire_count}]",
             )
             writer.addNewLine()
-            for i in range(highBoundIndex - port.wireCount + 1):
+            for i in range(highBoundIndex - port.wire_count + 1):
                 writer.addInstantiation(
                     "my_buf",
-                    f"{port.destinationName}_inbuf_{i}",
+                    f"{port.destination_name}_inbuf_{i}",
                     portsPairs=[
-                        ("A", f"{port.destinationName}[{i + port.wireCount}]"),
-                        ("X", f"{port.destinationName}_i[{i + port.wireCount}]"),
+                        ("A", f"{port.destination_name}[{i + port.wire_count}]"),
+                        ("X", f"{port.destination_name}_i[{i + port.wire_count}]"),
                     ],
                 )
-            for i in range(highBoundIndex - port.wireCount + 1):
+            for i in range(highBoundIndex - port.wire_count + 1):
                 writer.addInstantiation(
                     "my_buf",
-                    f"{port.sourceName}_outbuf_{i}",
+                    f"{port.source_name}_outbuf_{i}",
                     portsPairs=[
-                        ("A", f"{port.sourceName}_i[{i}]"),
-                        ("X", f"{port.sourceName}[{i}]"),
+                        ("A", f"{port.source_name}_i[{i}]"),
+                        ("X", f"{port.source_name}[{i}]"),
                     ],
                 )
 
-            added.add((port.sourceName, port.destinationName))
+            added.add((port.source_name, port.destination_name))
 
     if not disable_user_clk:
         writer.addInstantiation(
@@ -491,14 +489,11 @@ def generateTile(
     # normal input wire (excludes JUMP and SJUMP, which are handled separately;
     # otherwise SJUMP inputs would be bound twice in the switch-matrix instance)
     for i in tile.portsInfo:
-        if (
-            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
-            and i.inOut == IO.INPUT
-        ):
+        if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_input:
             portsPairs += list(
                 zip(
-                    i.expandPortInfoByName(),
-                    i.expandPortInfoByName(indexed=True),
+                    i.expand_port_info_by_name(),
+                    i.expand_port_info_by_name(indexed=True),
                     strict=False,
                 )
             )
@@ -510,23 +505,20 @@ def generateTile(
     # jump input wire
     port, signal = [], []
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.INPUT:
-            port += i.expandPortInfoByName()
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
-            signal += i.expandPortInfoByName(indexed=True)
+        if i.wire_direction == Direction.JUMP and i.is_input:
+            port += i.expand_port_info_by_name()
+        if i.wire_direction == Direction.JUMP and i.is_output:
+            signal += i.expand_port_info_by_name(indexed=True)
 
     portsPairs += list(zip(port, signal, strict=False))
 
     # normal output wire (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
-        if (
-            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
-            and i.inOut == IO.OUTPUT
-        ):
+        if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_output:
             portsPairs += list(
                 zip(
-                    i.expandPortInfoByName(),
-                    i.expandPortInfoByNameTop(indexed=True),
+                    i.expand_port_info_by_name(),
+                    i.expand_port_info_by_name_top(indexed=True),
                     strict=False,
                 )
             )
@@ -539,19 +531,19 @@ def generateTile(
     # jump output wire
     port, signal = [], []
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
-            port += i.expandPortInfoByName()
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
-            signal += i.expandPortInfoByName(indexed=True)
+        if i.wire_direction == Direction.JUMP and i.is_output:
+            port += i.expand_port_info_by_name()
+        if i.wire_direction == Direction.JUMP and i.is_output:
+            signal += i.expand_port_info_by_name(indexed=True)
 
     portsPairs += list(zip(port, signal, strict=True))
 
     # sjump output wire - SM drives SJUMP OUTPUT signals exiting to supertile SM
     port, signal = [], []
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.SJUMP and i.inOut == IO.OUTPUT:
-            port += i.expandPortInfoByName()
-            signal += i.expandPortInfoByName(indexed=True)
+        if i.wire_direction == Direction.SJUMP and i.is_output:
+            port += i.expand_port_info_by_name()
+            signal += i.expand_port_info_by_name(indexed=True)
 
     portsPairs += list(zip(port, signal, strict=True))
 
@@ -560,9 +552,9 @@ def generateTile(
     # scalar SM-port name (Q0), which would be a floating implicit wire.
     port, signal = [], []
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.SJUMP and i.inOut == IO.INPUT:
-            port += i.expandPortInfoByName()
-            signal += i.expandPortInfoByName(indexed=True)
+        if i.wire_direction == Direction.SJUMP and i.is_input:
+            port += i.expand_port_info_by_name()
+            signal += i.expand_port_info_by_name(indexed=True)
 
     portsPairs += list(zip(port, signal, strict=True))
 
@@ -658,9 +650,9 @@ def generateSuperTile(
     writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
 
-    portsAround = superTile.getPortsAroundTile()
+    ports_around = superTile.get_ports_around_tile()
 
-    for k, v in portsAround.items():
+    for k, v in ports_around.items():
         if not v:
             continue
         x, y = k.split(",")
@@ -670,14 +662,14 @@ def generateSuperTile(
                 continue
 
             writer.addComment(
-                f"Tile_X{x}Y{y}_{pList[0].wireDirection}",
+                f"Tile_X{x}Y{y}_{pList[0].wire_direction}",
                 onNewLine=True,
                 indentLevel=1,
             )
             for p in pList:
-                wire = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
+                wire = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                 writer.addPortVector(
-                    f"Tile_X{x}Y{y}_{p.name}", p.inOut, wire, indentLevel=2
+                    f"Tile_X{x}Y{y}_{p.name}", p.io_direction, wire, indentLevel=2
                 )
                 writer.addComment(str(p), onNewLine=False)
 
@@ -804,7 +796,7 @@ def generateSuperTile(
             writer.addComponentDeclarationForFile(str(cm_file))
 
     # find all internal connections
-    internalConnections = superTile.getInternalConnections()
+    internalConnections = superTile.get_internal_connections()
 
     # declare internal connections
     writer.addComment("signal declarations", onNewLine=True)
@@ -816,7 +808,7 @@ def generateSuperTile(
         for lx, ly, p in sjump_ports:
             writer.addConnectionVector(
                 f"{superTile.tileMap[ly][lx].name}_{p.name}",
-                f"{p.wireCount}-1",
+                f"{p.wire_count}-1",
                 indentLevel=1,
             )
 
@@ -827,7 +819,7 @@ def generateSuperTile(
         for lx, ly, p in all_input_sjump:
             writer.addConnectionVector(
                 f"{superTile.tileMap[ly][lx].name}_{p.name}",
-                f"{p.wireCount}-1",
+                f"{p.wire_count}-1",
                 indentLevel=1,
             )
 
@@ -842,10 +834,10 @@ def generateSuperTile(
 
     for i, x, y in internalConnections:
         if i:
-            writer.addComment(f"Tile_X{x}Y{y}_{i[0].wireDirection}", onNewLine=True)
+            writer.addComment(f"Tile_X{x}Y{y}_{i[0].wire_direction}", onNewLine=True)
             for p in i:
-                if p.inOut == IO.OUTPUT:
-                    wire = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
+                if p.is_output:
+                    wire = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                     writer.addConnectionVector(
                         f"Tile_X{x}Y{y}_{p.name}", wire, indentLevel=1
                     )
@@ -923,9 +915,7 @@ def generateSuperTile(
             portsPairs += list(zip(eastPort, eastInput, strict=False))
 
             # south direction input connection
-            southPort = [
-                i.name for i in tile.getSouthPorts(IO.INPUT) if i.inOut == IO.INPUT
-            ]
+            southPort = [i.name for i in tile.getSouthPorts(IO.INPUT)]
             if (
                 0 <= y - 1 < len(superTile.tileMap)
                 and superTile.tileMap[y - 1][x] is not None
@@ -939,9 +929,7 @@ def generateSuperTile(
             portsPairs += list(zip(southPort, southInput, strict=False))
 
             # west direction input connection
-            westPort = [
-                i.name for i in tile.getWestPorts(IO.INPUT) if i.inOut == IO.INPUT
-            ]
+            westPort = [i.name for i in tile.getWestPorts(IO.INPUT)]
             if (
                 0 <= x + 1 < len(superTile.tileMap[0])
                 and superTile.tileMap[y][x + 1] is not None
@@ -1063,7 +1051,7 @@ def generateSuperTile(
         # Connect SJUMP vector signals to SM scalar input ports
         for lx, ly, p in superTile.get_all_sjump_ports():
             tileName = superTile.tileMap[ly][lx].name
-            for k in range(p.wireCount):
+            for k in range(p.wire_count):
                 sm_ports_pairs.append(
                     (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
                 )
@@ -1081,9 +1069,9 @@ def generateSuperTile(
                 if st_tile is None:
                     continue
                 for p in st_tile.get_sjump_ports():
-                    if p.inOut == IO.INPUT:
+                    if p.is_input:
                         tileName = st_tile.name
-                        for k in range(p.wireCount):
+                        for k in range(p.wire_count):
                             sm_ports_pairs.append(
                                 (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
                             )
@@ -1154,8 +1142,8 @@ def generateSuperTile(
             bel_ports_pairs.append(
                 (
                     "ConfigBits",
-                    f"ST_ConfigBits["
-                    f"{st_bel_config_offset + bel.configBit}-1:{st_bel_config_offset}]",
+                    f"ST_ConfigBits[{st_bel_config_offset + bel.configBit}"
+                    f"-1:{st_bel_config_offset}]",
                 )
             )
         st_bel_config_offset += bel.configBit

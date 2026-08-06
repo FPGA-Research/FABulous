@@ -52,16 +52,16 @@ def switch_matrix_signal_order(
     sources: list[str] = []
     dests: list[str] = []
     for port in ports:
-        if port.wireDirection != Direction.JUMP:
-            port_inputs, port_outputs = port.expandPortInfo("AutoSwitchMatrix")
+        if port.wire_direction != Direction.JUMP:
+            port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")
             sources += port_inputs
             dests += port_outputs
     for bel in bels:
         sources.extend(bel.inputs)
         dests.extend(bel.outputs + bel.externalOutput)
     for port in ports:
-        if port.wireDirection == Direction.JUMP:
-            port_inputs, port_outputs = port.expandPortInfo("AutoSwitchMatrix")
+        if port.wire_direction == Direction.JUMP:
+            port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")
             sources += port_inputs
             dests += port_outputs
     return list(dict.fromkeys(sources)), list(dict.fromkeys(dests))
