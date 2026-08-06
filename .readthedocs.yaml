@@ -9,15 +9,16 @@ build:
     post_checkout:
       # setuptools_scm needs tags + full history to derive the version
       - git fetch --tags --unshallow || git fetch --tags
-
-# Install the docs dependencies with uv. Read the Docs supports uv natively, so
-# it runs `uv sync` in docs/ (reading docs/pyproject.toml and docs/uv.lock) into
-# its build virtualenv. No manual virtualenv handling is needed.
-python:
-  install:
-    - method: uv
-      command: sync
-      path: docs
+    post_create_environment:
+      # Install uv
+      - pip install uv
+    post_install:
+      # Install FABulous plus the 'docs' dependency group from the root project,
+      # resolved from uv.lock so the built docs match a tested dependency set.
+      # UV_PROJECT_ENVIRONMENT points uv at the environment Read the Docs
+      # already created instead of letting it make its own .venv.
+      # See https://github.com/readthedocs/readthedocs.org/pull/11152/
+      - UV_PROJECT_ENVIRONMENT=$READTHEDOCS_VIRTUALENV_PATH uv sync --locked --no-default-groups --group docs
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:

@@ -8,8 +8,9 @@ The upstream FABulous documentation is available at [https://fabulous.readthedoc
 
 ```bash
 git clone https://github.com/FPGA-Research/FABulous
-cd FABulous/docs
-uv sync
+cd FABulous
+uv sync --group docs
+cd docs
 make html
 xdg-open build/html/index.html
 ```
@@ -32,11 +33,16 @@ the API reference is auto-generated from source docstrings by [sphinx-autoapi](h
 
 To build the documentation, you should already have set up your environment and installed the required packages to use FABulous as described in the [README](../README.md). Make sure you have picked the right FABulous branch you want to build the documentation for.
 
-Install the documentation dependencies with uv:
+The documentation dependencies live in the `docs` dependency group of the
+repository-root `pyproject.toml`, so there is a single environment for both
+FABulous and its docs. Install them from the repository root with:
 
 ```bash
-uv sync
+uv sync --group docs
 ```
+
+The `make` targets below do this for you, so running them from a fresh checkout
+is enough.
 
 ## Building the documentation
 

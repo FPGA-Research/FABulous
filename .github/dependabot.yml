@@ -1,9 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "uv"
-    directories:
-      - "/"
-      - "/docs"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"

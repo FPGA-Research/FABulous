@@ -3,12 +3,15 @@
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
+# The docs share the repository-root environment; `--project ..` keeps uv
+# pointed at the single pyproject.toml/uv.lock pair while make runs in docs/.
+UVRUN         ?= uv run --project .. --group docs --quiet
 SPHINXOPTS    ?= -q -n
 # Treat warnings as errors for the production HTML build so it matches the Read
 # the Docs build (fail_on_warning). Kept out of SPHINXOPTS so the livehtml dev
 # server stays usable while a page still has warnings.
 WARNOPTS      ?= -W --keep-going
-SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
+SPHINXBUILD   ?= $(UVRUN) sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
 PORT          ?= 8000
@@ -28,7 +31,7 @@ help:
 # Setup uv environment and install dependencies
 setup:
 	@echo "Setting up uv environment for documentation..."
-	uv sync
+	uv sync --project .. --group docs
 	@echo "Documentation environment ready!"
 
 # Build HTML documentation
@@ -49,7 +52,7 @@ serve:
 # Live reload development server
 livehtml: setup
 	@echo "Starting live documentation server..."
-	uv run --directory . sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
+	$(UVRUN) sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
 
 # Clean build directory and generated API docs
 clean:
