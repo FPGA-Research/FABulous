@@ -298,50 +298,72 @@ class PluginManager:
         return "\n".join(lines)
 
     def _call_hook_or_skip(
-        self, hook_caller: Callable[[], list], hook_name: str, skip_broken: bool
+        self,
+        hook_caller: pluggy.HookCaller,
+        hook_name: str,
+        skip_broken: bool,
+        **kwargs: object,
     ) -> list:
-        """Invoke an aggregating hook, honouring `skip_broken` on failure.
+        """Invoke an aggregating hook one implementation at a time.
 
-        Pluggy calls every registered implementation of a hook in one pass, so
-        a broken implementation fails the whole call; this cannot isolate
-        which single plugin raised. With `skip_broken`, the hook's entire
-        contribution for this call is dropped and a warning is logged instead
-        of aborting.
+        Calling the hook relay directly would run every implementation in a
+        single pluggy pass, so one plugin raising loses the whole aggregate --
+        including the built-in providers, which would leave essential
+        registries empty. Driving the implementations individually keeps a
+        failure contained to its own plugin and lets the message name it.
 
         Parameters
         ----------
-        hook_caller : Callable[[], list]
-            The bound hook (e.g. `self.hook.fabulous_register_parsers`).
+        hook_caller : pluggy.HookCaller
+            The hook to drive (e.g. `self.hook.fabulous_register_parsers`).
         hook_name : str
             The hook's name, for the warning/error message.
         skip_broken : bool
             Whether to warn and continue instead of aborting on failure.
+        **kwargs : object
+            Arguments for the hook, matched to each implementation's own
+            parameters the way pluggy matches them.
 
         Returns
         -------
         list
-            The hook's aggregated results, or `[]` if it failed and
-            `skip_broken` is True.
+            One entry per implementation that returned a non-`None` result,
+            in pluggy's call order.
 
         Raises
         ------
         PluginError
-            If the hook call fails and `skip_broken` is False.
+            If an implementation fails and `skip_broken` is False, or if one
+            is a hook wrapper.
         """
-        try:
-            return hook_caller()
-        except Exception as exc:  # noqa: BLE001 - policy decides re-raise
-            if skip_broken:
-                logger.warning(f"Skipping broken '{hook_name}' registration: {exc}")
-                return []
-            raise PluginError(
-                f"A plugin's '{hook_name}' hook failed: {exc}\n"
-                "Re-run with --skip-broken-plugins to continue past it."
-            ) from exc
+        results = []
+        # pluggy stores implementations in reverse call order.
+        for impl in reversed(hook_caller.get_hookimpls()):
+            if impl.hookwrapper or impl.wrapper:
+                raise PluginError(
+                    f"Plugin '{impl.plugin_name}' implements '{hook_name}' as a "
+                    "hook wrapper, which FABulous does not support."
+                )
+            try:
+                result = impl.function(*(kwargs[name] for name in impl.argnames))
+            except Exception as exc:  # noqa: BLE001 - policy decides re-raise
+                if skip_broken:
+                    logger.warning(
+                        f"Skipping broken '{hook_name}' hook from plugin "
+                        f"'{impl.plugin_name}': {exc}"
+                    )
+                    continue
+                raise PluginError(
+                    f"Plugin '{impl.plugin_name}' failed in '{hook_name}': {exc}\n"
+                    "Re-run with --skip-broken-plugins to continue past it."
+                ) from exc
+            if result is not None:
+                results.append(result)
+        return results
 
     def _fold_registry(
         self,
-        hook_caller: Callable[[], list],
+        hook_caller: pluggy.HookCaller,
         hook_name: str,
         key: Callable[[_ProviderT], _KeyT],
         describe: Callable[[_ProviderT], str],
@@ -355,8 +377,8 @@ class PluginManager:
 
         Parameters
         ----------
-        hook_caller : Callable[[], list]
-            The bound hook (e.g. `self.hook.fabulous_register_parsers`).
+        hook_caller : pluggy.HookCaller
+            The hook to drive (e.g. `self.hook.fabulous_register_parsers`).
         hook_name : str
             The hook's name, for the warning/error message.
         key : Callable[[_ProviderT], _KeyT]
@@ -783,7 +805,12 @@ class PluginManager:
         api : FABulous_API
             The API whose fabric was just loaded.
         """
-        self.hook.fabulous_after_fabric_loaded(api=api)
+        self._call_hook_or_skip(
+            self.hook.fabulous_after_fabric_loaded,
+            "fabulous_after_fabric_loaded",
+            self.skip_broken,
+            api=api,
+        )
 
     # -- Plugin management (owned by the manager, not a plugin) ---------------
 
@@ -877,12 +904,24 @@ class PluginManager:
         ------
         PluginError
             If the path cannot be resolved to an importable module.
+        Exception
+            Whatever the plugin's own module-level code raises, after the
+            partially initialised module is taken back out of `sys.modules`.
         """
         spec = importlib.util.spec_from_file_location(name, init)
         if spec is None or spec.loader is None:
             raise PluginError(f"'{init}' is not an importable Python module")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        # A plugin package's __init__.py may import its own submodules, and
+        # importlib resolves those through sys.modules while the parent is
+        # still executing. Register before running it or every such import
+        # fails and the plugin never loads.
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(name, None)
+            raise
         return module
 
     def _register_external(

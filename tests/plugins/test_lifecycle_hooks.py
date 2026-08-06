@@ -55,6 +55,11 @@ def test_notify_startup_fires_every_implementation() -> None:
             lambda m: m.collect_command_sets(),
             id="register-commands",
         ),
+        pytest.param(
+            "fabulous_after_fabric_loaded",
+            lambda m: m.notify_fabric_loaded(object()),
+            id="after-fabric-loaded",
+        ),
     ],
 )
 def test_broken_lifecycle_hook_aborts_when_strict(
@@ -86,6 +91,12 @@ def test_broken_lifecycle_hook_aborts_when_strict(
             [],
             id="register-commands",
         ),
+        pytest.param(
+            "fabulous_after_fabric_loaded",
+            lambda m: m.notify_fabric_loaded(object()),
+            None,
+            id="after-fabric-loaded",
+        ),
     ],
 )
 def test_broken_lifecycle_hook_skipped_when_lenient(
@@ -102,7 +113,10 @@ def test_broken_lifecycle_hook_skipped_when_lenient(
 @pytest.mark.parametrize(
     ("returned", "expected_types"),
     [
-        pytest.param(lambda: _OneCommands(), [_OneCommands], id="single"),
+        # These stay lambdas rather than the classes themselves: pluggy reads a
+        # hookimpl's signature to bind arguments, and a class exposes
+        # `__init__`'s, so registering one directly makes pluggy skip it.
+        pytest.param(lambda: _OneCommands(), [_OneCommands], id="single"),  # noqa: PLW0108
         pytest.param(
             lambda: [_OneCommands(), _TwoCommands()],
             [_OneCommands, _TwoCommands],

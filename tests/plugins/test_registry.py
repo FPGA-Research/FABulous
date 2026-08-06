@@ -70,3 +70,41 @@ def test_missing_parser_raises(fake_parser_module: types.ModuleType) -> None:
     manager.build_registries()
     with pytest.raises(PluginError):
         manager.make_parser(Path("fabric.csv"))
+
+
+def _broken_parser_module() -> types.ModuleType:
+    """A module whose parser hook raises on every call."""
+    module = types.ModuleType("broken_parser_plugin")
+
+    @hookspecs.hookimpl
+    def fabulous_register_parsers() -> list:
+        raise RuntimeError("boom")
+
+    module.fabulous_register_parsers = fabulous_register_parsers
+    return module
+
+
+def test_broken_hook_keeps_other_plugins_providers(
+    fake_parser_module: types.ModuleType,
+) -> None:
+    # A hook raising must cost only its own plugin's providers; folding the
+    # whole aggregate away would leave the registry empty and break parsing.
+    manager = PluginManager(skip_broken=True)
+    manager.pm.register(_broken_parser_module(), name="broken_parser")
+    manager.pm.register(fake_parser_module, name="fake_parser")
+    manager.build_registries(skip_broken=True)
+
+    assert manager.make_parser(Path("fabric.fake"))("path") == "path"
+
+
+def test_broken_hook_names_the_offending_plugin(
+    fake_parser_module: types.ModuleType,
+) -> None:
+    manager = PluginManager()
+    manager.pm.register(_broken_parser_module(), name="broken_parser")
+    manager.pm.register(fake_parser_module, name="fake_parser")
+
+    with pytest.raises(PluginError) as exc:
+        manager.build_registries()
+
+    assert "broken_parser" in str(exc.value)

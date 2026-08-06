@@ -39,7 +39,12 @@ class MyTileFlow(FABulousTileVerilogMacroFlow):
 
 
 class RecordingTileFlow(FABulousTileMacroFlow):
-    """A tile flow that records its construction instead of running anything."""
+    """A tile flow that records its construction instead of running anything.
+
+    Deliberately does not call `super().__init__`: LibreLane's `Flow.__init__`
+    resolves a real config against a real PDK, which is the work these doubles
+    exist to avoid. Only the class chosen and the arguments passed are asserted.
+    """
 
     instantiated: list[tuple] = []
 
@@ -52,7 +57,10 @@ class RecordingTileFlow(FABulousTileMacroFlow):
 
 
 class RecordingFabricFlow(FABulousFabricMacroFlow):
-    """A fabric flow that records its construction instead of running anything."""
+    """A fabric flow that records its construction instead of running anything.
+
+    Skips `super().__init__` for the same reason as `RecordingTileFlow`.
+    """
 
     instantiated: list[tuple] = []
 

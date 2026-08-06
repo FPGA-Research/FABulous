@@ -15,6 +15,7 @@ from fabulous.fabulous_repl.helper import (
     register_tile_in_fabric_csv,
     run_task,
     update_project_version,
+    write_pnr_model,
 )
 from tests.conftest import normalize_and_check_for_errors, run_cmd
 
@@ -400,3 +401,30 @@ def test_clone_tile_no_register_skips_fabric_csv(
     csv_after = cli.csvFile.read_text(encoding="utf-8")
     assert csv_after == csv_before
     assert "MY_TILE" not in csv_after
+
+
+def test_write_pnr_model_creates_nested_directories(tmp_path: Path) -> None:
+    """A backend may name a file inside a subdirectory it does not pre-create."""
+    write_pnr_model({"models/arch.xml": "<arch/>"}, tmp_path)
+
+    assert (tmp_path / "models" / "arch.xml").read_text(encoding="utf-8") == "<arch/>"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("../escaped.txt", id="parent-relative"),
+        pytest.param("/tmp/absolute.txt", id="absolute"),
+        pytest.param("nested/../../escaped.txt", id="nested-parent-relative"),
+    ],
+)
+def test_write_pnr_model_rejects_paths_outside_out_dir(
+    tmp_path: Path, name: str
+) -> None:
+    """A backend is a plugin boundary, so a name that escapes `out_dir` is refused."""
+    out_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="outside"):
+        write_pnr_model({name: "payload"}, out_dir)
+
+    assert not (tmp_path / "escaped.txt").exists()

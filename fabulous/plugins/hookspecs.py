@@ -123,6 +123,10 @@ class FABulousHookRelay(Protocol):
     get the real per-hook parameter and return types instead. Each method's
     return type is `list[...]` because a hook call aggregates one result per
     registered implementation.
+
+    Each attribute is still the underlying `pluggy.HookCaller` at runtime, so
+    `PluginManager._call_hook_or_skip` can take one and drive its
+    implementations individually rather than calling it.
     """
 
     def fabulous_startup(self) -> list[None]:

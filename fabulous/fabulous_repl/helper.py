@@ -408,10 +408,22 @@ def write_pnr_model(
         overwriting it. Defaults to False. The timed model overwrites the
         untimed one in place, so that path keeps the previous generation
         around.
+
+    Raises
+    ------
+    ValueError
+        If an artifact name would land outside `out_dir`.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    resolved_out_dir = out_dir.resolve()
     for name, content in artifacts.items():
-        path = out_dir / name
+        # A backend can come from a plugin, so its file names are untrusted:
+        # an absolute or '..' name would write outside the project.
+        path = (resolved_out_dir / name).resolve()
+        if Path(name).is_absolute() or not path.is_relative_to(resolved_out_dir):
+            raise ValueError(f"Artifact '{name}' would be written outside '{out_dir}'.")
+        # A backend may name a file inside a subdirectory of its own.
+        path.parent.mkdir(parents=True, exist_ok=True)
         if backup_existing and path.exists():
             backup_path = path.with_suffix(f".backup{path.suffix}")
             logger.info(f"Backing up existing {path.name} to {backup_path}")

@@ -1,5 +1,6 @@
 """Discovery tiers: core, dir-scan, entry points, session, broken."""
 
+import sys
 import types
 from pathlib import Path
 
@@ -141,3 +142,49 @@ def test_incompatible_api_skipped_when_lenient(
     _patch_context(mocker, tmp_path, skip_broken=True)
     manager = PluginManager.create()
     assert manager.pm.get_plugin("oldplug") is None
+
+
+@pytest.mark.parametrize(
+    "import_line",
+    [
+        pytest.param("from .inner import PROVIDERS", id="relative"),
+        pytest.param("from pkgplug.inner import PROVIDERS", id="absolute"),
+    ],
+)
+def test_package_plugin_can_import_own_submodule(
+    tmp_path: Path, mocker: MockerFixture, import_line: str
+) -> None:
+    # A package's __init__.py runs before it is importable by name, so both
+    # import forms resolve through sys.modules while it is still executing.
+    pkg = tmp_path / "pkgplug"
+    pkg.mkdir()
+    (pkg / "inner.py").write_text(
+        "from fabulous.plugins.types import ParserProvider\n"
+        "PROVIDERS = [ParserProvider('.inner', lambda path: path, 'inner')]\n"
+    )
+    (pkg / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION, hookimpl\n"
+        f"{import_line}\n\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n\n"
+        "@hookimpl\n"
+        "def fabulous_register_parsers():\n"
+        "    return PROVIDERS\n"
+    )
+    _patch_context(mocker, tmp_path)
+
+    manager = PluginManager.create()
+
+    assert manager.make_parser(Path("fabric.inner")) is not None
+
+
+def test_failed_package_plugin_leaves_no_partial_module(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    pkg = tmp_path / "halfplug"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("raise RuntimeError('boom')\n")
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    PluginManager.create()
+
+    assert "halfplug" not in sys.modules

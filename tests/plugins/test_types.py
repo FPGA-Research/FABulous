@@ -13,7 +13,7 @@ from fabulous.plugins.types import (
 
 
 def test_code_generator_provider_is_frozen() -> None:
-    provider = CodeGeneratorProvider(HDLType.VERILOG, lambda: object(), "verilog")
+    provider = CodeGeneratorProvider(HDLType.VERILOG, object, "verilog")
     assert provider.name == "verilog"
     with pytest.raises(dataclasses.FrozenInstanceError):
         provider.name = "other"  # type: ignore[misc]
