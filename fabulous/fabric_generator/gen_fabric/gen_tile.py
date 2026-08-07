@@ -178,10 +178,9 @@ def generateTile(
         )
 
     elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-        writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True, indentLevel=1)
 
@@ -277,12 +276,13 @@ def generateTile(
         writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
         writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
-    writer.addNewLine()
-    writer.addComment("Connection for outgoing wires", onNewLine=True)
-    writer.addConnectionVector("FrameData_i", "FrameBitsPerRow-1", 0)
-    writer.addConnectionVector("FrameData_O_i", "FrameBitsPerRow-1", 0)
-    writer.addConnectionVector("FrameStrobe_i", "MaxFramesPerCol-1", 0)
-    writer.addConnectionVector("FrameStrobe_O_i", "MaxFramesPerCol-1", 0)
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        writer.addNewLine()
+        writer.addComment("Connection for outgoing wires", onNewLine=True)
+        writer.addConnectionVector("FrameData_i", "FrameBitsPerRow-1", 0)
+        writer.addConnectionVector("FrameData_O_i", "FrameBitsPerRow-1", 0)
+        writer.addConnectionVector("FrameStrobe_i", "MaxFramesPerCol-1", 0)
+        writer.addConnectionVector("FrameStrobe_O_i", "MaxFramesPerCol-1", 0)
 
     added = set()
     for port in tile.portsInfo:
@@ -297,47 +297,53 @@ def generateTile(
             )
             added.add((port.sourceName, port.destinationName))
 
-    writer.addNewLine()
-    writer.addLogicStart()
+        writer.addNewLine()
+        writer.addLogicStart()
 
-    # buffer FrameData signals
-    writer.addAssignScalar("FrameData_O_i", "FrameData_i")
-    writer.addNewLine()
-    for i in range(frame_bits_per_row):
-        writer.addInstantiation(
-            "my_buf",
-            f"data_inbuf_{i}",
-            portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
-        )
-    for i in range(frame_bits_per_row):
-        writer.addInstantiation(
-            "my_buf",
-            f"data_outbuf_{i}",
-            portsPairs=[
-                ("A", f"FrameData_O_i[{i}]"),
-                ("X", f"FrameData_O[{i}]"),
-            ],
-        )
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
 
-    # strobe is always added even when config bits are 0
-    writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
-    writer.addNewLine()
-    for i in range(max_frame_per_col):
-        writer.addInstantiation(
-            "my_buf",
-            f"strobe_inbuf_{i}",
-            portsPairs=[("A", f"FrameStrobe[{i}]"), ("X", f"FrameStrobe_i[{i}]")],
-        )
+        # buffer FrameData signals
+        writer.addAssignScalar("FrameData_O_i", "FrameData_i")
+        writer.addNewLine()
+        for i in range(frame_bits_per_row):
+            writer.addInstantiation(
+                "my_buf",
+                f"data_inbuf_{i}",
+                portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
+            )
+        for i in range(frame_bits_per_row):
+            writer.addInstantiation(
+                "my_buf",
+                f"data_outbuf_{i}",
+                portsPairs=[
+                    ("A", f"FrameData_O_i[{i}]"),
+                    ("X", f"FrameData_O[{i}]"),
+                ],
+            )
 
-    for i in range(max_frame_per_col):
-        writer.addInstantiation(
-            "my_buf",
-            f"strobe_outbuf_{i}",
-            portsPairs=[
-                ("A", f"FrameStrobe_O_i[{i}]"),
-                ("X", f"FrameStrobe_O[{i}]"),
-            ],
-        )
+        # strobe is always added even when config bits are 0
+        writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
+        writer.addNewLine()
+        for i in range(max_frame_per_col):
+            writer.addInstantiation(
+                "my_buf",
+                f"strobe_inbuf_{i}",
+                portsPairs=[("A", f"FrameStrobe[{i}]"), ("X", f"FrameStrobe_i[{i}]")],
+            )
+
+        for i in range(max_frame_per_col):
+            writer.addInstantiation(
+                "my_buf",
+                f"strobe_outbuf_{i}",
+                portsPairs=[
+                    ("A", f"FrameStrobe_O_i[{i}]"),
+                    ("X", f"FrameStrobe_O[{i}]"),
+                ],
+            )
+
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits == 0:
+        writer.addComment("Passthrough scan chain for unconfigured tile", onNewLine=True)
+        writer.addAssignScalar("CONFout", "CONFin")
 
     added = set()
     for port in tile.portsInfo:
@@ -383,13 +389,6 @@ def generateTile(
         )
 
     writer.addNewLine()
-    # top configuration data daisy chaining
-    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        writer.addComment("top configuration data daisy chaining", onNewLine=True)
-        writer.addAssignScalar("conf_data(conf_data'low)", "CONFin")
-        writer.addComment("conf_data'low=0 and CONFin is from tile entity")
-        writer.addAssignScalar("conf_data(conf_data'high)", "CONFout")
-        writer.addComment("CONFout is from tile entity")
 
     if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
@@ -405,12 +404,26 @@ def generateTile(
             emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
         )
 
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits > 0:
+        writer.addComment("configuration storage latches", onNewLine=True)
+        writer.addInstantiation(
+            compName=f"{tile.name}_ConfigMem",
+            compInsName=f"Inst_{tile.name}_ConfigMem",
+            portsPairs=[
+                ("CONFin", "CONFin"),
+                ("CONFout", "CONFout"),
+                ("CONF_CLK", "CONF_CLK"),
+                ("ConfigBits", "ConfigBits"),
+                ("ConfigBits_N", "ConfigBits_N"),
+            ],
+            emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
+        )
+
     # BEL component instantiations
     if tile.bels:
         writer.addNewLine()
         writer.addComment("BEL component instantiations", onNewLine=True)
 
-    belCounter = 0
     belConfigBitsCounter = 0
     for bel in tile.bels:
         port_dict = defaultdict(list)
@@ -458,20 +471,14 @@ def generateTile(
         if userclk_pair is not None:
             portsPairs.append(userclk_pair)
 
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            if bel.configBit > 0:
-                portsPairs.append(
-                    (
-                        "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
-                        f"{belConfigBitsCounter}]",
-                    )
+        if bel.configBit > 0:
+            portsPairs.append(
+                (
+                    "ConfigBits",
+                    f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
+                    f"{belConfigBitsCounter}]",
                 )
-        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            portsPairs.append(("MODE", "Mode"))
-            portsPairs.append(("CONFin", f"conf_data({belCounter})"))
-            portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
-            portsPairs.append(("CLK", "CLK"))
+            )
 
         writer.addInstantiation(
             compName=bel.name,
@@ -479,13 +486,7 @@ def generateTile(
             portsPairs=portsPairs,
         )
 
-        # FIXME: Why is the belCounter increased here by 2 and afterwards by 1?
-        belCounter += 2
         belConfigBitsCounter += bel.configBit
-
-        # for the next BEL (if any) for cascading configuration chain
-        # (this information is also needed for chaining the switch matrix)
-        belCounter += 1
 
     portsPairs = []
     # normal input wire (excludes JUMP and SJUMP, which are handled separately;
@@ -566,25 +567,18 @@ def generateTile(
 
     portsPairs += list(zip(port, signal, strict=True))
 
-    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        portsPairs.append(("MODE", "Mode"))
-        portsPairs.append(("CONFin", f"conf_data({belCounter})"))
-        portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
-        portsPairs.append(("CLK", "CLK"))
-
-    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
-        portsPairs.append(
-            (
-                "ConfigBits",
-                f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
-            )
+    portsPairs.append(
+        (
+            "ConfigBits",
+            f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
         )
-        portsPairs.append(
-            (
-                "ConfigBits_N",
-                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
-            )
+    )
+    portsPairs.append(
+        (
+            "ConfigBits_N",
+            f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
         )
+    )
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",
@@ -594,6 +588,7 @@ def generateTile(
 
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
+
 
 
 def generateSuperTile(
