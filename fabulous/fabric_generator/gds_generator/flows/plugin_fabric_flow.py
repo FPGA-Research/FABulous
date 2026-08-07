@@ -78,8 +78,8 @@ class FABulousFabric(FABulousFabricMacroFlow):
 
     def __new__(
         cls,
-        *args: object,  # noqa: ARG004 — signature mirrors __init__
-        **kwargs: object,  # noqa: ARG004
+        *_args: object, 
+        **_kwargs: object, 
     ) -> Self:
         """Skip `FABulousFabricMacroFlow.__new__`'s config-source layering.
 
