@@ -103,11 +103,7 @@ class FABulousTileMacroFlow(SequentialFlow):
 
     def __new__(
         cls,
-        tile_type: Tile | SuperTile,  # noqa: ARG004 — signature mirrors __init__
-        io_pin_config: Path,  # noqa: ARG004
-        opt_mode: OptMode,  # noqa: ARG004
-        pdk: str,  # noqa: ARG004
-        pdk_root: Path,  # noqa: ARG004
+        *_args,
         models_pack_path: Path | None = None,  # noqa: ARG004
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
