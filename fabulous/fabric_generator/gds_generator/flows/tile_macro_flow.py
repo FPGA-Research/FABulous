@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Self
 
 from librelane.common import GenericDict
 from librelane.config.variable import Variable
@@ -23,6 +24,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
+    merge_layered_substitutions,
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
@@ -60,6 +62,30 @@ class FABulousTileMacroFlow(SequentialFlow):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _models_pack_first: bool = False
     _extra_synth_config: dict[str, object] = {}
+
+    def __new__(
+        cls,
+        *_args,
+        models_pack_path: Path | None = None,  # noqa: ARG004
+        base_config_path: Path | None = None,
+        override_config_path: Path | None = None,
+        design_dir: Path | None = None,  # noqa: ARG004
+        **custom_config_overrides: dict,
+    ) -> Self:
+        """Apply layered `meta.substituting_steps` before construction.
+
+        `Config.load()` overwrites its `meta` per config source instead of
+        merging (see `merge_layered_substitutions`), so `substituting_steps`
+        from `base_config_path`/`override_config_path` never reaches
+        `self.config.meta` by the time `__init__` runs. Resolve substitutions
+        from the same layered sources here and apply them by constructing an
+        instance of a `.Substitute()`-derived subclass instead.
+        """
+        substitutions = merge_layered_substitutions(
+            [base_config_path, override_config_path, custom_config_overrides]
+        )
+        target_cls = cls.Substitute(substitutions) if substitutions else cls
+        return super().__new__(target_cls)  # type: ignore[arg-type]
 
     def __init__(
         self,

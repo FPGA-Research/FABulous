@@ -3,7 +3,7 @@
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Union, cast
+from typing import Self, Union, cast
 
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
@@ -23,6 +23,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
 )
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
+    merge_layered_substitutions,
     round_up_decimal,
 )
 from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
@@ -110,6 +111,33 @@ class FABulousFabricMacroFlow(Classic):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _extra_synth_config: dict[str, object] = {}
     _models_pack_first: bool = False
+
+    def __new__(
+        cls,
+        *_args,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        design_dir: Path | None = None,  # noqa: ARG004
+        pdk_root: Path | None = None,  # noqa: ARG004
+        pdk: str | None = None,  # noqa: ARG004
+        **custom_config_overrides: dict,
+    ) -> Self:
+        """Apply layered `meta.substituting_steps` before construction.
+
+        `Config.load()` overwrites its `meta` per config source instead of
+        merging (see `merge_layered_substitutions`), so `substituting_steps`
+        from `base_config_path`/`config_override_path` never reaches
+        `self.config.meta` by the time `__init__` runs. Resolve substitutions
+        from the same layered sources here and apply them by constructing an
+        instance of a `.Substitute()`-derived subclass instead. This layers on
+        top of the class-level `Substitutions = subs` already baked into
+        `Steps` at class-definition time.
+        """
+        substitutions = merge_layered_substitutions(
+            [base_config_path, config_override_path, custom_config_overrides]
+        )
+        target_cls = cls.Substitute(substitutions) if substitutions else cls
+        return super().__new__(target_cls)  # type: ignore[arg-type]
 
     def __init__(
         self,

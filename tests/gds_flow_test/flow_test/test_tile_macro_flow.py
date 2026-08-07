@@ -19,6 +19,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 from librelane.flows.flow import FlowException
 
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
@@ -565,6 +566,38 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["DESIGN_NAME"] == "TestTile"
+
+    def test_substituting_steps_from_base_config_applied(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        base_config_file: Path,
+        override_config_file: Path,
+    ) -> None:
+        """`meta.substituting_steps` in `base_config_path` must reach `Steps`.
+
+        Regression test: `Config.load()` overwrites `Config.meta` per config
+        source instead of merging, so a later source (`override_config_path`
+        here, which carries no `meta:` key) used to silently drop the
+        substitutions defined in an earlier source.
+        """
+        meta_yaml: str = base_config_file.read_text()
+        base_config_file.write_text(
+            meta_yaml
+            + "\n"
+            + yaml.dump({"meta": {"substituting_steps": {"KLayout.XOR": None}}})
+        )
+
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            base_config_path=base_config_file,
+            override_config_path=override_config_file,
+        )
+
+        assert not any(step.id == "KLayout.XOR" for step in flow.Steps)
 
     def test_none_cast_to_no_opt(
         self,

@@ -21,6 +21,13 @@ let
   allPackages = [ virtualenv ] ++ toolPackages;
   prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
 
+  # Per-workstation extra plugin PYTHONPATH, populated by
+  # ~/.local/bin/librelane-plugins-pythonpath.sh into LIBRELANE_EXTRA_PYTHONPATH
+  # (see .bashrc). Empty string if unset. For third-party librelane plugin
+  # trees other than librelane_plugin_fabulous, which materializePlugin already
+  # covers.
+  extraPluginPythonPath = builtins.getEnv "LIBRELANE_EXTRA_PYTHONPATH";
+
   # `librelane_plugin_fabulous` is generated at build time. pip/uv build from
   # the checkout, so an editable install writes it straight there; Nix builds in
   # a sandboxed copy of the source that is discarded, leaving nothing for the
@@ -46,11 +53,11 @@ let
         value = envVars.GHDL_PREFIX;
       }
       {
-        # tkinter only. librelane is deliberately absent so the venv's
-        # (uv.lock-pinned) librelane is authoritative and overridable, not
-        # shadowed by the flake input.
+        # tkinter + optional extra plugin trees. librelane itself is
+        # deliberately absent so the venv's (uv.lock-pinned) librelane is
+        # authoritative and overridable, not shadowed by the flake input.
         name = "NIX_PYTHONPATH";
-        value = tkinter-python-path;
+        value = tkinter-python-path + lib.optionalString (extraPluginPythonPath != "") ":${extraPluginPythonPath}";
       }
       {
         name = "PYTHONWARNINGS";
@@ -147,9 +154,9 @@ in
         export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         . ${virtualenv}/bin/activate
 
-        # Build PYTHONPATH so tkinter + venv + repo root are importable
-        # (librelane comes from the venv, not the flake input).
-        _nix_py="${tkinter-python-path}"
+        # Build PYTHONPATH so tkinter + extra plugins + venv + repo root are
+        # importable (librelane comes from the venv, not the flake input).
+        _nix_py="${tkinter-python-path}${lib.optionalString (extraPluginPythonPath != "") ":${extraPluginPythonPath}"}"
         VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
         if [ -n "$VENV_SITE" ]; then
           export PYTHONPATH="$_nix_py:$VENV_SITE:$REPO_ROOT"

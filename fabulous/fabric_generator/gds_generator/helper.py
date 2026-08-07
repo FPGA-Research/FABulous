@@ -1,14 +1,19 @@
-"""Helper utilities for GDS generation: die area rounding and pitch parsing.
+"""Helper utilities for GDS generation: die area, pitch, step substitution.
 
 This module exposes utilities used by the GDS generator flows.
 """
 
+import fnmatch
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from librelane.config.config import Config
+from librelane.flows.flow import FlowException
+from librelane.flows.sequential import Substitution, SubstitutionsObject
 from librelane.logging.logger import info
+from librelane.steps.step import Step
 
 
 def get_layer_info(config: Config) -> dict[str, dict[str, tuple[Decimal, Decimal]]]:
@@ -173,4 +178,131 @@ def get_routing_obstructions(
         for box in boxes:
             result.append((layer, *box))
 
+    return result
+
+
+def merge_layered_substitutions(
+    config_sources: list[Any],
+) -> SubstitutionsObject | None:
+    """Merge `meta.substituting_steps` across layered config sources.
+
+    `Config.load()` overwrites `Config.meta` wholesale for each source in its
+    configs list rather than merging, so a later source with no `meta:` key
+    (e.g. a tile-specific or custom override dict) silently drops an earlier
+    source's `substituting_steps`. This walks the same sources ourselves, in
+    the same order, and concatenates each source's own substitutions so a
+    later source's entries still apply after an earlier source's.
+    """
+    merged: list[tuple[str, Substitution]] = []
+    for source in config_sources:
+        if source is None:
+            continue
+        if isinstance(source, Path | str):
+            if not Path(source).exists():
+                # A missing base/override config file is tolerated elsewhere
+                # in these flows (Config.load treats it as contributing
+                # nothing), so mirror that here instead of letting
+                # Config.get_meta's open() raise on a path that legitimately
+                # may not exist.
+                continue
+            # Config.get_meta only special-cases `str`, not other PathLikes.
+            source = str(source)
+        meta = Config.get_meta(source)
+        if not meta.substituting_steps:
+            continue
+        items = (
+            meta.substituting_steps.items()
+            if isinstance(meta.substituting_steps, dict)
+            else meta.substituting_steps
+        )
+        merged.extend(items)
+    return merged or None
+
+
+def _substitute_one(
+    steps: list[type[Step]],
+    id: str,  # noqa: A002
+    with_step: Substitution,
+) -> None:
+    mode = "replace"
+    if id.startswith("+"):
+        id = id[1:]  # noqa: A001
+        mode = "append"
+        if with_step is None:
+            raise FlowException("Cannot prepend or append None.")
+    elif id.startswith("-"):
+        id = id[1:]  # noqa: A001
+        mode = "prepend"
+        if with_step is None:
+            raise FlowException("Cannot prepend or append None.")
+
+    step_indices = [
+        i
+        for i, step in enumerate(steps)
+        if step.id != NotImplemented and fnmatch.fnmatch(step.id.lower(), id.lower())
+    ]
+    if not step_indices:
+        if with_step is None:
+            raise FlowException(
+                f"Could not remove '{id}': no steps with ID '{id}' found in loop body"
+            )
+        raise FlowException(
+            f"Could not {mode} '{id}' with '{with_step}': no steps with ID "
+            f"'{id}' found in loop body."
+        )
+
+    if with_step is None:
+        for index in reversed(step_indices):
+            del steps[index]
+        return
+
+    resolved_step = with_step
+    if isinstance(resolved_step, str):
+        found = Step.factory.get(resolved_step)
+        if found is None:
+            raise FlowException(
+                f"Could not {mode} '{id}' with '{resolved_step}': no replacement "
+                f"step with ID '{resolved_step}' found."
+            )
+        resolved_step = found
+
+    for i in step_indices:
+        if mode == "replace":
+            steps[i] = resolved_step
+        elif mode == "append":
+            steps.insert(i + 1, resolved_step)
+        elif mode == "prepend":
+            steps.insert(i, resolved_step)
+
+
+def apply_step_substitutions(
+    steps: list[type[Step]],
+    substitutions: SubstitutionsObject,
+) -> list[type[Step]]:
+    """Apply LibreLane-style step substitutions to a nested step list.
+
+    LibreLane's `SequentialFlow.Substitute`/`meta.substituting_steps` only walks
+    a flow's top-level `Steps` list, so it cannot see steps nested inside a
+    `WhileStep` (a FABulous-authored composite, not a LibreLane built-in). This
+    reproduces the same matching/replace semantics for that nested list, so
+    `gds_config.yaml` can target loop-internal steps with identical syntax.
+
+    Parameters
+    ----------
+    steps : list[type[Step]]
+        The loop body to substitute into. Not mutated; a copy is returned.
+    substitutions : SubstitutionsObject
+        A dict or list of (id, step) tuples, using the same syntax as
+        LibreLane's `meta.substituting_steps`: a bare id replaces, `+id`
+        appends after, `-id` prepends before, and a `None` value removes.
+
+    Returns
+    -------
+    list[type[Step]]
+        The resulting step list.
+    """
+    result = list(steps)
+    items = substitutions.items() if isinstance(substitutions, dict) else substitutions
+    for id, with_step in items:  # noqa: A001
+        _substitute_one(result, id, with_step)
     return result
