@@ -64,7 +64,7 @@ local_scheme = "node-and-date"
 # Version stamped into git-less builds (Nix, sdist) where setuptools_scm cannot
 # read a git tag. release-please bumps this to the release version inside the
 # release PR via the toml extra-files updater in release-please-config.json.
-fallback_version = "2.1.0"
+fallback_version = "2.2.0"
 
 [tool.setuptools.packages.find]
 include = ["fabulous*", "fabulous_nix*", "librelane_plugin_fabulous*"]
