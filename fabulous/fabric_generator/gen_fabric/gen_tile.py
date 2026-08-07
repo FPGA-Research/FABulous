@@ -301,7 +301,6 @@ def generateTile(
         writer.addLogicStart()
 
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
-
         # buffer FrameData signals
         writer.addAssignScalar("FrameData_O_i", "FrameData_i")
         writer.addNewLine()
@@ -342,7 +341,9 @@ def generateTile(
             )
 
     elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits == 0:
-        writer.addComment("Passthrough scan chain for unconfigured tile", onNewLine=True)
+        writer.addComment(
+            "Passthrough scan chain for unconfigured tile", onNewLine=True
+        )
         writer.addAssignScalar("CONFout", "CONFin")
 
     added = set()
@@ -588,7 +589,6 @@ def generateTile(
 
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
-
 
 
 def generateSuperTile(
