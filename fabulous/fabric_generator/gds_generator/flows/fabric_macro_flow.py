@@ -153,10 +153,7 @@ class FABulousFabricMacroFlow(Classic):
 
     def __new__(
         cls,
-        fabric: Fabric,  # noqa: ARG004 — signature mirrors __init__
-        fabric_hdl_paths: list[Path],  # noqa: ARG004
-        tile_macro_dirs: dict[str, Path],  # noqa: ARG004
-        *,
+        *_args,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         design_dir: Path | None = None,  # noqa: ARG004
