@@ -29,10 +29,15 @@ This guide describes everything you need to set up your system to develop with t
 FABulous workflows and dependencies.
 :::
 
-:::{figure} figs/fabulous_ecosystem.*
+:::{drawio-figure} figs/drawio/fabulous_ecosystem.drawio
 :align: center
-:alt: An Illustration of the FABulous ASIC, emulation and bitstream generation flows.
-:width: 80%
+:alt: The FABulous ecosystem, from the CSV fabric definition through fabric generation to the user design, ASIC and verification flows.
+:width: 100%
+
+The FABulous ecosystem. A CSV fabric definition is turned into fabric RTL, a
+bitstream specification, a nextpnr chip database and geometry; those artifacts
+then drive the user design flow (Yosys, nextpnr, `bit_gen`), the ASIC flow
+(LibreLane, OpenROAD) and verification.
 :::
 
 :::{note}

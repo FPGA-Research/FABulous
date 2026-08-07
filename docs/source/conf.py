@@ -67,6 +67,7 @@ extensions = [
     "sphinx_llm.txt",
     "sphinxcontrib.mermaid",
     # Custom FABulous extensions
+    "drawio",
     "generate_repl_docs",
     "generate_configvar_docs",
     "generate_gds_variable_docs",
@@ -337,6 +338,7 @@ exclude_patterns = [
     "generated_doc/fabulous_variable.md",
     "generated_doc/FABulous",
     "generated_doc/FABulous/**",
+    "figs/drawio/README.md",  # editing notes for the figure sources, not a doc page
 ] # since we alias the fabulous package with FABulous, we have to exclude the FABulous
 # package from the generated_doc to avoid confusion and duplication in the documentation.
 
