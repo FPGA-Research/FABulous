@@ -3,13 +3,11 @@
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Self, Union, cast
+from typing import Self, Union, cast
 
-from librelane.config.config import Config
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
-from librelane.flows.sequential import Substitution, SubstitutionsObject
 from librelane.logging.logger import err, info
 from librelane.state.state import State
 from librelane.steps.common_variables import io_layer_variables
@@ -25,6 +23,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
 )
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
+    merge_layered_substitutions,
     round_up_decimal,
 )
 from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
@@ -92,44 +91,6 @@ configs = (
 )
 
 
-def _merge_layered_substitutions(
-    config_sources: list[Any],
-) -> SubstitutionsObject | None:
-    """Merge `meta.substituting_steps` across layered config sources.
-
-    `Config.load()` overwrites `Config.meta` wholesale for each source in its
-    configs list rather than merging, so a later source with no `meta:` key
-    (e.g. a custom-override dict) silently drops an earlier source's
-    `substituting_steps`. This walks the same sources ourselves, in the same
-    order, and concatenates each source's own substitutions so a later
-    source's entries still apply after an earlier source's.
-    """
-    merged: list[tuple[str, Substitution]] = []
-    for source in config_sources:
-        if source is None:
-            continue
-        if isinstance(source, Path | str):
-            if not Path(source).exists():
-                # A missing base/override config file is tolerated elsewhere
-                # in this flow (Config.load treats it as contributing
-                # nothing), so mirror that here instead of letting
-                # Config.get_meta's open() raise on a path that legitimately
-                # may not exist.
-                continue
-            # Config.get_meta only special-cases `str`, not other PathLikes.
-            source = str(source)
-        meta = Config.get_meta(source)
-        if not meta.substituting_steps:
-            continue
-        items = (
-            meta.substituting_steps.items()
-            if isinstance(meta.substituting_steps, dict)
-            else meta.substituting_steps
-        )
-        merged.extend(items)
-    return merged or None
-
-
 @Flow.factory.register()
 class FABulousFabricMacroFlow(Classic):
     """Flow for stitching together individual tile macros into a complete fabric.
@@ -164,7 +125,7 @@ class FABulousFabricMacroFlow(Classic):
         """Apply layered `meta.substituting_steps` before construction.
 
         `Config.load()` overwrites its `meta` per config source instead of
-        merging (see `_merge_layered_substitutions`), so `substituting_steps`
+        merging (see `merge_layered_substitutions`), so `substituting_steps`
         from `base_config_path`/`config_override_path` never reaches
         `self.config.meta` by the time `__init__` runs. Resolve substitutions
         from the same layered sources here and apply them by constructing an
@@ -172,7 +133,7 @@ class FABulousFabricMacroFlow(Classic):
         top of the class-level `Substitutions = subs` already baked into
         `Steps` at class-definition time.
         """
-        substitutions = _merge_layered_substitutions(
+        substitutions = merge_layered_substitutions(
             [base_config_path, config_override_path, custom_config_overrides]
         )
         target_cls = cls.Substitute(substitutions) if substitutions else cls

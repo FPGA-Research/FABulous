@@ -4,7 +4,7 @@ import pytest
 from librelane.flows.flow import FlowException
 from librelane.steps.step import Step
 
-from fabulous.fabric_generator.gds_generator.steps.step_substitution import (
+from fabulous.fabric_generator.gds_generator.helper import (
     apply_step_substitutions,
 )
 

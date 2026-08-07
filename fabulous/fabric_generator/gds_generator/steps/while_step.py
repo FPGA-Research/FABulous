@@ -13,7 +13,7 @@ from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
-from fabulous.fabric_generator.gds_generator.steps.step_substitution import (
+from fabulous.fabric_generator.gds_generator.helper import (
     apply_step_substitutions,
 )
 
