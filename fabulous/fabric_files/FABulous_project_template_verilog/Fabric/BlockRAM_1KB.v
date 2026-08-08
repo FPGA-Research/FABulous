@@ -190,7 +190,7 @@ module BlockRAM_1KB #(
                 end
         end
 endmodule
-`default_nettype wire (* blackbox *)
+(* blackbox *)
 module sram_1rw1r_32_256_8_sky130 #(
     parameter integer NUM_WMASKS = 4              ,
     parameter integer DATA_WIDTH = 32             ,
@@ -214,3 +214,4 @@ module sram_1rw1r_32_256_8_sky130 #(
     output [DATA_WIDTH-1:0] dout1
 );
 endmodule
+`default_nettype wire
