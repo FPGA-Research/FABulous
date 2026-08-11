@@ -692,7 +692,7 @@ class Fabric:
         Returns
         -------
         SuperTile | None
-            The SuperTile whose constituent tiles include ``tile_name``, or None
+            The SuperTile whose constituent tiles include `tile_name`, or None
             if the tile is not part of any SuperTile.
         """
         for super_tile in self.superTileDic.values():

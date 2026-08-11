@@ -30,7 +30,7 @@ def _directional_ports(
     x_offset: int = 0,
     y_offset: int = -1,
 ) -> list[Port]:
-    """Mirror parsePortLine: one OUTPUT port on ``side``, one INPUT on opposite."""
+    """Mirror parsePortLine: one OUTPUT port on `side`, one INPUT on opposite."""
     side = Side[direction]
     return [
         Port(
@@ -59,7 +59,7 @@ def _directional_ports(
 
 
 class TestGetPortCount:
-    """``get_port_count`` must return physical pin count, not 2× the wire count."""
+    """`get_port_count` must return physical pin count, not 2× the wire count."""
 
     def test_single_direction_counts_once_per_wire(self) -> None:
         # One NORTH wire produces N1BEG on N edge and N1END on S edge.
@@ -104,7 +104,7 @@ class TestGetPortCount:
 
 
 class TestGetMinDieArea:
-    """``get_min_die_area`` derives pin-limited min dimensions from get_port_count."""
+    """`get_min_die_area` derives pin-limited min dimensions from get_port_count."""
 
     def test_pin_min_reflects_physical_pins_only(self) -> None:
         # Without the double-count bug, 4 wires on N should produce pin_min_w

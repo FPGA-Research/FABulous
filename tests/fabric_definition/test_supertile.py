@@ -1,13 +1,13 @@
 """Tests for SuperTile methods.
 
 The supertile aggregates Tile objects into a 2D layout. The methods under test are
-pure functions of the ``tileMap`` shape and the constituent tiles' port counts:
+pure functions of the `tileMap` shape and the constituent tiles' port counts:
 
-- ``getPortsAroundTile``: emits side-of-tile port lists for *outer* edges only.
-- ``getInternalConnections``: emits side-of-tile port lists for *inner* edges only.
-- ``__iter__``: yields ``((x, y), tile)`` for every non-None cell.
-- ``max_width`` / ``max_height``: dimensions of the layout grid.
-- ``get_min_die_area``: pin-density-driven physical minimum.
+- `getPortsAroundTile`: emits side-of-tile port lists for _outer_ edges only.
+- `getInternalConnections`: emits side-of-tile port lists for _inner_ edges only.
+- `__iter__`: yields `((x, y), tile)` for every non-None cell.
+- `max_width` / `max_height`: dimensions of the layout grid.
+- `get_min_die_area`: pin-density-driven physical minimum.
 
 These were not previously covered and are entry points to the global tile size
 optimisation pipeline, so any drift in their semantics propagates silently.
@@ -65,12 +65,12 @@ class TestSuperTileLayout:
 
 
 class TestSuperTilePortQueries:
-    """``getPortsAroundTile`` / ``getInternalConnections`` partition the four edges of
+    """`getPortsAroundTile` / `getInternalConnections` partition the four edges of
     every cell into "outer" (boundary or facing a hole) and "inner" (facing another
     tile).
 
     The implementation calls the side-getter for outer-edges only
-    in ``getPortsAroundTile`` and inner-edges only in ``getInternalConnections``.
+    in `getPortsAroundTile` and inner-edges only in `getInternalConnections`.
     """
 
     def test_single_tile_supertile_has_all_outer_edges(
@@ -139,10 +139,10 @@ class TestSuperTilePortQueries:
 
 
 class TestSuperTileMinDieArea:
-    """``get_min_die_area`` aggregates the maximum per-side port count across
+    """`get_min_die_area` aggregates the maximum per-side port count across
     constituent tiles, then derives a physical floor from the pitch.
 
-    Formula per side: ``min_dim = (max_count * thickness_mult + edge_offset) * pitch``.
+    Formula per side: `min_dim = (max_count * thickness_mult + edge_offset) * pitch`.
     """
 
     def test_picks_max_side_count_across_tiles(self) -> None:

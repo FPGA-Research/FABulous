@@ -112,7 +112,7 @@ class NixShell(StrEnum):
 
 
 class ScriptType(StrEnum):
-    """Script execution modes supported by the ``script`` command."""
+    """Script execution modes supported by the `script` command."""
 
     FABULOUS = "fabulous"
     TCL = "tcl"

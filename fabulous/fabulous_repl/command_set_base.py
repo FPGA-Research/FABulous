@@ -6,9 +6,9 @@ dependency-free module so the CommandSet modules and the REPL class can import
 them without creating an import cycle back into the REPL module.
 
 `ReplCommandSet` is a thin alias over `cmd2.CommandSet` parametrised with the
-REPL type, so command groups get ``self._cmd`` typed as ``FABulousREPL`` without
-each module repeating the ``TYPE_CHECKING`` forward-reference dance. At runtime
-it is plain ``CommandSet``; the parametrisation exists only for type checkers.
+REPL type, so command groups get `self._cmd` typed as `FABulousREPL` without
+each module repeating the `TYPE_CHECKING` forward-reference dance. At runtime
+it is plain `CommandSet`; the parametrisation exists only for type checkers.
 """
 
 from typing import TYPE_CHECKING

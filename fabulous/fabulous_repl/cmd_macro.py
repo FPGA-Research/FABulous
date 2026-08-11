@@ -26,12 +26,12 @@ from fabulous.fabulous_settings import get_context, is_pdk_config_set
 def _require_directional_mode(
     opt_mode: OptMode, implied: OptMode, flag: str
 ) -> OptMode:
-    """Return the directional mode a ``--fix-*`` flag implies, or raise on conflict.
+    """Return the directional mode a `--fix-*` flag implies, or raise on conflict.
 
     Parameters
     ----------
     opt_mode : OptMode
-        The mode requested via ``--optimise`` (``NO_OPT`` when unset).
+        The mode requested via `--optimise` (`NO_OPT` when unset).
     implied : OptMode
         The directional mode the fix flag requires.
     flag : str
@@ -40,12 +40,12 @@ def _require_directional_mode(
     Returns
     -------
     OptMode
-        ``implied`` when compatible with ``opt_mode``.
+        `implied` when compatible with `opt_mode`.
 
     Raises
     ------
     ValueError
-        If ``opt_mode`` is an explicit mode other than ``implied``.
+        If `opt_mode` is an explicit mode other than `implied`.
     """
     if opt_mode in (OptMode.NO_OPT, implied):
         return implied
@@ -59,32 +59,32 @@ def _resolve_directional_fix(
     fix_width: Decimal | None,
     fix_height: Decimal | None,
 ) -> tuple[OptMode, list[int | Decimal] | None]:
-    """Resolve ``--optimise`` plus ``--fix-*`` into a mode and DIE_AREA override.
+    """Resolve `--optimise` plus `--fix-*` into a mode and DIE_AREA override.
 
-    A fixed axis pins one side and minimises the other: ``--fix-width`` pairs with
-    ``find_min_height`` and ``--fix-height`` with ``find_min_width``. The minimised
-    axis starts square; ``TileOptimisation`` re-seeds it from the synthesised cell
+    A fixed axis pins one side and minimises the other: `--fix-width` pairs with
+    `find_min_height` and `--fix-height` with `find_min_width`. The minimised
+    axis starts square; `TileOptimisation` re-seeds it from the synthesised cell
     area, so only the fixed value needs to be supplied.
 
     Parameters
     ----------
     opt_mode : OptMode
-        The mode requested via ``--optimise``.
+        The mode requested via `--optimise`.
     fix_width : Decimal | None
-        Locked tile width, if ``--fix-width`` was given.
+        Locked tile width, if `--fix-width` was given.
     fix_height : Decimal | None
-        Locked tile height, if ``--fix-height`` was given.
+        Locked tile height, if `--fix-height` was given.
 
     Returns
     -------
     tuple[OptMode, list[int | Decimal] | None]
-        The resolved optimisation mode and the DIE_AREA override, or ``None`` when
+        The resolved optimisation mode and the DIE_AREA override, or `None` when
         neither fix flag is set.
 
     Raises
     ------
     ValueError
-        If both fix flags are given, or a fix flag contradicts ``--optimise``.
+        If both fix flags are given, or a fix flag contradicts `--optimise`.
     """
     if fix_width is not None and fix_height is not None:
         raise ValueError("Specify only one of --fix-width / --fix-height.")

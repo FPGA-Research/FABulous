@@ -7,7 +7,7 @@ physical I/O BELs on the fabric, letting you pin an _ordinary_ design without
 hand-instantiating any I/O BEL.
 
 This is the recommended alternative to the manual
-[absolute-placement approach](#nextpnr-compilation), where every I/O is wired up
+{ref}`absolute-placement approach <nextpnr-compilation>`, where every I/O is wired up
 by instantiating the I/O BEL (e.g. `IO_1_bidirectional_frame_config_pass`)
 inside a `top_wrapper` and constraining each one with a `(* BEL=... *)`
 attribute. With a PCF you keep your design's port list clean and describe the
@@ -65,7 +65,7 @@ uniquely identifies one BEL on the whole fabric.
 
 You never have to guess the letter — it is column 4 of each `bel.txt` row, or
 the third field of each `BelBegin` line in `bel.v2.txt` (see
-[below](#finding-valid-io-locations)). For example these two `bel.txt` rows
+{ref}`below <finding-valid-io-locations>`). For example these two `bel.txt` rows
 
 ```text
 X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q

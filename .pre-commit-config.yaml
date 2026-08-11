@@ -1,4 +1,4 @@
-files: ^(fabulous|docs|nix|tests)/|\.nix$
+files: ^(fabulous|docs|nix|tests)/|\.nix$|^(pyproject\.toml|uv\.lock)$
 default_language_version:
   python: python3.12
 repos:
@@ -31,6 +31,27 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
+  # Documentation is MyST, not reST -- in pages and in docstrings alike. These
+  # hooks stop reST syntax creeping back in.
+  - repo: local
+    hooks:
+      - id: forbid-rst-inline-literal
+        name: forbid reST ``literal`` (MyST uses a single backtick)
+        language: pygrep
+        entry: '(?<!`)``(?!`)[^`\n]+``(?!`)'
+        types_or: [python, markdown]
+      - id: forbid-rst-directive
+        name: forbid reST directives and eval-rst (MyST uses ```{directive})
+        language: pygrep
+        entry: '^\s*\.\.\s+[a-z-]+::|eval-rst'
+        types_or: [python, markdown]
+      - id: forbid-rst-role
+        name: forbid reST :role:`x` (use {role}`x`)
+        language: pygrep
+        # A leading backtick means it is an inline code span (e.g. `:rtype:`), not a role.
+        entry: '(?<![{\w:`]):[a-z]+(?::[a-z]+)*:`'
+        types_or: [python, markdown]
+
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.6
     hooks:

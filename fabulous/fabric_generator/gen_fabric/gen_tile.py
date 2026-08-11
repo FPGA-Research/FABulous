@@ -53,18 +53,22 @@ def generateTile(
     TODO: we don't do this and always create a configuration port for each tile.
     This dangle the CLK and MODE ports hanging in the air, which will throw a warning
 
-    Each switch matrix entity is build up is a specific order:
-    1.a) interconnect wire INPUTS (in the order defined by the fabric file,)
+    Each switch matrix entity is built up in a specific order:
+
+    ```
+    1.a) interconnect wire INPUTS (in the order defined by the fabric file)
     2.a) BEL primitive INPUTS (in the order the BEL-VHDLs are listed
-         in the fabric CSV) within each BEL, the order from the entity is maintained
-         Note that INPUTS refers to the view of the switch matrix!
-         Which corresponds to BEL outputs at the actual BEL
+         in the fabric CSV) within each BEL, the order from the entity is
+         maintained. Note that INPUTS refers to the view of the switch
+         matrix! Which corresponds to BEL outputs at the actual BEL
     3.a) JUMP wire INPUTS (in the order defined by the fabric file)
     1.b) interconnect wire OUTPUTS
     2.b) BEL primitive OUTPUTS
-         Again: OUTPUTS refers to the view of the switch matrix which corresponds to
-                BEL inputs at the actual BEL
+         Again: OUTPUTS refers to the view of the switch matrix which
+         corresponds to BEL inputs at the actual BEL
     3.b) JUMP wire OUTPUTS
+    ```
+
     The switch matrix uses single bit ports (std_logic and not std_logic_vector)!!!
 
 

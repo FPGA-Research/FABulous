@@ -962,6 +962,8 @@ def io_place(
     """Places the IOs in an input def with a config file using tile-based format.
 
     Config format (YAML):
+
+    ```yaml
     X0Y0:
       N: [pin1_regex, pin2_regex, ...]
       E: [pin3_regex, ...]
@@ -970,6 +972,7 @@ def io_place(
     X1Y0:
       N: [...]
       ...
+    ```
 
     Pins are placed from low to high coordinates (bottom to top, left to right).
     """

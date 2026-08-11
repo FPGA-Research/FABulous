@@ -133,8 +133,8 @@ class TestParetoFrontier:
 class TestEnvelopeWFloor:
     """Piecewise-linear lower bound on width given a row height.
 
-    The Pareto frontier delivered by ``_pareto_frontier`` is sorted by ``h``
-    ascending and ``w`` descending — that monotone shape is the precondition
+    The Pareto frontier delivered by `_pareto_frontier` is sorted by `h`
+    ascending and `w` descending — that monotone shape is the precondition
     of the linear interpolation used here.
     """
 
@@ -225,7 +225,7 @@ class TestFindSharingTiles:
 
 
 class TestParseTileFields:
-    """``_parse_tile_fields`` converts JSON strings/lists into typed metric values."""
+    """`_parse_tile_fields` converts JSON strings/lists into typed metric values."""
 
     def test_parses_required_bbox_strings_to_floats(self) -> None:
         # Bbox fields arrive as space-separated strings and must come out as
@@ -295,7 +295,7 @@ class TestParseTileFields:
 
 class TestLoadTileMetricsFromJson:
     """End-to-end deserialisation of the per-mode metric file produced by the
-    exploration phase. Any entry with an ``error`` field is excluded from both
+    exploration phase. Any entry with an `error` field is excluded from both
     returned dicts — a partial recovered bbox from a failed run does not
     represent a buildable geometry, so it must not enter either the NLP
     feasibility samples or the lower-bound floor.

@@ -257,17 +257,17 @@ class FABulous_API:
         tileName : str
             Name of the tile generated.
         frame_bit_per_row : int | None
-            Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `frameBitsPerRow`. If `None`, the value
+            from `self.fabric` is used.
         max_frame_per_col : int | None
-            Override for the fabric's ``maxFramesPerCol``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `maxFramesPerCol`. If `None`, the value
+            from `self.fabric` is used.
         disable_user_clk : bool | None
-            Override for the fabric's ``disableUserCLK``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `disableUserCLK`. If `None`, the value
+            from `self.fabric` is used.
         config_bit_mode : ConfigBitMode | None
-            Override for the fabric's ``configBitMode``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `configBitMode`. If `None`, the value
+            from `self.fabric` is used.
 
         Raises
         ------
@@ -303,17 +303,17 @@ class FABulous_API:
         tileName : str
             Name of the super tile generated.
         frame_bit_per_row : int | None
-            Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `frameBitsPerRow`. If `None`, the value
+            from `self.fabric` is used.
         max_frame_per_col : int | None
-            Override for the fabric's ``maxFramesPerCol``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `maxFramesPerCol`. If `None`, the value
+            from `self.fabric` is used.
         disable_user_clk : bool | None
-            Override for the fabric's ``disableUserCLK``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `disableUserCLK`. If `None`, the value
+            from `self.fabric` is used.
         config_bit_mode : ConfigBitMode | None
-            Override for the fabric's ``configBitMode``. If ``None``, the value
-            from ``self.fabric`` is used.
+            Override for the fabric's `configBitMode`. If `None`, the value
+            from `self.fabric` is used.
 
         Raises
         ------

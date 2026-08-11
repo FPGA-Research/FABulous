@@ -2,7 +2,7 @@
 
 # Quick start
 
-This guide walks you through installing FABulous, generating a fabric, and producing a bitstream in under five minutes. For detailed installation options see the [Installation section](#install).
+This guide walks you through installing FABulous, generating a fabric, and producing a bitstream in under five minutes. For detailed installation options see the {ref}`Installation section <install>`.
 
 ## 1. Install FABulous
 
@@ -25,7 +25,7 @@ FABulous --version
 ```
 
 :::{tip}
-See the [Installation section](#install) for alternative methods (venv, Docker, Nix) and platform-specific instructions.
+See the {ref}`Installation section <install>` for alternative methods (venv, Docker, Nix) and platform-specific instructions.
 :::
 
 ## 2. Install CAD tools
@@ -36,7 +36,7 @@ FABulous requires [Yosys](https://github.com/YosysHQ/yosys) and [nextpnr-generic
 FABulous install oss-cad-suite
 ```
 
-This installs the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which includes Yosys, nextpnr, simulators, and all other required tools. VHDL users will also get [ghdl](https://github.com/ghdl/ghdl) and the [ghdl-yosys-plugin](https://github.com/ghdl/ghdl-yosys-plugin) through this installer. For manual installation or more details, see [CAD tool installation](#cad-tool-install).
+This installs the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which includes Yosys, nextpnr, simulators, and all other required tools. VHDL users will also get [ghdl](https://github.com/ghdl/ghdl) and the [ghdl-yosys-plugin](https://github.com/ghdl/ghdl-yosys-plugin) through this installer. For manual installation or more details, see {ref}`CAD tool installation <cad-tool-install>`.
 
 :::{warning}
 Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.

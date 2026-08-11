@@ -1,6 +1,5 @@
 # Publications
 
-```{eval-rst}
-.. bibliography:: ./publications.bib
-    :all:
+```{bibliography} ./publications.bib
+:all:
 ```

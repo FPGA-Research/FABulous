@@ -199,7 +199,7 @@ class TestFABulousTileVerilogMacroFlowInit:
     ) -> None:
         """Test that FlowException is raised when DIE_AREA is too small.
 
-        Default opt mode is ``find_min_width``, so the fixed axis is the height;
+        Default opt mode is `find_min_width`, so the fixed axis is the height;
         a height below the physical minimum must be rejected.
         """
         with pytest.raises(FlowException, match="smaller than the minimum"):
@@ -499,7 +499,7 @@ class TestFABulousTileVerilogMacroFlowInit:
         """BEL sources outside the tile directory are added to VERILOG_FILES.
 
         A BEL referenced by a relative path in the tile CSV (e.g. a shared
-        primitive under ``primitives/``) lives outside the tile glob, so it
+        primitive under `primitives/`) lives outside the tile glob, so it
         must be picked up from the tile's BEL list instead.
         """
         bel_src: Path = tmp_path / "primitives" / "SRAM" / "fabulous" / "SRAM.v"
@@ -527,7 +527,7 @@ class TestFABulousTileVerilogMacroFlowInit:
         """SuperTile sub-tile BEL sources are added to VERILOG_FILES.
 
         SuperTile BELs live on the constituent sub-tiles rather than the
-        wrapper, so collection must descend into ``SuperTile.tiles``.
+        wrapper, so collection must descend into `SuperTile.tiles`.
         """
         bel_src: Path = tmp_path / "primitives" / "SRAM" / "fabulous" / "SRAM.v"
         bel_src.parent.mkdir(parents=True)

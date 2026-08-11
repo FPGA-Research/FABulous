@@ -110,8 +110,8 @@ def belLines(
     """Build a BEL's legacy v1 line, its v2/v3 blocks, and any pin constraint.
 
     The bel.v3 block additionally carries timing-arc lines, but only for the
-    BEL types nextpnr currently times (``FABULOUS_LC``, ``InPass4_frame_config``,
-    ``OutPass4_frame_config`` and their ``_mux`` variants); every other type
+    BEL types nextpnr currently times (`FABULOUS_LC`, `InPass4_frame_config`,
+    `OutPass4_frame_config` and their `_mux` variants); every other type
     gets no arcs so no new timing paths are introduced.
 
     Parameters

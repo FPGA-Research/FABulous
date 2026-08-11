@@ -8,10 +8,9 @@ The upstream FABulous documentation is available at [https://fabulous.readthedoc
 
 ```bash
 git clone https://github.com/FPGA-Research/FABulous
-cd FABulous/docs
-uv sync
-make html
-xdg-open build/html/index.html
+cd FABulous
+task docs-build
+xdg-open docs/build/html/index.html
 ```
 
 ## What to search for
@@ -25,35 +24,46 @@ xdg-open build/html/index.html
 ## General
 
 Our docs are built using [Sphinx](https://www.sphinx-doc.org/en/master).
-The documentation is written in [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
+Pages are written in [MyST Markdown](https://myst-parser.readthedocs.io/en/latest/),
+apart from the command and variable reference tables, which extensions in
+`source/_ext/` generate from the installed package at build time.
 
 ## Prerequisites
 
 To build the documentation, you should already have set up your environment and installed the required packages to use FABulous as described in the [README](../README.md). Make sure you have picked the right FABulous branch you want to build the documentation for.
 
-Install the documentation dependencies with uv:
+The documentation dependencies live in the `docs` dependency group of the
+repository-root `pyproject.toml`, so there is a single environment for both
+FABulous and its docs. Install them from the repository root with:
 
 ```bash
-uv sync
+uv sync --group docs
 ```
+
+`uv run` syncs the environment before each command, so the tasks below work from
+a fresh checkout without installing anything first.
 
 ## Building the documentation
 
 ### HTML format
 
-To build the documentation in HTML format, run:
+To build the documentation in HTML format, run from the repository root:
 
 ```bash
-make html
+task docs-build
 ```
 
 This should create a `build/html/` directory path in the `docs` directory for the HTML documentation.
+It builds with `-W`, so a warning fails the build the same way Read the Docs does.
 
 Open it with your browser:
 
 ```bash
-xdg-open build/html/index.html
+xdg-open docs/build/html/index.html
 ```
+
+For a live-reloading server while writing, use `task docs-server` instead. That
+one drops `-W`, so a page with an outstanding warning still renders.
 
 ### PDF format
 
@@ -66,10 +76,10 @@ You also need to install [Imagemagic](https://imagemagick.org/script/index.php),
 sudo apt-get install imagemagick
 ```
 
-To build the documentation in PDF format, run:
+To build the documentation in PDF format, run from the `docs` directory:
 
 ```bash
-make latexpdf
+uv run --project .. --group docs sphinx-build -M latexpdf source build
 ```
 
 This should create a `build/latex/` directory path in the `docs` directory for the PDF documentation.
@@ -83,18 +93,20 @@ xdg-open build/latex/fabulous.pdf
 
 ### Clean the build directory
 
-To clean the build directory, run:
+`task docs-build` cleans before building. To clean without building, run from the
+`docs` directory:
 
 ```bash
-make clean
+rm -rf build source/generated_doc
 ```
 
-This will remove the `build/` directory.
+`source/generated_doc` holds the pages the generator extensions write, which are
+not rebuilt while they are still present.
 
 ## Customizations
 
 Custom modifications on top of the [Furo](https://pradyunsg.me/furo/) Sphinx
-theme and [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
+theme.
 
 ### Collapsible TOC sidebar
 
@@ -106,18 +118,30 @@ unless the user has explicitly expanded it.
 - `source/_static/toc_sidebar.js` -- toggle logic and state management
 - `source/_static/custom.css` -- toggle styles and collapse animations
 
-### Custom AutoAPI templates
+### Generated reference pages
 
-The API reference uses customized Jinja templates (`source/_templates/autoapi/`)
-instead of the sphinx-autoapi defaults:
+Three extensions in `source/_ext/` write MyST pages into `source/generated_doc/`
+at build time, each rendering a Jinja template in `source/_templates/`:
 
-- **Docstring normalization** (`source/_ext/docstring_renderer.py`) -- converts
-  markdown-style code blocks, inline code, and lists into valid reST. Strips
-  redundant `:rtype:` fields.
-- **Class template** -- organizes members into Attributes, Properties, and
-  Methods subsections with cross-referenced inheritance.
-- **Index template** -- shows subpackages in a flat toctree for cleaner
-  navigation.
+- `generate_repl_docs.py` -- the interactive REPL command reference.
+- `generate_configvar_docs.py` -- the FABulous configuration variables.
+- `generate_gds_variable_docs.py` -- the GDS-flow variables, read from librelane.
+
+They introspect the installed package, so a new command or config variable shows
+up without anyone editing a page.
+
+### No Python API reference
+
+There is deliberately no auto-generated per-module API reference. It cost about
+790 lines of templates, extensions, and cross-reference workarounds to keep
+building, and nothing in the prose documentation linked into it. Read the source
+for API detail; the docstrings are the reference.
+
+`sphinx.ext.napoleon` went with it. Napoleon rewrites NumPy docstring sections
+into field lists off the `autodoc-process-docstring` event, which only autodoc
+and autoapi emit -- the generators above write their MyST directly, so napoleon
+never saw them. Anything that renders docstrings through autodoc again needs
+napoleon re-enabled, or NumPy sections will come out as flat text.
 
 ### Custom sidebar brand
 
