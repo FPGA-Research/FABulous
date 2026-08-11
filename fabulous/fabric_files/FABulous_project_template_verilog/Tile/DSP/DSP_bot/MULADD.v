@@ -38,9 +38,9 @@ module MULADD #(parameter integer NoConfigBits = 6) (
     // to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
-    reg  [ 7:0] A_reg           ; // port A read data register
-    reg  [ 7:0] B_reg           ; // port B read data register
-    reg  [19:0] C_reg           ; // port C read data register
+    reg  [ 7:0] A_reg_data      ; // port A read data register
+    reg  [ 7:0] B_reg_data      ; // port B read data register
+    reg  [19:0] C_reg_data      ; // port C read data register
     wire [ 7:0] OPA             ;
     wire [ 7:0] OPB             ;
     wire [19:0] OPC             ;
@@ -52,9 +52,9 @@ module MULADD #(parameter integer NoConfigBits = 6) (
     wire signed [ 8:0] OPB_extended    ;
     wire signed [17:0] product_signed  ;
 
-    assign OPA = ConfigBits[0] ? A_reg : A;
-    assign OPB = ConfigBits[1] ? B_reg : B;
-    assign OPC = ConfigBits[2] ? C_reg : C;
+    assign OPA = ConfigBits[0] ? A_reg_data : A;
+    assign OPB = ConfigBits[1] ? B_reg_data : B;
+    assign OPC = ConfigBits[2] ? C_reg_data : C;
 
     assign sum_in = ConfigBits[3] ? ACC : OPC;
 
@@ -73,9 +73,9 @@ module MULADD #(parameter integer NoConfigBits = 6) (
 
     always @(posedge UserCLK)
         begin
-            A_reg <= A;
-            B_reg <= B;
-            C_reg <= C;
+            A_reg_data <= A;
+            B_reg_data <= B;
+            C_reg_data <= C;
             if (clr == 1'b1)
                 begin
                     ACC <= 20'b00000000000000000000;

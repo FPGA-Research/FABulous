@@ -27,9 +27,9 @@ class MULADDProtocol(Protocol):
     Q: LogicObject  # [19:0] result (handle)
 
     # Internal registers (accessible for testing)
-    A_reg: LogicObject  # [7:0] (handle)
-    B_reg: LogicObject  # [7:0] (handle)
-    C_reg: LogicObject  # [19:0] (handle)
+    A_reg_data: LogicObject  # [7:0] (handle)
+    B_reg_data: LogicObject  # [7:0] (handle)
+    C_reg_data: LogicObject  # [19:0] (handle)
     ACC: LogicObject  # [19:0] accumulator (handle)
 
 
@@ -66,6 +66,8 @@ class MULADDModel:
     - Uses async tasks that respond to actual clock edges
     - Matches the DUT's timing exactly
     - No manual synchronization needed
+
+    Initializes the MULADD model with all registers at reset state.
     """
 
     A: int = 0
@@ -77,10 +79,9 @@ class MULADDModel:
     _sum: int = 0
 
     def __init__(self, clk: LogicObject) -> None:
-        """Initialize the MULADD model with all registers at reset state."""
-        self.A_reg = 0
-        self.B_reg = 0
-        self.C_reg = 0
+        self.A_reg_data = 0
+        self.B_reg_data = 0
+        self.C_reg_data = 0
         self.ACC = 0
         self._clk_signal = clk
 
@@ -93,9 +94,9 @@ class MULADDModel:
         while True:
             await RisingEdge(self._clk_signal)
             # Update all registers on clock edge
-            self.A_reg = self.A
-            self.B_reg = self.B
-            self.C_reg = self.C
+            self.A_reg_data = self.A
+            self.B_reg_data = self.B
+            self.C_reg_data = self.C
 
             # ACC with clear logic
             if self.clr:
@@ -107,33 +108,37 @@ class MULADDModel:
         """Combinational logic that updates whenever inputs change."""
         while True:
             # HDL: assign OPA = ConfigBits[0] ? A_reg : A;
-            OPA = self.A_reg if (self.ConfigBits & BIT_0) else self.A
+            OPA = self.A_reg_data if (self.ConfigBits & BIT_0) else self.A
 
             # HDL: assign OPB = ConfigBits[1] ? B_reg : B;
-            OPB = self.B_reg if (self.ConfigBits & BIT_1) else self.B
+            OPB = self.B_reg_data if (self.ConfigBits & BIT_1) else self.B
 
             # HDL: assign OPC = ConfigBits[2] ? C_reg : C;
-            OPC = self.C_reg if (self.ConfigBits & BIT_2) else self.C
+            OPC = self.C_reg_data if (self.ConfigBits & BIT_2) else self.C
 
             # HDL: assign sum_in = ConfigBits[3] ? ACC : OPC;
             sum_in = self.ACC if (self.ConfigBits & BIT_3) else OPC
 
             # HDL: assign OPA_extended = ConfigBits[4] ? {OPA[7], OPA} : {1'b0, OPA};
-            OPA_extended = ((OPA & 0x80) << 1 | OPA) if (self.ConfigBits & BIT_4) else OPA
+            OPA_extended = (
+                ((OPA & 0x80) << 1 | OPA) if (self.ConfigBits & BIT_4) else OPA
+            )
 
             # HDL: assign OPB_extended = ConfigBits[4] ? {OPB[7], OPB} : {1'b0, OPB};
-            OPB_extended = ((OPB & 0x80) << 1 | OPB) if (self.ConfigBits & BIT_4) else OPB
+            OPB_extended = (
+                ((OPB & 0x80) << 1 | OPB) if (self.ConfigBits & BIT_4) else OPB
+            )
 
             # OPA_extended and OPB_extended are signed [8:0] in HDL.
             # Convert their 9-bit two's-complement representation to
             # Python's signed integer representation.
             if self.ConfigBits & BIT_4:
-                if OPA_extended & 0x100:
+                if OPA_extended & 0x100:  # noqa: SIM108
                     OPA_signed = OPA_extended - 0x200
                 else:
                     OPA_signed = OPA_extended
 
-                if OPB_extended & 0x100:
+                if OPB_extended & 0x100:  # noqa: SIM108
                     OPB_signed = OPB_extended - 0x200
                 else:
                     OPB_signed = OPB_extended
@@ -147,7 +152,9 @@ class MULADDModel:
             # HDL: assign product_extended with sign extension
             if self.ConfigBits & BIT_4:  # Sign extension
                 sign_bit = (product_signed >> 17) & 1
-                product_extended = product_signed | (0x3 << 18) if sign_bit else product_signed
+                product_extended = (
+                    product_signed | (0x3 << 18) if sign_bit else product_signed
+                )
             else:  # Zero extension
                 product_extended = product_signed
 
@@ -200,29 +207,29 @@ async def cocotb_test_muladd_configbit0_a_register(dut: MULADDProtocol) -> None:
     model = MULADDModel(dut.UserCLK)
 
     # Test without A register (ConfigBits[0] = 0) - direct A input
-    model.ConfigBits = 0b000000  # A_reg = 0
+    model.ConfigBits = 0b000000  # A_reg_data = 0
     dut.ConfigBits.value = 0b000000
     model.A = 5
     dut.A.value = 5
-    await RisingEdge(dut.UserCLK)  # Clock to load A_reg
+    await RisingEdge(dut.UserCLK)  # Clock to load A_reg_data
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    # Verify A_reg updates regardless of ConfigBits[0]
-    assert dut.A_reg.value == model.A_reg
+    # Verify A_reg_data updates regardless of ConfigBits[0]
+    assert dut.A_reg_data.value == model.A_reg_data
 
     # Test with A register (ConfigBits[0] = 1) - registered A input
     model.ConfigBits = 0b000001  # A_reg = 1
     dut.ConfigBits.value = 0b000001
     model.A = 7
     dut.A.value = 7
-    await RisingEdge(dut.UserCLK)  # Clock to load A_reg
+    await RisingEdge(dut.UserCLK)  # Clock to load A_reg_data
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.A_reg.value == model.A_reg
+    assert dut.A_reg_data.value == model.A_reg_data
     # Change A input to verify register is being used
     model.A = 3
     dut.A.value = 3
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (7), not the new input (3)
-    assert dut.A_reg.value == model.A_reg, (
+    assert dut.A_reg_data.value == model.A_reg_data, (
         f"Registered A mode failed: Expected Q = {model.Q}, got {dut.Q.value}"
     )
 
@@ -243,7 +250,7 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     await RisingEdge(dut.UserCLK)  # Clock to load B_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
     # Verify B_reg updates regardless of ConfigBits[1]
-    assert dut.B_reg.value == model.B_reg
+    assert dut.B_reg_data.value == model.B_reg_data
 
     # Test with B register (ConfigBits[1] = 1) - registered B input
     model.ConfigBits = 0b000010  # B_reg = 1
@@ -252,15 +259,15 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     dut.B.value = 9
     await RisingEdge(dut.UserCLK)  # Clock to load B_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.B_reg.value == model.B_reg
+    assert dut.B_reg_data.value == model.B_reg_data
     # Change B input to verify register is being used
     model.B = 2
     dut.B.value = 2
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (9), not the new input (2)
-    assert dut.B_reg.value == model.B_reg, (
-        f"Registered B mode failed: Expected B_reg = {model.B_reg}, "
-        f"got {dut.B_reg.value}"
+    assert dut.B_reg_data.value == model.B_reg_data, (
+        f"Registered B mode failed: Expected B_reg = {model.B_reg_data}, "
+        f"got {dut.B_reg_data.value}"
     )
 
 
@@ -281,7 +288,7 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # Verify C_reg updates regardless of ConfigBits[2]
-    assert dut.C_reg.value == model.C_reg
+    assert dut.C_reg_data.value == model.C_reg_data
 
     # Test with C register (ConfigBits[2] = 1) - registered C input
     model.ConfigBits = 0b000100  # C_reg = 1
@@ -290,13 +297,13 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     dut.C.value = 20
     await RisingEdge(dut.UserCLK)  # Clock to load C_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.C_reg.value == model.C_reg
+    assert dut.C_reg_data.value == model.C_reg_data
     # Change C input to verify register is being used
     model.C = 5
     dut.C.value = 5
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (20), not the new input (5)
-    assert dut.C_reg.value == model.C_reg
+    assert dut.C_reg_data.value == model.C_reg_data
 
 
 @cocotb.test
@@ -368,7 +375,7 @@ async def cocotb_test_muladd_c_upper_bits(dut: MULADDProtocol) -> None:
         # Clock loads C_reg with c_val
         await RisingEdge(dut.UserCLK)
         await Timer(Decimal(1), "ps")
-        assert int(dut.C_reg.value) == c_val
+        assert int(dut.C_reg_data.value) == c_val
 
         # Change C input to 0 WITHOUT clocking -- C_reg retains c_val
         model.C = 0

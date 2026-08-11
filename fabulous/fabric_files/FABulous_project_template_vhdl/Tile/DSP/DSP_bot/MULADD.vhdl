@@ -48,9 +48,9 @@ end entity MULADD;
 
 architecture Behavioral of MULADD is
 
-  signal A_reg : std_logic_vector(7 downto 0);  -- port A read data register
-  signal B_reg : std_logic_vector(7 downto 0);  -- port B read data register
-  signal C_reg : std_logic_vector(19 downto 0); -- port B read data register
+  signal A_reg_data : std_logic_vector(7 downto 0);  -- port A read data register
+  signal B_reg_data : std_logic_vector(7 downto 0);  -- port B read data register
+  signal C_reg_data : std_logic_vector(19 downto 0); -- port B read data register
 
   signal OPA : std_logic_vector(7 downto 0);  -- port A
   signal OPB : std_logic_vector(7 downto 0);  -- port B
@@ -68,11 +68,11 @@ architecture Behavioral of MULADD is
 begin
 
   OPA <= A when (ConfigBits(0) = '0') else
-         A_reg;
+         A_reg_data;
   OPB <= B when (ConfigBits(1) = '0') else
-         B_reg;
+         B_reg_data;
   OPC <= C when (ConfigBits(2) = '0') else
-         C_reg;
+         C_reg_data;
 
   sum_in <= OPC when (ConfigBits(3) = '0') else
             ACC_data;
@@ -96,9 +96,9 @@ begin
   begin
 
     if (UserCLK'event and UserCLK = '1') then
-      A_reg <= A;
-      B_reg <= B;
-      C_reg <= C;
+      A_reg_data <= A;
+      B_reg_data <= B;
+      C_reg_data <= C;
       if (clr = '1') then
         ACC_data <= (others => '0');
       else
