@@ -305,11 +305,34 @@ def resolve_known_type_refs(app, env, node, contnode):  # noqa: ARG001
     return None
 
 
+def shorten_module_page_titles(app, doctree) -> None:
+    """Title each generated module page with the module name, not its full path.
+
+    Runs before the toctree is resolved, so the sidebar picks the short name up
+    too. Doing this here keeps AutoAPI's `module.rst` un-vendored; overriding the
+    template to change two lines meant carrying a copy of all 156.
+    """
+    if not app.env.docname.startswith(f"{autoapi_root}/"):
+        return
+
+    from docutils import nodes
+
+    title = next(iter(doctree.findall(nodes.title)), None)
+    if title is None or "." not in title.astext():
+        return
+
+    short_name = title.astext().rsplit(".", maxsplit=1)[-1]
+    title.replace_self(nodes.title(short_name, short_name))
+
+
 def setup(app):
     """Custom Sphinx setup to ensure proper AutoAPI execution order."""
     # Connect AutoAPI skip member hook to avoid duplicates
     app.connect("autoapi-skip-member", autoapi_skip_member)
     app.connect("object-description-transform", strip_redundant_rtype_fields)
+    # Ahead of Sphinx's own title/toctree collectors (the default priority), which
+    # would otherwise record the long title for the tab and the sidebar.
+    app.connect("doctree-read", shorten_module_page_titles, priority=100)
     # Priority below intersphinx's default (500) so a rewritten target is handed
     # to intersphinx for resolution within the same event dispatch.
     app.connect("missing-reference", resolve_known_type_refs, priority=400)
