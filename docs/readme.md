@@ -132,8 +132,8 @@ up without anyone editing a page.
 
 ### No Python API reference
 
-There is deliberately no auto-generated per-module API reference. It cost roughly
-900 lines of templates, extensions, and cross-reference workarounds to keep
+There is deliberately no auto-generated per-module API reference. It cost about
+790 lines of templates, extensions, and cross-reference workarounds to keep
 building, and nothing in the prose documentation linked into it. Read the source
 for API detail; the docstrings are the reference.
 

@@ -69,6 +69,11 @@ redirects = {
     "user_guide/using_doc/bitstream/bitstream_generation": (
         "../bitstream_generation.html"
     ),
+    # The generated API reference was removed. Only the entry point can be
+    # redirected: sphinx-reredirects expands a wildcard source against the
+    # documents in the current build, so a pattern covering the deleted module
+    # pages matches nothing and warns (fatal under -W). Their deep links 404.
+    "generated_doc/index": "../index.html",
 }
 
 intersphinx_mapping = {
