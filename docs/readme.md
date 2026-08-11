@@ -137,6 +137,12 @@ There is deliberately no auto-generated per-module API reference. It cost about
 building, and nothing in the prose documentation linked into it. Read the source
 for API detail; the docstrings are the reference.
 
+`sphinx.ext.napoleon` went with it. Napoleon rewrites NumPy docstring sections
+into field lists off the `autodoc-process-docstring` event, which only autodoc
+and autoapi emit -- the generators above write their MyST directly, so napoleon
+never saw them. Anything that renders docstrings through autodoc again needs
+napoleon re-enabled, or NumPy sections will come out as flat text.
+
 ### Custom sidebar brand
 
 `source/_templates/sidebar/brand.html` replaces Furo's default brand area with

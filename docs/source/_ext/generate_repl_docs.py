@@ -90,10 +90,11 @@ def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
 
 
 def clean_docstring(docstring: str) -> str:
-    """Remove Parameters, Raises, and other formal sections from docstring.
+    """Remove the docstring sections the Arguments table already presents.
 
-    This removes numpy/scipy style parameter documentation and other formal sections
-    that are already being presented in the Arguments table.
+    Only the call-signature sections go. `Notes`, `Examples` and `See Also` are
+    kept: nothing else in the page carries them, so dropping them silently lost
+    caveats the reader needs.
 
     Parameters
     ----------
@@ -103,7 +104,7 @@ def clean_docstring(docstring: str) -> str:
     Returns
     -------
     str
-        Cleaned docstring without formal sections.
+        Cleaned docstring without the call-signature sections.
     """
     lines = docstring.split("\n")
     result = []
@@ -115,9 +116,6 @@ def clean_docstring(docstring: str) -> str:
         "Raises",
         "Returns",
         "Yields",
-        "Examples",
-        "Notes",
-        "See Also",
     }
 
     for i, line in enumerate(lines):
