@@ -27,4 +27,4 @@ jobs:
       # fail_on_warning, so this is the same environment and the same -W as the
       # published site.
       - name: Build the HTML documentation
-        run: make -C docs clean html
+        run: uv run --locked task docs-build

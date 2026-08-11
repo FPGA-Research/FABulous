@@ -67,10 +67,12 @@ jobs:
               - '.github/workflows/nix-env.yml'
               - '.github/workflows/ci.yml'
               - '.github/actions/prepare_nix_environment/**'
-            # AutoAPI reads the package, and the docs group resolves through
-            # the root pyproject.toml/uv.lock, so both stale the docs build.
+            # AutoAPI reads the package, the docs group resolves through the root
+            # pyproject.toml/uv.lock and the docs job runs `task docs-build`, so
+            # all three stale the docs build.
             docs:
               - 'docs/**'
+              - 'Taskfile.yml'
               - 'fabulous/**'
               - 'pyproject.toml'
               - 'uv.lock'
