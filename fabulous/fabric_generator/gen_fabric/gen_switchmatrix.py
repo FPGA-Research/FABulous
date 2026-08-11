@@ -12,8 +12,6 @@ Key features:
 - Multiple configuration modes (FlipFlop chain, Frame-based)
 """
 
-import math
-
 from loguru import logger
 
 from fabulous.fabric_definition.define import (
@@ -195,19 +193,8 @@ def genTileSwitchMatrix(
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
-        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
-            writer.addComment("global signal 1: configuration, 0: operation")
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+        writer.addPortVector("ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2)
+        writer.addPortVector("ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2)
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
@@ -294,27 +281,7 @@ def _gen_switch_matrix_body(
         onNewLine=True,
     )
 
-    if noConfigBits > 0:
-        if config_bit_mode == "ff_chain":
-            writer.addConnectionVector("ConfigBits", noConfigBits)
-        if config_bit_mode == "FlipFlopChain":
-            writer.addConnectionVector(
-                "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
-            )
-            writer.addConnectionVector(
-                "ConfigBitsInput", int(math.ceil(noConfigBits / 2.0)) * 2
-            )
-
     writer.addLogicStart()
-
-    # TODO Should ff_chain be the same as FlipFlopChain?
-    if noConfigBits > 0:
-        if config_bit_mode == "ff_chain":
-            writer.addShiftRegister(noConfigBits)
-        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addFlipFlopChain(noConfigBits)
-        elif config_bit_mode == ConfigBitMode.FRAME_BASED:
-            pass
 
     # the switch matrix implementation
     # we use the following variable to count the configuration bits of a
