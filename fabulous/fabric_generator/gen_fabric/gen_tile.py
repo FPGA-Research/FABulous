@@ -568,18 +568,19 @@ def generateTile(
 
     portsPairs += list(zip(port, signal, strict=True))
 
-    portsPairs.append(
-        (
-            "ConfigBits",
-            f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+    if tile.switch_matrix.no_config_bits > 0:
+        portsPairs.append(
+            (
+                "ConfigBits",
+                f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+            )
         )
-    )
-    portsPairs.append(
-        (
-            "ConfigBits_N",
-            f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+        portsPairs.append(
+            (
+                "ConfigBits_N",
+                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+            )
         )
-    )
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",
