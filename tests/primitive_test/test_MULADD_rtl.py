@@ -133,15 +133,13 @@ class MULADDModel:
             # Convert their 9-bit two's-complement representation to
             # Python's signed integer representation.
             if self.ConfigBits & BIT_4:
-                if OPA_extended & 0x100:  # noqa: SIM108
-                    OPA_signed = OPA_extended - 0x200
-                else:
-                    OPA_signed = OPA_extended
+                OPA_signed = (
+                    OPA_extended - 0x200 if OPA_extended & 0x100 else OPA_extended
+                )
 
-                if OPB_extended & 0x100:  # noqa: SIM108
-                    OPB_signed = OPB_extended - 0x200
-                else:
-                    OPB_signed = OPB_extended
+                OPB_signed = (
+                    OPB_extended - 0x200 if OPB_extended & 0x100 else OPB_extended
+                )
             else:
                 OPA_signed = OPA_extended
                 OPB_signed = OPB_extended
