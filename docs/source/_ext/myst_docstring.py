@@ -5,6 +5,17 @@ written in a docstring would never be parsed. This directive replaces that neste
 parse with a MyST one, letting docstrings use the same markup as the rest of the
 documentation while AutoAPI keeps generating the surrounding page.
 
+It is reached two ways. Module docstrings go through AutoAPI's own
+`autoapi-nested-parse`, which is re-registered here so the stock `module.rst`
+renders MyST without being overridden. Every other object type has no such
+directive, so the object templates in `_templates/autoapi` apply this one.
+
+That split is forced: the wrap cannot move into `autodoc-process-docstring`,
+because `PythonPythonMapper.summary` is a lazy property over the same docstring
+text, and the mapper assigns it straight after the event. Wrapping there makes
+every module-summary entry read `.. myst-docstring::` instead of the summary
+line.
+
 Napoleon has already rewritten the numpy sections into field lists by this point
 (AutoAPI emits `autodoc-process-docstring`), so MyST only needs the `fieldlist`
 extension to turn them into Sphinx parameter lists.
@@ -78,4 +89,7 @@ def setup(app: Sphinx) -> dict[str, object]:
         Extension metadata.
     """
     app.add_directive("myst-docstring", MystDocstring)
+    # AutoAPI's directive for module docstrings, overridden rather than
+    # sidestepped through a vendored `module.rst`.
+    app.add_directive("autoapi-nested-parse", MystDocstring, override=True)
     return {"version": "1.0", "parallel_read_safe": True}
