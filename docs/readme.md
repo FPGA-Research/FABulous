@@ -9,10 +9,8 @@ The upstream FABulous documentation is available at [https://fabulous.readthedoc
 ```bash
 git clone https://github.com/FPGA-Research/FABulous
 cd FABulous
-uv sync --group docs
-cd docs
-make html
-xdg-open build/html/index.html
+task docs-build
+xdg-open docs/build/html/index.html
 ```
 
 ## What to search for
@@ -41,26 +39,30 @@ FABulous and its docs. Install them from the repository root with:
 uv sync --group docs
 ```
 
-The `make` targets below do this for you, so running them from a fresh checkout
-is enough.
+`uv run` syncs the environment before each command, so the tasks below work from
+a fresh checkout without installing anything first.
 
 ## Building the documentation
 
 ### HTML format
 
-To build the documentation in HTML format, run:
+To build the documentation in HTML format, run from the repository root:
 
 ```bash
-make html
+task docs-build
 ```
 
 This should create a `build/html/` directory path in the `docs` directory for the HTML documentation.
+It builds with `-W`, so a warning fails the build the same way Read the Docs does.
 
 Open it with your browser:
 
 ```bash
-xdg-open build/html/index.html
+xdg-open docs/build/html/index.html
 ```
+
+For a live-reloading server while writing, use `task docs-server` instead. That
+one drops `-W`, so a page with an outstanding warning still renders.
 
 ### PDF format
 
@@ -73,10 +75,10 @@ You also need to install [Imagemagic](https://imagemagick.org/script/index.php),
 sudo apt-get install imagemagick
 ```
 
-To build the documentation in PDF format, run:
+To build the documentation in PDF format, run from the `docs` directory:
 
 ```bash
-make latexpdf
+uv run --project .. --group docs sphinx-build -M latexpdf source build
 ```
 
 This should create a `build/latex/` directory path in the `docs` directory for the PDF documentation.
@@ -90,13 +92,15 @@ xdg-open build/latex/fabulous.pdf
 
 ### Clean the build directory
 
-To clean the build directory, run:
+`task docs-build` cleans before building. To clean without building, run from the
+`docs` directory:
 
 ```bash
-make clean
+rm -rf build source/generated_doc
 ```
 
-This will remove the `build/` directory.
+`source/generated_doc` holds the AutoAPI output, which is not regenerated while
+it is still present.
 
 ## Customizations
 
@@ -118,11 +122,26 @@ unless the user has explicitly expanded it.
 The API reference uses customized Jinja templates (`source/_templates/autoapi/`)
 instead of the sphinx-autoapi defaults:
 
-- **Docstring normalization** (`source/_ext/docstring_renderer.py`) -- converts
-  markdown-style code blocks, inline code, and lists into valid reST. Strips
-  redundant `:rtype:` fields.
-- **Class template** -- organizes members into Attributes, Properties, and
-  Methods subsections with cross-referenced inheritance.
+- **MyST docstrings** (`source/_ext/myst_docstring.py`) -- sphinx-autoapi nested-parses
+  docstrings as reST, so MyST written in one would never be parsed. This extension
+  supplies a `myst-docstring` directive that parses the content with the MyST parser
+  instead, and registers it over autoapi's own `autoapi-nested-parse` so module
+  docstrings take the same path. Docstrings are therefore written in the same
+  CommonMark as the rest of the docs -- single backticks for inline code, fenced
+  code blocks, and `{class}`-style roles for cross-references.
+
+  The object templates carry the wrap because upstream routes only *module*
+  docstrings through a directive; see [sphinx-autoapi#287](https://github.com/readthedocs/sphinx-autoapi/issues/287).
+  If upstream routes every object's docstring through `autoapi-nested-parse`, those
+  templates can be deleted the way `module.rst` was.
+- **Page-body filters** (`source/_ext/docstring_renderer.py`) -- shape the reST
+  scaffolding autoapi generates *around* the docstring: the `Bases:` line, and the
+  return sections a property's rendered type already states. They do not translate
+  markup.
+- **Class template** -- groups members into Properties and Methods subsections with
+  cross-referenced inheritance. Attributes are deliberately skipped
+  (`autoapi_skip_member` in `conf.py`); this codebase documents them in the class
+  docstring, so rendering them again would duplicate.
 - **Index template** -- shows subpackages in a flat toctree for cleaner
   navigation.
 

@@ -3,17 +3,25 @@
 version: "3"
 
 tasks:
+  # The docs share the repository-root environment, so `--project ..` keeps uv
+  # pointed at the single pyproject.toml/uv.lock pair while the task runs in docs/.
+  # Cleaning `source/generated_doc` matters: AutoAPI skips regeneration when its
+  # output is already present, so a stale page would survive a rebuild.
   docs-build:
     desc: Clean and build the documentation
     dir: docs
     cmds:
-      - make clean html
+      - rm -rf build source/generated_doc
+      # `-W --keep-going` matches Read the Docs' fail_on_warning.
+      - uv run --project .. --group docs sphinx-build -M html source build -q -n -W --keep-going
 
   docs-server:
     desc: Run the documentation live-reload server
     dir: docs
     cmds:
-      - make clean livehtml
+      - rm -rf build source/generated_doc
+      # No `-W` here, so the dev server stays usable while a page still warns.
+      - uv run --project .. --group docs sphinx-autobuild source build/html -q -n
 
   smoke-test:
     desc: Create the demo project and run the simulation flow

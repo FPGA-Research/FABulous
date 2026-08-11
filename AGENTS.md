@@ -16,7 +16,7 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`. Run the hooks through uv (`uv run pre-commit run --all-files`): `deptry` resolves imports against the *installed* project, so outside the uv environment it falls back to assuming a module name for every package ("Assuming the corresponding module name of package ... is ...") and fails on dependencies that are perfectly fine. Re-run a dependency-hygiene failure under `uv` before believing it, and commit with `uv run git commit` so the hooks git triggers see the same environment.
 
-- **Docs: MyST (Sphinx).** Project documentation is written in MyST Markdown and built with Sphinx. Prefer MyST for new documentation (uses directives, roles, and math blocks) rather than raw reStructuredText; see `docs/source/conf.py` for the Sphinx configuration and the `docs/` Makefile to build HTML output.
+- **Docs: MyST (Sphinx).** Project documentation is written in MyST Markdown and built with Sphinx. Prefer MyST for new documentation (uses directives, roles, and math blocks) rather than raw reStructuredText. Build with `task docs-build` (`task docs-server` for live reload); see `docs/source/conf.py` for the Sphinx configuration and `docs/readme.md` for the customizations. Docstrings are MyST too — the `myst_docstring` extension parses them with the MyST parser, so CommonMark applies there as well.
 
 ## Coding Taste
 
