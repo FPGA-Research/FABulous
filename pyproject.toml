@@ -132,7 +132,6 @@ docs = [
   # Sphinx extensions
   "sphinx-copybutton>=0.5.0",
   "sphinxcontrib-bibtex>=2.6.0",
-  "sphinx-autoapi>=3.0.0",            # Modern alternative to autosummary
   "myst-parser>=5.1.0",               # Markdown support (industry standard)
   "sphinxext-opengraph>=0.9.0",       # Social media preview cards
   "sphinx-llm[gen]>=0.4.1",

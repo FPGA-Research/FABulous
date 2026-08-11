@@ -24,8 +24,9 @@ xdg-open docs/build/html/index.html
 ## General
 
 Our docs are built using [Sphinx](https://www.sphinx-doc.org/en/master).
-Pages are written in [MyST Markdown](https://myst-parser.readthedocs.io/en/latest/);
-the API reference is auto-generated from source docstrings by [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
+Pages are written in [MyST Markdown](https://myst-parser.readthedocs.io/en/latest/),
+apart from the command and variable reference tables, which extensions in
+`source/_ext/` generate from the installed package at build time.
 
 ## Prerequisites
 
@@ -99,13 +100,13 @@ xdg-open build/latex/fabulous.pdf
 rm -rf build source/generated_doc
 ```
 
-`source/generated_doc` holds the AutoAPI output, which is not regenerated while
-it is still present.
+`source/generated_doc` holds the pages the generator extensions write, which are
+not rebuilt while they are still present.
 
 ## Customizations
 
 Custom modifications on top of the [Furo](https://pradyunsg.me/furo/) Sphinx
-theme and [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
+theme.
 
 ### Collapsible TOC sidebar
 
@@ -117,33 +118,24 @@ unless the user has explicitly expanded it.
 - `source/_static/toc_sidebar.js` -- toggle logic and state management
 - `source/_static/custom.css` -- toggle styles and collapse animations
 
-### Custom AutoAPI templates
+### Generated reference pages
 
-The API reference uses customized Jinja templates (`source/_templates/autoapi/`)
-instead of the sphinx-autoapi defaults:
+Three extensions in `source/_ext/` write MyST pages into `source/generated_doc/`
+at build time, each rendering a Jinja template in `source/_templates/`:
 
-- **MyST docstrings** (`source/_ext/myst_docstring.py`) -- sphinx-autoapi nested-parses
-  docstrings as reST, so MyST written in one would never be parsed. This extension
-  supplies a `myst-docstring` directive that parses the content with the MyST parser
-  instead, and registers it over autoapi's own `autoapi-nested-parse` so module
-  docstrings take the same path. Docstrings are therefore written in the same
-  CommonMark as the rest of the docs -- single backticks for inline code, fenced
-  code blocks, and `{class}`-style roles for cross-references.
+- `generate_repl_docs.py` -- the interactive REPL command reference.
+- `generate_configvar_docs.py` -- the FABulous configuration variables.
+- `generate_gds_variable_docs.py` -- the GDS-flow variables, read from librelane.
 
-  The object templates carry the wrap because upstream routes only *module*
-  docstrings through a directive; see [sphinx-autoapi#287](https://github.com/readthedocs/sphinx-autoapi/issues/287).
-  If upstream routes every object's docstring through `autoapi-nested-parse`, those
-  templates can be deleted the way `module.rst` was.
-- **Page-body filters** (`source/_ext/docstring_renderer.py`) -- shape the reST
-  scaffolding autoapi generates *around* the docstring: the `Bases:` line, and the
-  return sections a property's rendered type already states. They do not translate
-  markup.
-- **Class template** -- groups members into Properties and Methods subsections with
-  cross-referenced inheritance. Attributes are deliberately skipped
-  (`autoapi_skip_member` in `conf.py`); this codebase documents them in the class
-  docstring, so rendering them again would duplicate.
-- **Index template** -- shows subpackages in a flat toctree for cleaner
-  navigation.
+They introspect the installed package, so a new command or config variable shows
+up without anyone editing a page.
+
+### No Python API reference
+
+There is deliberately no auto-generated per-module API reference. It cost roughly
+900 lines of templates, extensions, and cross-reference workarounds to keep
+building, and nothing in the prose documentation linked into it. Read the source
+for API detail; the docstrings are the reference.
 
 ### Custom sidebar brand
 

@@ -31,17 +31,11 @@ _ext_dir = Path(__file__).resolve().parent / "_ext"
 if _ext_dir.as_posix() not in sys.path:
     sys.path.insert(0, _ext_dir.as_posix())
 
-from docstring_renderer import prepare_autoapi_jinja_env
-
 extensions = [
     # Core Sphinx extensions
     "sphinx.ext.duration",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.napoleon",
-    "sphinx.ext.viewcode",
     "sphinx.ext.imgconverter",
-    # API reference generation
-    "autoapi.extension",
     # Documentation features
     "myst_parser",  # Markdown support
     "sphinxext.opengraph",  # Social media cards
@@ -51,7 +45,6 @@ extensions = [
     "sphinxcontrib.mermaid",
     "sphinx_reredirects",  # Keep old page URLs working after restructures
     # Custom FABulous extensions
-    "myst_docstring",  # Parse docstrings as MyST, not reST
     "generate_repl_docs",
     "generate_configvar_docs",
     "generate_gds_variable_docs",
@@ -59,9 +52,6 @@ extensions = [
 
 myst_enable_extensions = [
     "colon_fence",
-    # Napoleon rewrites numpy sections into field lists before AutoAPI renders
-    # them; MyST needs this to turn those into Sphinx parameter lists.
-    "fieldlist",
 ]
 
 # Redirects for pages moved or merged during docs restructures, so published
@@ -101,42 +91,14 @@ intersphinx_mapping = {
 # Enable cross-references within the project
 intersphinx_disabled_domains = ["std"]
 
-# AutoAPI honors autodoc's typehint settings (napoleon loads sphinx.ext.autodoc):
-# render type hints in the parameter descriptions, not the signature, and show
-# short names. This keeps AutoAPI signatures readable and avoids unresolved
-# fully-qualified type refs from annotations like `typer.Option` or
-# `csv.writer` under nitpicky mode.
-autodoc_typehints = "description"
-autodoc_typehints_description_target = "documented"
-autodoc_typehints_format = "short"
-
-# Make Sphinx resolve all cross-references
 # Report every unresolved cross-reference. The missing-reference handler below
 # (resolve_known_type_refs) rewrites or downgrades the known-unresolvable targets,
 # so this stays quiet in a clean tree and fails the build on genuinely new breakage.
 nitpicky = True
-python_use_unqualified_type_names = True
-
-# Add additional paths for module resolution
-add_module_names = False
 
 templates_path = ["_templates"]
 
 # FABulous package is installed as a dependency in the docs environment
-
-# Only non-default napoleon options are set; everything else uses the
-# sphinx.ext.napoleon defaults.
-napoleon_google_docstring = False
-napoleon_include_special_with_doc = True
-napoleon_use_ivar = (
-    True  # Use :ivar: instead of .. attribute:: to avoid duplicate warnings
-)
-napoleon_custom_sections = [
-    ("Command line arguments", "Parameters"),
-    ("Params", "Parameters"),
-    ("Verilog", "Other"),
-    ("VHDL", "Other"),
-]
 
 # Modern Sphinx configuration
 html_title = f"{project} v{version}"
@@ -174,73 +136,6 @@ _jsonld = {
 }
 
 html_context["jsonld"] = json.dumps(_jsonld)
-
-# -- AutoAPI Configuration
-autoapi_dirs = ["../../fabulous"]  # Path to source code
-autoapi_root = "generated_doc"  # Directory name for generated docs
-autoapi_keep_files = True  # Keep generated .rst files for debugging
-autoapi_template_dir = "_templates/autoapi"
-autoapi_ignore = [
-    "**/fabric_files/**",  # Exclude fabric_files directory (template files, not code)
-]
-
-
-def autoapi_skip_member(app, what, name, obj, skip, options):
-    """Skip attribute objects to avoid duplicate descriptions.
-
-    Attributes are documented in class docstrings; methods/functions are grouped via
-    template.
-    """
-    if what == "attribute":
-        return True
-    return skip
-
-
-autoapi_options = [
-    "members",
-    "undoc-members",
-    "show-inheritance",
-    "show-module-summary",
-]
-autoapi_prepare_jinja_env = prepare_autoapi_jinja_env
-
-# Custom AutoAPI configuration
-autoapi_python_class_content = (
-    # Only the class docstring (where this codebase documents fields/attributes).
-    # "both" would also splice in the inherited Pydantic/object __init__ boilerplate
-    # ("Create a new model by parsing...", "Initialize self.  See help..."), which
-    # napoleon then mis-parses as cross-reference targets.
-    "class"
-)
-autoapi_member_order = "alphabetical"
-autoapi_own_page_level = (
-    "module"  # Each module gets its own page (avoid nested class toctree issues)
-)
-
-
-def strip_redundant_rtype_fields(app, domain, objtype, contentnode) -> None:  # noqa: ARG001
-    """Remove the return-type field, which the rendered signature already states.
-
-    Two things put it there: napoleon, rewriting the numpy `Returns` section, and
-    autodoc's `_merge_typehints`, which re-adds it from the annotation AutoAPI
-    records. Both land in the doctree as an `rtype` field, so removing it here
-    covers both -- stripping it from the docstring text would not.
-    """
-    if domain != "py" or objtype not in {"function", "method"}:
-        return
-
-    from docutils import nodes
-
-    for field_list in [
-        node for node in contentnode if isinstance(node, nodes.field_list)
-    ]:
-        for field in list(field_list):
-            if not isinstance(field, nodes.field):
-                continue
-            field_name = field[0].astext().strip().lower()
-            if field_name in {"rtype", "return type"}:
-                field_list.remove(field)
-
 
 # Type names that appear bare (or mis-qualified) in NumPy-style docstring type
 # fields, rewritten to a target an intersphinx inventory can resolve so the
@@ -300,34 +195,8 @@ def resolve_known_type_refs(app, env, node, contnode):  # noqa: ARG001
     return None
 
 
-def shorten_module_page_titles(app, doctree) -> None:
-    """Title each generated module page with the module name, not its full path.
-
-    Runs before the toctree is resolved, so the sidebar picks the short name up
-    too. Doing this here keeps AutoAPI's `module.rst` un-vendored; overriding the
-    template to change two lines meant carrying a copy of all 156.
-    """
-    if not app.env.docname.startswith(f"{autoapi_root}/"):
-        return
-
-    from docutils import nodes
-
-    title = next(iter(doctree.findall(nodes.title)), None)
-    if title is None or "." not in title.astext():
-        return
-
-    short_name = title.astext().rsplit(".", maxsplit=1)[-1]
-    title.replace_self(nodes.title(short_name, short_name))
-
-
 def setup(app):
-    """Custom Sphinx setup to ensure proper AutoAPI execution order."""
-    # Connect AutoAPI skip member hook to avoid duplicates
-    app.connect("autoapi-skip-member", autoapi_skip_member)
-    app.connect("object-description-transform", strip_redundant_rtype_fields)
-    # Ahead of Sphinx's own title/toctree collectors (the default priority), which
-    # would otherwise record the long title for the tab and the sidebar.
-    app.connect("doctree-read", shorten_module_page_titles, priority=100)
+    """Register the cross-reference handler for the generated variable tables."""
     # Priority below intersphinx's default (500) so a rewritten target is handed
     # to intersphinx for resolution within the same event dispatch.
     app.connect("missing-reference", resolve_known_type_refs, priority=400)
@@ -344,11 +213,9 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
+    # Included into a hand-written page rather than reached through a toctree.
     "generated_doc/fabulous_variable.md",
-    "generated_doc/FABulous",
-    "generated_doc/FABulous/**",
-]  # since we alias the fabulous package with FABulous, we have to exclude the FABulous
-# package from the generated_doc to avoid confusion and duplication in the documentation.
+]
 
 # -- Options for HTML output
 

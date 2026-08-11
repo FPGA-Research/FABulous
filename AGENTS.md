@@ -16,7 +16,7 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`. Run the hooks through uv (`uv run pre-commit run --all-files`): `deptry` resolves imports against the *installed* project, so outside the uv environment it falls back to assuming a module name for every package ("Assuming the corresponding module name of package ... is ...") and fails on dependencies that are perfectly fine. Re-run a dependency-hygiene failure under `uv` before believing it, and commit with `uv run git commit` so the hooks git triggers see the same environment.
 
-- **Docs: MyST (Sphinx).** Project documentation is written in MyST Markdown and built with Sphinx. Prefer MyST for new documentation (uses directives, roles, and math blocks) rather than raw reStructuredText. Build with `task docs-build` (`task docs-server` for live reload); see `docs/source/conf.py` for the Sphinx configuration and `docs/readme.md` for the customizations. Docstrings are MyST too — the `myst_docstring` extension parses them with the MyST parser, so CommonMark applies there as well.
+- **Docs: MyST (Sphinx).** Project documentation is written in MyST Markdown and built with Sphinx. Prefer MyST for new documentation (uses directives, roles, and math blocks) rather than raw reStructuredText. Build with `task docs-build` (`task docs-server` for live reload); see `docs/source/conf.py` for the Sphinx configuration and `docs/readme.md` for the customizations. There is no generated Python API reference — document behaviour on a prose page, not by expecting a module page to appear.
 
 ## Coding Taste
 
@@ -28,7 +28,7 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - **Paths**: `pathlib.Path`. Never `os.path` or string concatenation.
 - **Logging**: `loguru` (`from loguru import logger`). Not `print`, not stdlib `logging`.
 - **Docstrings**: NumPy style — `pydoclint` + `interrogate` (≥95% coverage) enforce this.
-- **Markup in docstrings/comments**: We use MyST, in docstrings as well as pages — the `myst_docstring` extension parses docstrings with the MyST parser. So standard CommonMark applies: single backticks for inline code, fenced blocks for code, and either `*asterisks*` or `_underscores_` for italic. Cross-references use MyST role syntax (a `{class}` or `{meth}` role wrapping a backticked target); a reST `:class:` role will **not** resolve and is rejected by pre-commit.
+- **Markup in docstrings/comments**: CommonMark, the same as the docs pages — single backticks for inline code, fenced blocks for code, and either `*asterisks*` or `_underscores_` for italic. Docstrings are not rendered into the docs (there is no generated API reference), so this is about them reading well in source and staying consistent with the pages. The reST spellings — doubled-backtick literals, dot-dot directives, and colon-wrapped roles — are rejected by pre-commit.
 - **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.
 - Formatting (line length, quotes, etc.) is whatever `ruff format` produces.
 
