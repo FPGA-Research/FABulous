@@ -112,7 +112,7 @@ def _vhdl_supertile(tmp_path: Path) -> SuperTile:
         return make_empty_tile(
             name,
             ports,
-            tileDir=tmp_path,
+            tile_dir=tmp_path,
             matrixDir=tmp_path / f"{name}_switch_matrix.list",
             pinOrderConfig={},
         )
@@ -130,7 +130,7 @@ def _vhdl_supertile(tmp_path: Path) -> SuperTile:
 
     return SuperTile(
         name="DSP",
-        tileDir=tmp_path,
+        tile_dir=tmp_path,
         tiles=[top, bot],
         tileMap=[[top], [bot]],
         bels=[bel],
