@@ -191,11 +191,6 @@ def autoapi_skip_member(app, what, name, obj, skip, options):
     Attributes are documented in class docstrings; methods/functions are grouped via
     template.
     """
-    # NOTE: Keep this in for future use
-    # # Debug: Print what's being processed
-    # if 'custom_exception' in str(obj):
-    #     print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
-
     if what == "attribute":
         return True
     return skip
