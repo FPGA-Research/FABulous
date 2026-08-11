@@ -3,12 +3,15 @@
 import json
 import re
 from dataclasses import dataclass, field
+from functools import cached_property
+from itertools import product
 from pathlib import Path
 from typing import Any, Literal
 
+import networkx as nx
 from loguru import logger
 
-from fabulous.custom_exception import InvalidFileType
+from fabulous.custom_exception import InvalidFileType, InvalidState
 from fabulous.fabulous_settings import get_context
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.yosys import YosysTool
@@ -21,6 +24,25 @@ integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
 """
 BitVector = list[int | Literal["0", "1", "x", "z"]]
 KeyValue = dict[str, str | int]
+
+# Yosys cell types whose internal input->output path is broken by a register,
+# latch, or memory and therefore is NOT a combinational timing arc. This mirrors
+# Yosys's own stateful-primitive naming; write_json emits no sequential flag, so
+# the taxonomy has to be enumerated somewhere and this is its single home.
+REGISTER_CELL_PREFIXES = (
+    "$dff",
+    "$adff",
+    "$sdff",
+    "$dffsr",
+    "$dlatch",
+    "$adlatch",
+    "$sr",
+    "$mem",
+    "$_DFF",
+    "$_SDFF",
+    "$_DLATCH",
+    "$_SR",
+)
 
 
 @dataclass
@@ -71,6 +93,11 @@ class YosysCellDetails:
         Direction of each port. Default is empty dict.
     model : str, optional
         Associated model name. Default is "".
+    module_reference : YosysModule | None
+        The module this cell instantiates, or None for a leaf primitive or an
+        unresolved blackbox. A cell references its type by name only, so the
+        owning netlist resolves this link once every module exists. Default is
+        None.
     """
 
     hide_name: Literal[1, 0]
@@ -82,6 +109,59 @@ class YosysCellDetails:
         default_factory=dict
     )
     model: str = ""
+    module_reference: "YosysModule | None" = field(
+        default=None, compare=False, repr=False
+    )
+
+    @property
+    def is_register_primitive(self) -> bool:
+        """Whether this cell is a Yosys register, latch, or memory primitive.
+
+        Returns
+        -------
+        bool
+            True if the cell's `type` matches a known stateful Yosys primitive.
+        """
+        return self.type.startswith(REGISTER_CELL_PREFIXES)
+
+    @cached_property
+    def is_sequential(self) -> bool:
+        """Whether this cell breaks the combinational path with a register.
+
+        True when the cell is a stateful primitive itself, or when it
+        instantiates a submodule that holds state anywhere in its hierarchy. The
+        cell owns its resolved `submodule` link, so it answers this without the
+        netlist. Cached, since the netlist never changes after parsing.
+
+        Returns
+        -------
+        bool
+            True if the cell holds state (register, latch, or memory).
+        """
+        if self.is_register_primitive:
+            return True
+        return self.module_reference is not None and self.module_reference.is_sequential
+
+    def port_bits(self, direction: Literal["input", "output", "inout"]) -> list[int]:
+        """Return the integer net bits wired to ports of the given direction.
+
+        Parameters
+        ----------
+        direction : Literal["input", "output", "inout"]
+            Port direction to select.
+
+        Returns
+        -------
+        list[int]
+            Net bit ids on the cell's ports of that direction.
+        """
+        return [
+            bit
+            for port, bits in self.connections.items()
+            if self.port_directions.get(port) == direction
+            for bit in bits
+            if isinstance(bit, int)
+        ]
 
 
 @dataclass
@@ -204,6 +284,23 @@ class YosysModule:
         self.memories = {k: YosysMemoryDetails(**v) for k, v in memories.items()}
         self.netnames = {k: YosysNetDetails(**v) for k, v in netnames.items()}
 
+    @cached_property
+    def is_sequential(self) -> bool:
+        """Whether this module contains a register anywhere in its hierarchy.
+
+        Traverses its own cells, following each cell's resolved `submodule` link
+        into the sub-hierarchy. The netlist is not flattened, so a register can
+        be nested several submodules deep. The module structure never changes
+        after parsing, so the result is cached on first access.
+
+        Returns
+        -------
+        bool
+            True if any cell, transitively, is a register, latch, or memory
+            primitive.
+        """
+        return any(cell.is_sequential for cell in self.cells.values())
+
 
 @dataclass
 class YosysJson:
@@ -219,6 +316,10 @@ class YosysJson:
     ----------
     path : Path
         Path to a HDL file.
+    run_hierarchy : bool
+        Whether to run `hierarchy -auto-top`, which prunes modules unreachable
+        from the chosen top. Set to `False` to keep every module of a
+        multi-module library (e.g. a primitive pack). Default is `True`.
 
     Attributes
     ----------
@@ -246,7 +347,7 @@ class YosysJson:
     modules: dict[str, YosysModule]
     models: dict
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, run_hierarchy: bool = True) -> None:
         if not path.exists():
             raise FileNotFoundError(f"File {path} does not exist")
         if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
@@ -266,9 +367,31 @@ class YosysJson:
             )
             yosys_src = self.srcPath.with_suffix(".v")
             yosys_src.write_text(verilog)
+            # GHDL already fed models_pack in as a source, so the emitted Verilog
+            # is self-contained; the Yosys pass below must not augment it again.
+            convert_models_pack = None
         else:
             yosys_src = self.srcPath
-        YosysTool.convert_to_json(yosys_src, json_file)
+            # Resolve the source's instantiated fabric primitives against
+            # models_pack so the parsed netlist is self-contained for arc
+            # analysis. models_pack is one per-project file keyed to proj_lang,
+            # so it is always same-language with the source here; skip it when
+            # parsing models_pack itself or when hierarchy pruning is disabled.
+            models_pack = get_context().models_pack
+            if (
+                run_hierarchy
+                and models_pack is not None
+                and models_pack != self.srcPath
+            ):
+                convert_models_pack = models_pack
+            else:
+                convert_models_pack = None
+        YosysTool.convert_to_json(
+            yosys_src,
+            json_file,
+            models_pack=convert_models_pack,
+            run_hierarchy=run_hierarchy,
+        )
         with json_file.open() as f:
             o = json.load(f)
         self.creator = o.get("creator", "")  # Use .get() for safety
@@ -284,6 +407,10 @@ class YosysJson:
             )
             for k, v in o.get("modules", {}).items()  # Use .get() for safety
         }
+        for module in self.modules.values():
+            for cell in module.cells.values():
+                cell.module_reference = self.modules.get(cell.type)
+
         self.models = o.get("models", {})  # Use .get() for safety
 
         # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
@@ -444,6 +571,64 @@ class YosysJson:
             raise ValueError(f"Multiple driver found for net {net}: {src}")
 
         return src[0], sinks
+
+    def comb_arcs(self, module_name: str) -> set[tuple[str, str]]:
+        """Extract combinational input->output port arcs from a module.
+
+        Each combinational cell is modelled as a full input-bit -> output-bit
+        crossbar, so a path through chained cells becomes a path in the net-bit
+        graph. Sequential cells are skipped, so their input and output cones stay
+        disconnected and no false arc runs through a register.
+
+        Parameters
+        ----------
+        module_name : str
+            Name of the module in this netlist to analyse.
+
+        Returns
+        -------
+        set[tuple[str, str]]
+            Combinational `(input_port, output_port)` arcs in module-local names.
+
+        Raises
+        ------
+        InvalidState
+            If `module_name` is not present in this netlist.
+        """
+        module = self.modules.get(module_name)
+        if module is None:
+            raise InvalidState(
+                f"Module {module_name} not found in the parsed netlist {self.srcPath}."
+            )
+
+        graph = nx.DiGraph()
+        for cell in module.cells.values():
+            if not cell.port_directions or cell.is_sequential:
+                continue
+            graph.add_edges_from(
+                product(cell.port_bits("input"), cell.port_bits("output"))
+            )
+
+        input_name: dict[int, str] = {}
+        output_name: dict[int, str] = {}
+        for port, detail in module.ports.items():
+            multibit = len(detail.bits) > 1
+            for index, bit in enumerate(detail.bits):
+                if not isinstance(bit, int):
+                    continue
+                name = f"{port}{index}" if multibit else port
+                if detail.direction == "input":
+                    input_name[bit] = name
+                elif detail.direction == "output":
+                    output_name[bit] = name
+
+        arcs: set[tuple[str, str]] = set()
+        for in_bit, in_port in input_name.items():
+            if in_bit not in graph:
+                continue
+            for out_bit in nx.descendants(graph, in_bit) & output_name.keys():
+                arcs.add((in_port, output_name[out_bit]))
+        return arcs
 
 
 def _update_dict_ignore_case(

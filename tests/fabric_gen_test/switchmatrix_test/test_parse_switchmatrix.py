@@ -321,7 +321,7 @@ class TestSuperTileMatrixValidation:
         bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_Q0", IO.OUTPUT)])
         return SuperTile(
             name="DSP",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],

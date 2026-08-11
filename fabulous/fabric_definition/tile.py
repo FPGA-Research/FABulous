@@ -5,6 +5,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import networkx as nx
+
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
@@ -30,7 +32,7 @@ class Tile:
         List of ports for the tile
     bels : list[Bel]
         List of Basic Elements of Logic (BELs) in the tile
-    tileDir : Path
+    tile_dir : Path
         Directory path for the tile
     switch_matrix : SwitchMatrix
         Switch matrix of the tile, holding its source file, connectivity, and
@@ -59,7 +61,7 @@ class Tile:
         Whether the tile has a userCLK port. Default is False.
     wireList : list[Wire]
         The list of wires of the tile
-    tileDir : Path
+    tile_dir : Path
         The path to the tile folder
     partOfSuperTile : bool, optional
         Whether the tile is part of a super tile. Default is False.
@@ -74,7 +76,7 @@ class Tile:
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
-    tileDir: Path = Path()
+    tile_dir: Path = Path()
     partOfSuperTile: bool = False
     pinOrderConfig: dict = field(default_factory=dict)
 
@@ -83,7 +85,7 @@ class Tile:
         name: str,
         ports: list[Port],
         bels: list[Bel],
-        tileDir: Path,
+        tile_dir: Path,
         switch_matrix: SwitchMatrix,
         gen_ios: list[Gen_IO],
         userCLK: bool,
@@ -96,7 +98,7 @@ class Tile:
         self.switch_matrix = switch_matrix
         self.withUserCLK = userCLK
         self.wireList = []
-        self.tileDir = tileDir
+        self.tile_dir = tile_dir
 
         if pinOrderConfig is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -128,6 +130,41 @@ class Tile:
         if __o is None or not isinstance(__o, Tile):
             return False
         return self.name == __o.name
+
+    def as_graph(self) -> nx.DiGraph:
+        """Build the tile's combinational connectivity graph.
+
+        The graph combines switch-matrix routing (driver->sink edges from the
+        switch matrix's parsed `connections`), each BEL's combinational
+        input->output arcs, and the intra-tile jump wires (zero-offset wires
+        whose `BEG -> END` return path closes loops inside the tile).
+        `wireList` is populated only on placed grid instances, so call this on
+        a placed tile.
+
+        Returns
+        -------
+        nx.DiGraph
+            Directed graph whose nodes are net names and whose edges run from
+            driver to sink.
+        """
+        graph = nx.DiGraph()
+        # `connections` maps each mux output (sink) to the sources that may
+        # drive it; the connectivity edge runs from driver to sink.
+        for sink, sources in self.switch_matrix.connections.items():
+            for source in sources:
+                graph.add_edge(source, sink)
+        for bel in self.bels:
+            valid_inputs = set(bel.inputs)
+            valid_outputs = set(bel.outputs)
+            for in_port, out_port in bel.get_comb_arcs():
+                source = f"{bel.prefix}{in_port}"
+                sink = f"{bel.prefix}{out_port}"
+                if source in valid_inputs and sink in valid_outputs:
+                    graph.add_edge(source, sink)
+        for wire in self.wireList:
+            if wire.xOffset == 0 and wire.yOffset == 0:
+                graph.add_edge(wire.source, wire.destination)
+        return graph
 
     def getWestSidePorts(self) -> list[Port]:
         """Get all ports physically located on the west side of the tile.

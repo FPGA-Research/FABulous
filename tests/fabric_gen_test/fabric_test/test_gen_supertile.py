@@ -150,7 +150,7 @@ def supertile_netlist(
 
     def _build(tileMap: list[list[Tile | None]], **kwargs: object) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
-        st = SuperTile(name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap)
+        st = SuperTile(name="ST", tile_dir=Path(), tiles=tiles, tileMap=tileMap)
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
@@ -329,7 +329,7 @@ class TestBelExternalPorts:
             name="BelTile",
             ports=[],
             bels=[bel],
-            tileDir=Path(),
+            tile_dir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
@@ -364,7 +364,7 @@ class TestInterTileRouting:
                 )
             ],
             bels=[],
-            tileDir=Path(),
+            tile_dir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
@@ -377,7 +377,7 @@ class TestInterTileRouting:
                 )
             ],
             bels=[],
-            tileDir=Path(),
+            tile_dir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
