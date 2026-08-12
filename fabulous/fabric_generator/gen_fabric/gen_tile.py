@@ -473,7 +473,7 @@ def generateTile(
             portsPairs.append(userclk_pair)
 
         if bel.configBit > 0:
-            portsPairs.append(
+            ports_pairs.append(
                 (
                     "ConfigBits",
                     f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
