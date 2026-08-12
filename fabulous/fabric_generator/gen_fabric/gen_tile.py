@@ -563,7 +563,6 @@ def generateTile(
 
     if tile.switch_matrix.no_config_bits > 0:
         ports_pairs.append(
-
             (
                 "ConfigBits",
                 f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
