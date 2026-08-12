@@ -41,7 +41,7 @@ W_IO,  RegFile,  DSP_bot,  LUT4AB,  LUT4AB,  CPU_IO
 FabricEnd
 
 ParametersBegin
-ConfigBitMode, frame_based        # default is FlipFlopChain
+ConfigBitMode, frame_based        # default is frame_based
 FrameBitsPerRow, 32               # configuration bits per tile row
 MaxFramesPerCol, 20               # configuration bits per tile column
 Package, use work.my_package.all; # populate package fields in VHDL code generation
