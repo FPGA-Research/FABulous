@@ -78,7 +78,6 @@ def genTileSwitchMatrix(
     writer: CodeGenerator,
     tile: Tile,
     switch_matrix_debug_signal: bool,
-    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
 ) -> None:
@@ -97,8 +96,6 @@ def genTileSwitchMatrix(
         The tile object containing BELs and port information
     switch_matrix_debug_signal : bool
         Whether to generate debug signals for the switch matrix.
-    config_bit_mode : ConfigBitMode
-        The configuration-bit mode for the tile (frame-based or flip-flop chain).
     multiplexer_style : MultiplexerStyle
         The multiplexer style used to implement switch-matrix muxes.
     default_pip_delay : int
@@ -202,8 +199,6 @@ def genTileSwitchMatrix(
         writer,
         tile.name,
         connections,
-        noConfigBits,
-        config_bit_mode,
         multiplexer_style,
         default_pip_delay,
         switch_matrix_debug_signal,
@@ -214,8 +209,6 @@ def _gen_switch_matrix_body(
     writer: CodeGenerator,
     name: str,
     connections: dict[str, list[str]],
-    noConfigBits: int,
-    config_bit_mode: ConfigBitMode,
     multiplexer_style: MultiplexerStyle,
     default_pip_delay: int,
     switch_matrix_debug_signal: bool,
@@ -234,10 +227,6 @@ def _gen_switch_matrix_body(
         Module/tile name used in log messages.
     connections : dict[str, list[str]]
         Mapping from sink port name to list of source port names.
-    noConfigBits : int
-        Total number of configuration bits for this matrix.
-    config_bit_mode : ConfigBitMode
-        Frame-based or flip-flop chain configuration.
     multiplexer_style : MultiplexerStyle
         Custom or generic multiplexer implementation.
     default_pip_delay : int
@@ -495,8 +484,6 @@ def gen_super_tile_switch_matrix(
         writer,
         superTile.name,
         connections,
-        noConfigBits,
-        config_bit_mode,
         multiplexer_style,
         default_pip_delay,
         switch_matrix_debug_signal=False,
