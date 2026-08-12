@@ -297,8 +297,8 @@ def generateTile(
             )
             added.add((port.sourceName, port.destinationName))
 
-        writer.addNewLine()
-        writer.addLogicStart()
+    writer.addNewLine()
+    writer.addLogicStart()
 
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
         # buffer FrameData signals
