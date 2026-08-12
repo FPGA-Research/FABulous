@@ -68,6 +68,13 @@ def parseMatrix(
             stripped = v.strip()
             if stripped == "":
                 continue
+            if k >= len(dest_list):
+                raise InvalidSwitchMatrixDefinition(
+                    f"{path}: row {port_name!r} has a non-empty cell {stripped!r} "
+                    f"in column {k}, beyond the {len(dest_list)} destination "
+                    "columns declared in the header. The row is wider than the "
+                    "header, so this connection cannot be mapped to a destination."
+                )
             try:
                 value = int(stripped)
             except ValueError as exc:
@@ -96,7 +103,8 @@ def expandListPorts(port: str) -> list[str]:
     ------
     ValueError
         If the port entry contains "[" or "{" without matching closing
-        bracket "]"/"}".
+        bracket "]"/"}", or if a "{...}" multiplier is not a positive
+        integer.
 
     Returns
     -------
@@ -119,14 +127,24 @@ def expandListPorts(port: str) -> list[str]:
         return result
 
     # "{N}" is a multiplier: repeat the port N times and strip the
-    # multiplier from the name
+    # multiplier from the name. N must be a positive integer; "{0}" and
+    # non-numeric "{x}" are malformed and must not leak literal braces
+    # into the returned port name.
     port = port.replace(" ", "")
-    multipliers = re.findall(r"\{(\d+)\}", port)
-    portMultiplier = sum(int(m) for m in multipliers)
-    if portMultiplier != 0:
-        port = re.sub(r"\{(\d+)\}", "", port)
-        return [port] * portMultiplier
-    return [port]
+    brace_contents = re.findall(r"\{([^{}]*)\}", port)
+    if not brace_contents:
+        return [port]
+
+    port_multiplier = 0
+    for content in brace_contents:
+        if not content.isdigit() or int(content) == 0:
+            raise ValueError(
+                f"Invalid port entry: {port}, multiplier '{{{content}}}' must be "
+                "a positive integer"
+            )
+        port_multiplier += int(content)
+    port = re.sub(r"\{[^{}]*\}", "", port)
+    return [port] * port_multiplier
 
 
 @overload

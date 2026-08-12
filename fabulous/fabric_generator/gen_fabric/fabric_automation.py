@@ -13,7 +13,7 @@ from fabulous.custom_exception import InvalidFileType, InvalidPortType, SpecMiss
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, HDLType, MultiplexerStyle
 from fabulous.fabric_definition.gen_io import Gen_IO
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -162,7 +162,7 @@ def generateSwitchmatrixList(
     bels: list[Bel],
     outFile: Path,
     carryportsTile: dict[str, dict[IO, str]],
-    localSharedPortsTile: dict[str, list[Port]],
+    localSharedPortsTile: dict[str, list[TilePort]],
 ) -> None:
     """Generate a switch matrix list file for a given tile and its BELs.
 
@@ -180,7 +180,7 @@ def generateSwitchmatrixList(
         Path to the switchmatrix list file output
     carryportsTile : dict[str, dict[IO, str]]
         Dictionary of carry ports for the tile
-    localSharedPortsTile : dict[str, list[Port]]
+    localSharedPortsTile : dict[str, list[TilePort]]
         List of local shared ports for the tile, based on JUMP wire definitions
 
     Raises

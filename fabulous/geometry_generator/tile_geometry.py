@@ -236,7 +236,7 @@ class TileGeometry:
             )
 
             for portGeom in belGeom.internalPortGeoms:
-                wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+                wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
                 wireGeom = WireGeometry(wireName)
                 start = Location(
                     portGeom.relX + belGeom.relX, portGeom.relY + belGeom.relY
@@ -303,10 +303,10 @@ class TileGeometry:
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) != 1:
                 continue
-            wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+            wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
             wireGeom = WireGeometry(wireName)
 
-            if portGeom.sideOfTile == Side.NORTH:
+            if portGeom.side_of_tile == Side.NORTH:
                 startX = self.smGeometry.relX
                 startY = self.smGeometry.relY + portGeom.relY
                 wireGeom.addPathLoc(Location(startX, startY))
@@ -324,7 +324,7 @@ class TileGeometry:
                 else:
                     self.northMiddleX -= 1
 
-            elif portGeom.sideOfTile == Side.SOUTH:
+            elif portGeom.side_of_tile == Side.SOUTH:
                 startX = self.smGeometry.relX
                 startY = self.smGeometry.relY + portGeom.relY
                 wireGeom.addPathLoc(Location(startX, startY))
@@ -342,7 +342,7 @@ class TileGeometry:
                 else:
                     self.southMiddleX -= 1
 
-            elif portGeom.sideOfTile == Side.EAST:
+            elif portGeom.side_of_tile == Side.EAST:
                 startX = self.smGeometry.relX + portGeom.relX
                 startY = self.smGeometry.relY + self.smGeometry.height
                 wireGeom.addPathLoc(Location(startX, startY))
@@ -360,7 +360,7 @@ class TileGeometry:
                 else:
                     self.eastMiddleY += 1
 
-            elif portGeom.sideOfTile == Side.WEST:
+            elif portGeom.side_of_tile == Side.WEST:
                 startX = self.smGeometry.relX + portGeom.relX
                 startY = self.smGeometry.relY + self.smGeometry.height
                 wireGeom.addPathLoc(Location(startX, startY))
@@ -401,13 +401,13 @@ class TileGeometry:
             if abs(portGeom.offset) < 2:
                 continue
 
-            if portGeom.sideOfTile == Side.NORTH:
+            if portGeom.side_of_tile == Side.NORTH:
                 self.indirectNorthSideWire(portGeom)
-            elif portGeom.sideOfTile == Side.SOUTH:
+            elif portGeom.side_of_tile == Side.SOUTH:
                 self.indirectSouthSideWire(portGeom)
-            elif portGeom.sideOfTile == Side.EAST:
+            elif portGeom.side_of_tile == Side.EAST:
                 self.indirectEastSideWire(portGeom)
-            elif portGeom.sideOfTile == Side.WEST:
+            elif portGeom.side_of_tile == Side.WEST:
                 self.indirectWestSideWire(portGeom)
             else:
                 raise InvalidPortType(
@@ -441,20 +441,20 @@ class TileGeometry:
                 lastStairWidth = lastStair.groupWires * (abs(lastStair.offset) - 1)
                 self.northMiddleX -= lastStairWidth
 
-            xOffset = 0
-            if portGeom.wireDirection == Direction.SOUTH:
+            x_offset = 0
+            if portGeom.wire_direction == Direction.SOUTH:
                 self.reserveStairSpaceLeft = True
-                xOffset = portGeom.groupWires * abs(portGeom.offset) - 1
+                x_offset = portGeom.groupWires * abs(portGeom.offset) - 1
 
-            stairWiresName = f"({portGeom.sourceName} ⟶ {portGeom.destName})"
+            stairWiresName = f"({portGeom.source_name} ⟶ {portGeom.destName})"
             stairWires = StairWires(stairWiresName)
             stairWires.generateGeometry(
-                self.northMiddleX - xOffset,
+                self.northMiddleX - x_offset,
                 self.smGeometry.southPortsTopY
                 + self.smGeometry.relY
                 - self.stairWireOffset,
                 portGeom.offset,
-                portGeom.wireDirection,
+                portGeom.wire_direction,
                 portGeom.groupWires,
                 self.width,
                 self.height,
@@ -462,11 +462,11 @@ class TileGeometry:
             self.stairWiresList.append(stairWires)
             self.wireConstraints.addConstraintsOf(stairWires)
 
-            if portGeom.wireDirection == Direction.NORTH:
+            if portGeom.wire_direction == Direction.NORTH:
                 stairReservedWidth = portGeom.groupWires * (abs(portGeom.offset) - 1)
                 self.northMiddleX -= stairReservedWidth
 
-        wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+        wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
         start = Location(self.northMiddleX, 0)
         middle = Location(self.northMiddleX, self.smGeometry.relY + portGeom.relY)
@@ -505,14 +505,14 @@ class TileGeometry:
             # depending on the direction, do the adjustment
             # now, or queue it - taking the different "bending"
             # of the stair-like wire into account.
-            if portGeom.wireDirection == Direction.NORTH:
+            if portGeom.wire_direction == Direction.NORTH:
                 self.queuedAdjustmentLeft = stairReservedWidth
 
-            if portGeom.wireDirection == Direction.SOUTH:
+            if portGeom.wire_direction == Direction.SOUTH:
                 self.southMiddleX -= stairReservedWidth
                 self.queuedAdjustmentLeft = 0
 
-        wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+        wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
         start = Location(self.southMiddleX, self.height)
         middle = Location(self.southMiddleX, self.smGeometry.relY + portGeom.relY)
@@ -551,20 +551,20 @@ class TileGeometry:
                 lastStairWidth = lastStair.groupWires * (abs(lastStair.offset) - 1)
                 self.eastMiddleY += lastStairWidth
 
-            yOffset = 0
-            if portGeom.wireDirection == Direction.WEST:
+            y_offset = 0
+            if portGeom.wire_direction == Direction.WEST:
                 self.reserveStairSpaceBottom = True
-                yOffset = portGeom.groupWires * abs(portGeom.offset) - 1
+                y_offset = portGeom.groupWires * abs(portGeom.offset) - 1
 
-            stairWiresName = f"({portGeom.sourceName} ⟶ {portGeom.destName})"
+            stairWiresName = f"({portGeom.source_name} ⟶ {portGeom.destName})"
             stairWires = StairWires(stairWiresName)
             stairWires.generateGeometry(
                 self.smGeometry.westPortsRightX
                 + self.smGeometry.relX
                 + self.stairWireOffset,
-                self.eastMiddleY + yOffset,
+                self.eastMiddleY + y_offset,
                 portGeom.offset,
-                portGeom.wireDirection,
+                portGeom.wire_direction,
                 portGeom.groupWires,
                 self.width,
                 self.height,
@@ -572,11 +572,11 @@ class TileGeometry:
             self.stairWiresList.append(stairWires)
             self.wireConstraints.addConstraintsOf(stairWires)
 
-            if portGeom.wireDirection == Direction.EAST:
+            if portGeom.wire_direction == Direction.EAST:
                 stairReservedWidth = portGeom.groupWires * (abs(portGeom.offset) - 1)
                 self.eastMiddleY += stairReservedWidth
 
-        wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+        wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
         start = Location(
             self.smGeometry.relX + portGeom.relX, self.smGeometry.relY + portGeom.relY
@@ -617,14 +617,14 @@ class TileGeometry:
             # depending on the direction, do the adjustment
             # now, or queue it - taking the different "bending"
             # of the stair-like wire into account.
-            if portGeom.wireDirection == Direction.EAST:
+            if portGeom.wire_direction == Direction.EAST:
                 self.queuedAdjustmentBottom = stairReservedHeight
 
-            if portGeom.wireDirection == Direction.WEST:
+            if portGeom.wire_direction == Direction.WEST:
                 self.westMiddleY += stairReservedHeight
                 self.queuedAdjustmentBottom = 0
 
-        wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
+        wireName = f"{portGeom.source_name} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
         start = Location(0, self.westMiddleY)
         middle = Location(self.smGeometry.relX + portGeom.relX, self.westMiddleY)
