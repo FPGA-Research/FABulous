@@ -470,15 +470,14 @@ def generateTile(
         if userclk_pair is not None:
             ports_pairs.append(userclk_pair)
 
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            if bel.configBit > 0:
-                ports_pairs.append(
-                    (
-                        "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
-                        f"{belConfigBitsCounter}]",
-                    )
+        if bel.configBit > 0:
+            ports_pairs.append(
+                (
+                    "ConfigBits",
+                    f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
+                    f"{belConfigBitsCounter}]",
                 )
+            )
 
         writer.addInstantiation(
             compName=bel.name,
