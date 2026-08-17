@@ -123,6 +123,28 @@ instead of relying on constants compiled into nextpnr.
 
 All delays are in nanoseconds.
 
+### Clock arrival time
+
+`GlobalClk,<ns>` attaches the BEL to the fabric's clock network and gives the
+time the clock edge reaches *this* flop:
+
+```{code-block} text
+GlobalClk,1.37
+```
+
+nextpnr applies it to the pseudo-pip feeding the BEL's `CLK` pin, so it lands in
+the routed clock delay the timing analyser uses for launch and capture. The
+delay field is `bel.v3.txt` only: `bel.v2.txt` writes a bare `GlobalClk`, for
+which nextpnr uses its built-in default of `1.0`.
+
+:::{important}
+Only *differences* between flops produce clock skew. A uniform value, which is
+what FABulous writes by default if no timing model is generated,
+is common mode: it is added to both the launch and
+the capture side of every register-to-register path and cancels exactly, leaving
+skew at zero.
+:::
+
 ### Conditions
 
 The optional trailing `<cond>` field gates an arc on how the design actually
@@ -181,7 +203,7 @@ A `FABULOUS_LC` block with timing:
     SetupHold,I3,CLK,2.5,0.1,FF=1
     SetupHold,Ci,CLK,2.5,0.1,FF=1&I0MUX=1
     ClkToOut,Q,CLK,1.0,FF=1
-    GlobalClk
+    GlobalClk,1.0
     BelEnd
 ```
 

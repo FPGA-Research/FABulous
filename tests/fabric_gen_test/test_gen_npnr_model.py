@@ -36,6 +36,11 @@ def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
     # here directly, same as every other BEL-internal constant.
     assert "ClkToOut,Q,CLK,1.0,FF=1" in belv3
 
+    # Clock arrival time is per flop in v3; v2 keeps the bare command.
+    assert "GlobalClk,1.0" in belv3
+    assert "GlobalClk\n" in belv2
+    assert "GlobalClk," not in belv2
+
     # v2 must not contain any timing lines.
     for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
         assert keyword not in belv2

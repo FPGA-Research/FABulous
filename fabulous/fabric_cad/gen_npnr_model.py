@@ -31,6 +31,11 @@ IO_SETUP = 2.5
 IO_HOLD = 0.1
 IO_CLK_TO_OUT = 2.5
 
+# Clock arrival time (ns) at a flop, written per BEL in bel.v3.txt. Identical
+# everywhere until characterisation exists, so zero skew: only differences
+# between flops produce skew.
+CLOCK_DELAY = 1.0
+
 # Base delay (ns) for nextpnr's placement heuristic (placement_estimate.txt).
 # Static until a real timing model exists; reproduces nextpnr's old default.
 BASE_DELAY_DEFAULT = 3.0
@@ -181,7 +186,8 @@ def belLines(
                 if p.startswith("O") and p[1:].isdigit():
                     lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")
         if bel.withUserCLK:
-            lines.append("GlobalClk")
+            # only v3 carries the arrival time; v2 uses nextpnr's default
+            lines.append(f"GlobalClk,{CLOCK_DELAY}" if timing else "GlobalClk")
         lines.append("BelEnd")
         return lines
 
