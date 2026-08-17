@@ -231,6 +231,10 @@ in which case it is replaced by a characterised per-pip delay; see
 [Timing Characterization](../../building_doc/timing_characterization.md) for how
 those delays are generated.
 
+The column is unitless: nextpnr multiplies it by `pipDelayScale` from
+[`placement_estimate.txt`](#placement-estimate) (default `0.05`) to get
+nanoseconds, so the placeholder `8` is `0.4` ns.
+
 (placement-estimate)=
 
 ## `placement_estimate.txt`
@@ -245,6 +249,7 @@ delayOffset=3.0
 delayEpsilon=0.25
 ripupPenalty=0.5
 carryPredictDelay=0.5
+pipDelayScale=0.05
 ```
 
 | Key                 | nextpnr target             | Default | Meaning                                                    |
@@ -254,6 +259,7 @@ carryPredictDelay=0.5
 | `carryPredictDelay` | `predictDelay` `Co`->`Ci`   | 0.5     | Carry-chain placement estimate (dedicated interconnect)    |
 | `delayEpsilon`      | `ctx->delay_epsilon`       | 0.25    | Smallest delay difference the timing analysis resolves     |
 | `ripupPenalty`      | `ctx->ripup_penalty`       | 0.5     | Router cost for ripping up an existing route               |
+| `pipDelayScale`     | `pips.txt` delay column    | 0.05    | Nanoseconds per unit of the `pips.txt` integer delay       |
 
 nextpnr's placer decides where every BEL goes *before* anything is routed, so
 it can't yet know a connection's real pip delay (`pips.txt`), only the two
@@ -276,9 +282,28 @@ It is a flat `0.5` (nextpnr's original hardcoded value),
 independent of `delayScale`. `delayEpsilon` and `ripupPenalty`
 are plain nextpnr placer/router knobs FABulous simply echoes at their defaults.
 
+`pipDelayScale` is the exception: it is not an estimate but the unit of the
+`pips.txt` delay column, which is a plain integer. nextpnr multiplies it by
+`pipDelayScale` to get nanoseconds, so this key *does* move the numbers in the
+final routed timing report. The default `0.05` reproduces nextpnr's historical
+hardcoded factor, matching the placeholder delay column (`8` -> `0.4` ns). A
+timing model that characterises pips directly in nanoseconds should write
+`pipDelayScale=1.0`; see
+[Timing Characterization](../../building_doc/timing_characterization.md).
+
+:::{warning}
+`pipDelayScale` must stay consistent with `delayScale`/`delayOffset`. The
+placer's `predictDelay` estimate and the router's cost model are compared
+against real pip delays, so raising `pipDelayScale` alone (e.g. to `1.0` while
+leaving `delayScale=3.0`) makes every routed pip look far more expensive than
+the estimate predicted and routing can fail outright. Rescale the estimate keys
+by the same factor.
+:::
+
 :::{note}
-None of these keys scale `bel.v3.txt`'s BEL-internal arcs (LUT/FF/carry
-timing), they only steer placement and routing.
+Apart from `pipDelayScale`, none of these keys scale `bel.v3.txt`'s
+BEL-internal arcs (LUT/FF/carry timing) or the routed report, they only steer
+placement and routing.
 Any key (or the whole file, for legacy or
 unregenerated projects) that is missing falls back to the default in the table,
 matching nextpnr's original hard-coded values. By default, FABulous writes

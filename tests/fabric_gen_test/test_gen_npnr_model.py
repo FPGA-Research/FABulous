@@ -71,6 +71,7 @@ def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
     assert "delayEpsilon=0.25" in text
     assert "ripupPenalty=0.5" in text
     assert "carryPredictDelay=0.5" in text
+    assert "pipDelayScale=0.05" in text
 
     # One estimate block per timed BEL type.
     for bel_type in (

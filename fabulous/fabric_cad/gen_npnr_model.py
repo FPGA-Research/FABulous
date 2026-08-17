@@ -44,6 +44,11 @@ CARRY_PREDICT_DELAY = 0.5
 # Arbitrary placeholder pip delay used when no delay_model is supplied.
 DUMMY_PIP_DELAY = 8
 
+# Nanoseconds per unit of the pips.txt delay column. 0.05 reproduces nextpnr's
+# historical hardcoded factor; a delay_model emitting real nanoseconds would
+# set this to 1.0.
+PIP_DELAY_SCALE = 0.05
+
 # Representative per-type timing arcs for nextpnr's placement estimate.
 # Static while every instance of a type shares these constants (I0-I3 LUT4);
 # a real per-instance timing model would regenerate this.
@@ -73,6 +78,7 @@ PLACEMENT_ESTIMATE_TEXT: str = (
             f"delayEpsilon={DELAY_EPSILON}",
             f"ripupPenalty={RIPUP_PENALTY}",
             f"carryPredictDelay={CARRY_PREDICT_DELAY}",
+            f"pipDelayScale={PIP_DELAY_SCALE}",
             "BelBegin,FABULOUS_LC",
             *LC_ESTIMATE_LINES,
             "BelEnd",
