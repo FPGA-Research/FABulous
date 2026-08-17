@@ -398,7 +398,7 @@ wheels = [
 
 [[package]]
 name = "cmd2"
-version = "4.1.2"
+version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "prompt-toolkit" },
@@ -406,9 +406,9 @@ dependencies = [
     { name = "rich" },
     { name = "rich-argparse" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/af/e9/74830fbad8a69aa0ada43c7fda61eaaed53e619b2ca4807a83366805c283/cmd2-4.1.2.tar.gz", hash = "sha256:07e62b40235ae4af1c5730fb6b3a4708456b57b9ff79acf02808ac584263290a", size = 848904, upload-time = "2026-07-16T15:50:59.746Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ee/41/5c58c7f761eab29df4a633feea7c10044efc7f2fcff9d0925df957a7b2e8/cmd2-4.2.0.tar.gz", hash = "sha256:0546543c1ba3c6090ecec33f1373c59627e417b14419629a48176115946fd329", size = 852188, upload-time = "2026-08-06T12:28:45.35Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/6a/4306a3f65353890995991f53b37e1d997caf8f7a0a9cdc07a582be12b5fe/cmd2-4.1.2-py3-none-any.whl", hash = "sha256:ced3f57a018bec43aa32b6d9bf950d4bf7706183f995a641fbe11473360e0749", size = 194836, upload-time = "2026-07-16T15:50:57.993Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/f2/6beb22f3ba8b75f98f8a46e4ab0c49564d76d5129b13d2d320ebf4a2fcc0/cmd2-4.2.0-py3-none-any.whl", hash = "sha256:eb7ba4a4e6b74312e604907eacbeb84addd72f97d9953492eabfedeaba53c567", size = 193028, upload-time = "2026-08-06T12:28:42.78Z" },
 ]
 
 [[package]]
@@ -642,7 +642,7 @@ dependencies = [
 requires-dist = [
     { name = "bitarray", specifier = ">=3.10.0" },
     { name = "ciel", specifier = ">=2.4.0" },
-    { name = "cmd2", specifier = ">=4.1.2" },
+    { name = "cmd2", specifier = ">=4.2.0" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
@@ -1623,14 +1623,14 @@ wheels = [
 
 [[package]]
 name = "prompt-toolkit"
-version = "3.0.52"
+version = "3.0.53"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "wcwidth" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855", size = 434198, upload-time = "2025-08-27T15:24:02.057Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/ea/39b988c938f75cb75d7045b5c69f8bfed47ee2152c8837fb403de29d6fb8/prompt_toolkit-3.0.53.tar.gz", hash = "sha256:9ec8a0ad96d5c56148b3f914aa79c1564c3fde5d2e6b876e7bc327e353cf8fa6", size = 435492, upload-time = "2026-07-26T20:56:14.758Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/03/0d3ce49e2505ae70cf43bc5bb3033955d2fc9f932163e84dc0779cc47f48/prompt_toolkit-3.0.52-py3-none-any.whl", hash = "sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955", size = 391431, upload-time = "2025-08-27T15:23:59.498Z" },
+    { url = "https://files.pythonhosted.org/packages/54/6f/84908cad2d6aa5144abcf7b42709fe4fdb459bc640ec7ac5786e7693dabc/prompt_toolkit-3.0.53-py3-none-any.whl", hash = "sha256:01c0891d7f9237d5e339f7d3e42cdae80b7534abb1c7c0e3352efba6231492f2", size = 392288, upload-time = "2026-07-26T20:56:12.512Z" },
 ]
 
 [[package]]
