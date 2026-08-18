@@ -65,7 +65,7 @@ class FABulousTileMacroFlow(SequentialFlow):
 
     def __new__(
         cls,
-        *_args,
+        *_args: tuple,
         models_pack_path: Path | None = None,  # noqa: ARG004
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
