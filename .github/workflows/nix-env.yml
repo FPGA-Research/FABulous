@@ -11,7 +11,7 @@ on:
       - ".github/workflows/nix-env.yml"
   # PR / merge_group runs come through ci.yml.
   workflow_call:
-  # warm `nix-*` cache existing on `main` to fall back to
+  # nightly: keep main's `nix-*` caches warm so PR runs can fall back on them
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
@@ -47,6 +47,11 @@ jobs:
           # Only the main base cache prunes its old generations
           purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Python fixups still match uv.lock
+        # A fixup naming a package uv.lock no longer resolves is a silent
+        # no-op; this makes it an error.
+        run: nix eval --raw ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).python-fixups.drvPath"
+
       - name: DevShell smoke test
         run: |
           nix develop --command bash -c "FABulous --version"
@@ -58,3 +63,166 @@ jobs:
         # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
         # different Python and ABI-incompatible with the devshell packages).
         run: nix develop --command task smoke-test FABULOUS=FABulous
+
+  downstream-template:
+    name: Downstream template (Nix ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Build the uv.lock-matched Python environment
+        # Builds fabulous-fpga's full dependency closure as ordinary nixpkgs
+        # Python packages, linked into one environment — the check that the
+        # `toNixpkgs` conversion actually holds together. Runs on every
+        # supported platform: macOS stores are frequently case-insensitive,
+        # which is exactly where the `FABulous`/`fabulous` collision bites, so
+        # that leg is the one worth keeping.
+        run: |
+          nix build ".#fabulous-python-env"
+          ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
+
+      - name: Evaluate the downstream template
+        # Stands in for a consuming project, so a break in the composition
+        # surface fails here rather than in someone else's repository.
+        run: |
+          set -euo pipefail
+          TEMPLATE="$RUNNER_TEMP/downstream"
+          cp -r nix/templates/downstream "$TEMPLATE"
+          cd "$TEMPLATE"
+          git init -q . && git add -A
+          system=$(nix eval --raw --impure --expr builtins.currentSystem)
+          nix eval --raw \
+            --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
+            ".#devShells.$system.default.drvPath"
+
+  # WSL is the platform the README points Windows users at, and no runner label
+  # covers it directly: `ubuntu-latest` shares its architecture but not the way
+  # it boots. No systemd here, so no nix-daemon and no multi-user store, which
+  # is a different installation of Nix than any other leg exercises.
+  nix-wsl:
+    name: WSL2 (Nix Ubuntu-24.04)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - name: Keep the checkout at LF
+        # Git on a Windows runner rewrites the tree to CRLF, and Nix expressions
+        # carry shell fragments, so a stray \r becomes a build failure that says
+        # nothing about WSL. `core.autocrlf` alone is not enough: `.gitattributes`
+        # marks every file `text=auto`, and an explicit text attribute outranks
+        # it, leaving the working-tree ending to `core.eol` -- which defaults to
+        # the platform's native one. Both have to be set, and before the checkout.
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up WSL2
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: curl xz-utils git ca-certificates
+          # Nix's installer refuses to run as root and the distribution ships no
+          # other user, so the action creates this one.
+          wsl-shell-user: nixuser
+
+      - name: Hand the store to that user
+        # Pre-creating /nix is what lets the installer skip sudo, which this
+        # distribution does not ship either.
+        shell: wsl-bash -u root {0}
+        run: install -d -o nixuser -g nixuser /nix
+
+      - name: Install Nix
+        # Single-user, because WSL runs no systemd here and so has no daemon to
+        # supervise -- the mode Nix documents for exactly this case.
+        # `prepare_nix_environment` is not reusable: its actions are JavaScript
+        # and execute on the Windows side, where there is no /nix. That also
+        # costs this job the store cache the other legs get, which is why it
+        # builds the Python environment rather than the whole EDA toolchain.
+        #
+        # The sandbox needs unprivileged user namespaces, which Ubuntu 24.04
+        # restricts and WSL does not reliably re-enable. Building unsandboxed is
+        # the compromise; the native Linux legs are what cover the sandboxed
+        # build of these same derivations.
+        run: |
+          curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+          mkdir -p ~/.config/nix
+          cat > ~/.config/nix/nix.conf <<'EOF'
+          experimental-features = nix-command flakes
+          sandbox = false
+          substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+          EOF
+
+      - name: Copy the checkout onto the Linux filesystem
+        # /mnt/c is a 9p mount of the Windows drive: slow, case-insensitive and
+        # only approximately POSIX. Building from the home directory is both what
+        # the docs tell WSL users to do and what keeps a failure here
+        # attributable to FABulous rather than to DrvFs.
+        run: |
+          test -f flake.nix
+          # Assert the line endings rather than trusting them: CRLF that reaches
+          # the store surfaces as `$'\r': command not found` from inside a build
+          # phase, which points nowhere near the checkout that caused it.
+          if grep -rIl $'\r' flake.nix pyproject.toml nix/; then
+            echo "::error::checkout has CRLF line endings; core.eol=lf did not take effect"
+            exit 1
+          fi
+          rm -rf ~/FABulous
+          mkdir ~/FABulous
+          cp -r ./. ~/FABulous/
+
+      - name: Build the uv.lock-matched Python environment
+        # The same `toNixpkgs` conversion the downstream-template job checks.
+        # The store path goes to a file rather than an `--out-link`: this step
+        # starts in the Windows workspace, and dropping a `result` symlink onto
+        # that drive needs a privilege the runner may not hold.
+        run: |
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix build --no-link --print-out-paths "$HOME/FABulous#fabulous-python-env" > ~/fabulous-env
+          pyenv=$(cat ~/fabulous-env)
+          "$pyenv/bin/python" -c "import fabulous, librelane; print('imports OK')"
+          # Both spellings exist as separate files here because the store is
+          # ext4; the macOS leg is what exercises the collapsed case.
+          "$pyenv/bin/FABulous" --version
+          "$pyenv/bin/fabulous" --version
+
+      - name: Create a project under WSL
+        # Proves the environment this job built is actually runnable here:
+        # settings initialisation, extracting the packaged template out of the
+        # read-only store, and writing the tree all happen on this path.
+        #
+        # It stops short of `run_fab`, which shells out to yosys while loading
+        # the fabric. Pulling the EDA toolchain into a WSL store that gets no
+        # cache means building yosys from source on every run, and it would
+        # prove little: fabric generation is platform-independent Python that
+        # the ubuntu legs already run end to end, through simulation.
+        #
+        # On the Linux filesystem rather than /mnt/c because the same commands
+        # fail on the Windows drive today. Project creation copies the template
+        # with `shutil.copytree`, whose default `copy2` carries metadata across,
+        # and DrvFs answers the chmod with EPERM unless the drive was mounted
+        # with `metadata`. Real for anyone keeping a project on C:, but it wants
+        # a fix in FABulous rather than an assertion here.
+        run: |
+          fab=$(cat ~/fabulous-env)/bin/FABulous
+          project=~/fabulous-wsl
+          rm -rf "$project"
+          mkdir -p "$project"
+          cd "$project"
+          "$fab" c demo
+          test -s demo/fabric.csv
+          test -d demo/Tile/LUT4AB
+          test -d demo/.FABulous
