@@ -114,7 +114,7 @@ class FABulousFabricMacroFlow(Classic):
 
     def __new__(
         cls,
-        *_args,
+        *_args: tuple,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         design_dir: Path | None = None,  # noqa: ARG004
