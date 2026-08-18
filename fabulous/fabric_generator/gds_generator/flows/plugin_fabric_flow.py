@@ -78,8 +78,8 @@ class FABulousFabric(FABulousFabricMacroFlow):
 
     def __new__(
         cls,
-        *_args: object, 
-        **_kwargs: object, 
+        *_args: object,
+        **_kwargs: object,
     ) -> Self:
         """Skip `FABulousFabricMacroFlow.__new__`'s config-source layering.
 
