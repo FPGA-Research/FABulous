@@ -804,13 +804,13 @@ def parse_tile_from_dir(
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
 
-def parseFabricCSV(fileName: str) -> Fabric:
+def parseFabricCSV(fileName: Path) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 
     Parameters
     ----------
-    fileName : str
-        Directory of the CSV file.
+    fileName : Path
+        Path of the CSV file.
 
     Raises
     ------
@@ -828,7 +828,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     Fabric
         The fabric object.
     """
-    fName = Path(fileName).absolute()
+    fName = fileName.absolute()
     if fName.suffix != ".csv":
         raise InvalidFileType("File must be a csv file")
 

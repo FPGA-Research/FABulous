@@ -86,8 +86,8 @@ class FABulous_API:
     ----------
     writer : CodeGenerator
         Object responsible for generating code from code_generator.py
-    fabricCSV : str, optional
-        Path to the CSV file containing fabric data, by default ""
+    fabricCSV : Path | None, optional
+        Path to the CSV file containing fabric data, by default None
 
     Attributes
     ----------
@@ -103,9 +103,9 @@ class FABulous_API:
     fabric: Fabric
     fileExtension: str = ".v"
 
-    def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
+    def __init__(self, writer: CodeGenerator, fabricCSV: Path | None = None) -> None:
         self.writer = writer
-        if fabricCSV != "":
+        if fabricCSV is not None:
             self.fabric = fileParser.parseFabricCSV(fabricCSV)
             self.geometryGenerator = GeometryGenerator(self.fabric)
         if isinstance(self.writer, VHDLCodeGenerator):
@@ -192,22 +192,16 @@ class FABulous_API:
         configMem : Path
             File path where the configuration memory will be saved.
 
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            generateConfigMem(
-                self.writer,
-                tile.name,
-                tile.globalConfigBits,
-                configMem,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self.fabric.get_tile_by_name(tileName)
+        generateConfigMem(
+            self.writer,
+            tile.name,
+            tile.globalConfigBits,
+            configMem,
+            frame_bits_per_row=self.fabric.frameBitsPerRow,
+            max_frame_per_col=self.fabric.maxFramesPerCol,
+        )
 
     def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix RTL for the specified tile.
@@ -219,26 +213,20 @@ class FABulous_API:
         tileName : str
             Name of the tile for which the switch matrix will be generated.
 
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
-            logger.info(
-                f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
-            )
-            genTileSwitchMatrix(
-                self.writer,
-                tile,
-                switch_matrix_debug_signal,
-                config_bit_mode=self.fabric.configBitMode,
-                multiplexer_style=self.fabric.multiplexerStyle,
-                default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self.fabric.get_tile_by_name(tileName)
+        switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
+        logger.info(
+            f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
+        )
+        genTileSwitchMatrix(
+            self.writer,
+            tile,
+            switch_matrix_debug_signal,
+            config_bit_mode=self.fabric.configBitMode,
+            multiplexer_style=self.fabric.multiplexerStyle,
+            default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
+        )
 
     def genTile(
         self,
@@ -269,22 +257,16 @@ class FABulous_API:
             Override for the fabric's ``configBitMode``. If ``None``, the value
             from ``self.fabric`` is used.
 
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            generateTile(
-                self.writer,
-                tile,
-                frame_bit_per_row or self.fabric.frameBitsPerRow,
-                max_frame_per_col or self.fabric.maxFramesPerCol,
-                disable_user_clk or self.fabric.disableUserCLK,
-                config_bit_mode or self.fabric.configBitMode,
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self.fabric.get_tile_by_name(tileName)
+        generateTile(
+            self.writer,
+            tile,
+            frame_bit_per_row or self.fabric.frameBitsPerRow,
+            max_frame_per_col or self.fabric.maxFramesPerCol,
+            disable_user_clk or self.fabric.disableUserCLK,
+            config_bit_mode or self.fabric.configBitMode,
+        )
 
     def genSuperTile(
         self,
@@ -559,16 +541,12 @@ class FABulous_API:
         Raises
         ------
         ValueError
-            If tile not found in fabric.
             In case of an invalid IO type for generative IOs.
             If the number of config access ports does not match the number of
             config bits.
         """
-        tile = self.fabric.getTileByName(tile_name)
+        tile = self.fabric.get_tile_by_name(tile_name)
         bels: list[Bel] = []
-        if not tile:
-            logger.error(f"Tile {tile_name} not found in fabric.")
-            raise ValueError
 
         suffix = "vhdl" if isinstance(self.writer, VHDLCodeGenerator) else "v"
 
@@ -841,33 +819,38 @@ class FABulous_API:
         pdk: str | None = get_context().pdk
         pdk_root: Path | None = get_context().pdk_root
 
-        if pdk is not None and pdk_root is not None:
-            pdk_root = Path.resolve(pdk_root / pdk).absolute()
-
         iconfig: TimingModelConfig | None = None
 
-        match pdk:
-            case "ihp-sg13g2":
+        match pdk, pdk_root:
+            case "ihp-sg13g2" as pdk_name, Path() as root:
+                pdk_dir = Path.resolve(root / pdk_name).absolute()
                 liberty_files: Path = (
-                    pdk_root
+                    pdk_dir
                     / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
                 )
                 techmap_files: list[Path] = [
-                    pdk_root / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
-                    pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
+                    pdk_dir / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
+                    pdk_dir / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
 
-            case "sky130A" | "sky130B":
+            case ("sky130A" | "sky130B") as pdk_name, Path() as root:
+                pdk_dir = Path.resolve(root / pdk_name).absolute()
                 liberty_files: Path = (
-                    pdk_root
+                    pdk_dir
                     / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
                 )
                 techmap_files: list[Path] = [
-                    pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
-                    pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
+                    pdk_dir / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
+                    pdk_dir / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
+
+            case (("ihp-sg13g2" | "sky130A" | "sky130B"), None):
+                raise ValueError(
+                    f"PDK {pdk} has a default timing model configuration, but no "
+                    f"PDK root is set to resolve its files against."
+                )
 
             case _:
                 if manual_config is None:

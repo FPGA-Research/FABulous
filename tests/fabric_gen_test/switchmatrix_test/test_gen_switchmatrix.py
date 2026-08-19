@@ -195,7 +195,7 @@ class TestPreserveListOrderEndToEnd:
 
     def test_flag_reorders_but_preserves_connectivity(self, project: Path) -> None:
         init_context(project)
-        default = parseFabricCSV(str(project / "fabric.csv"))
+        default = parseFabricCSV(project / "fabric.csv")
 
         fabric_csv = project / "fabric.csv"
         fabric_csv.write_text(
@@ -203,7 +203,7 @@ class TestPreserveListOrderEndToEnd:
                 "ParametersEnd", "PreserveListOrder,TRUE\nParametersEnd"
             )
         )
-        preserved = parseFabricCSV(str(project / "fabric.csv"))
+        preserved = parseFabricCSV(project / "fabric.csv")
 
         default_conns = {
             t.name: t.switch_matrix.connections for t in default.tileDic.values()
@@ -246,7 +246,7 @@ class TestMissingMatrix:
             )
         )
         with pytest.raises(InvalidTileDefinition):
-            parseFabricCSV(str(project / "fabric.csv"))
+            parseFabricCSV(project / "fabric.csv")
 
 
 _INPUT_ASSIGN = re.compile(r"assign\s+(\w+)_input\s*=\s*\{([^}]*)\};")
@@ -268,7 +268,7 @@ class TestPreserveListOrderGeneration:
     ) -> tuple[Tile, dict[str, list[str]]]:
         """Generate a tile's switch matrix and return its `{port}_input` RHS lists."""
         init_context(fabric_csv.parent)
-        tile = find_switch_matrix_tile(parseFabricCSV(str(fabric_csv)))
+        tile = find_switch_matrix_tile(parseFabricCSV(fabric_csv))
         writer = code_generator_factory(".v", f"{tile.name}_switch_matrix")
         genTileSwitchMatrix(
             writer, tile, False, multiplexer_style=MultiplexerStyle.CUSTOM

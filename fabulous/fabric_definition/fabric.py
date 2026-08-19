@@ -520,6 +520,29 @@ class Fabric:
             raise KeyError(f"Tile {name} not found in fabric.")
         return ret
 
+    def get_tile_by_name(self, name: str) -> Tile:
+        """Get an ordinary (non-super) tile by its name.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tile to retrieve.
+
+        Returns
+        -------
+        Tile
+            The tile object.
+
+        Raises
+        ------
+        TypeError
+            If `name` refers to a supertile rather than a tile.
+        """
+        tile = self.getTileByName(name)
+        if not isinstance(tile, Tile):
+            raise TypeError(f"{name!r} is a supertile, not a tile.")
+        return tile
+
     def getSuperTileByName(self, name: str) -> SuperTile:
         """Get a supertile by its name from the fabric.
 

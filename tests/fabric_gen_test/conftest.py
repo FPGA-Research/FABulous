@@ -126,7 +126,7 @@ def parsed_default_fabric(project: Path) -> Fabric:
         The parsed fabric of the default project.
     """
     init_context(project)
-    return parseFabricCSV(str(project / "fabric.csv"))
+    return parseFabricCSV(project / "fabric.csv")
 
 
 @pytest.fixture

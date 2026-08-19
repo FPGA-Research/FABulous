@@ -6,7 +6,6 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.geometry_obj import Border, Location
 from fabulous.geometry_generator.tile_geometry import TileGeometry
 
@@ -116,10 +115,6 @@ class FabricGeometry:
         distinction left/right and top/bottom is made, to prevent generation of
         horizontal and vertical stair-like wires respectively.
 
-        Raises
-        ------
-        TypeError
-            If a name taken from the tile grid resolves to a supertile.
         """
         for i in range(self.fabric.numberOfRows):
             for j in range(self.fabric.numberOfColumns):
@@ -183,7 +178,7 @@ class FabricGeometry:
                 master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
 
         for tileName in self.tileNames:
-            named_tile = self.fabric.getTileByName(tileName)
+            named_tile = self.fabric.get_tile_by_name(tileName)
             if not isinstance(named_tile, Tile):
                 raise TypeError(
                     f"Tile {tileName!r} in the fabric grid resolved to a supertile."
