@@ -72,6 +72,35 @@ class SuperTile:
         if not any(tile is not None for row in self.tileMap for tile in row):
             raise ValueError(f"SuperTile '{self.name}' has no tiles")
 
+    def tile_at(self, x: int, y: int) -> Tile:
+        """Return the sub-tile at local `(x, y)`, which must be occupied.
+
+        `tileMap` has holes for non-rectangular supertiles. Use this where the
+        coordinates come from the supertile itself and an empty cell would mean
+        the map is inconsistent.
+
+        Parameters
+        ----------
+        x : int
+            Column within the supertile.
+        y : int
+            Row within the supertile.
+
+        Returns
+        -------
+        Tile
+            The sub-tile at that position.
+
+        Raises
+        ------
+        ValueError
+            If the position holds no tile.
+        """
+        tile = self.tileMap[y][x]
+        if tile is None:
+            raise ValueError(f"SuperTile {self.name} has no tile at ({x}, {y}).")
+        return tile
+
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
 

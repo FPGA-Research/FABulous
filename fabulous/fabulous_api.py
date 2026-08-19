@@ -367,7 +367,7 @@ class FABulous_API:
                 logger.info(f"{tile_name} has no configuration bits of its own")
                 return
             mx, my = tile.get_master_tile_coords()
-            master_tile = tile.tileMap[my][mx]
+            master_tile = tile.tile_at(mx, my)
             # tileMap holds a copy; the memory lives on the tile type.
             master_type = self.fabric.get_tile_by_name(master_tile.name)
             if not isinstance(master_type, Tile):

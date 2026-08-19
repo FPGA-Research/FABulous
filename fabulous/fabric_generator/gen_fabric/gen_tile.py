@@ -829,7 +829,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (child tile -> supertile SM)", onNewLine=True)
         for lx, ly, p in sjump_ports:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_at(lx, ly).name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -840,7 +840,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (supertile SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_at(lx, ly).name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -1093,7 +1093,7 @@ def generateSuperTile(
         sm_ports_pairs = []
         # Connect SJUMP vector signals to SM scalar input ports
         for lx, ly, p in superTile.get_all_sjump_ports():
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 sm_ports_pairs.append(
                     (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")

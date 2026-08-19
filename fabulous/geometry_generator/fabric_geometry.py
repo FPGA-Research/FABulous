@@ -37,7 +37,7 @@ class FabricGeometry:
         Set of unique tileNames in the fabric
     tileGeomMap : dict[str, TileGeometry]
         Map of the geometry of each tile by name
-    tileLocs : list[list[Location]]
+    tileLocs : list[list[Location | None]]
         Locations of all tiles in the fabric
     padding : int
         Padding used throughout the geometry, in multiples of the width between wires
@@ -50,7 +50,7 @@ class FabricGeometry:
     fabric: Fabric
     tileNames: set[str]
     tileGeomMap: dict[str, TileGeometry]
-    tileLocs: list[list[Location]]
+    tileLocs: list[list[Location | None]]
     padding: int
     width: int
     height: int
@@ -273,17 +273,17 @@ class FabricGeometry:
         bottomMostY = 0
         for i in range(self.fabric.numberOfRows):
             tile = self.fabric.tile[i][-1]
-            if tile is not None:
+            tileLoc = self.tileLocs[i][-1]
+            if tile is not None and tileLoc is not None:
                 tileGeom = self.tileGeomMap[tile.name]
-                tileLoc = self.tileLocs[i][-1]
                 tileRightmostX = tileLoc.x + tileGeom.width
                 rightMostX = max(rightMostX, tileRightmostX)
 
         for j in range(self.fabric.numberOfColumns):
             tile = self.fabric.tile[-1][j]
-            if tile is not None:
+            tileLoc = self.tileLocs[-1][j]
+            if tile is not None and tileLoc is not None:
                 tileGeom = self.tileGeomMap[tile.name]
-                tileLoc = self.tileLocs[-1][j]
                 tileBottommostY = tileLoc.y + tileGeom.height
                 bottomMostY = max(bottomMostY, tileBottommostY)
 
