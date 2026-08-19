@@ -85,5 +85,4 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
             debug=debug,
         )
 
-        self.verilog_netlist_content: str = synth_tool.synth_netlist_file.read_text()
         synth_tool.synth_clean_up()
