@@ -131,7 +131,8 @@ class FabricGenCommandSet(ReplCommandSet):
                     logger.info(f"Generating switch matrix for tile {t}")
                     logger.info(f"Generating switch matrix for {st}")
                     repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}_switch_matrix.{repl.extension}"
+                        repl.projectDir
+                        / f"Tile/{t}/{st}/{st}_switch_matrix.{repl.extension}"
                     )
                     repl.fabulousAPI.genSwitchMatrix(st)
                     logger.info(f"Generated switch matrix for {st}")
@@ -140,7 +141,8 @@ class FabricGenCommandSet(ReplCommandSet):
                     logger.info(f"Generating configMem for tile {t}")
                     logger.info(f"Generating ConfigMem for {st}")
                     repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}_ConfigMem.{repl.extension}"
+                        repl.projectDir
+                        / f"Tile/{t}/{st}/{st}_ConfigMem.{repl.extension}"
                     )
                     repl.fabulousAPI.genConfigMem(
                         st, repl.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
@@ -151,7 +153,7 @@ class FabricGenCommandSet(ReplCommandSet):
                     logger.info(f"Generating subtile for tile {t}")
                     logger.info(f"Generating subtile {st}")
                     repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}.{repl.extension}"
+                        repl.projectDir / f"Tile/{t}/{st}/{st}.{repl.extension}"
                     )
                     repl.fabulousAPI.genTile(st)
                     logger.info(f"Generated subtile {st}")
@@ -159,7 +161,7 @@ class FabricGenCommandSet(ReplCommandSet):
                 # Gen supertile switch matrix (no-op if no supertile_matrix file)
                 logger.info(f"Generating switch matrix for super tile {t}")
                 repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}_switch_matrix.{repl.extension}"
+                    repl.projectDir / f"Tile/{t}/{t}_switch_matrix.{repl.extension}"
                 )
                 repl.fabulousAPI.gen_super_tile_switch_matrix(t)
                 logger.info(f"Generated switch matrix for super tile {t}")
@@ -167,7 +169,7 @@ class FabricGenCommandSet(ReplCommandSet):
                 # Gen supertile ConfigMem (no-op if no ST config bits)
                 logger.info(f"Generating ConfigMem for super tile {t}")
                 repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}_ConfigMem.{repl.extension}"
+                    repl.projectDir / f"Tile/{t}/{t}_ConfigMem.{repl.extension}"
                 )
                 repl.fabulousAPI.gen_super_tile_config_mem(t)
                 logger.info(f"Generated ConfigMem for super tile {t}")
@@ -175,7 +177,7 @@ class FabricGenCommandSet(ReplCommandSet):
                 # Gen super tile
                 logger.info(f"Generating super tile {t}")
                 repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}.{repl.extension}"
+                    repl.projectDir / f"Tile/{t}/{t}.{repl.extension}"
                 )
                 repl.fabulousAPI.genSuperTile(t)
                 logger.info(f"Generated super tile {t}")
@@ -194,7 +196,7 @@ class FabricGenCommandSet(ReplCommandSet):
             logger.info(f"Generating tile {t}")
             # Gen tile
             repl.fabulousAPI.setWriterOutputFile(
-                f"{repl.projectDir}/Tile/{t}/{t}.{repl.extension}"
+                repl.projectDir / f"Tile/{t}/{t}.{repl.extension}"
             )
             repl.fabulousAPI.genTile(t)
             logger.info(f"Generated tile {t}")
@@ -223,7 +225,7 @@ class FabricGenCommandSet(ReplCommandSet):
         if repl.exit_code != 0:
             raise CommandError("Tile generation failed")
         repl.fabulousAPI.setWriterOutputFile(
-            f"{repl.projectDir}/Fabric/{repl.fabulousAPI.fabric.name}.{repl.extension}"
+            repl.projectDir / f"Fabric/{repl.fabulousAPI.fabric.name}.{repl.extension}"
         )
         repl.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
@@ -251,7 +253,7 @@ class FabricGenCommandSet(ReplCommandSet):
         """
         repl = self._cmd
         logger.info(f"Generating geometry for {repl.fabulousAPI.fabric.name}")
-        geom_file = f"{repl.projectDir}/{repl.fabulousAPI.fabric.name}_geometry.csv"
+        geom_file = repl.projectDir / f"{repl.fabulousAPI.fabric.name}_geometry.csv"
         repl.fabulousAPI.setWriterOutputFile(geom_file)
 
         repl.fabulousAPI.genGeometry(padding)
@@ -292,7 +294,8 @@ class FabricGenCommandSet(ReplCommandSet):
         repl = self._cmd
         logger.info("Generating top wrapper")
         repl.fabulousAPI.setWriterOutputFile(
-            f"{repl.projectDir}/Fabric/{repl.fabulousAPI.fabric.name}_top.{repl.extension}"
+            repl.projectDir
+            / f"Fabric/{repl.fabulousAPI.fabric.name}_top.{repl.extension}"
         )
         repl.fabulousAPI.genTopWrapper()
         logger.info("Top wrapper generation complete")
