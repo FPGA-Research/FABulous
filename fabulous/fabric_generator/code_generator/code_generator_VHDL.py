@@ -104,7 +104,7 @@ class VHDLCodeGenerator(CodeGenerator):
         self._add(");", indentLevel)
 
     def addParameter(
-        self, name: str, storageType: str, value: int, indentLevel: int = 0
+        self, name: str, storageType: str, value: int | str, indentLevel: int = 0
     ) -> None:
         """Add a generic parameter declaration.
 
@@ -114,7 +114,7 @@ class VHDLCodeGenerator(CodeGenerator):
             Parameter name
         storageType : str
             Parameter type
-        value : int
+        value : int | str
             Default value
         indentLevel : int
             The indentation level
@@ -158,7 +158,7 @@ class VHDLCodeGenerator(CodeGenerator):
         self,
         name: str,
         io: IO,
-        _reg: bool = False,
+        reg: bool = False,  # noqa: ARG002
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
@@ -170,7 +170,7 @@ class VHDLCodeGenerator(CodeGenerator):
             Port name
         io : IO
             Input/output direction
-        _reg : bool
+        reg : bool
             Register flag (unused in VHDL)
         attribute : str
             Additional attributes to add as a comment
@@ -192,8 +192,8 @@ class VHDLCodeGenerator(CodeGenerator):
         self,
         name: str,
         io: IO,
-        msbIndex: int,
-        _reg: bool = False,
+        msbIndex: str | int,
+        reg: bool = False,  # noqa: ARG002
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
@@ -205,9 +205,9 @@ class VHDLCodeGenerator(CodeGenerator):
             Port name
         io : IO
             Input/output direction
-        msbIndex : int
+        msbIndex : str | int
             Most significant bit index
-        _reg : bool
+        reg : bool
             Register flag (unused in VHDL)
         attribute : str
             Additional attributes to add as a comment
@@ -264,7 +264,10 @@ class VHDLCodeGenerator(CodeGenerator):
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
 
     def addConnectionScalar(
-        self, name: str, _reg: bool = False, indentLevel: int = 0
+        self,
+        name: str,
+        reg: bool = False,  # noqa: ARG002
+        indentLevel: int = 0,
     ) -> None:
         """Add a scalar signal declaration.
 
@@ -272,7 +275,7 @@ class VHDLCodeGenerator(CodeGenerator):
         ----------
         name : str
             Signal name
-        _reg : bool
+        reg : bool
             Register flag (unused in VHDL)
         indentLevel : int
             The indentation level
@@ -282,9 +285,9 @@ class VHDLCodeGenerator(CodeGenerator):
     def addConnectionVector(
         self,
         name: str,
-        startIndex: int,
-        _reg: bool = False,
-        endIndex: int = 0,
+        startIndex: str | int,
+        endIndex: str | int = 0,
+        reg: bool = False,  # noqa: ARG002
         indentLevel: int = 0,
     ) -> None:
         """Add a vector signal declaration.
@@ -293,12 +296,12 @@ class VHDLCodeGenerator(CodeGenerator):
         ----------
         name : str
             Signal name
-        startIndex : int
+        startIndex : str | int
             Start index (MSB)
-        _reg : bool
-            Register flag (unused in VHDL)
-        endIndex : int
+        endIndex : str | int
             End index (LSB)
+        reg : bool
+            Register flag (unused in VHDL)
         indentLevel : int
             The indentation level
         """
@@ -552,6 +555,11 @@ end process;
         -------
         int
             1 if the component uses configuration bits; 0 otherwise.
+
+        Raises
+        ------
+        ValueError
+            If the file contains no entity declaration.
         """
         configPortUsed = 0
         with Path(fileName).open() as f:
@@ -564,13 +572,14 @@ end process;
             if result.group(1) == "0":
                 configPortUsed = 0
 
-        if result := re.search(
+        entity = re.search(
             r"^entity.*?end entity.*?;", data, flags=re.MULTILINE | re.DOTALL
-        ):
-            result = result.group(0)
-            result = result.replace("entity", "component")
+        )
+        if entity is None:
+            raise ValueError("No entity declaration found in the VHDL source.")
+        component = entity.group(0).replace("entity", "component")
         resultList = []
-        for i in result.splitlines():
+        for i in component.splitlines():
             if "attribute" not in i:
                 resultList.append(i)
 
@@ -578,16 +587,20 @@ end process;
         self.addNewLine()
         return configPortUsed
 
-    def addPreprocIfDef(self, _macro: str, _indentLevel: int = 0) -> Never:
+    def addPreprocIfDef(
+        self,
+        macro: str,  # noqa: ARG002
+        indentLevel: int = 0,  # noqa: ARG002
+    ) -> Never:
         """Define to keep parity with Verilog.
 
         VHDL does not support preprocessor directives.
 
         Parameters
         ----------
-        _macro : str
+        macro : str
             Macro name (unused).
-        _indentLevel : int
+        indentLevel : int
             Indentation level (unused).
 
         Returns
@@ -602,16 +615,20 @@ end process;
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocIfNotDef(self, _macro: str, _indentLevel: int = 0) -> Never:
+    def addPreprocIfNotDef(
+        self,
+        macro: str,  # noqa: ARG002
+        indentLevel: int = 0,  # noqa: ARG002
+    ) -> Never:
         """Define to keep parity with Verilog.
 
         VHDL does not support preprocessor directives.
 
         Parameters
         ----------
-        _macro : str
+        macro : str
             Macro name (unused).
-        _indentLevel : int
+        indentLevel : int
             Indentation level (unused).
 
         Returns
@@ -626,14 +643,14 @@ end process;
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocElse(self, _indentLevel: int = 0) -> Never:
+    def addPreprocElse(self, indentLevel: int = 0) -> Never:  # noqa: ARG002
         """Define to keep parity with Verilog.
 
         VHDL does not support preprocessor directives.
 
         Parameters
         ----------
-        _indentLevel : int
+        indentLevel : int
             Indentation level (unused).
 
         Returns
@@ -648,14 +665,14 @@ end process;
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocEndif(self, _indentLevel: int = 0) -> Never:
+    def addPreprocEndif(self, indentLevel: int = 0) -> Never:  # noqa: ARG002
         """Define to keep parity with Verilog.
 
         VHDL does not support preprocessor directives.
 
         Parameters
         ----------
-        _indentLevel : int
+        indentLevel : int
             Indentation level (unused).
 
         Returns
