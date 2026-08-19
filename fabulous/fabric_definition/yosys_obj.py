@@ -17,9 +17,11 @@ from fabulous.tools.yosys import YosysTool
 Type alias for Yosys bit vectors containing integers or logic values.
 
 BitVector represents signal values in Yosys netlists as lists containing
-integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
+integers (for signal IDs) or logic state strings ("0", "1", "x", "z"). `Bit`
+is one entry of such a vector.
 """
-BitVector = list[int | Literal["0", "1", "x", "z"]]
+Bit = int | Literal["0", "1", "x", "z"]
+BitVector = list[Bit]
 KeyValue = dict[str, str | int]
 
 
