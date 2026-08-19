@@ -322,9 +322,8 @@ class TimingModelConfig(BaseModel):
     pdk_name : str | None
         The name of the PDK being used, It's just for informational
         purposes.
-    techmap_files : list[Path] | Path | None
-        The list of technology mapping files or a single techmap file path
-        or None if not applicable.
+    techmap_files : list[Path] | None
+        The list of technology mapping files, or None if not applicable.
     tiehi_cell_and_port : str | None
         The cell and port used for tie-high connections
         "cell_name port_name", or None if not applicable.
@@ -367,7 +366,7 @@ class TimingModelConfig(BaseModel):
     synth_executable: Path | str
     sta_executable: Path | str
     pdk_name: str | None = None
-    techmap_files: list[Path] | Path | None = None
+    techmap_files: list[Path] | None = None
     tiehi_cell_and_port: str | None = None
     tielo_cell_and_port: str | None = None
     custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None
