@@ -11,7 +11,7 @@ nextpnr can find all model files.
 
 | File               | Purpose                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------ |
-| `bel.txt`          | Legacy (1.0) BEL list, one line per BEL. Used for projects without a `.FABulous` dir |
+| `bel.txt`          | Legacy (1.0) BEL list, one line per BEL. No longer read by nextpnr                    |
 | `bel.v2.txt`       | Block-structured BEL description used by current (2.0) projects                       |
 | `bel.v3.txt`       | `bel.v2.txt` plus per-BEL timing arcs (see [](#belv3txt-bel-timing))                  |
 | `pips.txt`         | Routing resources (programmable interconnect points) and their delays                |
@@ -23,12 +23,15 @@ nextpnr selects the BEL file as follows:
 - if `.FABulous/bel.v3.txt` exists, it is used and the design is timing-aware for
   BELs as well as pips;
 - otherwise `.FABulous/bel.v2.txt` is used (BEL timing falls back to built-in
-  defaults baked into the viaduct);
-- legacy projects with no `.FABulous` directory use `npnroutput/bel.txt`.
+  defaults baked into the viaduct).
+
+The 1.0 format (a project with no `.FABulous` directory, read from
+`npnroutput/`) is no longer supported and nextpnr exits with an error. Either
+regenerate the fabric with a current FABulous, or stay on nextpnr 0.11.1.
 
 All of these files are produced together by the `gen_model_npnr` CLI command.
 
-## `bel.txt` (legacy)
+## `bel.txt` (legacy, unused)
 
 `bel.txt` is the primitive description file, in order of tiles. Each line is one
 BEL: tile, X, Y, Z (a letter), primitive type, then its ports.
