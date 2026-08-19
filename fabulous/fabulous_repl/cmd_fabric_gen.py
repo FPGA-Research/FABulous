@@ -8,7 +8,7 @@ import pickle
 from pathlib import Path
 from typing import Annotated
 
-from cmd2 import with_annotated, with_category
+from cmd2 import Choices, CompletionItem, with_annotated, with_category
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -47,9 +47,12 @@ class FabricGenCommandSet(ReplCommandSet):
             list[str],
             Argument(
                 help_text="A list of tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
     ) -> None:
@@ -89,9 +92,12 @@ class FabricGenCommandSet(ReplCommandSet):
             list[str],
             Argument(
                 help_text="A list of tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
     ) -> None:
@@ -120,9 +126,12 @@ class FabricGenCommandSet(ReplCommandSet):
             list[str],
             Argument(
                 help_text="A list of tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
     ) -> None:
@@ -406,9 +415,12 @@ class FabricGenCommandSet(ReplCommandSet):
             list[str],
             Argument(
                 help_text="A list of tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
     ) -> None:
@@ -443,7 +455,9 @@ class FabricGenCommandSet(ReplCommandSet):
             str,
             Argument(
                 help_text="A tile or supertile",
-                completer=lambda self: self._cmd.all_tile,
+                choices_provider=lambda self: Choices(
+                    [CompletionItem(name) for name in self._cmd.all_tile]
+                ),
             ),
         ],
         output: Annotated[
