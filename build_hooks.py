@@ -31,6 +31,10 @@ edit by hand. The source of truth for every Step and Flow lives in
 """
 
 import importlib as _importlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from librelane.flows import Flow
 import pkgutil as _pkgutil
 import sys as _sys
 
@@ -92,7 +96,7 @@ _REEXPORTS = {{
 }}
 
 
-def __getattr__(name: str) -> object:
+def __getattr__(name: str) -> "type[Flow]":
     """Lazy re-export.
 
     Resolved on first access rather than at package-import time so that, if
