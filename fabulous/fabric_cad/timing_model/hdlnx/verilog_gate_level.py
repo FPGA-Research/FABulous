@@ -137,6 +137,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         self.delay_type_str: DelayType = delay_type_str
         self.debug: bool = debug
         self.sta_tool: StaTool = sta_tool
+        self.verilog_netlist_content: str = sta_tool.sta_netlist_file.read_text()
 
         self.sta_tool.sta_analyze()
         super().__init__(self.sta_tool.sta_sdf_file, self.delay_type_str)
