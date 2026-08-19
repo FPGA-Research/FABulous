@@ -73,7 +73,7 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(")", indentLevel)
 
     def addParameter(
-        self, name: str, storageType: str, value: str, indentLevel: int = 0
+        self, name: str, storageType: str, value: int, indentLevel: int = 0
     ) -> None:
         """Add a parameter declaration.
 
@@ -372,7 +372,7 @@ end
     def addAssignScalar(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
         delay: int = 0,  # noqa: ARG002
         indentLevel: int = 0,
         inverted: bool = False,
