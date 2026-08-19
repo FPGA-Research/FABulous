@@ -162,7 +162,7 @@ class SDFTimingGraphBase:
 
     def get_cell_instance_component_by_type(
         self, instance_name: str, c_type: SDFCellType, input_pin: str, output_pin: str
-    ) -> Component:
+    ) -> Component | None:
         """Get a specific component of a cell instance by type and pin names.
 
         Parameters
@@ -179,7 +179,7 @@ class SDFTimingGraphBase:
 
         Returns
         -------
-        Component
+        Component | None
             The matching component, or None if not found.
 
         Raises

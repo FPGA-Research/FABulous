@@ -930,7 +930,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         project_dot_env=args.projectDotEnv,
     )
     if args.update_project_version:
-        update_project_version_cmd(project_dir)
+        update_project_version_cmd()
     elif args.FABulousScript:
         # Convert legacy --FABulousScript to new typer script command
         # Use the new Typer script command internally
@@ -938,7 +938,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         try:
             script_cmd(
                 script_file=args.FABulousScript,
-                script_type="fabulous",
+                script_type=ScriptType.FABULOUS,
                 force=args.force,
             )
         except typer.Exit as e:
@@ -950,7 +950,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         try:
             script_cmd(
                 script_file=args.TCLScript,
-                script_type="tcl",
+                script_type=ScriptType.TCL,
                 force=args.force,
             )
         except typer.Exit as e:
