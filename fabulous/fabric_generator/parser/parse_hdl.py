@@ -276,15 +276,16 @@ def parseBelFile(
 
             if "CARRY" in attributes:
                 # For prefix after carry
-                carryPrefix = attributes.get("CARRY")
-                if carryPrefix == 1:
+                carry_attribute = attributes.get("CARRY")
+                if carry_attribute == 1:
                     # Default carry prefix, yosys uses 1 if no value is specified
-                    carryPrefix = "FABulous_default"
-                if type(carryPrefix) is not str:
+                    carry_attribute = "FABulous_default"
+                if not isinstance(carry_attribute, str):
                     raise ValueError(
                         f"CARRY prefix attribute value must be a string for port "
                         f"{new_port_name} in BEL {filename}!"
                     )
+                carryPrefix = carry_attribute
                 if direction is IO["INOUT"]:
                     raise ValueError(
                         f"CARRY can't be used with INOUT ports for port "

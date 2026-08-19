@@ -285,7 +285,7 @@ def generateSwitchmatrixList(
                 # replace sink with the sink with the lowest connection count and
                 # check if it's already connected
                 while True:
-                    sink = min(sinks_num_run, key=sinks_num_run.get)
+                    sink = min(sinks_num_run, key=lambda s: sinks_num_run[s])
                     sinks_num_run[sink] = sinks_num_run[sink] + 1
                     if sink not in connections[source]:
                         # update the real connection count, if we found a sink
