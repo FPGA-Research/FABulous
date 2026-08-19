@@ -161,3 +161,36 @@ class TestGetSuperTileContaining:
         fabric = make_fabric()
 
         assert fabric.get_super_tile_containing("ANY") is None
+
+
+class TestTileLookup:
+    """Resolve names to tiles, supertiles, or a clear failure."""
+
+    @staticmethod
+    def _make_super_tile(name: str) -> SuperTile:
+        tiles = [make_empty_tile("SUB_A")]
+        return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=[tiles])
+
+    @pytest.mark.parametrize("dict_name", ["tileDic", "unusedTileDic"])
+    def test_finds_tile_in_used_and_unused(
+        self, make_fabric: Callable[..., Fabric], dict_name: str
+    ) -> None:
+        tile = make_empty_tile("LUT")
+        fabric = make_fabric(**{dict_name: {"LUT": tile}})
+
+        assert fabric.get_tile_by_name("LUT") is tile
+
+    def test_finds_supertile(self, make_fabric: Callable[..., Fabric]) -> None:
+        super_tile = self._make_super_tile("SUPER_X")
+        fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
+
+        assert fabric.get_tile_by_name("SUPER_X") is super_tile
+
+    def test_missing_name_reports_the_tile_not_the_supertile(
+        self, make_fabric: Callable[..., Fabric]
+    ) -> None:
+        """A name that is neither must not surface as a missing supertile."""
+        fabric = make_fabric(tileDic={"LUT": make_empty_tile("LUT")})
+
+        with pytest.raises(KeyError, match="Tile NOPE not found in fabric"):
+            fabric.get_tile_by_name("NOPE")
