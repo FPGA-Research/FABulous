@@ -745,7 +745,12 @@ class FabricAreaOptimisation(Step):
         n_row_vars = len(set(problem.row_groups.values()))
 
         class RoundRepair(Repair):
-            def _do(self, _problem: Any, X: np.ndarray, **_kwargs: Any) -> np.ndarray:  # noqa: ANN401
+            def _do(
+                self,
+                problem: Any,  # noqa: ANN401, ARG002
+                X: np.ndarray,
+                **kwargs: Any,  # noqa: ANN401, ARG002
+            ) -> np.ndarray:
                 """Round variables to nearest grid pitch."""
                 for j in range(X.shape[0]):
                     for i in range(X.shape[1]):
