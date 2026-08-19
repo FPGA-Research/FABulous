@@ -76,11 +76,11 @@ class WhileStep(Step):
         config_var_dict.setdefault(_SUBSTITUTE_STEPS_VAR.name, _SUBSTITUTE_STEPS_VAR)
         Self.config_vars = list(config_var_dict.values())
 
-    def condition(self, _state: State) -> bool:
+    def condition(self, _state: State, /) -> bool:
         """Return true if the condition is met and keep the loop going."""
         return True
 
-    def mid_iteration_break(self, _state: State, _step: Step) -> bool:
+    def mid_iteration_break(self, _state: State, _step: Step, /) -> bool:
         """Return True to break the current iteration and start the next iteration.
 
         If True, breaks the current iteration and starts the next iteration. Breaking
@@ -97,7 +97,7 @@ class WhileStep(Step):
         return pre_iteration
 
     def post_iteration_callback(
-        self, post_iteration: State, _full_iter_completed: bool
+        self, post_iteration: State, _full_iter_completed: bool, /
     ) -> State:
         """Modify the state after each iteration."""
         return post_iteration
