@@ -44,6 +44,7 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
@@ -170,7 +171,7 @@ def _run_tile_flow_worker(
         return state, None, _extract_pin_min(flow)
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricOptimisationFlow(Flow):
     """Full automatic fabric flow with LP-optimized tile dimensions.
 

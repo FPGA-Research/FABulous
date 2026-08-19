@@ -21,6 +21,7 @@ from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
+from fabulous.fabric_generator.gds_generator.registry import register_step
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 
 
@@ -570,7 +571,7 @@ class NLPTileProblem(ElementwiseProblem):
         out["G"] = np.array(result, dtype=float)
 
 
-@Step.factory.register()
+@register_step
 class FabricAreaOptimisation(Step):
     """LibreLane step for NLP optimisation of tile dimensions.
 

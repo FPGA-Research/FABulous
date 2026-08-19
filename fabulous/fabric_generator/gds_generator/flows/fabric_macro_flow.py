@@ -7,7 +7,7 @@ from typing import Self, Union, cast
 
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow, FlowException
+from librelane.flows.flow import FlowException
 from librelane.logging.logger import err, info
 from librelane.state.state import State
 from librelane.steps.common_variables import io_layer_variables
@@ -26,6 +26,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_up_decimal,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
@@ -91,7 +92,7 @@ configs = (
 )
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricMacroFlow(Classic):
     """Flow for stitching together individual tile macros into a complete fabric.
 
@@ -682,7 +683,7 @@ class FABulousFabricMacroFlow(Classic):
         return super().run(initial_state, **kwargs)
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricVHDLMacroFlow(FABulousFabricMacroFlow):
     """Fabric stitching flow for a VHDL project.
 

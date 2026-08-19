@@ -11,10 +11,11 @@ from importlib import resources
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.openroad import Floorplan
-from librelane.steps.step import Step
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
-@Step.factory.register()
+@register_step
 class ExtractPDKInfo(Floorplan):
     """Extract placement site dimensions from PDK technology LEF.
 

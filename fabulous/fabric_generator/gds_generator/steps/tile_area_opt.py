@@ -20,6 +20,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_dimension,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_step
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
     FABulousDiodesOnPorts,
@@ -128,7 +129,7 @@ var = [
 ]
 
 
-@Step.factory.register()
+@register_step
 class TileAreaOptimisation(WhileStep):
     """Tile size optimisation step."""
 

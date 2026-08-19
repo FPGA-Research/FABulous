@@ -7,7 +7,7 @@ from typing import Self
 from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow, FlowException
+from librelane.flows.flow import FlowException
 from librelane.flows.sequential import SequentialFlow
 from librelane.logging.logger import err, info
 
@@ -27,6 +27,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 
@@ -221,12 +222,12 @@ class FABulousTileMacroFlow(SequentialFlow):
             )
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousTileVerilogMacroFlow(FABulousTileMacroFlow):
     """Tile macro flow for FABulous fabric generation from Verilog."""
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
     """Tile macro flow for FABulous fabric generation from VHDL.
 
