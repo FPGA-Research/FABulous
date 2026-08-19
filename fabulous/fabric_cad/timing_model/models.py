@@ -103,8 +103,8 @@ class Component:
         True if the delay is incremental.
     is_cond : bool
         True if the delay is conditional.
-    cond_equation : str
-        Condition equation if is_cond is True.
+    cond_equation : str | None
+        Condition equation, or None when `is_cond` is False.
     from_pin_edge : str | None
         Edge type for the from pin, e.g., "posedge" or "negedge".
     to_pin_edge : str | None
@@ -126,7 +126,7 @@ class Component:
     is_absolute: bool
     is_incremental: bool
     is_cond: bool
-    cond_equation: str
+    cond_equation: str | None
     from_pin_edge: str | None
     to_pin_edge: str | None
 
