@@ -5,6 +5,7 @@ import re
 import subprocess
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dotenv import set_key
@@ -50,7 +51,9 @@ def cache_yosys_synthesis(
     real_run = subprocess.run
 
     def cached_run(
-        cmd: list[str] | str, *args: object, **kwargs: object
+        cmd: list[str] | str,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> subprocess.CompletedProcess:
         # Only the Yosys BEL-synthesis call is cached. Every other subprocess
         # (ghdl, iverilog/nvc, `task`, install, ...) must run untouched, so

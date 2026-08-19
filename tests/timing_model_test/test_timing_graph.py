@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -179,7 +180,7 @@ def test_delay_type_unknown_kind_raises_value_error() -> None:
         "slow": {"min": 3.0, "max": 4.0},
     }
     with pytest.raises(ValueError, match="Unknown delay type"):
-        tg.delay_type(delay_paths, "not-a-delay-type")
+        tg.delay_type(delay_paths, cast("DelayType", "not-a-delay-type"))
 
 
 def test_split_instance_pin_with_hierarchy() -> None:

@@ -16,6 +16,7 @@ def _complete_names(repl: FABulousREPL, command: str) -> list[str]:
     only at the prompt.
     """
     parser = repl.command_parsers.get(getattr(repl, f"do_{command}"))
+    assert parser is not None
     cmd_set = repl.find_commandset_for_command(command)
     line = f"{command} "
     completions = ArgparseCompleter(parser, repl).complete(

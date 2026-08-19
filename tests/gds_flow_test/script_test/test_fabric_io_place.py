@@ -58,8 +58,8 @@ def _call_io_place(reader: MockReaderIoPlace, monkeypatch: pytest.MonkeyPatch) -
                 setattr(self, attr, getattr(reader, attr))
 
     monkeypatch.setattr(OdbReader, "__init__", _init)
-    fn = fabric_io_place.io_place
-    actual = fn.callback if hasattr(fn, "callback") else fn
+    actual = fabric_io_place.io_place.callback
+    assert actual is not None
     actual(input_db="x.odb", input_lefs=[], config_path=None, reader=reader)
 
 
