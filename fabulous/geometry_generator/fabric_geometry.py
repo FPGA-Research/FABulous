@@ -6,6 +6,7 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.geometry_obj import Border, Location
 from fabulous.geometry_generator.tile_geometry import TileGeometry
 
@@ -114,6 +115,11 @@ class FabricGeometry:
         This is done to ensure no stair-like wires being generated for these tiles. The
         distinction left/right and top/bottom is made, to prevent generation of
         horizontal and vertical stair-like wires respectively.
+
+        Raises
+        ------
+        TypeError
+            If a name taken from the tile grid resolves to a supertile.
         """
         for i in range(self.fabric.numberOfRows):
             for j in range(self.fabric.numberOfColumns):
@@ -177,17 +183,21 @@ class FabricGeometry:
                 master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
 
         for tileName in self.tileNames:
-            tile = self.fabric.getTileByName(tileName)
+            named_tile = self.fabric.getTileByName(tileName)
+            if not isinstance(named_tile, Tile):
+                raise TypeError(
+                    f"Tile {tileName!r} in the fabric grid resolved to a supertile."
+                )
             tileGeom = self.tileGeomMap[tileName]
             tileGeom.generateGeometry(
-                tile, self.padding, extra_bels=master_bels.get(tileName)
+                named_tile, self.padding, extra_bels=master_bels.get(tileName)
             )
 
         # This step is for figuring out, which tile
         # is the widest/tallest in each column/row
         # All tiles are resized to those dimensions
         # in order to form a regular grid.
-        tileGeometries = []
+        tileGeometries: list[list[TileGeometry]] = []
         for i in range(self.fabric.numberOfRows):
             tileGeometries.append([])
             for j in range(self.fabric.numberOfColumns):
@@ -335,20 +345,20 @@ class FabricGeometry:
 
         return totalWireLines
 
-    def saveToCSV(self, fileName: str) -> None:
+    def saveToCSV(self, fileName: Path) -> None:
         """Save geometric information of the given fabric for the graphical frontend.
 
         Parameters
         ----------
-        fileName : str
-            The name of the csv file
+        fileName : Path
+            The path of the csv file
         """
         logger.info(
             f"Generating geometry csv file for {self.fabric.name} # file name: "
             f"{fileName}"
         )
 
-        with Path(f"{fileName}").open("w", newline="", encoding="utf-8") as file:
+        with fileName.open("w", newline="", encoding="utf-8") as file:
             writer = csvWriter(file)
 
             writer.writerows(

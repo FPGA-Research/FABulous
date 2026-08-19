@@ -5,11 +5,14 @@ including simple wires and complex stair-like wire structures for multi-tile rou
 supports CSV serialization for integration with geometry files.
 """
 
-from csv import writer as csvWriter
+from typing import TYPE_CHECKING
 
 from fabulous.custom_exception import InvalidPortType
 from fabulous.fabric_definition.fabric import Direction
 from fabulous.geometry_generator.geometry_obj import Location
+
+if TYPE_CHECKING:
+    from _csv import Writer
 
 
 class WireGeometry:
@@ -45,7 +48,7 @@ class WireGeometry:
         """
         self.path.append(pathLoc)
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: "Writer") -> None:
         """Save wire geometry data to CSV format.
 
         Writes the wire name and all path points with their coordinates
@@ -53,7 +56,7 @@ class WireGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer : Writer
             The CSV writer object to use for output
         """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
@@ -135,7 +138,6 @@ class StairWires:
         self.refX = 0
         self.refY = 0
         self.offset = 0
-        self.direction = None
         self.groupWires = 0
         self.tileWidth = 0
         self.tileHeight = 0
@@ -307,7 +309,7 @@ class StairWires:
             refX += 1
             refY -= 1
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: "Writer") -> None:
         """Save all stair wire geometries to CSV format.
 
         Writes all individual wire geometries in the stair structure
@@ -315,7 +317,7 @@ class StairWires:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer : Writer
             The CSV writer object to use for output
         """
         for wireGeom in self.wireGeoms:

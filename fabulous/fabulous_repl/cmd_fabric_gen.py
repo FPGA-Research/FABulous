@@ -250,7 +250,7 @@ class FabricGenCommandSet(ReplCommandSet):
         if repl.exit_code != 0:
             raise CommandError("Tile generation failed")
         repl.fabulousAPI.setWriterOutputFile(
-            f"{repl.projectDir}/Fabric/{repl.fabulousAPI.fabric.name}.{repl.extension}"
+            repl.projectDir / f"Fabric/{repl.fabulousAPI.fabric.name}.{repl.extension}"
         )
         repl.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
@@ -278,7 +278,7 @@ class FabricGenCommandSet(ReplCommandSet):
         """
         repl = self._cmd
         logger.info(f"Generating geometry for {repl.fabulousAPI.fabric.name}")
-        geom_file = f"{repl.projectDir}/{repl.fabulousAPI.fabric.name}_geometry.csv"
+        geom_file = repl.projectDir / f"{repl.fabulousAPI.fabric.name}_geometry.csv"
         repl.fabulousAPI.setWriterOutputFile(geom_file)
 
         repl.fabulousAPI.genGeometry(padding)
@@ -319,7 +319,8 @@ class FabricGenCommandSet(ReplCommandSet):
         repl = self._cmd
         logger.info("Generating top wrapper")
         repl.fabulousAPI.setWriterOutputFile(
-            f"{repl.projectDir}/Fabric/{repl.fabulousAPI.fabric.name}_top.{repl.extension}"
+            repl.projectDir
+            / f"Fabric/{repl.fabulousAPI.fabric.name}_top.{repl.extension}"
         )
         repl.fabulousAPI.genTopWrapper()
         logger.info("Top wrapper generation complete")
