@@ -102,7 +102,7 @@ class VHDLCodeGenerator(CodeGenerator):
         self._add(");", indentLevel)
 
     def addParameter(
-        self, name: str, storageType: str, value: str, indentLevel: int = 0
+        self, name: str, storageType: str, value: int, indentLevel: int = 0
     ) -> None:
         """Add a generic parameter declaration.
 
@@ -112,7 +112,7 @@ class VHDLCodeGenerator(CodeGenerator):
             Parameter name
         storageType : str
             Parameter type
-        value : str
+        value : int
             Default value
         indentLevel : int
             The indentation level
@@ -362,7 +362,7 @@ end process;
     def addAssignScalar(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
         delay: int = 0,
         indentLevel: int = 0,
         inverted: bool = False,
@@ -373,7 +373,7 @@ end process;
         ----------
         left : str
             Left-hand side signal
-        right : str
+        right : str | list[str]
             Right-hand side signal or expression
         delay : int
             Delay in picoseconds
