@@ -1,10 +1,11 @@
 """Config-driven LibreLane plugin adapter for the FABulous tile flow."""
 
+from collections.abc import Iterable
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
-from librelane.common import GenericDict
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
@@ -96,6 +97,10 @@ class FABulousTile(SequentialFlow):
     def run(
         self,
         initial_state: State,
+        frm: str | None = None,
+        to: str | None = None,
+        skip: Iterable[str] | None = None,
+        reproducible: str | None = None,
         **kwargs: object,
     ) -> tuple[State, list[Step]]:
         """Prepare FABulous inputs, then run the tile macro pipeline."""
@@ -131,6 +136,8 @@ class FABulousTile(SequentialFlow):
             multiplexer_style=multiplexer_style,
         )
 
+        if self.run_dir is None:
+            raise FlowException("Flow run directory is not set.")
         pin_yaml = Path(self.run_dir) / f"{tile_name}_io_pin_order.yaml"
         external_side_value = self.config.get("FABULOUS_EXTERNAL_SIDE")
         try:
@@ -196,7 +203,14 @@ class FABulousTile(SequentialFlow):
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
 
-        return super().run(initial_state, **kwargs)
+        return super().run(
+            initial_state,
+            frm=frm,
+            to=to,
+            skip=skip,
+            reproducible=reproducible,
+            **kwargs,
+        )
 
 
 # PIP delay only annotates the switch-matrix for simulation timing; it does not
@@ -272,9 +286,9 @@ def _emit_regular_tile_verilog(
 
 
 def _apply_tile_die_area_config(
-    config: GenericDict[str, object],
+    config: Config,
     tile_type: Tile | SuperTile,
-) -> GenericDict[str, object]:
+) -> Config:
     """Populate plugin tile `DIE_AREA` using patchable local helper imports."""
     x_pitch, y_pitch = get_pitch(config)
     min_x, min_y = tile_type.get_min_die_area(

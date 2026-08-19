@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Self
 
-from librelane.common import GenericDict
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
@@ -98,7 +98,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> None:
         # Build the HDL source list. `models_pack` lives under Fabric/ (outside the
         # tile glob); for VHDL it must be analysed before the tile sources, so it is
@@ -250,10 +250,10 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
 
 
 def _apply_tile_die_area_config(
-    config: GenericDict[str, object],
+    config: Config,
     tile_type: Tile | SuperTile,
     opt_mode: OptMode | None = None,
-) -> GenericDict[str, object]:
+) -> Config:
     """Populate and validate tile `DIE_AREA` using the routing pitch."""
     x_pitch, y_pitch = get_pitch(config)
     min_x, min_y = tile_type.get_min_die_area(

@@ -739,7 +739,7 @@ def _build_macros(
             pnl=cast(
                 "list", [str(p) for p in (tile_macro_path / "pnl").glob("*.pnl.v")]
             ),
-            spef=spef_dict,
+            spef=cast("dict", spef_dict),
         )
         tile_sizes[name] = (width, height)
 
