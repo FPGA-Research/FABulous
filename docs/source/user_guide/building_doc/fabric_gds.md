@@ -280,12 +280,27 @@ The GDS flow includes an iterative optimisation process to find the minimum viab
 
 If no feasible solution can be found after all iterations, the flow will raise an error and stop the generation.
 
+### Macro Placement Modes
+
+A `MACROS` entry pins each instance to an absolute `location`. Optimisation rewrites `DIE_AREA` on every iteration, so replaying that location unchanged leaves the macro in the bottom-left corner while the die grows around it. `FABULOUS_MACRO_PLACEMENT_MODE` decides how the location is re-derived for the die actually in effect:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `fix` | **Default.** Places every macro at its configured `location`. | Locations chosen for a die that does not change, or `no_opt` runs |
+| `relative` | Splits the die area change across each macro's free margins, so a centred macro stays centred and one placed against an edge stays there. | Optimising a tile whose macro should keep its position within the tile |
+| `centre` | Ignores the configured `location` and centres the macro in the die. | A tile holding a single macro that belongs in the middle |
+
+`relative` measures each macro's original margins against the `DIE_AREA` the `location` was authored for, so it needs one: set `DIE_AREA` with `FABULOUS_IGNORE_DEFAULT_DIE_AREA` left at `false`, or use `centre` instead. `centre` needs no reference area and therefore also works under `no_opt`, but it stacks every macro on the same point, so it is rejected for a tile with more than one macro instance.
+
+Whichever mode is used, macros that end up overlapping fail the flow rather than reaching the floorplan. An unrecognised mode logs a warning and falls back to `fix`.
+
 ### Related Variables
 
 - `FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT`: Sites to increase width per iteration (default: 4)
 - `FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT`: Sites to increase height per iteration (default: 1)
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
 - `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
+- `FABULOUS_MACRO_PLACEMENT_MODE`: How macro instances follow the changing `DIE_AREA`: `fix`, `relative` or `centre` (default: `fix`)
 
 ## Output Structure
 
