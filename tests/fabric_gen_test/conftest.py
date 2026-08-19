@@ -15,7 +15,7 @@ from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_definition.yosys_obj import YosysJson
+from fabulous.fabric_definition.yosys_obj import Bit, BitVector, YosysJson
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
 from fabulous.fabulous_settings import get_context, init_context
@@ -540,18 +540,18 @@ class Netlist:
 
     Terminals are addressed by name: top-level ports by port name, sub-instance
     pins by `(instance_name, port_name)`. Net IDs come back as plain `int`
-    lists (one per bit); equal lists mean the same physical net.
+    vectors (one entry per bit); equal vectors mean the same physical net.
     """
 
     def __init__(self, yj: YosysJson) -> None:
         self.yj = yj
         self.top_name, self.top = yj.getTopModule()
 
-    def port_net(self, name: str) -> list[int]:
+    def port_net(self, name: str) -> BitVector:
         """Net IDs bound to top-level port `name`."""
         return list(self.top.ports[name].bits)
 
-    def cell_net(self, instance: str, port: str) -> list[int]:
+    def cell_net(self, instance: str, port: str) -> BitVector:
         """Net IDs on `port` of sub-instance `instance`."""
         return list(self.top.cells[instance].connections[port])
 
@@ -563,12 +563,14 @@ class Netlist:
         """Names of every sub-instance."""
         return set(self.top.cells)
 
-    def driver(self, bit: int) -> tuple[str, str]:
+    def driver(self, bit: Bit) -> tuple[str, str]:
         """The `(instance, port)` driving net `bit` (`("", "z")` if undriven)."""
+        assert isinstance(bit, int)
         return self.yj.getNetPortSrcSinks(bit)[0]
 
-    def sinks(self, bit: int) -> list[tuple[str, str]]:
+    def sinks(self, bit: Bit) -> list[tuple[str, str]]:
         """The `(instance, port)` terminals driven by net `bit`."""
+        assert isinstance(bit, int)
         return self.yj.getNetPortSrcSinks(bit)[1]
 
 
@@ -616,11 +618,11 @@ class GridConnectivity:
         """Whether grid cell `(x, y)` holds an instance."""
         return (x, y) in self._occupied
 
-    def cell_net(self, x: int, y: int, port: str) -> list[int]:
+    def cell_net(self, x: int, y: int, port: str) -> BitVector:
         """Net IDs on `port` of the instance at grid cell `(x, y)`."""
         return self.netlist.cell_net(self._instance_name(x, y), port)
 
-    def top_port_net(self, name: str) -> list[int]:
+    def top_port_net(self, name: str) -> BitVector:
         """Net IDs bound to the top-level boundary port `name`."""
         return self.netlist.port_net(name)
 
@@ -628,11 +630,11 @@ class GridConnectivity:
         """Names of every top-level boundary port."""
         return self.netlist.port_names()
 
-    def driver(self, bit: int) -> tuple[str, str]:
+    def driver(self, bit: Bit) -> tuple[str, str]:
         """The `(instance, port)` driving net `bit`."""
         return self.netlist.driver(bit)
 
-    def sinks(self, bit: int) -> list[tuple[str, str]]:
+    def sinks(self, bit: Bit) -> list[tuple[str, str]]:
         """The `(instance, port)` terminals driven by net `bit`."""
         return self.netlist.sinks(bit)
 

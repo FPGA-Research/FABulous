@@ -52,11 +52,11 @@ async def initialize_configmem(dut: ConfigMemDUT) -> None:
     for frame_idx in range(max_frames):
         frame_strobe_val = 1 << frame_idx
         dut.FrameStrobe.value = frame_strobe_val
-        await Timer(10, units="ps")
+        await Timer(10, unit="ps")
 
     # Deassert all strobes
     dut.FrameStrobe.value = 0
-    await Timer(10, units="ps")
+    await Timer(10, unit="ps")
 
 
 @cocotb.test
@@ -86,7 +86,7 @@ async def cocotb_test_configmem_settings(dut: ConfigMemDUT) -> None:
             # Set only one FrameData bit directly
             dut.FrameData[framedata_bit_idx].value = 1
             dut.FrameStrobe[frame_idx].value = 1
-            await Timer(10, units="ps")
+            await Timer(10, unit="ps")
 
             # Check if this (frame, framedata_bit) combination has a mapping
             mapping_key = f"{frame_idx}, {framedata_bit_idx}"
@@ -117,7 +117,7 @@ async def cocotb_test_configmem_settings(dut: ConfigMemDUT) -> None:
 
                 # Test latch behavior - deassert strobe and verify value is maintained
                 dut.FrameStrobe[frame_idx].value = 0
-                await Timer(10, units="ps")
+                await Timer(10, unit="ps")
 
                 assert dut.ConfigBits[expected_config_bit].value == 1, (
                     f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "

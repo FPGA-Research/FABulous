@@ -131,11 +131,12 @@ class TestGetSuperTileContaining:
     @staticmethod
     def _make_super_tile(name: str, tile_names: list[str]) -> SuperTile:
         tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
+        tile_map: list[list[Tile | None]] = [list(tiles)]
         return SuperTile(
             name=name,
             tileDir=Path(),
             tiles=tiles,
-            tileMap=[tiles],
+            tileMap=tile_map,
         )
 
     def test_returns_supertile_for_member_tile(
@@ -169,7 +170,8 @@ class TestTileLookup:
     @staticmethod
     def _make_super_tile(name: str) -> SuperTile:
         tiles = [make_empty_tile("SUB_A")]
-        return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=[tiles])
+        tile_map: list[list[Tile | None]] = [list(tiles)]
+        return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=tile_map)
 
     @pytest.mark.parametrize("dict_name", ["tileDic", "unusedTileDic"])
     def test_finds_tile_in_used_and_unused(

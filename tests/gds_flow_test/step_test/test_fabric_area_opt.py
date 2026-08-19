@@ -436,8 +436,10 @@ class TestNLPTileProblemInit:
 
         # Every dimension has a strictly positive floor and a non-collapsing
         # upper bound.
-        assert np.all(problem.xl > 0)
-        assert np.all(problem.xu >= problem.xl)
+        xl = np.asarray(problem.xl)
+        xu = np.asarray(problem.xu)
+        assert np.all(xl > 0)
+        assert np.all(xu >= xl)
 
     def test_disjoint_rows_get_distinct_row_groups(self) -> None:
         # A occupies only row 0 and B only row 1 (single shared column). Because

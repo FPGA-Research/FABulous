@@ -8,10 +8,14 @@ Tests focus on:
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import pytest
 import yaml
 from pytest_mock import MockerFixture
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
 
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
@@ -259,7 +263,8 @@ class TestSerializeTilePorts:
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
-        mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
+        north_ports = cast("MagicMock", mock_tile.getNorthSidePorts)
+        north_ports.return_value[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 

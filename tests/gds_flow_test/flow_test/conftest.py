@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import yaml
+from librelane.common.types import Path as LibrelanePath
 from librelane.config.config import Config
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
@@ -233,8 +234,8 @@ def create_macro(instances: dict[str, Instance]) -> Macro:
         A Macro object with the given instances and empty file lists.
     """
     return Macro(
-        gds=[Path("dummy.gds")],
-        lef=[Path("dummy.lef")],
+        gds=[LibrelanePath("dummy.gds")],
+        lef=[LibrelanePath("dummy.lef")],
         vh=[],
         nl=[],
         pnl=[],

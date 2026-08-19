@@ -3,6 +3,7 @@
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -187,7 +188,7 @@ class TestHdlSwitchMatrix:
         tile = make_empty_tile("T", tileDir=tmp_path, matrixDir=v, pinOrderConfig={})
         # No writer is needed: an HDL matrix returns before any RTL is emitted.
         # (A non-HDL matrix would dereference the None writer and raise.)
-        genTileSwitchMatrix(None, tile, False)
+        genTileSwitchMatrix(cast("CodeGenerator", None), tile, False)
 
 
 class TestPreserveListOrderEndToEnd:
