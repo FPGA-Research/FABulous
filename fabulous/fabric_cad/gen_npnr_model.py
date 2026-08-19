@@ -216,6 +216,8 @@ def genNextpnrModel(
     ------
     InvalidState
         If a wire in a tile points to an invalid tile outside the fabric bounds.
+    ValueError
+        If a supertile is placed where the fabric grid holds no tile.
     """
     pipStr = []
     belStr = []
@@ -301,7 +303,13 @@ def genNextpnrModel(
         ftx = base_fx + tx_local
         fty = base_fy + ty_local
 
-        bel_offset = len(fabric.tile[fty][ftx].bels)
+        master_tile = fabric.tile[fty][ftx]
+        if master_tile is None:
+            raise ValueError(
+                f"SuperTile {super_tile.name} is placed at X{ftx}Y{fty}, "
+                "but the fabric grid holds no tile there."
+            )
+        bel_offset = len(master_tile.bels)
         belStr.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         belv2Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")

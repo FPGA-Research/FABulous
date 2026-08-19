@@ -384,7 +384,7 @@ class FABulous_API:
         """
         if tile := self.fabric.getSuperTileByName(tile_name):
             mx, my = tile.get_master_tile_coords()
-            master_tile = tile.tileMap[my][mx]
+            master_tile = tile.tile_at(mx, my)
             master_config_mem_csv = (
                 master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
             )

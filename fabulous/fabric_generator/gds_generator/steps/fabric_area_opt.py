@@ -155,9 +155,12 @@ class NLPTileProblem(ElementwiseProblem):
             # Update width bounds from column neighbors
             for col_idx in range(supertile.max_width):
                 for row in supertile.tileMap:
-                    if col_idx >= len(row) or row[col_idx] is None:
+                    if col_idx >= len(row):
                         continue
-                    name = row[col_idx].name
+                    col_tile = row[col_idx]
+                    if col_tile is None:
+                        continue
+                    name = col_tile.name
                     neighbors = self._find_sharing_tiles(name, self.tile_column_set)
                     neighbor_w = max(
                         (tile_min[n][0] for n in neighbors if n in tile_min),

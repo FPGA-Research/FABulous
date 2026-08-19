@@ -59,6 +59,11 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
     -------
     dict[str, dict]
         The bits stream specification of the fabric.
+
+    Raises
+    ------
+    ValueError
+        If a supertile is placed where the fabric grid holds no tile.
     """
     specData = {
         "TileMap": {},
@@ -241,6 +246,11 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             ftx = base_fx + tx_local
             fty = base_fy + ty_local
             master_tile = fabric.tile[fty][ftx]
+            if master_tile is None:
+                raise ValueError(
+                    f"SuperTile {super_tile.name} is placed at X{ftx}Y{fty}, "
+                    "but the fabric grid holds no tile there."
+                )
 
             frame_map = specData["FrameMap"].setdefault(master_tile.name, {})
             for frame_idx, mask in st_mask_dic.items():

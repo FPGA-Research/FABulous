@@ -472,7 +472,7 @@ def gen_super_tile_switch_matrix(
     if all_sjump_ports:
         writer.addComment("SJUMP inputs from child tiles", onNewLine=True)
         for lx, ly, p in all_sjump_ports:
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 writer.addPortScalar(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
 
@@ -495,7 +495,7 @@ def gen_super_tile_switch_matrix(
     if all_input_sjump:
         writer.addComment("Reverse SJUMP outputs (SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 writer.addPortScalar(
                     f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2

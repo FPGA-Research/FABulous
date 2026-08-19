@@ -807,7 +807,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (child tile -> supertile SM)", onNewLine=True)
         for lx, ly, p in sjump_ports:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_at(lx, ly).name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -818,7 +818,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (supertile SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_at(lx, ly).name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -889,11 +889,13 @@ def generateSuperTile(
 
             # north direction input connection
             north_port = [i.name for i in tile.getNorthPorts(IO.INPUT)]
-            if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
-            ):
-                for p in superTile.tileMap[y + 1][x].getNorthPorts(IO.OUTPUT):
+            neighbor = (
+                superTile.tileMap[y + 1][x]
+                if 0 <= y + 1 < len(superTile.tileMap)
+                else None
+            )
+            if neighbor is not None:
+                for p in neighbor.getNorthPorts(IO.OUTPUT):
                     north_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
             else:
                 for p in tile.getNorthPorts(IO.INPUT):
@@ -902,11 +904,13 @@ def generateSuperTile(
             ports_pairs += list(zip(north_port, north_input, strict=False))
             # east direction input connection
             east_port = [i.name for i in tile.getEastPorts(IO.INPUT)]
-            if (
-                0 <= x - 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x - 1] is not None
-            ):
-                for p in superTile.tileMap[y][x - 1].getEastPorts(IO.OUTPUT):
+            neighbor = (
+                superTile.tileMap[y][x - 1]
+                if 0 <= x - 1 < len(superTile.tileMap[0])
+                else None
+            )
+            if neighbor is not None:
+                for p in neighbor.getEastPorts(IO.OUTPUT):
                     east_input.append(f"Tile_X{x - 1}Y{y}_{p.name}")
             else:
                 for p in tile.getEastPorts(IO.INPUT):
@@ -916,11 +920,13 @@ def generateSuperTile(
 
             # south direction input connection
             south_port = [i.name for i in tile.getSouthPorts(IO.INPUT)]
-            if (
-                0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
-            ):
-                for p in superTile.tileMap[y - 1][x].getSouthPorts(IO.OUTPUT):
+            neighbor = (
+                superTile.tileMap[y - 1][x]
+                if 0 <= y - 1 < len(superTile.tileMap)
+                else None
+            )
+            if neighbor is not None:
+                for p in neighbor.getSouthPorts(IO.OUTPUT):
                     south_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
             else:
                 for p in tile.getSouthPorts(IO.INPUT):
@@ -930,11 +936,13 @@ def generateSuperTile(
 
             # west direction input connection
             west_port = [i.name for i in tile.getWestPorts(IO.INPUT)]
-            if (
-                0 <= x + 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x + 1] is not None
-            ):
-                for p in superTile.tileMap[y][x + 1].getWestPorts(IO.OUTPUT):
+            neighbor = (
+                superTile.tileMap[y][x + 1]
+                if 0 <= x + 1 < len(superTile.tileMap[0])
+                else None
+            )
+            if neighbor is not None:
+                for p in neighbor.getWestPorts(IO.OUTPUT):
                     west_input.append(f"Tile_X{x + 1}Y{y}_{p.name}")
             else:
                 for p in tile.getWestPorts(IO.INPUT):
@@ -1050,7 +1058,7 @@ def generateSuperTile(
         sm_ports_pairs = []
         # Connect SJUMP vector signals to SM scalar input ports
         for lx, ly, p in superTile.get_all_sjump_ports():
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 sm_ports_pairs.append(
                     (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
