@@ -105,25 +105,38 @@ class YosysTool(SynthTool):
         ------
         RuntimeError
             If synthesis fails or if the generated netlist file is empty or not created.
+        ValueError
+            If a gate-level input is given as more than one file.
         """
         self._check_errors()
 
         if self.is_gate_level:
-            self.netlist_path = self.verilog_files
+            rtl_files = self.synth_rtl_files
+            if not isinstance(rtl_files, Path):
+                if len(rtl_files) != 1:
+                    raise ValueError(
+                        "A gate-level netlist must be a single file, but "
+                        f"{len(rtl_files)} RTL files were given."
+                    )
+                rtl_files = rtl_files[0]
+            self.netlist_path = rtl_files
             return
 
         # Generate Yosys synthesis TCL script
+        lib_files = self.synth_liberty_files
+        verilog_files = self.synth_rtl_files
+
         synth_tcl_script: str = ""
         synth_tcl_script += "yosys -import\n"
-        if isinstance(self.lib_files, Path):
-            synth_tcl_script += f"read_liberty -lib {self.lib_files}\n"
+        if isinstance(lib_files, Path):
+            synth_tcl_script += f"read_liberty -lib {lib_files}\n"
         else:
-            for lib in self.lib_files:
+            for lib in lib_files:
                 synth_tcl_script += f"read_liberty -lib {lib}\n"
-        if isinstance(self.verilog_files, Path):
-            synth_tcl_script += f"read_verilog -overwrite -sv {self.verilog_files}\n"
+        if isinstance(verilog_files, Path):
+            synth_tcl_script += f"read_verilog -overwrite -sv {verilog_files}\n"
         else:
-            for vf in self.verilog_files:
+            for vf in verilog_files:
                 synth_tcl_script += f"read_verilog -overwrite -sv {vf}\n"
         if self.flat:
             synth_tcl_script += f"synth -flatten -top {self.top_name}\n"
@@ -221,7 +234,14 @@ class YosysTool(SynthTool):
         -------
         str
             The name of the design being synthesized.
+
+        Raises
+        ------
+        RuntimeError
+            If no design name has been set.
         """
+        if self.top_name is None:
+            raise RuntimeError("No design name has been set on the synthesis tool.")
         return self.top_name
 
     @synth_design_name.setter
@@ -243,7 +263,14 @@ class YosysTool(SynthTool):
         -------
         list[Path] | Path
             The list of RTL Verilog files used for synthesis.
+
+        Raises
+        ------
+        RuntimeError
+            If no RTL files have been set.
         """
+        if self.verilog_files is None:
+            raise RuntimeError("No RTL files have been set on the synthesis tool.")
         return self.verilog_files
 
     @synth_rtl_files.setter
@@ -265,7 +292,14 @@ class YosysTool(SynthTool):
         -------
         list[Path] | Path
             The list of Liberty files used for synthesis.
+
+        Raises
+        ------
+        RuntimeError
+            If no Liberty files have been set.
         """
+        if self.lib_files is None:
+            raise RuntimeError("No Liberty files have been set on the synthesis tool.")
         return self.lib_files
 
     @synth_liberty_files.setter
@@ -316,7 +350,7 @@ class YosysTool(SynthTool):
 
     def _call_external(
         self,
-        executable: str,
+        executable: Path | str,
         args: list[str] | None = None,
         stdin_data: str = "",
         debug: bool = False,
@@ -327,7 +361,7 @@ class YosysTool(SynthTool):
 
         Parameters
         ----------
-        executable : str
+        executable : Path | str
             The path to the executable to run.
         args : list[str] | None
             List of arguments to pass to the executable.
@@ -349,19 +383,20 @@ class YosysTool(SynthTool):
         """
         if args is None:
             args = []
+        command = [str(executable), *args]
 
         if debug:
             logger.debug("Debug mode enabled for external command.")
             logger.debug(f"Calling external command: {executable} \n{' '.join(args)}")
             logger.debug(f"With stdin data:\n{stdin_data}")
             result = subprocess.run(
-                [executable, *args],
+                command,
                 input=stdin_data,
                 text=True,
             )
         else:
             result = subprocess.run(
-                [executable, *args],
+                command,
                 input=stdin_data,
                 text=True,
                 capture_output=True,
@@ -370,8 +405,7 @@ class YosysTool(SynthTool):
 
         if result.returncode != 0:
             raise RuntimeError(
-                f"Command '{' '.join([executable, *args])}' failed with "
-                f"error: {result.stderr}"
+                f"Command '{' '.join(command)}' failed with error: {result.stderr}"
             )
         return result
 
