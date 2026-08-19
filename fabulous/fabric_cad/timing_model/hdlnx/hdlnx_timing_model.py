@@ -10,8 +10,6 @@ It then uses the VerilogGateLevelTimingGraph class to generate a timing graph fr
 gate-level netlist.
 """
 
-from loguru import logger
-
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
     VerilogGateLevelTimingGraph,
 )
@@ -40,8 +38,8 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     delay_type_str : DelayType, optional
         The type of delay to use for the timing graph (default is DelayType.MAX_ALL).
     debug : bool, optional
-        If True, print debug warnings about overwriting STA tool
-        configurations (default is False).
+        If True, enable debug output for the underlying tools
+        (default is False).
     """
 
     def __init__(
@@ -55,24 +53,6 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         self.synth_tool.synth_synthesize()
 
         _sta_tool: StaTool = sta_tool
-
-        if _sta_tool.sta_netlist_file is not None and debug:
-            logger.warning(
-                "STA tool already has a netlist file. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if _sta_tool.sta_design_name is not None and debug:
-            logger.warning(
-                "STA tool already has a design name. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if _sta_tool.sta_liberty_files is not None and debug:
-            logger.warning(
-                "STA tool already has liberty files. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
 
         _sta_tool.sta_netlist_file = self.synth_tool.synth_netlist_file
         _sta_tool.sta_design_name = self.synth_tool.synth_design_name
