@@ -5,6 +5,7 @@ import pytest
 
 import fabulous.fabric_cad.timing_model.FABulous_timing_model as tm_mod
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
+    CadTools,
     FABulousTileTimingModel,
 )
 from fabulous.fabric_cad.timing_model.models import (
@@ -414,8 +415,8 @@ def test_cad_tools_success(
 
     tools = bare_model._cad_tools()  # noqa: SLF001
 
-    assert isinstance(tools["synth_tool"], FakeYosys)
-    assert isinstance(tools["sta_tool"], FakeOpenSta)
+    assert isinstance(tools.synth, FakeYosys)
+    assert isinstance(tools.sta, FakeOpenSta)
 
     assert calls["yosys"]["verilog_files"] == [tmp_path / "rtl.v"]
     assert calls["yosys"]["liberty_files"] == [tmp_path / "lib.lib"]
@@ -460,8 +461,8 @@ def test_initialize_timing_models_structural_calls_project_rtl_loader(
         called["rtl"] += 1
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -499,8 +500,8 @@ def test_initialize_timing_models_physical_without_wire_delay(
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -542,8 +543,8 @@ def test_initialize_timing_models_physical_with_wire_delay(
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -591,8 +592,8 @@ def test_initialize_timing_models_physical_uses_custom_netlist_file(
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -635,8 +636,8 @@ def test_initialize_timing_models_physical_uses_custom_rc_file(
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -678,8 +679,8 @@ def test_initialize_timing_models_physical_missing_tile_in_custom_source_mapping
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -798,8 +799,8 @@ def test_extract_switch_matrix_info_none_found_returns_without_loading(
 
     bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
-    assert bare_model.switch_matrix_hier_path == []
-    assert bare_model.switch_matrix_module_name == []
+    assert bare_model.switch_matrix_hier_path is None
+    assert bare_model.switch_matrix_module_name is None
     assert bare_model.internal_pips_grouped_by_inst is None
     assert bare_model.internal_pips is None
 
