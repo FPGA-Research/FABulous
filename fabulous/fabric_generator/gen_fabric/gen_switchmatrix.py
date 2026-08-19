@@ -17,7 +17,6 @@ from loguru import logger
 from fabulous.fabric_definition.define import (
     IO,
     SWITCH_MATRIX_CONSTANTS,
-    ConfigBitMode,
     Direction,
     MultiplexerStyle,
 )
@@ -382,7 +381,6 @@ def _gen_switch_matrix_body(
 def gen_super_tile_switch_matrix(
     writer: CodeGenerator,
     superTile: SuperTile,
-    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
 ) -> None:
@@ -399,8 +397,6 @@ def gen_super_tile_switch_matrix(
         Code generator instance for RTL output.
     superTile : SuperTile
         The supertile whose BELs and SJUMP ports drive this matrix.
-    config_bit_mode : ConfigBitMode
-        Frame-based or flipflop-chain configuration.
     multiplexer_style : MultiplexerStyle
         Custom or generic multiplexer implementation.
     default_pip_delay : int
@@ -459,18 +455,8 @@ def gen_super_tile_switch_matrix(
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
-        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+        writer.addPortVector("ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2)
+        writer.addPortVector("ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2)
     writer.addPortEnd()
     writer.addHeaderEnd(module_name)
     writer.addDesignDescriptionStart(module_name)
