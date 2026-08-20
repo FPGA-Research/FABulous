@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Self
+from typing import Self, cast
 
 from librelane.config.config import Config
 from librelane.config.variable import Variable
@@ -66,12 +66,12 @@ class FABulousTileMacroFlow(SequentialFlow):
 
     def __new__(
         cls,
-        *_args: tuple,
+        *_args: object,
         models_pack_path: Path | None = None,  # noqa: ARG004
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,  # noqa: ARG004
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> Self:
         """Apply layered `meta.substituting_steps` before construction.
 
@@ -86,7 +86,7 @@ class FABulousTileMacroFlow(SequentialFlow):
             [base_config_path, override_config_path, custom_config_overrides]
         )
         target_cls = cls.Substitute(substitutions) if substitutions else cls
-        return super().__new__(target_cls)  # type: ignore[arg-type]
+        return cast("Self", super().__new__(target_cls))
 
     def __init__(
         self,
