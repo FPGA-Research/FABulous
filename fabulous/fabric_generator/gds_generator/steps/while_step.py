@@ -4,7 +4,7 @@ Will be replaced into librelane eventually.
 """
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 from librelane.common.misc import slugify
 from librelane.config.variable import Variable
@@ -20,7 +20,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
 
 _SUBSTITUTE_STEPS_VAR = Variable(
     "FABULOUS_LOOP_SUBSTITUTE_STEPS",
-    Optional[Dict],
+    Optional[dict[str, Optional[str]]],  # noqa: UP045 librelane issue
     "Substitutions to apply to this step's internal loop body, using the same "
     "syntax as LibreLane's `meta.substituting_steps`: a bare step id replaces, "
     "`+id` appends after, `-id` prepends before, and a `null` value removes.",
