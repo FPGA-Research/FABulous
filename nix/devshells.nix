@@ -21,13 +21,6 @@ let
   allPackages = [ virtualenv ] ++ toolPackages;
   prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
 
-  # Per-workstation extra plugin PYTHONPATH, populated by
-  # ~/.local/bin/librelane-plugins-pythonpath.sh into LIBRELANE_EXTRA_PYTHONPATH
-  # (see .bashrc). Empty string if unset. For third-party librelane plugin
-  # trees other than librelane_plugin_fabulous, which materializePlugin already
-  # covers.
-  extraPluginPythonPath = builtins.getEnv "LIBRELANE_EXTRA_PYTHONPATH";
-
   # `librelane_plugin_fabulous` is generated at build time. pip/uv build from
   # the checkout, so an editable install writes it straight there; Nix builds in
   # a sandboxed copy of the source that is discarded, leaving nothing for the
