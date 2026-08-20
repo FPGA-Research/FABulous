@@ -5,6 +5,7 @@ This module exposes utilities used by the GDS generator flows.
 
 import fnmatch
 from collections import defaultdict
+from collections.abc import Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -276,7 +277,7 @@ def _substitute_one(
 
 
 def apply_step_substitutions(
-    steps: list[type[Step]],
+    steps: Sequence[type[Step]],
     substitutions: SubstitutionsObject,
 ) -> list[type[Step]]:
     """Apply LibreLane-style step substitutions to a nested step list.
@@ -289,7 +290,7 @@ def apply_step_substitutions(
 
     Parameters
     ----------
-    steps : list[type[Step]]
+    steps : Sequence[type[Step]]
         The loop body to substitute into. Not mutated; a copy is returned.
     substitutions : SubstitutionsObject
         A dict or list of (id, step) tuples, using the same syntax as
