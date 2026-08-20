@@ -46,11 +46,11 @@ let
         value = envVars.GHDL_PREFIX;
       }
       {
-        # tkinter + optional extra plugin trees. librelane itself is
-        # deliberately absent so the venv's (uv.lock-pinned) librelane is
-        # authoritative and overridable, not shadowed by the flake input.
+        # tkinter only. librelane is deliberately absent so the venv's
+        # (uv.lock-pinned) librelane is authoritative and overridable, not
+        # shadowed by the flake input.
         name = "NIX_PYTHONPATH";
-        value = tkinter-python-path + lib.optionalString (extraPluginPythonPath != "") ":${extraPluginPythonPath}";
+        value = tkinter-python-path;
       }
       {
         name = "PYTHONWARNINGS";
@@ -91,11 +91,15 @@ let
         # Ensure the repository root and the virtualenv site-packages are importable
         VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
 
-        # Build PYTHONPATH: NIX_PYTHONPATH (tkinter) + venv + repo root
+        # Build PYTHONPATH: NIX_PYTHONPATH (tkinter) + venv + repo root.
+        # $LIBRELANE_EXTRA_PYTHONPATH is appended at runtime so out-of-tree
+        # librelane_plugin_* trees stay discoverable; an eval-time
+        # builtins.getEnv is always empty under the flake's pure evaluation.
+        _extra="''${LIBRELANE_EXTRA_PYTHONPATH:+:$LIBRELANE_EXTRA_PYTHONPATH}"
         if [ -n "$VENV_SITE" ]; then
-          export PYTHONPATH="$NIX_PYTHONPATH:$VENV_SITE:$REPO_ROOT"
+          export PYTHONPATH="$NIX_PYTHONPATH:$VENV_SITE:$REPO_ROOT$_extra"
         else
-          export PYTHONPATH="$NIX_PYTHONPATH:$REPO_ROOT"
+          export PYTHONPATH="$NIX_PYTHONPATH:$REPO_ROOT$_extra"
         fi
 
         ${materializePlugin}
@@ -147,14 +151,6 @@ in
         export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         . ${virtualenv}/bin/activate
 
-        # Build PYTHONPATH so tkinter + extra plugins + venv + repo root are
-        # importable (librelane comes from the venv, not the flake input).
-        _nix_py="${tkinter-python-path}${lib.optionalString (extraPluginPythonPath != "") ":${extraPluginPythonPath}"}"
-        VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
-        if [ -n "$VENV_SITE" ]; then
-          export PYTHONPATH="$_nix_py:$VENV_SITE:$REPO_ROOT"
-        else
-          export PYTHONPATH="$_nix_py:$REPO_ROOT"
         # Build PYTHONPATH so tkinter + venv + repo root are importable
         # (librelane comes from the venv, not the flake input).
         # $LIBRELANE_EXTRA_PYTHONPATH is appended at runtime so out-of-tree
@@ -167,7 +163,7 @@ in
           export PYTHONPATH="$_nix_py:$VENV_SITE:$REPO_ROOT$_extra"
         else
           export PYTHONPATH="$_nix_py:$REPO_ROOT$_extra"
-        fi```
+        fi
 
         ${materializePlugin}
 
