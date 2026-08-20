@@ -11,12 +11,11 @@
 #####################
 # # Librelane plugins
 # export LIBRELANE_PLUGINS_ROOT="/path/to/folder/with/plugins" # parent to git clone dir
-# export LIBRELANE_EXTRA_PYTHONPATH="$FABULOUS_ROOT/scripts/librelane-nix-plugins-pythonpath.sh)"
+# export LIBRELANE_EXTRA_PYTHONPATH="$({YOUR_FABULOUS_ROOT}/scripts/librelane-nix-plugins-pythonpath.sh)"
 # echo "Extra plugin PYTHONPATH: $LIBRELANE_EXTRA_PYTHONPATH"
 #######
 #
-# Then run "nix develop --impure && librelane --version". Plugins should be shown.
-# Note: Without "--impure" the external librairies will no be visible to librelane
+# Then run "nix develop", followed by "librelane --version". Plugins should be shown.
 #
 
 
