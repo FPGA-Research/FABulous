@@ -1,12 +1,16 @@
 """Tests for WhileStep base class."""
 
 import pytest
+from librelane.common import GenericDict
 from librelane.config.config import Config
 from librelane.state.state import State
 from librelane.steps.step import Step
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.fabric_generator.gds_generator.steps.while_step import (
+    _SUBSTITUTE_STEPS_VAR,
+    WhileStep,
+)
 
 
 class CustomError(Exception):
@@ -18,6 +22,19 @@ class _InnerStep(Step):
 
     id = "Test.Inner"
     name = "Inner"
+    inputs = []  # noqa: RUF012
+    outputs = []  # noqa: RUF012
+    config_vars = []  # noqa: RUF012
+
+    def run(self, state_in: State, **kwargs: dict) -> tuple[dict, dict]:  # noqa: D102, ARG002
+        return {}, {}
+
+
+class _ReplacementStep(Step):
+    """Marker sub-step used to verify config-driven step substitution."""
+
+    id = "Test.Replacement"
+    name = "Replacement"
     inputs = []  # noqa: RUF012
     outputs = []  # noqa: RUF012
     config_vars = []  # noqa: RUF012
@@ -149,3 +166,69 @@ class TestWhileStep:
         views_update, metrics_update = step.run(mock_state)
         assert views_update == {}
         assert metrics_update == {}
+
+    def test_substitute_steps_replaces_loop_body_step(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mocker: MockerFixture,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        """FABULOUS_LOOP_SUBSTITUTE_STEPS swaps a step inside the loop body.
+
+        Config-driven substitution reaches WhileStep's internal Steps list, the
+        gap LibreLane's meta.substituting_steps cannot cross since it only
+        walks a flow's top-level Steps.
+        """
+
+        class SubstitutableWhileStep(WhileStep):
+            Steps = [_InnerStep]  # noqa: RUF012
+            outputs = []  # noqa: RUF012
+            max_iterations = 1
+
+        config = Config(
+            dict(
+                mock_config,
+                FABULOUS_LOOP_SUBSTITUTE_STEPS={"Test.Inner": _ReplacementStep},
+            )
+        )
+        inner_start = mocker.patch.object(_InnerStep, "start")
+        replacement_start = mocker.patch.object(
+            _ReplacementStep, "start", return_value=mock_state
+        )
+
+        mocker.patch.object(Config, "dumps", return_value="{}")
+        mocker.patch("pathlib.Path.write_text")
+
+        step = SubstitutableWhileStep(config)
+        step.config = config
+        step.step_dir = str(tmp_path)
+        step.toolbox = mocker.MagicMock()
+        step.name = "SubstitutableWhileStep"
+
+        step.run(mock_state)
+
+        inner_start.assert_not_called()
+        replacement_start.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            pytest.param({"Test.Inner": "Test.Replacement"}, id="replace"),
+            pytest.param({"+Test.Inner": "Test.Replacement"}, id="append"),
+            pytest.param({"-Test.Inner": "Test.Replacement"}, id="prepend"),
+            pytest.param({"Test.Inner": None}, id="remove"),
+            pytest.param(None, id="unset"),
+        ],
+    )
+    def test_substitute_steps_var_compiles(self, payload: dict | None) -> None:
+        """Test that every documented substitution payload survives compilation.
+
+        The test above builds ``Config(dict(...))`` directly, bypassing
+        ``Variable.compile``, so it passes for any declared type.
+        """
+        _, final = _SUBSTITUTE_STEPS_VAR.compile(
+            GenericDict({_SUBSTITUTE_STEPS_VAR.name: payload}),
+            warning_list_ref=[],
+        )
+        assert final == payload
