@@ -404,7 +404,7 @@ def generateTile(
         )
 
     elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits > 0:
-        writer.addComment("configuration storage latches", onNewLine=True)
+        writer.addComment("configuration storage FlipFlop", onNewLine=True)
         writer.addInstantiation(
             compName=f"{tile.name}_ConfigMem",
             compInsName=f"Inst_{tile.name}_ConfigMem",
