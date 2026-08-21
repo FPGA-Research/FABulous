@@ -164,6 +164,9 @@ extend_exclude = [
   "fabulous/fabric_generator/gds_generator/script",
   "docs",
   "build_hooks.py",
+  # Standalone tools, not part of the package. Some declare their dependencies
+  # in a PEP 723 block, which deptry does not read.
+  "scripts",
 ]
 
 [tool.deptry.per_rule_ignores]
