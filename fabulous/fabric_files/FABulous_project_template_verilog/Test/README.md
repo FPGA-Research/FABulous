@@ -26,3 +26,26 @@ Other useful make targets are:
 - `make run_GTKWave` to run the GTKWave waveform viewer with the generated simulation waveform
 
 Take a look into the Makefile to build your own flow.
+
+## Simulating with Vivado xsim
+
+`task run-simulation-xsim` runs the same testbench under AMD Vivado's xsim, and
+`task fab-sim-xsim` wraps it in the full build-fabric, build-design, simulate,
+clean cycle. It needs `xvlog`, `xelab` and `xsim` on `PATH` from a Vivado
+installation; nothing else in the flow changes.
+
+The value of the xsim path is the analysis mode, not the simulator. xvlog reads
+the fabric and the user design as IEEE 1364-2005 Verilog, whereas the Icarus
+flow uses `iverilog -g2012`, so constructs that are legal only in
+SystemVerilog fail here and pass there. The testbench is exempt and compiles
+with `-sv`, because it uses `$fatal` and an unsized array bound.
+
+Two behaviours are worth knowing. xsim writes VCD and has no FST writer, so
+`WAVEFORM_TYPE` does not apply and the waveform lands at
+`build/<design>_xsim.vcd`. And xsim exits 0 even after `$fatal`, so the task
+greps its log for a fatal report and fails on that instead of trusting the exit
+status.
+
+If `xelab` stops at `cannot find crt1.o`, its linker is not picking up the host
+C runtime; point it at the directory holding those objects, for example
+`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation-xsim`.

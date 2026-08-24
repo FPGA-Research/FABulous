@@ -33,6 +33,17 @@ tasks:
       - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
       - task --dir ./demo-smoke-test/Test fab-sim
 
+  smoke-test-xsim:
+    desc: Create the demo project and run the simulation flow under Vivado xsim
+    # Needs xvlog/xelab/xsim on PATH from a Vivado installation.
+    vars:
+      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
+    cmds:
+      - rm -rf demo-smoke-test
+      - '{{.FABULOUS}} c demo-smoke-test'
+      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
+      - task --dir ./demo-smoke-test/Test fab-sim-xsim
+
   smoke-test-vhdl:
     desc: Create the demo project and run the simulation flow
     vars:
