@@ -6,11 +6,11 @@ module ConfigFSM #(
     parameter integer FrameBitsPerRow = 32,
     parameter integer desync_flag = 20
 ) (
-    input CLK,
-    input reset_n,
-    input [31:0] write_data,
-    input write_strobe,
-    input fsm_reset,
+    input wire CLK,
+    input wire reset_n,
+    input wire [31:0] write_data,
+    input wire write_strobe,
+    input wire fsm_reset,
     output reg [FrameBitsPerRow-1:0] frame_address_register,
     output reg long_frame_strobe,
     output reg [RowSelectWidth-1:0] row_select
@@ -59,8 +59,8 @@ module ConfigFSM #(
                                 state <= UNSYNCED;
                             end else begin
                                 frame_address_register <= write_data;
-                                // Width-cast to silence WIDTHTRUNC warning
-                                row_index <= 5'(NumberOfRows);
+                                // Deliberate narrowing, silences WIDTHTRUNC
+                                row_index <= NumberOfRows[4:0];
                                 state <= WRITE_FRAME_DATA;
                             end
                         end

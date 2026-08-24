@@ -5,10 +5,10 @@ module Frame_Select #(
     parameter integer FrameSelectWidth = 5,
     parameter reg [FrameSelectWidth-1:0] Col = 18
 ) (
-    input [MaxFramesPerCol-1:0] FrameStrobe_I,
+    input wire [MaxFramesPerCol-1:0] FrameStrobe_I,
     output reg [MaxFramesPerCol-1:0] FrameStrobe_O,
-    input [FrameSelectWidth-1:0] FrameSelect,
-    input FrameStrobe
+    input wire [FrameSelectWidth-1:0] FrameSelect,
+    input wire FrameStrobe
 );
 
 

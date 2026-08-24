@@ -22,21 +22,21 @@ module MUX8LUT_frame_config_mux #(
     parameter integer NoConfigBits = 2
 ) (
     // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input A,  // MUX inputs
-    input B,
-    input C,
-    input D,
-    input E,
-    input F,
-    input G,
-    input H,
-    input [3:0] S,
-    output M_AB,
-    output M_AD,
-    output M_AH,
-    output M_EF,
+    input wire A,  // MUX inputs
+    input wire B,
+    input wire C,
+    input wire D,
+    input wire E,
+    input wire F,
+    input wire G,
+    input wire H,
+    input wire [3:0] S,
+    output wire M_AB,
+    output wire M_AD,
+    output wire M_AH,
+    output wire M_EF,
     // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
-    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
+    (* FABulous, GLOBAL *) input wire [NoConfigBits-1:0] ConfigBits
 );
 
     wire AB, CD, EF, GH;

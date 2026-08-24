@@ -8,18 +8,18 @@ module BlockRAM_1KB #(
     // Default 20 means bit wr_data[20] will become the dynamic write enable input
     parameter integer WRITE_ENABLE_FROM_DATA          = 20
 ) (
-    input         clk    ,
-    input  [ 7:0] rd_addr,
-    output [31:0] rd_data,
-    input  [ 7:0] wr_addr,
-    input  [31:0] wr_data,
+    input  wire        clk    ,
+    input  wire [ 7:0] rd_addr,
+    output wire [31:0] rd_data,
+    input  wire [ 7:0] wr_addr,
+    input  wire [31:0] wr_data,
     // Configuration bit inputs
-    input         C0     , // C0 and C1 select write port width
-    input         C1     ,
-    input         C2     , // C2 and C3 select read port width
-    input         C3     ,
-    input         C4     , // C4 selects the always_write_enable
-    input         C5       // C5 selects register bypass
+    input  wire        C0     , // C0 and C1 select write port width
+    input  wire        C1     ,
+    input  wire        C2     , // C2 and C3 select read port width
+    input  wire        C3     ,
+    input  wire        C4     , // C4 selects the always_write_enable
+    input  wire        C5       // C5 selects register bypass
 );
     // NOTE: the read enable is currently constantly ON
     // NOTE: the R/W port on the standard cell is used only in write mode
@@ -200,18 +200,18 @@ module sram_1rw1r_32_256_8_sky130 #(
     parameter integer DELAY      = 3
 ) (
     // Port 0: RW
-    input                   clk0  , // clock
-    input                   csb0  , // active low chip select
-    input                   web0  , // active low write control
-    input  [NUM_WMASKS-1:0] wmask0, // write mask
-    input  [ADDR_WIDTH-1:0] addr0 ,
-    input  [DATA_WIDTH-1:0] din0  ,
-    output [DATA_WIDTH-1:0] dout0 ,
+    input  wire                  clk0  , // clock
+    input  wire                  csb0  , // active low chip select
+    input  wire                  web0  , // active low write control
+    input  wire [NUM_WMASKS-1:0] wmask0, // write mask
+    input  wire [ADDR_WIDTH-1:0] addr0 ,
+    input  wire [DATA_WIDTH-1:0] din0  ,
+    output wire [DATA_WIDTH-1:0] dout0 ,
     // Port 1: R
-    input                   clk1  , // clock
-    input                   csb1  , // active low chip select
-    input  [ADDR_WIDTH-1:0] addr1 ,
-    output [DATA_WIDTH-1:0] dout1
+    input  wire                  clk1  , // clock
+    input  wire                  csb1  , // active low chip select
+    input  wire [ADDR_WIDTH-1:0] addr1 ,
+    output wire [DATA_WIDTH-1:0] dout1
 );
 endmodule
 `default_nettype wire

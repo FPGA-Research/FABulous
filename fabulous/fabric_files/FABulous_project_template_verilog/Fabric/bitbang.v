@@ -1,13 +1,13 @@
 `default_nettype none
 
 module bitbang (
-    input s_clk,
-    input s_data,
+    input wire s_clk,
+    input wire s_data,
     output reg strobe,
     output reg [31:0] data,
     output reg active,
-    input clk,
-    input reset_n
+    input wire clk,
+    input wire reset_n
 );
 
     localparam [15:0] ON_PATTERN = 16'hFAB1;

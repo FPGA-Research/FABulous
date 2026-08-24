@@ -2,7 +2,7 @@
 
 // Models for the embedded FPGA fabric
 module config_latch (
-    input D,
+    input wire D,
     E,
     output reg Q,
     QN
@@ -19,29 +19,29 @@ module config_latch (
 endmodule
 
 module my_buf (
-    input  A,
-    output X
+    input  wire A,
+    output wire X
 );
     assign X = A;
 endmodule
 
 module clk_buf (
-    input  A,
-    output X
+    input  wire A,
+    output wire X
 );
     assign X = A;
 endmodule
 
 module cus_mux41 (
-    input  A0,
-    input  A1,
-    input  A2,
-    input  A3,
-    input  S0,
-    input  S0N,
-    input  S1,
-    input  S1N,
-    output X
+    input  wire A0 ,
+    input  wire A1 ,
+    input  wire A2 ,
+    input  wire A3 ,
+    input  wire S0 ,
+    input  wire S0N,
+    input  wire S1 ,
+    input  wire S1N,
+    output wire X
 );
     wire B0 = S0 ? A1 : A0;
     wire B1 = S0 ? A3 : A2;
@@ -49,30 +49,30 @@ module cus_mux41 (
 endmodule
 
 module cus_mux21 (
-    input  A0,
-    input  A1,
-    input  S,
-    output X
+    input  wire A0,
+    input  wire A1,
+    input  wire S ,
+    output wire X
 );
     assign X = S ? A1 : A0;
 endmodule
 
 module cus_mux81 (
-    input  A0,
-    input  A1,
-    input  A2,
-    input  A3,
-    input  A4,
-    input  A5,
-    input  A6,
-    input  A7,
-    input  S0,
-    input  S0N,
-    input  S1,
-    input  S1N,
-    input  S2,
-    input  S2N,
-    output X
+    input  wire A0 ,
+    input  wire A1 ,
+    input  wire A2 ,
+    input  wire A3 ,
+    input  wire A4 ,
+    input  wire A5 ,
+    input  wire A6 ,
+    input  wire A7 ,
+    input  wire S0 ,
+    input  wire S0N,
+    input  wire S1 ,
+    input  wire S1N,
+    input  wire S2 ,
+    input  wire S2N,
+    output wire X
 );
     wire cus_mux41_out0;
     wire cus_mux41_out1;
@@ -110,31 +110,31 @@ module cus_mux81 (
 endmodule
 
 module cus_mux161 (
-    input  A0,
-    input  A1,
-    input  A2,
-    input  A3,
-    input  A4,
-    input  A5,
-    input  A6,
-    input  A7,
-    input  A8,
-    input  A9,
-    input  A10,
-    input  A11,
-    input  A12,
-    input  A13,
-    input  A14,
-    input  A15,
-    input  S0,
-    input  S0N,
-    input  S1,
-    input  S1N,
-    input  S2,
-    input  S2N,
-    input  S3,
-    input  S3N,
-    output X
+    input  wire A0 ,
+    input  wire A1 ,
+    input  wire A2 ,
+    input  wire A3 ,
+    input  wire A4 ,
+    input  wire A5 ,
+    input  wire A6 ,
+    input  wire A7 ,
+    input  wire A8 ,
+    input  wire A9 ,
+    input  wire A10,
+    input  wire A11,
+    input  wire A12,
+    input  wire A13,
+    input  wire A14,
+    input  wire A15,
+    input  wire S0 ,
+    input  wire S0N,
+    input  wire S1 ,
+    input  wire S1N,
+    input  wire S2 ,
+    input  wire S2N,
+    input  wire S3 ,
+    input  wire S3N,
+    output wire X
 );
     wire cus_mux41_out0;
     wire cus_mux41_out1;

@@ -40,14 +40,14 @@ module LUT4c_frame_config_dffesr #(
     parameter integer NoConfigBits = 19
 ) (
     // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input [3:0] I,  // Vector for I0, I1, I2, I3
-    output O,  // Single output for LUT result
-    input Ci,  // Carry chain input
-    output Co,  // Carry chain output
-    input SR,  // Shared reset
-    input EN,  // Shared enable
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
-    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits  // Config bits as vector
+    input wire [3:0] I,  // Vector for I0, I1, I2, I3
+    output wire O,  // Single output for LUT result
+    input wire Ci,  // Carry chain input
+    output wire Co,  // Carry chain output
+    input wire SR,  // Shared reset
+    input wire EN,  // Shared enable
+    (* FABulous, EXTERNAL, SHARED_PORT *) input wire UserCLK,
+    (* FABulous, GLOBAL *) input wire [NoConfigBits-1:0] ConfigBits  // Config bits as vector
 );
     localparam integer LUT_SIZE = 4;
     localparam integer N_LUT_FLOPS = 2 ** LUT_SIZE;

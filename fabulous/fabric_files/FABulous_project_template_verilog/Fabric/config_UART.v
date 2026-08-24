@@ -12,13 +12,13 @@ module config_UART #(
         // com_rate = f_CLK / Baudrate (e.g., 25 MHz/115200 Baud = 217)
         parameter [11:0] ComRate = 12'd217
     ) (
-        input CLK,
-        input reset_n,
-        input Rx,
+        input wire CLK,
+        input wire reset_n,
+        input wire Rx,
         output reg [31:0] WriteData,
-        output ComActive,
+        output wire ComActive,
         output reg WriteStrobe,
-        output [7:0] Command,
+        output wire [7:0] Command,
         output reg ReceiveLED
     );
 

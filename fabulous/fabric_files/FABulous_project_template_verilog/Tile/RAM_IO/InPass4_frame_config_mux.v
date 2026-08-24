@@ -24,14 +24,14 @@
 module InPass4_frame_config_mux #(
     parameter integer NoConfigBits = 4
 ) (
-    (* FABulous, EXTERNAL *) input [3:0] I,
-    output [3:0] O,
+    (* FABulous, EXTERNAL *) input wire [3:0] I,
+    output wire [3:0] O,
     // The "EXTERNAL" keyword will send this signal all the way to top
     // The "SHARED" keyword allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *)
-    input UserCLK,
+    input wire UserCLK,
     // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
-    (* FABulous, GLOBAL *) input [NoConfigBits - 1 : 0] ConfigBits
+    (* FABulous, GLOBAL *) input wire [NoConfigBits - 1 : 0] ConfigBits
     //_____   ______
     //    I----+--->|FLOP|-Q-|1 M |
     //         |             |  U |-------> O
