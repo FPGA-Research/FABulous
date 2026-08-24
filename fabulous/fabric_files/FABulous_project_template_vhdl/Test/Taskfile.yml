@@ -29,6 +29,9 @@ vars:
   GHDL_ANALYZE_FLAGS: '{{.GHDL_ANALYZE_FLAGS | default ""}}'
   GHDL_ELAB_FLAGS: '{{.GHDL_ELAB_FLAGS | default "-fexplicit"}}'
   EXTRA_GHDL_FLAGS: '{{.EXTRA_GHDL_FLAGS | default ""}}'
+  EXTRA_XVHDL_FLAGS: '{{.EXTRA_XVHDL_FLAGS | default ""}}'
+  EXTRA_XELAB_FLAGS: '{{.EXTRA_XELAB_FLAGS | default ""}}'
+  XSIM_SNAPSHOT: '{{.XSIM_SNAPSHOT | default (printf "%s_xsim" .DESIGN)}}'
   BITSTREAM_BIN: '{{.BITSTREAM_BIN | default "{{.BUILD_DIR}}/{{.DESIGN}}.bin"}}'
 
 tasks:
@@ -175,6 +178,38 @@ tasks:
       - ghdl -e {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ELAB_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH
       - sh -c 'ulimit -s unlimited; ghdl -r {{.GHDL_GLOBAL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH --stats --ieee-asserts=disable --{{.WAVEFORM_TYPE}}=$BUILD_DIR/$TESTBENCH.{{.WAVEFORM_TYPE}}'
 
+  run-simulation-xsim:
+    desc: Run simulation using AMD Vivado xsim
+    deps: [mkdir-build]
+    env:
+      FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT}}'
+      USER_DESIGN_DIR: '{{.USER_DESIGN_DIR}}'
+      DESIGN: '{{.DESIGN}}'
+      TESTBENCH: '{{.TESTBENCH}}'
+    cmds:
+      # The testbench opens the bitstream at a path relative to the working
+      # directory, so xsim runs from here as nvc and ghdl do.
+      - rm -rf xsim.dir
+      # Analysis order matters: a design unit has to be in the library before
+      # anything that instantiates it.
+      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $FAB_PROJ_ROOT/Fabric/models_pack.vhdl
+      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
+      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
+      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
+      - xelab --nolog {{.EXTRA_XELAB_FLAGS}} -s {{.XSIM_SNAPSHOT}} $TESTBENCH
+      - xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log
+      # A mismatch is reported at severity error, which neither aborts the run
+      # nor changes xsim's exit status, so without this it reads as a pass.
+      - '! grep -qE ''^(Error|Fatal)'' {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log'
+
+  fab-sim-xsim:
+    desc: Build demo fabric, build test design, run the xsim simulation, then clean up
+    cmds:
+      - task: build-demo-fabric
+      - task: build-test-design
+      - task: run-simulation-xsim
+      - task: clean
+
   gtkwave:
     desc: Open waveform in GTKWave
     cmds:
@@ -190,4 +225,5 @@ tasks:
   clean:
     desc: Remove build directory and work library
     cmds:
-      - rm -rf {{.BUILD_DIR}}
+      # xsim.dir and the .pb/.jou droppings are xsim's; --nolog does not cover them.
+      - rm -rf {{.BUILD_DIR}} xsim.dir xvhdl.pb xelab.pb xsim.jou

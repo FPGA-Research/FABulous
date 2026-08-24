@@ -54,6 +54,17 @@ tasks:
       - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
       - task --dir ./demo-smoke-test/Test fab-sim
 
+  smoke-test-vhdl-xsim:
+    desc: Create the VHDL demo project and run the simulation flow under Vivado xsim
+    # Needs xvhdl/xelab/xsim on PATH from a Vivado installation.
+    vars:
+      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
+    cmds:
+      - rm -rf demo-smoke-test
+      - '{{.FABULOUS}} c demo-smoke-test -w vhdl'
+      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
+      - task --dir ./demo-smoke-test/Test fab-sim-xsim
+
   ci:
     desc: Run code checks, tests, and the docs build
     cmds:
