@@ -531,7 +531,6 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         )
 
             elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
-
                 portsPairs.append(("CONFin", f"conf_data[{chain_counter}]"))
                 portsPairs.append(("CONFout", f"conf_data[{chain_counter + 1}]"))
                 portsPairs.append(("CONF_CLK", "CONF_CLK"))
