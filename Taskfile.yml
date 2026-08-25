@@ -20,50 +20,30 @@ tasks:
       - uv run --directory . make livehtml
 
   smoke-test:
-    desc: Create the demo project and run the simulation flow
+    desc: Create the demo project and run the simulation flow (SIMULATOR=iverilog|xvlog|nvc|ghdl|xvhdl)
     # FABULOUS is the launcher prefix. It defaults to `uv run FABulous` for the
     # uv-managed dev/container environment; in the Nix devshell FABulous is on
     # PATH directly, so pass `FABULOUS=FABulous` to skip uv (whose .venv is a
     # different Python and ABI-incompatible with the devshell's packages).
+    #
+    # SIMULATOR also picks the project language: iverilog and xvlog build a
+    # Verilog project, nvc, ghdl and xvhdl a VHDL one.
     vars:
       FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
+      SIMULATOR: '{{.SIMULATOR | default "iverilog"}}'
+      LANGUAGE_FLAG:
+        sh: 'case "{{.SIMULATOR}}" in nvc|ghdl|xvhdl) echo "-w vhdl" ;; esac'
+    preconditions:
+      # Membership, not emptiness: LANGUAGE_FLAG is legitimately empty for Verilog.
+      - sh: 'case "{{.SIMULATOR}}" in iverilog|xvlog|nvc|ghdl|xvhdl) exit 0 ;; *) exit 1 ;; esac'
+        msg: >-
+          Unknown SIMULATOR '{{.SIMULATOR}}'. Use iverilog or xvlog for Verilog,
+          or nvc, ghdl or xvhdl for VHDL.
     cmds:
       - rm -rf demo-smoke-test
-      - '{{.FABULOUS}} c demo-smoke-test'
+      - '{{.FABULOUS}} c demo-smoke-test {{.LANGUAGE_FLAG}}'
       - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
-      - task --dir ./demo-smoke-test/Test fab-sim
-
-  smoke-test-xsim:
-    desc: Create the demo project and run the simulation flow under Vivado xsim
-    # Needs xvlog/xelab/xsim on PATH from a Vivado installation.
-    vars:
-      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
-    cmds:
-      - rm -rf demo-smoke-test
-      - '{{.FABULOUS}} c demo-smoke-test'
-      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
-      - task --dir ./demo-smoke-test/Test fab-sim-xsim
-
-  smoke-test-vhdl:
-    desc: Create the demo project and run the simulation flow
-    vars:
-      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
-    cmds:
-      - rm -rf demo-smoke-test
-      - '{{.FABULOUS}} c demo-smoke-test -w vhdl'
-      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
-      - task --dir ./demo-smoke-test/Test fab-sim
-
-  smoke-test-vhdl-xsim:
-    desc: Create the VHDL demo project and run the simulation flow under Vivado xsim
-    # Needs xvhdl/xelab/xsim on PATH from a Vivado installation.
-    vars:
-      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
-    cmds:
-      - rm -rf demo-smoke-test
-      - '{{.FABULOUS}} c demo-smoke-test -w vhdl'
-      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
-      - task --dir ./demo-smoke-test/Test fab-sim-xsim
+      - task --dir ./demo-smoke-test/Test fab-sim SIMULATOR={{.SIMULATOR}}
 
   ci:
     desc: Run code checks, tests, and the docs build

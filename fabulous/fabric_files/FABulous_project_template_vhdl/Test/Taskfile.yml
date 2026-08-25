@@ -120,33 +120,24 @@ tasks:
         {{.BUILD_DIR}}/{{.DESIGN}}.hex
 
   run-simulation:
-    desc: Run simulation (auto-detects NVC/GHDL, or use SIMULATOR=nvc/ghdl)
-    deps: [mkdir-build]
-    env:
-      BUILD_DIR: '{{.BUILD_DIR}}'
+    desc: Run simulation (SIMULATOR=auto|nvc|ghdl, or xvhdl for AMD Vivado xsim)
+    vars:
+      BACKEND:
+        sh: |
+          case "{{.SIMULATOR}}" in
+            auto) which nvc >/dev/null 2>&1 && echo nvc || echo ghdl ;;
+            nvc|ghdl) echo "{{.SIMULATOR}}" ;;
+            xvhdl) echo xsim ;;
+          esac
+    preconditions:
+      - sh: 'test -n "{{.BACKEND}}"'
+        msg: "Unknown SIMULATOR '{{.SIMULATOR}}'. Use auto, nvc, ghdl or xvhdl."
     cmds:
-      - |
-        SIM="{{.SIMULATOR}}"
-        if [ "$SIM" = "nvc" ]; then
-          if ! which nvc >/dev/null 2>&1; then
-            echo "Error: SIMULATOR=nvc but nvc is not installed or not found in PATH" >&2
-            exit 1
-          fi
-          task run-simulation-nvc
-        elif [ "$SIM" = "ghdl" ]; then
-          task run-simulation-ghdl
-        elif [ "$SIM" = "auto" ]; then
-          if which nvc >/dev/null 2>&1; then
-            task run-simulation-nvc
-          else
-            task run-simulation-ghdl
-          fi
-        else
-          echo "Error: Unknown SIMULATOR value '$SIM'. Use nvc, ghdl, or auto." >&2
-          exit 1
-        fi
+      - task: run-simulation-{{.BACKEND}}
 
   run-simulation-nvc:
+    desc: Run simulation using NVC
+    deps: [mkdir-build]
     env:
       FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT}}'
       USER_DESIGN_DIR: '{{.USER_DESIGN_DIR}}'
@@ -163,6 +154,8 @@ tasks:
       - sh -c 'ulimit -s unlimited; nvc {{.NVC_GLOBAL_FLAGS}} -r {{.EXTRA_NVC_FLAGS}} $TESTBENCH -w$BUILD_DIR/$TESTBENCH.$WAVEFORM_TYPE --stats'
 
   run-simulation-ghdl:
+    desc: Run simulation using GHDL
+    deps: [mkdir-build]
     env:
       FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT}}'
       USER_DESIGN_DIR: '{{.USER_DESIGN_DIR}}'
@@ -187,28 +180,17 @@ tasks:
       DESIGN: '{{.DESIGN}}'
       TESTBENCH: '{{.TESTBENCH}}'
     cmds:
-      # The testbench opens the bitstream at a path relative to the working
-      # directory, so xsim runs from here as nvc and ghdl do.
+      # The testbench opens the bitstream relative to the working directory.
       - rm -rf xsim.dir
-      # Analysis order matters: a design unit has to be in the library before
-      # anything that instantiates it.
+      # A design unit must reach the library before anything instantiating it.
       - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $FAB_PROJ_ROOT/Fabric/models_pack.vhdl
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
       - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
       - xelab --nolog {{.EXTRA_XELAB_FLAGS}} -s {{.XSIM_SNAPSHOT}} $TESTBENCH
       - xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log
-      # A mismatch is reported at severity error, which neither aborts the run
-      # nor changes xsim's exit status, so without this it reads as a pass.
+      # A mismatch is a severity error, which leaves xsim's exit status at 0.
       - '! grep -qE ''^(Error|Fatal)'' {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log'
-
-  fab-sim-xsim:
-    desc: Build demo fabric, build test design, run the xsim simulation, then clean up
-    cmds:
-      - task: build-demo-fabric
-      - task: build-test-design
-      - task: run-simulation-xsim
-      - task: clean
 
   gtkwave:
     desc: Open waveform in GTKWave

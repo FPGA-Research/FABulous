@@ -20,6 +20,7 @@ vars:
   TOP_WRAPPER: '{{.TOP_WRAPPER | default "top_wrapper"}}'
   USER_DESIGN_DIR: "{{.FAB_PROJ_ROOT}}/user_design"
   WAVEFORM_TYPE: '{{.WAVEFORM_TYPE | default "fst"}}'
+  SIMULATOR: '{{.SIMULATOR | default "iverilog"}}'
   EXTRA_IVERILOG_FLAGS: '{{.EXTRA_IVERILOG_FLAGS | default ""}}'
   EXTRA_XVLOG_FLAGS: '{{.EXTRA_XVLOG_FLAGS | default ""}}'
   EXTRA_XELAB_FLAGS: '{{.EXTRA_XELAB_FLAGS | default ""}}'
@@ -127,6 +128,17 @@ tasks:
       - find {{.FAB_PROJ_ROOT}}/Fabric/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR}}/ \;
 
   run-simulation:
+    desc: Run simulation (SIMULATOR=iverilog, or xvlog for AMD Vivado xsim)
+    vars:
+      BACKEND:
+        sh: 'case "{{.SIMULATOR}}" in iverilog) echo iverilog ;; xvlog) echo xsim ;; esac'
+    preconditions:
+      - sh: 'test -n "{{.BACKEND}}"'
+        msg: "Unknown SIMULATOR '{{.SIMULATOR}}'. Use iverilog or xvlog."
+    cmds:
+      - task: run-simulation-{{.BACKEND}}
+
+  run-simulation-iverilog:
     desc: Run simulation using Icarus Verilog (iverilog)
     deps: [mkdir-build, copy-files]
     cmds:
@@ -158,8 +170,7 @@ tasks:
       - >-
         cd {{.XSIM_DIR}} &&
         xvlog -sv {{.EXTRA_XVLOG_FLAGS}} {{.TASKFILE_DIR}}/{{.TESTBENCH}}.v
-      # Only the testbench has a `timescale, and xsim rejects a design where
-      # some modules carry one and others do not.
+      # xsim rejects a design where only some modules carry a `timescale.
       - >-
         cd {{.XSIM_DIR}} &&
         xelab -timescale 1ps/1ps {{.EXTRA_XELAB_FLAGS}}
@@ -171,14 +182,6 @@ tasks:
         --testplusarg bitstream_hex={{.TASKFILE_DIR}}/{{.BUILD_DIR}}/{{.DESIGN}}.hex
       # xsim exits 0 even after $fatal, so without this a mismatch reads as a pass.
       - cd {{.XSIM_DIR}} && ! grep -q '^Fatal:' {{.XSIM_SNAPSHOT}}.log
-
-  fab-sim-xsim:
-    desc: Build demo fabric, build test design, run the xsim simulation, then clean up
-    cmds:
-      - task: build-demo-fabric
-      - task: build-test-design
-      - task: run-simulation-xsim
-      - task: clean
 
   gen-force-block:
     desc: Generate force_block.vh (gate-level X-init) from the hardened netlists

@@ -34,10 +34,10 @@ Take a look into the Makefile to build your own flow.
 
 ## Simulating with Vivado xsim
 
-`task run-simulation-xsim` runs the same testbench under AMD Vivado's xsim, and
-`task fab-sim-xsim` wraps it in the full build-fabric, build-design, simulate,
-clean cycle. It needs `xvhdl`, `xelab` and `xsim` on `PATH` from a Vivado
-installation.
+`task run-simulation SIMULATOR=xvhdl` runs the same testbench under AMD
+Vivado's xsim, and `task fab-sim SIMULATOR=xvhdl` wraps it in the full
+build-fabric, build-design, simulate, clean cycle. It needs `xvhdl`, `xelab`
+and `xsim` on `PATH` from a Vivado installation.
 
 xvhdl analyses the fabric as VHDL-2008, the same standard nvc and ghdl are
 given, so this is a second opinion on the generated VHDL rather than a
@@ -53,4 +53,4 @@ instead of trusting the status.
 
 If `xelab` stops at `cannot find crt1.o`, its linker is not picking up the host
 C runtime; point it at the directory holding those objects, for example
-`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation-xsim`.
+`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation SIMULATOR=xvhdl`.

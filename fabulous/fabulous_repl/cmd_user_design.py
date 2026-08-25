@@ -583,12 +583,15 @@ class UserDesignCommandSet(ReplCommandSet):
             ),
         ] = "",
         simulator: Annotated[
-            Literal["nvc", "ghdl", "auto", ""],
+            Literal["iverilog", "xvlog", "nvc", "ghdl", "xvhdl", "auto", ""],
             Option(
                 "--simulator",
                 "-s",
                 help_text=(
-                    "VHDL simulator to use: nvc, ghdl, or auto (default: auto-detect)"
+                    "Simulator backend: iverilog or xvlog for Verilog projects, "
+                    "nvc, ghdl, xvhdl or auto for VHDL ones. xvlog/xvhdl name the "
+                    "two AMD Vivado xsim front ends. Unset leaves the project "
+                    "Taskfile to choose: iverilog for Verilog, auto for VHDL"
                 ),
             ),
         ] = "",

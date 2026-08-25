@@ -29,10 +29,11 @@ Take a look into the Makefile to build your own flow.
 
 ## Simulating with Vivado xsim
 
-`task run-simulation-xsim` runs the same testbench under AMD Vivado's xsim, and
-`task fab-sim-xsim` wraps it in the full build-fabric, build-design, simulate,
-clean cycle. It needs `xvlog`, `xelab` and `xsim` on `PATH` from a Vivado
-installation; nothing else in the flow changes.
+`task run-simulation SIMULATOR=xvlog` runs the same testbench under AMD
+Vivado's xsim, and `task fab-sim SIMULATOR=xvlog` wraps it in the full
+build-fabric, build-design, simulate, clean cycle. It needs `xvlog`, `xelab`
+and `xsim` on `PATH` from a Vivado installation; nothing else in the flow
+changes.
 
 The value of the xsim path is the analysis mode, not the simulator. xvlog reads
 the fabric and the user design as IEEE 1364-2005 Verilog, whereas the Icarus
@@ -48,4 +49,4 @@ status.
 
 If `xelab` stops at `cannot find crt1.o`, its linker is not picking up the host
 C runtime; point it at the directory holding those objects, for example
-`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation-xsim`.
+`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation SIMULATOR=xvlog`.
