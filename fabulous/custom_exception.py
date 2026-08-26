@@ -72,3 +72,7 @@ class StaleIOPinConfigError(Exception):
 
 class ProjectUpgradeError(Exception):
     """Exception raised when a project cannot be upgraded to the current layout."""
+
+
+class UnsupportedToolVersion(Exception):
+    """Exception raised when an external tool is too old to be usable."""
