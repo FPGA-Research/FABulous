@@ -4,7 +4,8 @@ module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer desync_flag = 20
+    parameter integer desync_flag = 20,
+    parameter integer bitbang_enable = 1
 ) (
     input CLK,
     input resetn,
@@ -53,15 +54,23 @@ module eFPGA_Config #(
     );
 
     // BitBang
-    bitbang inst_bit_bang (
-        .s_clk(s_clk),
-        .s_data(s_data),
-        .strobe(BitBangWriteStrobe),
-        .data(BitBangWriteData),
-        .active(BitBangActive),
-        .clk(CLK),
-        .reset_n(resetn)
-    );
+    generate
+        if (bitbang_enable == 1) begin : gen_bitbang
+            bitbang inst_bit_bang (
+                .s_clk(s_clk),
+                .s_data(s_data),
+                .strobe(BitBangWriteStrobe),
+                .data(BitBangWriteData),
+                .active(BitBangActive),
+                .clk(CLK),
+                .reset_n(resetn)
+            );
+        end else begin : gen_no_bitbang
+            assign BitBangWriteData = 32'b0;
+            assign BitBangWriteStrobe = 1'b0;
+            assign BitBangActive = 1'b0;
+        end
+    endgenerate
 
     // Configuration port priority (highest to lowest): UART > BitBang > Parallel
 

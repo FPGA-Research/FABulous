@@ -16,7 +16,8 @@ entity eFPGA_Config is
     RowSelectWidth  : integer := 5;
     FrameBitsPerRow : integer := 32;
     NumberOfRows    : integer := 16;
-    desync_flag     : integer := 20
+    desync_flag     : integer := 20;
+    bitbang_enable  : integer := 1
   );
   port (
     CLK                  : in    std_logic;
@@ -152,15 +153,24 @@ begin
     );
 
   -- Generated from instantiation at eFPGA_Config.v:54
-  inst_bitbang : component bitbang
-    port map (
-      active => BitBangActive,
-      clk    => CLK,
-      data   => BitBangWriteData,
-      resetn => resetn,
-      s_clk  => s_clk,
-      s_data => s_data,
-      strobe => BitBangWriteStrobe
-    );
+  gen_bitbang_enabled: if bitbang_enable = 1 generate
+    inst_bitbang : component bitbang
+      port map (
+        active => BitBangActive,
+        clk    => CLK,
+        data   => BitBangWriteData,
+        resetn => resetn,
+        s_clk  => s_clk,
+        s_data => s_data,
+        strobe => BitBangWriteStrobe
+      );
+  end generate gen_bitbang_enabled;
+
+  -- Tie off the signals if bitbang is disabled
+  gen_bitbang_disabled: if bitbang_enable = 0 generate
+    BitBangActive      <= '0';
+    BitBangWriteData   <= (others => '0');
+    BitBangWriteStrobe <= '0';
+  end generate gen_bitbang_disabled;
 
 end architecture from_verilog;
