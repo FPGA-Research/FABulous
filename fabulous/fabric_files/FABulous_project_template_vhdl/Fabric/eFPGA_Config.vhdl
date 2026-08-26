@@ -141,7 +141,9 @@ begin
     );
 
   -- Generated from instantiation at eFPGA_Config.v:42
+
   gen_uart_enabled : if uart_enable = 1 generate
+
     inst_config_uart : component config_UART
       port map (
         CLK         => CLK,
@@ -153,9 +155,11 @@ begin
         WriteStrobe => UART_WriteStrobe,
         resetn      => resetn
       );
+
   end generate gen_uart_enabled;
 
   -- Tie off the signals if UART is disabled
+
   gen_uart_disabled : if uart_enable = 0 generate
     UART_WriteData   <= (others => '0');
     UART_ComActive   <= '0';

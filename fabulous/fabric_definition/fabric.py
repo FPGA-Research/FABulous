@@ -114,7 +114,7 @@ class Fabric:
     disableUserCLK: bool = False
     multiClkDomains: bool = False
     bitbang_enable: int = 1
-    uart_enable: int =1
+    uart_enable: int = 1
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
 
     tileDic: dict[str, Tile] = field(default_factory=dict)

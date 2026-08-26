@@ -1049,7 +1049,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         disableUserCLK=disableUserCLK,
         multiClkDomains=multiClkDomains,
         bitbang_enable=bitbang_enable,
-        uart_enable=uart_enable
+        uart_enable=uart_enable,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,
