@@ -69,6 +69,8 @@ class Fabric:
     multiClkDomains : bool
         Whether the fabric uses multiple clock domains. When True, CLK features
         are kept in the bitstream instead of being filtered out.
+    bitbang_enable : int
+        Whether the BitBang configuration interface is enabled (1) or disabled (0).
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.

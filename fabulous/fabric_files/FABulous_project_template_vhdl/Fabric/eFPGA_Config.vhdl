@@ -153,7 +153,9 @@ begin
     );
 
   -- Generated from instantiation at eFPGA_Config.v:54
-  gen_bitbang_enabled: if bitbang_enable = 1 generate
+
+  gen_bitbang_enabled : if bitbang_enable = 1 generate
+
     inst_bitbang : component bitbang
       port map (
         active => BitBangActive,
@@ -164,10 +166,12 @@ begin
         s_data => s_data,
         strobe => BitBangWriteStrobe
       );
+
   end generate gen_bitbang_enabled;
 
   -- Tie off the signals if bitbang is disabled
-  gen_bitbang_disabled: if bitbang_enable = 0 generate
+
+  gen_bitbang_disabled : if bitbang_enable = 0 generate
     BitBangActive      <= '0';
     BitBangWriteData   <= (others => '0');
     BitBangWriteStrobe <= '0';
