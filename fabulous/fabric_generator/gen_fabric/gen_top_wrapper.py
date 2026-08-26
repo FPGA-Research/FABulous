@@ -248,6 +248,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             ("desync_flag", "desync_flag"),
             ("FrameBitsPerRow", "FrameBitsPerRow"),
             ("bitbang_enable", fabric.bitbang_enable),
+            ("uart_enable", fabric.uart_enable),
         ],
     )
     writer.addNewLine()

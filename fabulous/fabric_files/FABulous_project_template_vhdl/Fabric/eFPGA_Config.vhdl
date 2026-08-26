@@ -17,7 +17,8 @@ entity eFPGA_Config is
     FrameBitsPerRow : integer := 32;
     NumberOfRows    : integer := 16;
     desync_flag     : integer := 20;
-    bitbang_enable  : integer := 1
+    bitbang_enable  : integer := 1;
+    uart_enable     : integer := 1
   );
   port (
     CLK                  : in    std_logic;
@@ -140,17 +141,28 @@ begin
     );
 
   -- Generated from instantiation at eFPGA_Config.v:42
-  inst_config_uart : component config_UART
-    port map (
-      CLK         => CLK,
-      ComActive   => UART_ComActive,
-      Command     => Command,
-      ReceiveLED  => UART_LED,
-      Rx          => Rx,
-      WriteData   => UART_WriteData,
-      WriteStrobe => UART_WriteStrobe,
-      resetn      => resetn
-    );
+  gen_uart_enabled : if uart_enable = 1 generate
+    inst_config_uart : component config_UART
+      port map (
+        CLK         => CLK,
+        ComActive   => UART_ComActive,
+        Command     => Command,
+        ReceiveLED  => UART_LED,
+        Rx          => Rx,
+        WriteData   => UART_WriteData,
+        WriteStrobe => UART_WriteStrobe,
+        resetn      => resetn
+      );
+  end generate gen_uart_enabled;
+
+  -- Tie off the signals if UART is disabled
+  gen_uart_disabled : if uart_enable = 0 generate
+    UART_WriteData   <= (others => '0');
+    UART_ComActive   <= '0';
+    UART_WriteStrobe <= '0';
+    Command          <= (others => '0');
+    UART_LED         <= '0';
+  end generate gen_uart_disabled;
 
   -- Generated from instantiation at eFPGA_Config.v:54
 
