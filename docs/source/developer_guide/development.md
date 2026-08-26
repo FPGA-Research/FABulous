@@ -8,13 +8,16 @@ This page covers all aspects of contributing to FABulous, including development 
 
 ## Development Environment Setup
 
-Contributors must use [uv](https://github.com/astral-sh/uv) for reproducible
-environment management and to ensure consistent dependency resolution with CI.
+FABulous has two development environments and they are alternatives, not layers. Which one you are in decides how every command on this page is run, so pick one before reading on.
 
-:::{note} Recommended setup for full development (including ASIC backend)
-For end-to-end development, including the ASIC backend flow and EDA tooling, use the [Nix-based installation](#nix-install) provided in this repository. Nix ensures the full toolchain (GHDL, Yosys, NextPNR, OpenROAD, Librelane, etc.) is available and reproducible.
+[uv](https://github.com/astral-sh/uv) manages the Python side: it owns `uv.lock`, resolves the same versions CI does, and builds the `.venv/` you work in. Use it on its own for Python work, that is the fabric model, the HDL and chip-database writers, the CLI and the test suite.
 
-Use `uv` alongside Nix for Python-related dependency management of the FABulous project itself (locking, editable installs, tasks), as documented below. The [Dev Container](#dev-container) is available as a fallback when Nix is not accessible, but Nix remains the preferred method whenever possible.
+[Nix](#nix-install) additionally pins the EDA toolchain (GHDL, Yosys, NextPNR, OpenROAD, LibreLane). Anything that shells out to those tools, the ASIC backend under `gds_flow_test`, `librelane_plugin_fabulous` and `fabulous/fabric_generator/gds_generator`, only works there. The Nix devshell builds its own virtualenv from `uv.lock` and activates it on entry, so inside it neither `uv sync` nor `uv run` has a job to do. See [Running commands inside the Nix devshell](#nix-devshell-commands).
+
+The [Dev Container](#dev-container) is a fallback for contributors who cannot install Nix. It behaves like the uv environment, with the editable install already in place.
+
+:::{note}
+Do not mix the two. `uv run` always targets the project's `.venv/` and ignores whatever virtualenv is active, so running it inside the Nix devshell silently executes against a different interpreter than the EDA tools were built for.
 :::
 
 ### Installing uv
@@ -52,18 +55,19 @@ Clone the repository and set up the development environment:
 ```console
 git clone https://github.com/FPGA-Research/FABulous
 cd FABulous
-uv sync --dev                # install runtime + dev dependencies (locked)
-uv pip install -e .          # editable install
-source .venv/bin/activate    # activate the environment (optional)
+uv sync
 ```
 
-:::{note}
-After running `uv sync`, uv creates a virtual environment in `.venv/`.
-You can either:
+`uv sync` is the whole setup. It creates `.venv/`, installs the locked runtime and `dev` dependencies, installs FABulous itself editable, and generates the `fabulous_nix/` and `librelane_plugin_fabulous/` side-packages. A following `uv pip install -e .` is not needed and resolves against PyPI rather than `uv.lock`.
 
-- Use `uv run <command>` for each command (recommended for reproducibility)
-- Activate the environment with `source .venv/bin/activate` and run commands directly
-  :::
+After the sync, run commands either through `uv run`, which needs no activation, or from an activated environment:
+
+```console
+source .venv/bin/activate    # bash/zsh
+source .venv/bin/activate.fish
+```
+
+Activation is a convenience only. `uv run` reaches the same interpreter without it, and is what the `task` targets use.
 
 Common development commands:
 
@@ -90,6 +94,37 @@ uv add --group dev <package> # add development dependency
 uv remove <package>          # remove dependency
 uv lock                      # refresh lock file after manual edits
 ```
+
+(nix-devshell-commands)=
+
+### Running commands inside the Nix devshell
+
+Enter the devshell with `FABulous nix-env` from a checkout, or `nix develop` (`nix develop .#fish`, `nix develop .#zsh`) for the plain shells. Both activate an editable virtualenv built from `uv.lock` out of the Nix store and put the EDA tools on `PATH`, so commands are run bare.
+
+```console
+FABulous -h
+pytest
+ruff check
+```
+
+`FABulous nix-env` does two things the plain shells do not. It deactivates any virtualenv or conda environment that is already active, and it verifies the EDA tools resolve to `/nix/store`, failing on entry if any does not. Under `nix develop` both are yours to handle, and the deactivation matters, because an environment that is still active keeps its `PATH` entries ahead of the devshell's and can shadow the Nix tools with system ones.
+
+Two things must not be done inside the devshell. Do not `source .venv/bin/activate`, because that shadows the store virtualenv with a Python that the EDA tools were not built against. Do not prefix commands with `uv run`, for the same reason but silently: `uv run` targets the project's `.venv/` and ignores the active virtualenv, printing at most a warning. Where `.venv/` does not exist it creates an empty one rather than failing.
+
+That last point bites the `task` targets, which hardcode `uv run`. Inside the devshell, run the underlying command directly instead:
+
+| Task | Devshell equivalent |
+| --- | --- |
+| `task test -- <args>` | `python scripts/run_tests.py <args>` |
+| `task ci` | `pre-commit run --all-files`, then `task docs-build` |
+| `task sync-demo` | `python scripts/sync_demo_tile_gds_config.py` |
+| `task smoke-test` | `FABULOUS=FABulous task smoke-test` |
+
+`task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` build the docs in a separate uv environment under `docs/`, driven by `docs/Makefile` rather than by the root `.venv/`.
+
+:::{note}
+`FABulous nix-env` invoked without `--flake-dir` uses the `flake.nix` bundled into the installed `fabulous_nix` package, which is a build-time copy of the repository's. When developing the flake itself, run `nix develop` from the checkout so the file you are editing is the file being evaluated.
+:::
 
 (dev-container)=
 
@@ -157,7 +192,7 @@ git commit --no-verify
 
 ## Task Automation with Taskfile
 
-FABulous includes a root [Taskfile](https://taskfile.dev) to streamline common development and workflow tasks. After setting up the development environment, you can run these tasks using `task <task-name>`.
+FABulous includes a root [Taskfile](https://taskfile.dev) to streamline common development and workflow tasks. In the uv environment, run them as `task <task-name>`; every target below invokes `uv run` for you, so no activation is needed. Inside the Nix devshell they need the substitutions in [Running commands inside the Nix devshell](#nix-devshell-commands).
 
 ```console
 task test           # Run the pytest suite (supports forwarded args, see below)
