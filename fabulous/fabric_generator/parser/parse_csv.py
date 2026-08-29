@@ -917,6 +917,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiClkDomains = False
     bitbang_enable = 1
     uart_enable = 1
+    spi_enable = 0
 
     for i in parameters:
         i = i.split(",")
@@ -980,6 +981,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
         elif i[0].startswith("UART_enable"):
             uart_enable = int(i[1]) if i[1].isdigit() else 0
             logger.info(f"UART mode set to: {uart_enable}")
+        elif i[0].startswith("SPI_enable"):
+            spi_enable = int(i[1]) if i[1].isdigit() else 0
+            logger.info(f"SPI mode set to: {spi_enable}")
         elif i[0].startswith("PreserveListOrder"):
             # Consumed and validated by the pre-scan above (it must be known
             # before any tile is parsed); accepted here so it is not rejected.
@@ -1050,6 +1054,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         multiClkDomains=multiClkDomains,
         bitbang_enable=bitbang_enable,
         uart_enable=uart_enable,
+        spi_enable=spi_enable,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

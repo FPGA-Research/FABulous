@@ -160,11 +160,21 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addPortVector(
         "SelfWriteData", IO.INPUT, fabric.frameBitsPerRow - 1, indentLevel=2
     )
-    writer.addPortScalar("Rx", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("ComActive", IO.OUTPUT, indentLevel=2)
-    writer.addPortScalar("ReceiveLED", IO.OUTPUT, indentLevel=2)
-    writer.addPortScalar("s_clk", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("s_data", IO.INPUT, indentLevel=2)
+
+    if fabric.uart_enable:
+        writer.addPortScalar("Rx", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("ComActive", IO.OUTPUT, indentLevel=2)
+        writer.addPortScalar("ReceiveLED", IO.OUTPUT, indentLevel=2)
+
+    if fabric.bitbang_enable:
+        writer.addPortScalar("s_clk", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("s_data", IO.INPUT, indentLevel=2)
+
+    if fabric.spi_enable:
+        writer.addPortScalar("sck", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("mosi", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("ss_n", IO.INPUT, indentLevel=2)
+
     writer.addPortEnd()
     writer.addHeaderEnd(f"{fabric.name}_top")
     writer.addDesignDescriptionStart(f"{fabric.name}_top")
@@ -221,27 +231,80 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     if isinstance(writer, VerilogCodeGenerator):
         writer.addPreprocIfNotDef("EMULATION")
 
+    if isinstance(writer, VHDLCodeGenerator):
+        tie_low = "'0'"
+        unconnected = "open"
+    else:  # Verilog
+        tie_low = "1'b0"
+        unconnected = ""
+
+    config_ports_pairs = [
+        ("CLK", "CLK"),
+        ("resetn", "resetn"),
+        ("SelfWriteData", "SelfWriteData"),
+        ("SelfWriteStrobe", "SelfWriteStrobe"),
+        ("ConfigWriteData", "LocalWriteData"),
+        ("ConfigWriteStrobe", "LocalWriteStrobe"),
+        ("FrameAddressRegister", "FrameAddressRegister"),
+        ("LongFrameStrobe", "LongFrameStrobe"),
+        ("RowSelect", "RowSelect"),
+    ]
+
+    if fabric.uart_enable:
+        config_ports_pairs.extend(
+            [
+                ("Rx", "Rx"),
+                ("ComActive", "ComActive"),
+                ("ReceiveLED", "ReceiveLED"),
+            ]
+        )
+    else:
+        config_ports_pairs.extend(
+            [
+                ("Rx", tie_low),
+                ("ComActive", unconnected),
+                ("ReceiveLED", unconnected),
+            ]
+        )
+
+    if fabric.bitbang_enable:
+        config_ports_pairs.extend(
+            [
+                ("s_clk", "s_clk"),
+                ("s_data", "s_data"),
+            ]
+        )
+    else:
+        config_ports_pairs.extend(
+            [
+                ("s_clk", tie_low),
+                ("s_data", tie_low),
+            ]
+        )
+
+    if fabric.spi_enable:
+        config_ports_pairs.extend(
+            [
+                ("sck", "sck"),
+                ("mosi", "mosi"),
+                ("ss_n", "ss_n"),
+            ]
+        )
+    else:
+        config_ports_pairs.extend(
+            [
+                ("sck", tie_low),
+                ("mosi", tie_low),
+                ("ss_n", tie_low),
+            ]
+        )
+
     # the config module
     writer.addNewLine()
     writer.addInstantiation(
         compName="eFPGA_Config",
         compInsName="eFPGA_Config_inst",
-        portsPairs=[
-            ("CLK", "CLK"),
-            ("resetn", "resetn"),
-            ("Rx", "Rx"),
-            ("ComActive", "ComActive"),
-            ("ReceiveLED", "ReceiveLED"),
-            ("s_clk", "s_clk"),
-            ("s_data", "s_data"),
-            ("SelfWriteData", "SelfWriteData"),
-            ("SelfWriteStrobe", "SelfWriteStrobe"),
-            ("ConfigWriteData", "LocalWriteData"),
-            ("ConfigWriteStrobe", "LocalWriteStrobe"),
-            ("FrameAddressRegister", "FrameAddressRegister"),
-            ("LongFrameStrobe", "LongFrameStrobe"),
-            ("RowSelect", "RowSelect"),
-        ],
+        portsPairs=config_ports_pairs,
         paramPairs=[
             ("RowSelectWidth", "RowSelectWidth"),
             ("NumberOfRows", "NumberOfRows"),
@@ -249,6 +312,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             ("FrameBitsPerRow", "FrameBitsPerRow"),
             ("bitbang_enable", fabric.bitbang_enable),
             ("uart_enable", fabric.uart_enable),
+            ("spi_enable", fabric.spi_enable),
         ],
     )
     writer.addNewLine()
