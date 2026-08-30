@@ -918,6 +918,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     bitbang_enable = 1
     uart_enable = 1
     spi_enable = 0
+    parallel_enable = 1
 
     for i in parameters:
         i = i.split(",")
@@ -984,6 +985,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
         elif i[0].startswith("SPI_enable"):
             spi_enable = int(i[1]) if i[1].isdigit() else 0
             logger.info(f"SPI mode set to: {spi_enable}")
+        elif i[0].startswith("Parallel_enable"):
+            parallel_enable = int(i[1]) if i[1].isdigit() else 0
+            logger.info(f"SPI mode set to: {parallel_enable}")
         elif i[0].startswith("PreserveListOrder"):
             # Consumed and validated by the pre-scan above (it must be known
             # before any tile is parsed); accepted here so it is not rejected.
@@ -1055,6 +1059,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         bitbang_enable=bitbang_enable,
         uart_enable=uart_enable,
         spi_enable=spi_enable,
+        parallel_enable=parallel_enable,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

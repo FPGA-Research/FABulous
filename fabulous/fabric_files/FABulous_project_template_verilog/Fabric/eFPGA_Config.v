@@ -7,7 +7,8 @@ module eFPGA_Config #(
     parameter integer desync_flag = 20,
     parameter integer bitbang_enable = 1,
     parameter integer uart_enable = 1,
-    parameter integer spi_enable = 1
+    parameter integer spi_enable = 1,
+    parameter integer parallel_enable = 1
 ) (
     input CLK,
     input resetn,
@@ -114,10 +115,13 @@ module eFPGA_Config #(
         end
     endgenerate
 
+    wire [31:0] parallel_data_gated   = (parallel_enable == 1) ? SelfWriteData : 32'b0;
+    wire        parallel_strobe_gated = (parallel_enable == 1) ? SelfWriteStrobe : 1'b0;
+
     // Configuration port priority (highest to lowest): UART > SPI > BitBang > Parallel
 
-    assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : SelfWriteData;
-    assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : SelfWriteStrobe;
+    assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : parallel_data_gated;
+    assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : parallel_strobe_gated;
 
     assign spi_write_data_mux = spi_active ? spi_write_data : BitBangWriteData_Mux;
     assign spi_strobe_mux = spi_active ? spi_strobe : BitBangWriteStrobe_Mux;

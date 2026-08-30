@@ -19,7 +19,8 @@ entity eFPGA_Config is
     desync_flag     : integer := 20;
     bitbang_enable  : integer := 1;
     uart_enable     : integer := 1;
-    spi_enable      : integer := 1
+    spi_enable      : integer := 1;
+    parallel_enable : integer := 1
   );
   port (
     CLK                  : in    std_logic;
@@ -66,6 +67,10 @@ architecture from_verilog of eFPGA_Config is
   signal spi_active     : std_logic;
   signal spi_write_data : std_logic_vector(31 downto 0);
   signal spi_strobe     : std_logic;
+
+  -- Parallel Gated signals
+  signal parallel_data_gated   : std_logic_vector(31 downto 0);
+  signal parallel_strobe_gated : std_logic;
 
   -- Multiplexed signals
   signal BitBangWriteData_Mux   : std_logic_vector(31 downto 0);
@@ -140,6 +145,10 @@ architecture from_verilog of eFPGA_Config is
 
 begin
 
+  parallel_data_gated    <= SelfWriteData when parallel_enable = 1 else
+                            (others => '0');
+  parallel_strobe_gated  <= SelfWriteStrobe when parallel_enable = 1 else
+                            '0';
   ConfigWriteData        <= UART_WriteData_Mux;
   ConfigWriteStrobe      <= UART_WriteStrobe_Mux;
   FSM_Reset              <= UART_ComActive or BitBangActive or spi_active;

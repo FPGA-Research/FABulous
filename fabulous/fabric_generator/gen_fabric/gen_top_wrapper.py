@@ -26,6 +26,17 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
 
     This includes features that are not located inside the fabric such as BRAM.
     """
+    if not (
+        fabric.uart_enable
+        or fabric.bitbang_enable
+        or fabric.spi_enable
+        or fabric.parallel_enable
+    ):
+        raise ValueError(
+            "ERROR: No configuration protocol is selected. "
+            "At least one configuration interface (UART, SPI, BitBang, or Parallel) "
+            "must be enabled. Top wrapper generation is terminated."
+        )
 
     def split_port(p: str) -> tuple[tuple[int, int], tuple[int, ...], str]:
         """Parse and split a port name into components for sorting and grouping.
@@ -156,10 +167,12 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addComment("Config related ports", onNewLine=True, indentLevel=2)
     writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
     writer.addPortScalar("resetn", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("SelfWriteStrobe", IO.INPUT, indentLevel=2)
-    writer.addPortVector(
-        "SelfWriteData", IO.INPUT, fabric.frameBitsPerRow - 1, indentLevel=2
-    )
+
+    if fabric.parallel_enable:
+        writer.addPortScalar("SelfWriteStrobe", IO.INPUT, indentLevel=2)
+        writer.addPortVector(
+            "SelfWriteData", IO.INPUT, fabric.frameBitsPerRow - 1, indentLevel=2
+        )
 
     if fabric.uart_enable:
         writer.addPortScalar("Rx", IO.INPUT, indentLevel=2)
@@ -236,19 +249,33 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         unconnected = "open"
     else:  # Verilog
         tie_low = "1'b0"
+        tie_low_32 = "32'b0"
         unconnected = ""
 
     config_ports_pairs = [
         ("CLK", "CLK"),
         ("resetn", "resetn"),
-        ("SelfWriteData", "SelfWriteData"),
-        ("SelfWriteStrobe", "SelfWriteStrobe"),
         ("ConfigWriteData", "LocalWriteData"),
         ("ConfigWriteStrobe", "LocalWriteStrobe"),
         ("FrameAddressRegister", "FrameAddressRegister"),
         ("LongFrameStrobe", "LongFrameStrobe"),
         ("RowSelect", "RowSelect"),
     ]
+
+    if fabric.parallel_enable:
+        config_ports_pairs.extend(
+            [
+                ("SelfWriteData", "SelfWriteData"),
+                ("SelfWriteStrobe", "SelfWriteStrobe"),
+            ]
+        )
+    else:
+        config_ports_pairs.extend(
+            [
+                ("SelfWriteData", tie_low_32),
+                ("SelfWriteStrobe", tie_low),
+            ]
+        )
 
     if fabric.uart_enable:
         config_ports_pairs.extend(
@@ -313,6 +340,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             ("bitbang_enable", fabric.bitbang_enable),
             ("uart_enable", fabric.uart_enable),
             ("spi_enable", fabric.spi_enable),
+            ("parallel_enable", fabric.parallel_enable),
         ],
     )
     writer.addNewLine()
