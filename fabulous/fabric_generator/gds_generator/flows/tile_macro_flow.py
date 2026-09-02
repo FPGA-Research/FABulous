@@ -14,9 +14,9 @@ from librelane.logging.logger import err, info
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.flow_define import (
-    check_steps,
-    classic_gating_config_vars,
     prep_steps,
+    tile_check_steps,
+    tile_gating_config_vars,
     tile_optimisation_physical_steps,
     vhdl_prep_steps,
     write_out_steps,
@@ -27,18 +27,25 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
+from fabulous.fabric_generator.gds_generator.steps.antenna_precheck import (
+    FABulousAntennaPrecheck,
+)
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 
-configs = Classic.config_vars + [
-    Variable(
-        "FABULOUS_IGNORE_DEFAULT_DIE_AREA",
-        bool,
-        "When is true will ignore the provided die area and "
-        "use the default one instead.",
-        default=False,
-    ),
-]
+configs = (
+    Classic.config_vars
+    + FABulousAntennaPrecheck.config_vars
+    + [
+        Variable(
+            "FABULOUS_IGNORE_DEFAULT_DIE_AREA",
+            bool,
+            "When is true will ignore the provided die area and "
+            "use the default one instead.",
+            default=False,
+        ),
+    ]
+)
 
 
 class FABulousTileMacroFlow(SequentialFlow):
@@ -51,11 +58,14 @@ class FABulousTileMacroFlow(SequentialFlow):
     """
 
     Steps = (
-        prep_steps + tile_optimisation_physical_steps + write_out_steps + check_steps
+        prep_steps
+        + tile_optimisation_physical_steps
+        + write_out_steps
+        + tile_check_steps
     )
 
     config_vars = configs
-    gating_config_vars = classic_gating_config_vars
+    gating_config_vars = tile_gating_config_vars
 
     # HDL source collection (Verilog defaults).
     _hdl_glob_patterns: tuple[str, ...] = ("**/*.v",)
@@ -143,6 +153,9 @@ class FABulousTileMacroFlow(SequentialFlow):
         # Build tile configuration
         tile_config_dict = {
             "DESIGN_NAME": tile_type.name,
+            # Hand the parsed tile straight to the steps: the antenna pre-check
+            # needs its port offsets and would otherwise re-parse the CSV.
+            "FABULOUS_TILE": tile_type,
             "FABULOUS_IO_PIN_ORDER_CFG": str(io_pin_config),
             self._hdl_files_config_key: file_list,
             "FABULOUS_OPT_MODE": OptMode(opt_mode),
@@ -238,7 +251,7 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
         vhdl_prep_steps
         + tile_optimisation_physical_steps
         + write_out_steps
-        + check_steps
+        + tile_check_steps
     )
 
     _hdl_glob_patterns = ("**/*.vhdl", "**/*.vhd")
