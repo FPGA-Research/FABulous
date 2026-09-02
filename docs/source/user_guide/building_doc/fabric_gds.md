@@ -280,12 +280,25 @@ The GDS flow includes an iterative optimisation process to find the minimum viab
 
 If no feasible solution can be found after all iterations, the flow will raise an error and stop the generation.
 
+### Providing a Starting Die Area
+
+The optimisation only ever grows the die, so the area it starts from matters. A `DIE_AREA` set in the tile's `gds_config.yaml` is used as that starting area in every optimisation mode:
+
+- `find_min_width` / `find_min_height` lock the axis that is not being minimised to the provided value.
+- `balance` / `large` grow both axes from the provided value.
+
+Both axes of the provided `DIE_AREA` must still clear the minimum needed to place the tile's IO pins, otherwise the flow raises an error. Set `FABULOUS_IGNORE_DEFAULT_DIE_AREA: true` to discard the provided value and let the flow size the tile from scratch.
+
+:::{note}
+Without a provided `DIE_AREA`, the automatic starting area is derived from the IO pin count and the stdcell area reported by synthesis. Neither accounts for a hard macro instantiated in the tile, so a tile containing a macro (for example an SRAM) starts far too small and the optimisation cannot grow enough to reach a solution. For those tiles, set a `DIE_AREA` that already fits the macro.
+:::
+
 ### Related Variables
 
 - `FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT`: Sites to increase width per iteration (default: 4)
 - `FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT`: Sites to increase height per iteration (default: 1)
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
-- `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
+- `FABULOUS_IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores the provided `DIE_AREA` and starts from the area calculated by the flow (default: `false`)
 
 ## Output Structure
 

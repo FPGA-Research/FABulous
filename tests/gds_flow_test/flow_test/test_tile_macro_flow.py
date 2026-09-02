@@ -322,31 +322,81 @@ class TestFABulousTileVerilogMacroFlowInit:
                 DIE_AREA=(0, 0, Decimal("50.0"), Decimal("500.0")),
             )
 
-    def test_balance_ignores_user_die_area(
+    @pytest.mark.parametrize("opt_mode", [OptMode.BALANCE, OptMode.LARGE])
+    def test_non_directional_honours_user_die_area(
         self,
         mock_tile: MagicMock,
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
+        opt_mode: OptMode,
     ) -> None:
-        """balance has no fixed axis, so a user DIE_AREA is ignored in favour of
-        the computed minimum (full-auto sizing)."""
+        """balance/large grow from the user DIE_AREA instead of the pin minimum.
+
+        A tile holding a hard macro cannot start from the pin-derived minimum, so
+        the user DIE_AREA is the starting area the optimisation grows from.
+        """
         mock_tile.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
 
         flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
             mock_pdk_root=mock_pdk_root,
-            opt_mode=OptMode.BALANCE,
+            opt_mode=opt_mode,
             DIE_AREA=(0, 0, Decimal("300.0"), Decimal("300.0")),
         )
 
-        assert flow.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] is True
+        assert flow.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] is False
+        assert flow.config["DIE_AREA"] == (
+            0,
+            0,
+            round_up_decimal(Decimal("300.0"), Decimal("0.28")),
+            round_up_decimal(Decimal("300.0"), Decimal("0.56")),
+        )
+
+    @pytest.mark.parametrize("opt_mode", [OptMode.BALANCE, OptMode.LARGE])
+    def test_non_directional_discards_user_die_area_when_ignoring(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        opt_mode: OptMode,
+    ) -> None:
+        """FABULOUS_IGNORE_DEFAULT_DIE_AREA restores full-auto sizing."""
+        mock_tile.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
+
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            opt_mode=opt_mode,
+            DIE_AREA=(0, 0, Decimal("300.0"), Decimal("300.0")),
+            FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
+        )
+
         assert flow.config["DIE_AREA"] == (
             0,
             0,
             round_up_decimal(Decimal("100.0"), Decimal("0.28")),
             round_up_decimal(Decimal("100.0"), Decimal("0.56")),
         )
+
+    def test_balance_rejects_user_die_area_below_physical_min(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """balance has no fixed axis, so both axes must clear the IO-pin minimum."""
+        mock_tile.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
+
+        with pytest.raises(FlowException, match="smaller than the minimum"):
+            self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                opt_mode=OptMode.BALANCE,
+                DIE_AREA=(0, 0, Decimal("300.0"), Decimal("50.0")),
+            )
 
     def test_no_opt_mode_requires_die_area(
         self,
