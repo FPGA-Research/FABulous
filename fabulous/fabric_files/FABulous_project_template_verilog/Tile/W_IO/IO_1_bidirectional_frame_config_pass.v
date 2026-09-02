@@ -16,19 +16,19 @@
 
 
 module IO_1_bidirectional_frame_config_pass (
-    input I,  // from fabric to external pin
-    input T,  // tristate control
-    output O,  // from external pin to fabric
+    input wire I,  // from fabric to external pin
+    input wire T,  // tristate control
+    output wire O,  // from external pin to fabric
     output reg Q,  // from external pin to fabric (registered)
 
     //These ports need to be available at the top-level, not the switch matrix
-    (* FABulous, EXTERNAL *) output I_top,
-    (* FABulous, EXTERNAL *) output T_top,
-    (* FABulous, EXTERNAL *) input O_top,
+    (* FABulous, EXTERNAL *) output wire I_top,
+    (* FABulous, EXTERNAL *) output wire T_top,
+    (* FABulous, EXTERNAL *) input wire O_top,
 
     // The "EXTERNAL" keyword will send this signal all the way to top
     // The "SHARED" keyword allows multiple BELs to use the same port (e.g. for exporting a clock to the top)
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK
+    (* FABulous, EXTERNAL, SHARED_PORT *) input wire UserCLK
     // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
 );
     //                        _____

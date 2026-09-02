@@ -23,24 +23,24 @@ module RegFile_32x4 #(
     parameter integer NoConfigBits = 2
 ) (
     // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input [3:0] D,      // Write port
-    input [4:0] W_ADR,
-    input       W_en,
+    input  wire [3:0] D    ,      // Write port
+    input  wire [4:0] W_ADR,
+    input  wire       W_en ,
 
-    output [3:0] AD,    // Read port A
-    input  [4:0] A_ADR,
+    output wire [3:0] AD   ,    // Read port A
+    input  wire [4:0] A_ADR,
 
-    output [3:0] BD,    // Read port B
-    input  [4:0] B_ADR,
+    output wire [3:0] BD   ,    // Read port B
+    input  wire [4:0] B_ADR,
 
     // The "EXTERNAL" keyword will send this signal all the way to top
     // The "SHARED" allows multiple BELs using the same port (e.g. for exporting a clock to the top)
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
+    (* FABulous, EXTERNAL, SHARED_PORT *) input wire UserCLK,
     // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
-    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
+    (* FABulous, GLOBAL *) input wire [NoConfigBits-1:0] ConfigBits
 );
 
-    reg     [3:0] mem                                         [32];
+    reg     [3:0] mem                                         [0:31];
 
     wire    [3:0] AD_comb;  // port A read data, combinatorial
     wire    [3:0] BD_comb;  // port B read data, combinatorial

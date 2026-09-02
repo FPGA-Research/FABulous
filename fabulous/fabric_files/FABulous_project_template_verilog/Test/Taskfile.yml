@@ -20,9 +20,14 @@ vars:
   TOP_WRAPPER: '{{.TOP_WRAPPER | default "top_wrapper"}}'
   USER_DESIGN_DIR: "{{.FAB_PROJ_ROOT}}/user_design"
   WAVEFORM_TYPE: '{{.WAVEFORM_TYPE | default "fst"}}'
+  SIMULATOR: '{{.SIMULATOR | default "iverilog"}}'
   EXTRA_IVERILOG_FLAGS: '{{.EXTRA_IVERILOG_FLAGS | default ""}}'
+  EXTRA_XVLOG_FLAGS: '{{.EXTRA_XVLOG_FLAGS | default ""}}'
+  EXTRA_XELAB_FLAGS: '{{.EXTRA_XELAB_FLAGS | default ""}}'
   BITSTREAM_BIN: '{{.BITSTREAM_BIN | default "{{.BUILD_DIR}}/{{.DESIGN}}.bin"}}'
   FABRIC_FILES_DIR: "{{.BUILD_DIR}}/fabric_files"
+  XSIM_DIR: '{{.XSIM_DIR | default (printf "%s/xsim" .BUILD_DIR)}}'
+  XSIM_SNAPSHOT: '{{.XSIM_SNAPSHOT | default (printf "%s_xsim" .DESIGN)}}'
 
 tasks:
   fab-sim:
@@ -123,6 +128,17 @@ tasks:
       - find {{.FAB_PROJ_ROOT}}/Fabric/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR}}/ \;
 
   run-simulation:
+    desc: Run simulation (SIMULATOR=iverilog, or xvlog for AMD Vivado xsim)
+    vars:
+      BACKEND:
+        sh: 'case "{{.SIMULATOR}}" in iverilog) echo iverilog ;; xvlog) echo xsim ;; esac'
+    preconditions:
+      - sh: 'test -n "{{.BACKEND}}"'
+        msg: "Unknown SIMULATOR '{{.SIMULATOR}}'. Use iverilog or xvlog."
+    cmds:
+      - task: run-simulation-{{.BACKEND}}
+
+  run-simulation-iverilog:
     desc: Run simulation using Icarus Verilog (iverilog)
     deps: [mkdir-build, copy-files]
     cmds:
@@ -139,6 +155,33 @@ tasks:
         +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
         +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
+
+  run-simulation-xsim:
+    desc: Run simulation using AMD Vivado xsim
+    deps: [mkdir-build, copy-files]
+    cmds:
+      - mkdir -p {{.XSIM_DIR}}
+      # Never add -sv here: analysing the fabric as Verilog-2005 is the point.
+      - >-
+        cd {{.XSIM_DIR}} &&
+        xvlog {{.EXTRA_XVLOG_FLAGS}}
+        {{.TASKFILE_DIR}}/{{.FABRIC_FILES_DIR}}/*.v
+        {{.TASKFILE_DIR}}/{{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+      - >-
+        cd {{.XSIM_DIR}} &&
+        xvlog -sv {{.EXTRA_XVLOG_FLAGS}} {{.TASKFILE_DIR}}/{{.TESTBENCH}}.v
+      # xsim rejects a design where only some modules carry a `timescale.
+      - >-
+        cd {{.XSIM_DIR}} &&
+        xelab -timescale 1ps/1ps {{.EXTRA_XELAB_FLAGS}}
+        -s {{.XSIM_SNAPSHOT}} {{.TESTBENCH}}
+      - >-
+        cd {{.XSIM_DIR}} &&
+        xsim {{.XSIM_SNAPSHOT}} -R --log {{.XSIM_SNAPSHOT}}.log
+        --testplusarg output_waveform={{.TASKFILE_DIR}}/{{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.vcd
+        --testplusarg bitstream_hex={{.TASKFILE_DIR}}/{{.BUILD_DIR}}/{{.DESIGN}}.hex
+      # xsim exits 0 even after $fatal, so without this a mismatch reads as a pass.
+      - cd {{.XSIM_DIR}} && ! grep -q '^Fatal:' {{.XSIM_SNAPSHOT}}.log
 
   gen-force-block:
     desc: Generate force_block.vh (gate-level X-init) from the hardened netlists
