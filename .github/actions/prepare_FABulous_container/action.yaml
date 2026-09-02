@@ -118,8 +118,7 @@ runs:
     - name: Install FABulous with dev dependencies
       shell: bash
       run: |
-        uv sync --dev --locked --all-extras
-        uv pip install -e .
+        uv sync --locked
     - name: Set PATH
       shell: bash
       run: |
