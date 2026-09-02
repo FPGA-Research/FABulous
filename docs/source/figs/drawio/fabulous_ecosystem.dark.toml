@@ -1,0 +1,30 @@
+# Dark-mode colours for fabulous_ecosystem.drawio, keyed by the light colour
+# each one replaces. See README.md for why these are pinned rather than left to
+# draw.io: it derives dark by inverting relative luminance, and the light
+# palette is pale enough that every category came back the same near-black.
+#
+# Fills sit at luminance 0.062 and strokes at 0.30, so the categories read at
+# one depth rather than some twice as bright as others -- equal HSL lightness
+# would not do that, blue and violet carrying far less luminance than green.
+
+# user input
+"#d5e8d4" = "#21501e"
+"#82b366" = "#38ab32"
+
+# FABulous. Pushed towards red and the external tool towards green: their light
+# colours are only thirteen degrees of hue apart, which reads as two shades of
+# brown once darkened.
+"#ffe6cc" = "#703715"
+"#d79b00" = "#de7b42"
+
+# external tool
+"#fff2cc" = "#4a4819"
+"#d6b656" = "#9c992d"
+
+# generated artifact
+"#dae8fc" = "#2a4770"
+"#6c8ebf" = "#6797d9"
+
+# silicon / hardware
+"#e1d5e7" = "#653172"
+"#9673a6" = "#c477d8"
