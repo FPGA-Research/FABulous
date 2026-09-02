@@ -13,8 +13,10 @@ from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
 from fabulous.fabric_cad.timing_model.models import (
+    BelTiming,
     TimingModelConfig,
 )
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 
 
@@ -40,6 +42,7 @@ class FABulousTimingModelInterface:
         self.config: TimingModelConfig = config
         self.fabric: Fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}
+        self.bel_timing_cache: dict[str, dict[tuple[str, str, str], BelTiming]] = {}
 
         self.timing_models: dict[str, FABulousTileTimingModel] = {}
 
@@ -102,3 +105,44 @@ class FABulousTimingModelInterface:
         delay = timing_model.pip_delay(src_pip, dst_pip)
         self.tile_delay_dict[tile_name][key] = delay
         return delay
+
+    def bel_timing(self, tile_name: str, bel: Bel) -> BelTiming:
+        """Get and cache timing arcs for one BEL in a tile type.
+
+        Fabric coordinates are intentionally excluded from the cache identity because
+        repeated placements reuse the same characterized tile macro. The BEL prefix
+        distinguishes multiple instances of the same BEL module inside that macro.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile type whose timing model contains the BEL.
+        bel : Bel
+            Fabric definition for the BEL being characterized.
+
+        Returns
+        -------
+        BelTiming
+            Timing arcs returned by the tile timing model.
+
+        Raises
+        ------
+        ValueError
+            If the timing model for `tile_name` is not available.
+        """
+        if tile_name not in self.timing_models:
+            raise ValueError(f"Timing model for tile {tile_name!r} not found.")
+
+        tile_cache = self.bel_timing_cache.setdefault(tile_name, {})
+        key = (bel.name, bel.module_name, bel.prefix)
+        if key in tile_cache:
+            logger.debug(
+                f"Using cached BEL timing for {bel.prefix}{bel.name} "
+                f"in tile {tile_name!r}"
+            )
+            return tile_cache[key]
+
+        timing_model = self.timing_models[tile_name]
+        characterized_timing = timing_model.bel_timing(bel)
+        tile_cache[key] = characterized_timing
+        return characterized_timing
