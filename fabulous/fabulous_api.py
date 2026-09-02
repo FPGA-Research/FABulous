@@ -233,7 +233,6 @@ class FABulous_API:
                 self.writer,
                 tile,
                 switch_matrix_debug_signal,
-                config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
             )
@@ -353,7 +352,6 @@ class FABulous_API:
             gen_super_tile_switch_matrix(
                 self.writer,
                 tile,
-                config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
             )
