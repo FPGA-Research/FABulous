@@ -112,8 +112,6 @@ class TimingCommandSet(ReplCommandSet):
                 project_dir=get_context().proj_dir,
                 liberty_files=Path("path/to/liberty/files: <required>"),
                 min_buf_cell_and_ports="cell_name in_port out_port: <required>",
-                synth_executable=get_context().yosys_path,
-                sta_executable=get_context().opensta_path,
                 mode=TimingModelMode(mode),
                 custom_per_tile_source_files=dict.fromkeys(
                     repl.all_tile,
