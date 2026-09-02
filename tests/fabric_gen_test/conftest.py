@@ -12,6 +12,7 @@ from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -68,6 +69,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
     fabric.name = "DefaultFabric"
+    fabric.configBitMode = ConfigBitMode.FRAME_BASED
     return fabric
 
 
@@ -162,6 +164,9 @@ def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabr
     fabric.frameBitsPerRow = config.frame_bits_per_row
     fabric.maxFramesPerCol = config.max_frames_per_col
     fabric.name = config.name
+    # Explicitly set FRAME_BASED mode so cocotb RTL generation
+    # includes FrameData/FrameStrobe
+    fabric.configBitMode = getattr(config, "config_bit_mode", ConfigBitMode.FRAME_BASED)
     return fabric
 
 

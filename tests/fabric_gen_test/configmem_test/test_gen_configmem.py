@@ -16,7 +16,7 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     build_super_tile_config_mem_csv,
-    generateConfigMem,
+    generate_config_mem,
     generateConfigMemInit,
 )
 from tests.fabric_gen_test.conftest import create_config_csv, verify_csv_content
@@ -260,23 +260,25 @@ class TestGeneratedConfigMemRTL:
         )
         if not has_capacity and tile_config.globalConfigBits > 0:
             with pytest.raises(ValueError, match="adjust the configuration."):
-                generateConfigMem(
+                generate_config_mem(
                     writer,
                     tile_config.name,
                     tile_config.globalConfigBits,
                     config_csv,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
                     max_frame_per_col=fabric_config.maxFramesPerCol,
+                    config_bit_mode=fabric_config.configBitMode,
                 )
             return
 
-        generateConfigMem(
+        generate_config_mem(
             writer,
             tile_config.name,
             tile_config.globalConfigBits,
             config_csv,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
             max_frame_per_col=fabric_config.maxFramesPerCol,
+            config_bit_mode=fabric_config.configBitMode,
         )
 
         # Verify output file was created and contains expected content
@@ -324,13 +326,14 @@ class TestGeneratedConfigMemRTL:
         mock_parse.return_value = config_memlist_data
 
         # Generate the ConfigMem RTL
-        generateConfigMem(
+        generate_config_mem(
             writer,
             default_tile.name,
             default_tile.globalConfigBits,
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,
+            config_bit_mode=default_fabric.configBitMode,
         )
 
         # Read the generated RTL
