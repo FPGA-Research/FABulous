@@ -38,30 +38,34 @@ module MULADD #(parameter integer NoConfigBits = 6) (
     // to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
-    reg  [ 7:0] A_reg           ; // port A read data register
-    reg  [ 7:0] B_reg           ; // port B read data register
-    reg  [19:0] C_reg           ; // port C read data register
+    reg  [ 7:0] A_reg_data      ; // port A read data register
+    reg  [ 7:0] B_reg_data      ; // port B read data register
+    reg  [19:0] C_reg_data      ; // port C read data register
     wire [ 7:0] OPA             ;
     wire [ 7:0] OPB             ;
     wire [19:0] OPC             ;
     reg  [19:0] ACC             ; // accumulator register
     wire [19:0] sum             ;
     wire [19:0] sum_in          ;
-    wire [15:0] product         ;
     wire [19:0] product_extended;
+    wire signed [ 8:0] OPA_extended    ;
+    wire signed [ 8:0] OPB_extended    ;
+    wire signed [17:0] product_signed  ;
 
-    assign OPA = ConfigBits[0] ? A_reg : A;
-    assign OPB = ConfigBits[1] ? B_reg : B;
-    assign OPC = ConfigBits[2] ? C_reg : C;
+    assign OPA = ConfigBits[0] ? A_reg_data : A;
+    assign OPB = ConfigBits[1] ? B_reg_data : B;
+    assign OPC = ConfigBits[2] ? C_reg_data : C;
 
     assign sum_in = ConfigBits[3] ? ACC : OPC;
 
-    assign product = OPA * OPB;
+    assign OPA_extended = ConfigBits[4] ? {OPA[7], OPA} : {1'b0, OPA};
+    assign OPB_extended = ConfigBits[4] ? {OPB[7], OPB} : {1'b0, OPB};
 
-    // NOTE: The sign extension was not tested
+    assign product_signed = OPA_extended * OPB_extended;
+
     assign product_extended = ConfigBits[4] ?
-        {product[15],product[15],product[15],product[15],product} :
-        {4'b0000,product};
+        {{2{product_signed[17]}},product_signed} :
+        {2'b00,product_signed};
 
     assign sum = product_extended + sum_in;
 
@@ -69,9 +73,9 @@ module MULADD #(parameter integer NoConfigBits = 6) (
 
     always @(posedge UserCLK)
         begin
-            A_reg <= A;
-            B_reg <= B;
-            C_reg <= C;
+            A_reg_data <= A;
+            B_reg_data <= B;
+            C_reg_data <= C;
             if (clr == 1'b1)
                 begin
                     ACC <= 20'b00000000000000000000;
