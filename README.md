@@ -34,20 +34,20 @@ FABulous is an open-source embedded FPGA (eFPGA) framework for generating FPGA f
 
 FABulous has been validated through 12+ successful tapeouts across multiple process nodes.
 
-| Process Node | Project | Description |
-| :--- | :--- | :--- |
-| TSMC 180nm | FORTE-ENG1 | eFPGA with RISC-V core and 1K DPRAM |
-| Skywater 130nm | [STRIVE](https://github.com/FPGA-Research/eFPGA---RTL-to-GDS-with-SKY130) | 1440 LUT4s + 180 LUT5s + dual-port memories |
-| Skywater 130nm | [Google MPW-2](https://github.com/nguyendao-uom/eFPGA_v3_caravel) | CLBs, DSPs, RegFiles, BBRAMs |
-| Skywater 130nm | [Google MPW-3](https://github.com/FPGA-Research/FABulous-Sky---a-heterogeneous-FPGA-fabric-in-Skywater130) | FABulous-Sky heterogeneous fabric with custom cells |
-| Skywater 130nm | [Google MPW-3](https://github.com/nguyendao-uom/fuserisc_ver2) | FuseRISC -- RISC-V with eFPGA for TensorFlow Micro |
-| Skywater 130nm | [Google MPW-4](https://github.com/nguyendao-uom/ICESOC) | ICESOC -- Ibex-Crypto-eFPGA for cryptography |
-| Skywater 130nm | [Google MPW-4](https://github.com/nguyendao-uom/rram_testchip) | ReRAM-based eFPGA |
-| Skywater 130nm | [Google MPW-5](https://github.com/nguyendao-uom/open_eFPGA) | Full open-source eFPGA with OpenLane |
-| 130nm / 28nm CMOS | JINST '24 | eFPGA for ML in particle detector readout |
-| IHP SG13G2 | [Greyhound SoC](https://github.com/mole99/greyhound-ihp) | Taped out, bring-up pending |
-| IHP SG13G2 | [MFPGA](https://github.com/EverythingElseWasAlreadyTaken/MFPGA) | eFPGA on IHP shuttle |
-| GF180MCU | [gf180mcu-fabulous-fpga](https://github.com/mole99/gf180mcu-fabulous-fpga) | eFPGA on wafer.space GF180 run |
+| Process Node | Project | Description | Demo |
+| :--- | :--- | :--- | :--- |
+| TSMC 180nm | FORTE-ENG1 | eFPGA with RISC-V core and 1K DPRAM | - |
+| Skywater 130nm | [STRIVE](https://github.com/FPGA-Research/eFPGA---RTL-to-GDS-with-SKY130) | 1440 LUT4s + 180 LUT5s + dual-port memories | - |
+| Skywater 130nm | [Google MPW-2](https://github.com/nguyendao-uom/eFPGA_v3_caravel) | CLBs, DSPs, RegFiles, BBRAMs | - |
+| Skywater 130nm | [Google MPW-3](https://github.com/FPGA-Research/FABulous-Sky---a-heterogeneous-FPGA-fabric-in-Skywater130) | FABulous-Sky heterogeneous fabric with custom cells | - |
+| Skywater 130nm | [Google MPW-3](https://github.com/nguyendao-uom/fuserisc_ver2) | FuseRISC -- RISC-V with eFPGA for TensorFlow Micro | - |
+| Skywater 130nm | [Google MPW-4](https://github.com/nguyendao-uom/ICESOC) | ICESOC -- Ibex-Crypto-eFPGA for cryptography | - |
+| Skywater 130nm | [Google MPW-4](https://github.com/nguyendao-uom/rram_testchip) | ReRAM-based eFPGA | - |
+| Skywater 130nm | [Google MPW-5](https://github.com/nguyendao-uom/open_eFPGA) | Full open-source eFPGA with OpenLane | - |
+| 130nm / 28nm CMOS | JINST '24 | eFPGA for ML in particle detector readout | - |
+| IHP SG13G2 | [Greyhound SoC](https://github.com/mole99/greyhound-ihp) | RISC-V core with tightly coupled eFPGA | - |
+| IHP SG13G2 | [MFPGA](https://github.com/EverythingElseWasAlreadyTaken/MFPGA) | eFPGA on IHP shuttle | - |
+| GF180MCU | [gf180mcu-fabulous-fpga](https://github.com/mole99/gf180mcu-fabulous-fpga) | eFPGA on wafer.space GF180 run | - |
 
 See the [Chip Gallery](https://fabulous.readthedocs.io/en/latest/gallery/index.html) for detailed descriptions and links to each tapeout.
 
