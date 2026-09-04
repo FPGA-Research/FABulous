@@ -2,16 +2,21 @@
 
 import abc
 from pathlib import Path
+from typing import ClassVar
 
 from loguru import logger
 
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, HDLType
 
 
 class CodeGenerator(abc.ABC):
     """The base class for all code generators."""
 
-    file_extension: str  # set by each concrete generator, e.g. ".v" / ".vhdl"
+    hdl_type: ClassVar[HDLType]
+    """The HDL this generator emits; flows that differ per language dispatch on it."""
+
+    file_extension: ClassVar[str]
+    """Suffix of the files this generator emits, including the dot."""
 
     @property
     def outFileName(self) -> Path:

@@ -147,7 +147,7 @@ class FABulousREPL(Cmd):
     plugin_manager : PluginManager
         Manager owning plugin discovery, registries and lifecycle hooks
     extension : str
-        File extension for HDL files ("v" for Verilog, "vhd" for VHDL)
+        File extension for HDL files without the dot, "v" or "vhdl"
     fabric_loaded : bool
         True once `load_fabric` has built the in-memory fabric model
     force : bool

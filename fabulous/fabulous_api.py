@@ -30,15 +30,12 @@ from fabulous.fabric_cad.timing_model.models import (
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import ConfigBitMode, Side
+from fabulous.fabric_definition.define import ConfigBitMode, HDLType, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     FABulousFabricVHDLMacroFlow,
@@ -72,6 +69,9 @@ from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
+if TYPE_CHECKING:
+    from fabulous.plugins.manager import PluginManager
+
 
 class FABulous_API:
     """Class for managing fabric and geometry generation.
@@ -100,13 +100,10 @@ class FABulous_API:
         Object responsible for generating geometry-related outputs.
     fabric : Fabric
         Represents the parsed fabric data.
-    fileExtension : str
-        Default file extension for generated output files ('.v' or '.vhdl').
     """
 
     geometryGenerator: GeometryGenerator
     fabric: Fabric
-    fileExtension: str
 
     def __init__(
         self,
@@ -115,7 +112,6 @@ class FABulous_API:
         fabricCSV: str = "",
     ) -> None:
         self.writer = writer
-        self.fileExtension = writer.file_extension
         self.plugin_manager = plugin_manager
         if fabricCSV != "":
             self.loadFabric(Path(fabricCSV))
@@ -134,11 +130,9 @@ class FABulous_API:
     def loadFabric(self, fabric_dir: Path) -> None:
         """Load fabric data from a file.
 
-        The file suffix selects a parser provider from the plugin manager. After
-        the fabric is built, the `fabulous_after_fabric_loaded` hook fires.
-
-        The plugin manager raises `PluginError` if no parser is registered for
-        the file's suffix.
+        The file suffix selects a parser provider from the plugin manager, which
+        raises `PluginError` when no parser claims that suffix. After the fabric
+        is built, the `fabulous_after_fabric_loaded` hook fires.
 
         Parameters
         ----------
@@ -659,17 +653,37 @@ class FABulous_API:
 
     @property
     def tile_flow_cls(self) -> type[Flow]:
-        """The tile macro flow for the project's HDL language."""
-        if isinstance(self.writer, VHDLCodeGenerator):
-            return FABulousTileVHDLMacroFlow
-        return FABulousTileVerilogMacroFlow
+        """The tile macro flow for the project's HDL language.
+
+        Raises
+        ------
+        ValueError
+            If no tile macro flow exists for the writer's HDL.
+        """
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                return FABulousTileVerilogMacroFlow
+            case HDLType.VHDL:
+                return FABulousTileVHDLMacroFlow
+            case other:
+                raise ValueError(f"No tile macro flow for {other.value}")
 
     @property
     def fabric_flow_cls(self) -> type[Flow]:
-        """The fabric stitching flow for the project's HDL language."""
-        if isinstance(self.writer, VHDLCodeGenerator):
-            return FABulousFabricVHDLMacroFlow
-        return FABulousFabricMacroFlow
+        """The fabric stitching flow for the project's HDL language.
+
+        Raises
+        ------
+        ValueError
+            If no fabric stitching flow exists for the writer's HDL.
+        """
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                return FABulousFabricMacroFlow
+            case HDLType.VHDL:
+                return FABulousFabricVHDLMacroFlow
+            case other:
+                raise ValueError(f"No fabric macro flow for {other.value}")
 
     def genTileMacro(
         self,
