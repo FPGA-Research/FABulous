@@ -1114,7 +1114,7 @@
   "tests/repl_test/test_cli.py::test_gen_fabric": 0.6427958910353482,
   "tests/repl_test/test_cli.py::test_gen_geometry": 0.3722542009782046,
   "tests/repl_test/test_cli.py::test_gen_io_pin_config": 0.3347165929735638,
-  "tests/repl_test/test_cli.py::test_gen_model_npnr": 0.4147708939271979,
+  "tests/repl_test/test_cli.py::test_gen_pnr_model": 0.4147708939271979,
   "tests/repl_test/test_cli.py::test_gen_switch_matrix": 0.3429491459974088,
   "tests/repl_test/test_cli.py::test_gen_tile": 0.35249990300508216,
   "tests/repl_test/test_cli.py::test_gen_tile_aborts_on_sub_command_failure": 0.3643183749518357,

@@ -19,10 +19,10 @@ from fabulous.fabulous_repl.command_set_base import META_DATA_DIR
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
-from fabulous.plugins.manager import PluginManager
 from tests.conftest import (
     normalize_and_check_for_errors,
     run_cmd,
+    use_core_only_plugins,
 )
 from tests.repl_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 
@@ -203,10 +203,10 @@ def test_gen_pnr_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> N
         assert (meta_data_dir / name).exists()
 
 
-def test_timing_model_writes_artifacts_and_backs_up(
+def test_timing_model_writes_artifacts(
     cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """The timed model replaces the untimed one, keeping it as a backup.
+    """The timed model replaces the untimed one in the output directory.
 
     Only the timing interface itself is stubbed; extracting real delays needs a
     post-layout GDS flow, but the CLI must still write whatever artifacts the
@@ -225,8 +225,17 @@ def test_timing_model_writes_artifacts_and_backs_up(
 
     assert cli.exit_code == 0
     assert (tmp_path / "pips.txt").read_text() == "timed"
-    assert (tmp_path / "pips.backup.txt").read_text() == "untimed"
     assert (tmp_path / "bel.txt").read_text() == "bels"
+
+
+def test_timing_model_rejects_outfile_without_template(
+    cli: FABulousREPL, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`--outfile` names the config template, so the model path must be `--outdir`."""
+    run_cmd(cli, f"timing_model --outfile {tmp_path / 'pips.txt'}")
+
+    assert cli.exit_code != 0
+    assert "--outfile only names the config template" in caplog.text
 
 
 def test_gen_pnr_model_unknown_backend(
@@ -464,9 +473,7 @@ def test_run_fab_sv_extension(
         csv_file.write_text(content)
 
     init_context(project)
-    monkeypatch.setattr(
-        PluginManager, "create", lambda *_a, **_kw: PluginManager.core_only()
-    )
+    use_core_only_plugins(monkeypatch)
     cli = FABulousREPL(
         "verilog",
         force=False,
@@ -573,9 +580,7 @@ def test_start_klayout_gui_layer_file(
     create_project(project_dir)
     init_context(project_dir)
     setup_logger(0, False)
-    monkeypatch.setattr(
-        PluginManager, "create", lambda *_a, **_kw: PluginManager.core_only()
-    )
+    use_core_only_plugins(monkeypatch)
     cli = FABulousREPL(
         "verilog", force=False, interactive=False, verbose=False, debug=True
     )

@@ -114,12 +114,9 @@ def test_install_reports_registered_plugin(mocker: MockerFixture) -> None:
     mocker.patch.object(manager_module.subprocess, "run")
     # uv adds a new entry point between the before/after snapshots.
     mocker.patch.object(
-        PluginManager,
-        "installed_plugins",
-        new_callable=mocker.PropertyMock,
-        side_effect=[set(), {"newplug"}],
+        PluginManager, "installed_plugins", side_effect=[set(), {"newplug"}]
     )
-    assert PluginManager().install("some-pkg") == (
+    assert PluginManager.install("some-pkg") == (
         True,
         "Installed. Added plugin(s): newplug.",
     )
@@ -141,3 +138,15 @@ def test_notify_fabric_loaded_invokes_hook() -> None:
     manager.notify_fabric_loaded(sentinel)
 
     assert received == [sentinel]
+
+
+def test_uninstall_reports_when_nothing_was_removed(mocker: MockerFixture) -> None:
+    """A package that owned no entry point is reported as such, not as removed."""
+    mocker.patch.object(manager_module, "find_uv_bin", return_value="/usr/bin/uv")
+    mocker.patch.object(manager_module.subprocess, "run")
+    mocker.patch.object(PluginManager, "installed_plugins", side_effect=[set(), set()])
+
+    removed, message = PluginManager.uninstall("some-pkg")
+
+    assert removed is False
+    assert "no plugin entry points disappeared" in message

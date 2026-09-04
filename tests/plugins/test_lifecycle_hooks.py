@@ -6,9 +6,9 @@ from collections.abc import Callable
 import pytest
 from cmd2 import CommandSet
 
+from fabulous.custom_exception import PluginError
 from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
-from fabulous.plugins.types import PluginError
 
 
 class _OneCommands(CommandSet):

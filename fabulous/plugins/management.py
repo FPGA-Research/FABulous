@@ -18,7 +18,7 @@ from fabulous.plugins.manager import PluginManager
 
 
 class PluginCommands(CommandSet):
-    """The shell ``plugins ...`` surface (a thin bridge to the manager)."""
+    """The shell `plugins ...` surface (a thin bridge to the manager)."""
 
     DEFAULT_CATEGORY: ClassVar[str] = "Plugins"
 

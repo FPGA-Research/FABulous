@@ -17,6 +17,9 @@ def fabulous_register_pnr_models() -> list[PnRModelProvider]:
     """
     return [
         PnRModelProvider(
-            PnRTool.NEXTPNR, generate_nextpnr_model, True, PnRTool.NEXTPNR.value
+            tool=PnRTool.NEXTPNR,
+            generate=generate_nextpnr_model,
+            supports_timing=True,
+            name=PnRTool.NEXTPNR.value,
         )
     ]
