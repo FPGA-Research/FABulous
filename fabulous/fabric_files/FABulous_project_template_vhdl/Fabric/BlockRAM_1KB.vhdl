@@ -51,20 +51,22 @@ architecture from_verilog of BlockRAM_1KB is
   signal rd_port_configuration                   : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:22
   signal wr_addr_topbits                         : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:42
   signal wr_port_configuration                   : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:23
+  -- Added for type alignment with models_pack unsigned ports
+  signal mem_dout_u : unsigned(31 downto 0);
 
   component sram_1rw1r_32_256_8_sky130 is
     port (
-      addr0  : in    std_logic_vector(7 downto 0);
-      addr1  : in    std_logic_vector(7 downto 0);
+      addr0  : in    unsigned(7 downto 0);
+      addr1  : in    unsigned(7 downto 0);
       clk0   : in    std_logic;
       clk1   : in    std_logic;
       csb0   : in    std_logic;
       csb1   : in    std_logic;
-      din0   : in    std_logic_vector(31 downto 0);
-      dout0  : out   std_logic_vector(31 downto 0);
-      dout1  : out   std_logic_vector(31 downto 0);
+      din0   : in    unsigned(31 downto 0);
+      dout0  : out   unsigned(31 downto 0);
+      dout1  : out   unsigned(31 downto 0);
       web0   : in    std_logic;
-      wmask0 : in    std_logic_vector(3 downto 0)
+      wmask0 : in    unsigned(3 downto 0)
     );
   end component sram_1rw1r_32_256_8_sky130;
 
@@ -81,17 +83,20 @@ begin
   -- Generated from instantiation at BlockRAM_1KB.v:75
   memory_cell : component sram_1rw1r_32_256_8_sky130
     port map (
-      addr0  => wr_addr,
-      addr1  => rd_addr,
+      addr0  => unsigned(wr_addr),
+      addr1  => unsigned(rd_addr),
       clk0   => clk,
       clk1   => clk,
       csb0   => memWriteEnable,
       csb1   => '0',
-      din0   => muxedDataIn,
-      dout1  => mem_dout,
+      din0   => unsigned(muxedDataIn),
+      dout1  => mem_dout_u,
       web0   => memWriteEnable,
-      wmask0 => mem_wr_mask
+      wmask0 => unsigned(mem_wr_mask)
     );
+
+  -- Convert unsigned memory output back to std_logic_vector
+  mem_dout <= std_logic_vector(mem_dout_u);
 
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
   process (alwaysWriteEnable, wr_data) is
@@ -218,45 +223,4 @@ begin
 
 end architecture from_verilog;
 
-library ieee;
-  use ieee.std_logic_1164.all;
-  use ieee.numeric_std.all;
-
--- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (BlockRAM_1KB.v:132)
---   ADDR_WIDTH = 8
---   DATA_WIDTH = 32
---   DELAY = 3
---   NUM_WMASKS = 4
---   RAM_DEPTH = 256
-
-entity sram_1rw1r_32_256_8_sky130 is
-  port (
-    addr0  : in    std_logic_vector(7 downto 0);
-    addr1  : in    std_logic_vector(7 downto 0);
-    clk0   : in    std_logic;
-    clk1   : in    std_logic;
-    csb0   : in    std_logic;
-    csb1   : in    std_logic;
-    din0   : in    std_logic_vector(31 downto 0);
-    dout0  : out   std_logic_vector(31 downto 0);
-    dout1  : out   std_logic_vector(31 downto 0);
-    web0   : in    std_logic;
-    wmask0 : in    std_logic_vector(3 downto 0)
-  );
-end entity sram_1rw1r_32_256_8_sky130;
-
--- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (BlockRAM_1KB.v:132)
---   ADDR_WIDTH = 8
---   DATA_WIDTH = 32
---   DELAY = 3
---   NUM_WMASKS = 4
---   RAM_DEPTH = 256
-
-architecture from_verilog of sram_1rw1r_32_256_8_sky130 is
-
-begin
-
-  dout0 <= (others => '0');
-  dout1 <= (others => '0');
-
-end architecture from_verilog;
+-- The sram_1rw1r_32_256_8_sky130 simulation model lives in models_pack.vhdl

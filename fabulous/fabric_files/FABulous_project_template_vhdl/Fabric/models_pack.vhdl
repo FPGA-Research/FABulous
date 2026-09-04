@@ -354,6 +354,125 @@ end architecture Behavior;
 
 library ieee;
   use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
+
+-- Sky130 SRAM 1RW1R 32x256x8 simulation model
+--   ADDR_WIDTH = 8
+--   DATA_WIDTH = 32
+--   DELAY = 3
+--   NUM_WMASKS = 4
+--   RAM_DEPTH = 256
+
+entity sram_1rw1r_32_256_8_sky130 is
+  port (
+    addr0  : in    unsigned(7 downto 0);
+    addr1  : in    unsigned(7 downto 0);
+    clk0   : in    std_logic;
+    clk1   : in    std_logic;
+    csb0   : in    std_logic;
+    csb1   : in    std_logic;
+    din0   : in    unsigned(31 downto 0);
+    dout0  : out   unsigned(31 downto 0);
+    dout1  : out   unsigned(31 downto 0);
+    web0   : in    std_logic;
+    wmask0 : in    unsigned(3 downto 0)
+  );
+end entity sram_1rw1r_32_256_8_sky130;
+
+architecture from_verilog of sram_1rw1r_32_256_8_sky130 is
+
+  type mem_type is array (255 downto 0) of unsigned(31 downto 0);
+
+  signal dout0_reg  : unsigned(31 downto 0);
+  signal dout1_reg  : unsigned(31 downto 0);
+  signal addr0_reg  : unsigned(7 downto 0);
+  signal addr1_reg  : unsigned(7 downto 0);
+  signal csb0_reg   : std_logic;
+  signal csb1_reg   : std_logic;
+  signal din0_reg   : unsigned(31 downto 0);
+  signal mem        : mem_type;
+  signal web0_reg   : std_logic;
+  signal wmask0_reg : unsigned(3 downto 0);
+
+begin
+
+  dout0 <= dout0_reg;
+  dout1 <= dout1_reg;
+
+  process (clk0) is
+  begin
+
+    if rising_edge(clk0) then
+      csb0_reg   <= csb0;
+      web0_reg   <= web0;
+      wmask0_reg <= wmask0;
+      addr0_reg  <= addr0;
+      din0_reg   <= din0;
+      dout0_reg  <= (others => 'U');
+    end if;
+
+  end process;
+
+  process (clk1) is
+  begin
+
+    if rising_edge(clk1) then
+      csb1_reg  <= csb1;
+      addr1_reg <= addr1;
+      dout1_reg <= (others => 'U');
+    end if;
+
+  end process;
+
+  mem_write0 : process (clk0) is
+  begin
+
+    if falling_edge(clk0) then
+      if (((not csb0_reg) = '1') and ((not web0_reg) = '1')) then
+        if (wmask0_reg(0) = '1') then
+          mem(0) <= resize(din0_reg(0 + 7 downto 0), 32);
+        end if;
+        if (wmask0_reg(1) = '1') then
+          mem(8) <= resize(din0_reg(8 + 7 downto 8), 32);
+        end if;
+        if (wmask0_reg(2) = '1') then
+          mem(16) <= resize(din0_reg(16 + 7 downto 16), 32);
+        end if;
+        if (wmask0_reg(3) = '1') then
+          mem(24) <= resize(din0_reg(24 + 7 downto 24), 32);
+        end if;
+      end if;
+    end if;
+
+  end process mem_write0;
+
+  mem_read0 : process (clk0) is
+  begin
+
+    if falling_edge(clk0) then
+      if (((not csb0_reg) = '1') and (web0_reg = '1')) then
+        dout0_reg <= mem(to_integer(resize(addr0_reg, 10))) after 3 ms;
+      end if;
+    end if;
+
+  end process mem_read0;
+
+  mem_read1 : process (clk1) is
+  begin
+
+    if falling_edge(clk1) then
+      if ((not csb1_reg) = '1') then
+        dout1_reg <= mem(to_integer(resize(addr1_reg, 10))) after 3 ms;
+      end if;
+    end if;
+
+  end process mem_read1;
+
+end architecture from_verilog;
+
+library ieee;
+  use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
 
 package my_package is
 
@@ -452,5 +571,21 @@ package my_package is
       X : out   std_logic
     );
   end component clk_buf;
+
+  component sram_1rw1r_32_256_8_sky130 is
+    port (
+      addr0  : in    unsigned(7 downto 0);
+      addr1  : in    unsigned(7 downto 0);
+      clk0   : in    std_logic;
+      clk1   : in    std_logic;
+      csb0   : in    std_logic;
+      csb1   : in    std_logic;
+      din0   : in    unsigned(31 downto 0);
+      dout0  : out   unsigned(31 downto 0);
+      dout1  : out   unsigned(31 downto 0);
+      web0   : in    std_logic;
+      wmask0 : in    unsigned(3 downto 0)
+    );
+  end component sram_1rw1r_32_256_8_sky130;
 
 end package my_package;
