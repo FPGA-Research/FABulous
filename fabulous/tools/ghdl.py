@@ -1,6 +1,6 @@
 """GHDL tool wrapper.
 
-GHDL elaborates a VHDL design (``--synth --out=verilog``) and writes the resulting
+GHDL elaborates a VHDL design (`--synth --out=verilog`) and writes the resulting
 Verilog netlist to stdout. This wrapper captures that output so the VHDL-to-Verilog
 conversion no longer needs a raw subprocess call in the caller. Used as a singleton
 via `GhdlTool.synthesize_to_verilog(...)`; never instantiated.
@@ -9,12 +9,20 @@ via `GhdlTool.synthesize_to_verilog(...)`; never instantiated.
 import tempfile
 from pathlib import Path
 
+from packaging.version import Version
+
 from fabulous.fabulous_settings import get_context
 from fabulous.tools.tool import Tool
 
 
 class GhdlTool(Tool):
     """Wraps the GHDL executable to elaborate VHDL into a Verilog netlist."""
+
+    MINIMUM_VERSION = Version("6.0.0")
+    VERSION_HINT = (
+        "An older GHDL drops user-defined VHDL attributes from "
+        "--synth --out=verilog, so the BelMap of a VHDL BEL comes back empty."
+    )
 
     @classmethod
     def executable(cls) -> Path | str:
@@ -37,11 +45,11 @@ class GhdlTool(Tool):
         ----------
         vhdl_file : Path
             The VHDL source file to elaborate. Its stem is used as the
-            top-level entity name passed to ``-e``.
+            top-level entity name passed to `-e`.
         models_pack : Path
             The FABulous models package GHDL needs on its analysis path.
         std : str
-            The VHDL standard passed to ``--std`` (default "08").
+            The VHDL standard passed to `--std` (default "08").
 
         Returns
         -------
