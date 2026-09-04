@@ -74,3 +74,27 @@ def test_plugins_group_honours_explicit_project_dir(
 
     assert result.exit_code == 0
     assert "demo_plug" in result.stdout
+
+
+def test_plugins_group_reads_plugin_dir_from_env_outside_a_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`FAB_PLUGIN_DIR` reaches discovery even when no project is present.
+
+    Outside a project the context is built without the settings sources, so
+    the discovery settings have to be read from the environment explicitly.
+    """
+    plugin_dir = tmp_path / "elsewhere" / "env_plug"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+    )
+    (tmp_path / "cwd").mkdir()
+    monkeypatch.chdir(tmp_path / "cwd")
+    monkeypatch.setenv("FAB_PLUGIN_DIR", str(plugin_dir.parent))
+
+    result = runner.invoke(entry.app, ["plugins", "list"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert "env_plug" in result.stdout

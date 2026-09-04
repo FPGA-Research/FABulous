@@ -20,6 +20,7 @@ from loguru import logger
 from packaging.version import Version
 from pydantic import (
     Field,
+    TypeAdapter,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -596,6 +597,28 @@ class FABulousSettings(BaseSettings):
 _context_instance: FABulousSettings | None = None
 
 
+def _discovery_settings_from_env() -> dict[str, Path | bool]:
+    """Read the plugin-discovery settings the environment sets.
+
+    `model_construct` bypasses the settings sources, so without this the
+    `plugins` group outside a project ignores `FAB_PLUGIN_DIR` and
+    `FAB_SKIP_BROKEN_PLUGINS`. Only these two are read, since every other
+    setting is validated against a project and api_mode has none.
+
+    Returns
+    -------
+    dict[str, Path | bool]
+        Keyword arguments for `FABulousSettings.model_construct`, empty when
+        neither variable is set.
+    """
+    values: dict[str, Path | bool] = {}
+    if (plugin_dir := os.environ.get("FAB_PLUGIN_DIR")) is not None:
+        values["plugin_dir"] = Path(plugin_dir)
+    if (skip_broken := os.environ.get("FAB_SKIP_BROKEN_PLUGINS")) is not None:
+        values["skip_broken_plugins"] = TypeAdapter(bool).validate_python(skip_broken)
+    return values
+
+
 def init_context(
     project_dir: Path | None = None,
     global_dot_env: Path | None = None,
@@ -635,6 +658,7 @@ def init_context(
         _context_instance = FABulousSettings.model_construct(
             proj_dir=project_dir if project_dir is not None else Path.cwd(),
             nix_shell=os.environ.get("FAB_NIX_SHELL"),
+            **_discovery_settings_from_env(),
         )
         return _context_instance
 
