@@ -10,15 +10,18 @@ half-way through a flow.
 ## The smallest plugin
 
 ```python
-from cmd2 import CommandSet, with_default_category
+from typing import ClassVar
+
+from cmd2 import CommandSet
 
 from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
 
 FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
 
-@with_default_category("Hello")
 class HelloCommands(CommandSet):
+    DEFAULT_CATEGORY: ClassVar[str] = "Hello"
+
     def do_hello(self, _statement) -> None:
         self._cmd.poutput("hello")
 

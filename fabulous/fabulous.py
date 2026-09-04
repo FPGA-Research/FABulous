@@ -329,7 +329,7 @@ def common_options(
                 _log_settings_validation_error(e, resolved_dir)
                 raise typer.Exit(1) from None
         else:
-            init_context(api_mode=True)
+            init_context(project_dir=resolved_dir, api_mode=True)
         return
 
     try:
