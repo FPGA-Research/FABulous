@@ -76,3 +76,7 @@ class ProjectUpgradeError(Exception):
 
 class UnsupportedToolVersion(Exception):
     """Exception raised when an external tool is too old to be usable."""
+
+
+class PluginError(RuntimeError):
+    """Exception raised for plugin discovery, registration and registry conflicts."""

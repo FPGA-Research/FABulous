@@ -12,6 +12,6 @@ def fabulous_register_parsers() -> list[ParserProvider]:
     Returns
     -------
     list[ParserProvider]
-        A provider for the ``.csv`` fabric parser.
+        A provider for the `.csv` fabric parser.
     """
-    return [ParserProvider(".csv", parseFabricCSV, "csv")]
+    return [ParserProvider(suffix=".csv", parse=parseFabricCSV, name="csv")]
