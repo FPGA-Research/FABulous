@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from librelane.common.misc import get_latest_file
+from librelane.common.types import Path as LibrelanePath
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
@@ -43,6 +44,7 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
@@ -95,7 +97,7 @@ def _run_tile_flow_worker(
     models_pack: Path | None,
     hdl_type: HDLType,
     design_dir: Path | None = None,
-    **custom_config_overrides: dict,
+    **custom_config_overrides: object,
 ) -> WorkerResult:
     """Worker function to run a tile flow in a separate process.
 
@@ -127,7 +129,7 @@ def _run_tile_flow_worker(
     design_dir : Path | None
         Override the flow's design directory. When `None`, the default
         `<tile>/macro/<opt_mode>` location is used.
-    **custom_config_overrides : dict
+    **custom_config_overrides : object
         Any software overrides for the flow configuration.
 
     Returns
@@ -169,7 +171,7 @@ def _run_tile_flow_worker(
         return state, None, _extract_pin_min(flow)
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricOptimisationFlow(Flow):
     """Full automatic fabric flow with LP-optimized tile dimensions.
 
@@ -325,6 +327,14 @@ class FABulousFabricOptimisationFlow(Flow):
             OptMode.FIND_MIN_WIDTH,
         ]
 
+        pdk = get_context().pdk
+        pdk_root = get_context().pdk_root
+        if pdk is None or pdk_root is None:
+            raise FlowException(
+                "A PDK and PDK root are required to harden tiles; "
+                f"got pdk={pdk!r}, pdk_root={pdk_root!r}."
+            )
+
         handlers: list[tuple[Future[WorkerResult], OptMode, Tile | SuperTile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for opt_mode, tile_type in product(
@@ -346,8 +356,8 @@ class FABulousFabricOptimisationFlow(Flow):
                     opt_mode,
                     base_config_path,
                     override_config_path,
-                    get_context().pdk,
-                    get_context().pdk_root,
+                    pdk,
+                    pdk_root,
                     get_context().models_pack,
                     get_context().proj_lang,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
@@ -401,6 +411,8 @@ class FABulousFabricOptimisationFlow(Flow):
                 return float(obj)
             return obj
 
+        if self.run_dir is None:
+            raise FlowException("Flow run directory is not set.")
         out_summary_path: Path = Path(self.run_dir) / "tile_optimisation_summary.json"
         out_summary_path.write_text(
             json.dumps(result_summary, indent=4, default=custom_serializer)
@@ -485,6 +497,14 @@ class FABulousFabricOptimisationFlow(Flow):
                 generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
 
         # Compile tiles with optimal dimensions in parallel
+        pdk = get_context().pdk
+        pdk_root = get_context().pdk_root
+        if pdk is None or pdk_root is None:
+            raise FlowException(
+                "A PDK and PDK root are required to harden tiles; "
+                f"got pdk={pdk!r}, pdk_root={pdk_root!r}."
+            )
+
         handlers: list[tuple[Future[WorkerResult], Tile | SuperTile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for tile_type in fabric.get_all_unique_tiles():
@@ -510,8 +530,8 @@ class FABulousFabricOptimisationFlow(Flow):
                     OptMode.NO_OPT,
                     base_config_path,
                     override_config_path,
-                    get_context().pdk,
-                    get_context().pdk_root,
+                    pdk,
+                    pdk_root,
                     get_context().models_pack,
                     get_context().proj_lang,
                     design_dir=optimised_design_dir,
@@ -551,7 +571,13 @@ class FABulousFabricOptimisationFlow(Flow):
         # Step 4: Create final_views symlinks for each tile so the
         # fabric stitching flow can find them at the standard path.
         for tile_name, tile_state in tile_type_states.items():
-            gds_path: Path | None = tile_state.get(DesignFormat.GDS)
+            gds_output = tile_state.get(DesignFormat.GDS)
+            if gds_output is not None and not isinstance(gds_output, LibrelanePath):
+                raise RuntimeError(
+                    f"Tile {tile_name} has a GDS output of unexpected shape: "
+                    f"{gds_output!r}"
+                )
+            gds_path = Path(str(gds_output)) if gds_output is not None else None
             if gds_path is None:
                 raise RuntimeError(
                     f"Tile {tile_name} has no GDS output after recompilation"

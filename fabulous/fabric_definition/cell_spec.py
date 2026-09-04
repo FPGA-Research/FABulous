@@ -138,11 +138,20 @@ class StdCellLibrary(BaseModel):
         -------
         object
             The list of resolved paths.
+
+        Raises
+        ------
+        TypeError
+            If the raw value is neither a path nor a list of paths.
         """
         if value is None:
             return []
         if isinstance(value, (str, Path)):
             value = [value]
+        if not isinstance(value, list):
+            raise TypeError(
+                f"Expected a path or a list of paths, got {type(value).__name__}."
+            )
 
         context = info.context or {}
         variables: dict[str, str] = context.get("variables", {})

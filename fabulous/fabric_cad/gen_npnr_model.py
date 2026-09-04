@@ -204,7 +204,7 @@ def belLines(
 
 
 def genNextpnrModel(
-    fabric: Fabric, delay_model: FABulousTimingModelInterface = None
+    fabric: Fabric, delay_model: FABulousTimingModelInterface | None = None
 ) -> tuple[str, str, str, str, str]:
     """Generate the fabric's nextpnr model.
 
@@ -212,7 +212,7 @@ def genNextpnrModel(
     ----------
     fabric : Fabric
         Fabric object containing tile information.
-    delay_model : FABulousTimingModelInterface, optional
+    delay_model : FABulousTimingModelInterface | None, optional
         Timing model interface to provide delay information, by default None.
 
     Returns
@@ -228,6 +228,8 @@ def genNextpnrModel(
     ------
     InvalidState
         If a wire in a tile points to an invalid tile outside the fabric bounds.
+    ValueError
+        If a supertile is placed where the fabric grid holds no tile.
     """
     pipStr = []
     belStr = []
@@ -313,7 +315,13 @@ def genNextpnrModel(
         ftx = base_fx + tx_local
         fty = base_fy + ty_local
 
-        bel_offset = len(fabric.tile[fty][ftx].bels)
+        master_tile = fabric.tile[fty][ftx]
+        if master_tile is None:
+            raise ValueError(
+                f"SuperTile {super_tile.name} is placed at X{ftx}Y{fty}, "
+                "but the fabric grid holds no tile there."
+            )
+        bel_offset = len(master_tile.bels)
         belStr.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         belv2Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
@@ -349,7 +357,7 @@ def genNextpnrModel(
 def writeNextpnrPipFile(
     fabric: Fabric,
     outputFile: Path,
-    delay_model: FABulousTimingModelInterface = None,
+    delay_model: FABulousTimingModelInterface | None = None,
 ) -> None:
     """Write the nextpnr pip file for the given fabric.
 
@@ -359,7 +367,7 @@ def writeNextpnrPipFile(
         Fabric object containing tile information.
     outputFile : Path
         File to write the pip information to.
-    delay_model : FABulousTimingModelInterface, optional
+    delay_model : FABulousTimingModelInterface | None, optional
         Timing model interface to provide delay information, by default None.
     """
     pip_str, *_ = genNextpnrModel(fabric, delay_model)

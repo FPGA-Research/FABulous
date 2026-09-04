@@ -200,7 +200,7 @@ class CodeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addParameter(
-        self, name: str, storageType: str, value: str, indentLevel: int = 0
+        self, name: str, storageType: str, value: int | str, indentLevel: int = 0
     ) -> None:
         """Add a parameter.
 
@@ -210,8 +210,9 @@ class CodeGenerator(abc.ABC):
             Name of the parameter.
         storageType : str
             Type of the parameter. Only useful with VHDL.
-        value : str
-            Value of the parameter.
+        value : int | str
+            Value of the parameter; a bare integer, or a sized literal such as
+            `"8'b0"` for a vector parameter.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
@@ -633,7 +634,7 @@ class CodeGenerator(abc.ABC):
     def addAssignScalar(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
         delay: int = 0,
         indentLevel: int = 0,
         inverted: bool = False,
@@ -646,8 +647,9 @@ class CodeGenerator(abc.ABC):
         ----------
         left : str
             The left hand side of the assign statement.
-        right : str
-            The right hand side of the assign statement.
+        right : str | list[str]
+            The right hand side of the assign statement; a list is
+            concatenated in the target language.
         delay : int, optional
             Delay in the assignment. Defaults to 0.
         indentLevel : int, optional

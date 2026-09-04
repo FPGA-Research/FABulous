@@ -4,10 +4,12 @@ from librelane.logging.logger import info
 from librelane.state.state import State
 from librelane.steps.odb import PortDiodePlacement
 from librelane.steps.openroad import DetailedPlacement, GlobalPlacement
-from librelane.steps.step import CompositeStep, MetricsUpdate, Step, ViewsUpdate
+from librelane.steps.step import CompositeStep, MetricsUpdate, ViewsUpdate
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
-@Step.factory.register()
+@register_step
 class FABulousDiodesOnPorts(CompositeStep):
     """Insert diodes on design ports and legalize via global + detailed placement.
 

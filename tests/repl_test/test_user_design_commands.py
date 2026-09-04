@@ -39,7 +39,9 @@ def test_synthesis_translation(
 ) -> None:
     """Legacy synthesis flags are folded into --synth-extra-args."""
     spy = mocker.patch.object(cli, "onecmd_plus_hooks")
-    cli.get_command_func("synthesis")(args)
+    func = cli.get_command_func("synthesis")
+    assert func is not None
+    func(args)
     spy.assert_called_once_with(expected)
 
 
@@ -49,5 +51,7 @@ def test_deprecated_forwarding(
 ) -> None:
     """Each deprecated stage command forwards to the matching compile mode."""
     spy = mocker.patch.object(cli, "onecmd_plus_hooks")
-    cli.get_command_func(command)(args)
+    func = cli.get_command_func(command)
+    assert func is not None
+    func(args)
     spy.assert_called_once_with(expected)

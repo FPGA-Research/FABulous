@@ -39,6 +39,13 @@ repos:
       - id: forbid-tabs
       - id: remove-tabs
 
+  # Whole-project type checking. `uv check` takes no paths and no ty flags, so
+  # scope and rule selection live in `[tool.ty]` in pyproject.toml.
+  - repo: https://github.com/astral-sh/ty-pre-commit
+    rev: v0.0.73
+    hooks:
+      - id: ty
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.15.21

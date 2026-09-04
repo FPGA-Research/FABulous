@@ -53,7 +53,7 @@ class Direction(Enum):
         """Return `True` if `self` precedes `other` in definition order."""
         if not isinstance(other, Direction):
             return NotImplemented
-        members = list(type(self))
+        members = list(Direction)
         return members.index(self) < members.index(other)
 
 

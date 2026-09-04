@@ -8,12 +8,13 @@ from librelane.logging.logger import info
 from librelane.state.state import State
 from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
-from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
+from librelane.steps.step import MetricsUpdate, ViewsUpdate
 
+from fabulous.fabric_generator.gds_generator.registry import register_step
 from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 
 
-@Step.factory.register()
+@register_step
 class AutoEcoDiodeInsertion(WhileStep):
     """Diode iterative diode insertion step."""
 

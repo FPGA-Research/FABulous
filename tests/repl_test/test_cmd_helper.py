@@ -1,23 +1,28 @@
 """Tests for the HelperCommandSet inspection commands (print_bel, print_tile)."""
 
 import pytest
+from cmd2.argparse_completer import ArgparseCompleter
 
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import normalize_and_check_for_errors, run_cmd
 from tests.repl_test.conftest import TILE
 
 
-def _complete_names(repl: FABulousREPL, command: str, dest: str) -> list[str]:
+def _complete_names(repl: FABulousREPL, command: str) -> list[str]:
     """Return the completion candidates for a CommandSet command's argument.
 
-    Pulls the completer off the built parser and calls it with the owning
-    CommandSet as ``self`` (what cmd2 passes at completion time), so the test
-    exercises the real completer wiring.
+    Drives cmd2's own `ArgparseCompleter` rather than calling the provider
+    directly, so a provider that returns the wrong shape fails here instead of
+    only at the prompt.
     """
     parser = repl.command_parsers.get(getattr(repl, f"do_{command}"))
-    action = next(a for a in parser._actions if a.dest == dest)  # noqa: SLF001
+    assert parser is not None
     cmd_set = repl.find_commandset_for_command(command)
-    return list(action.get_completer()(cmd_set))
+    line = f"{command} "
+    completions = ArgparseCompleter(parser, repl).complete(
+        "", line, len(line), len(line), [""], cmd_set=cmd_set
+    )
+    return [item.text for item in completions.items]
 
 
 def test_print_tile_logs_object(
@@ -60,14 +65,14 @@ def test_print_bel_not_found(
 
 def test_tile_completer_returns_tile_names(cli: FABulousREPL) -> None:
     """The tile completer offers tile names (strings), reaching app state via _cmd."""
-    names = _complete_names(cli, "print_tile", "tile")
+    names = _complete_names(cli, "print_tile")
     assert TILE in names
     assert all(isinstance(n, str) for n in names)
 
 
 def test_bel_completer_returns_bel_names(cli: FABulousREPL) -> None:
     """The bel completer offers bel names (strings), reaching app state via _cmd."""
-    names = _complete_names(cli, "print_bel", "bel")
+    names = _complete_names(cli, "print_bel")
     expected = {bel.name for bel in cli.fabulousAPI.getBels()}
     assert set(names) == expected
     assert all(isinstance(n, str) for n in names)

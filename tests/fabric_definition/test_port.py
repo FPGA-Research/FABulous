@@ -1,5 +1,7 @@
 """Unit tests for the Port class hierarchy introduced by the bel/port migration."""
 
+from typing import Any, cast
+
 import pytest
 
 from fabulous.fabric_definition.define import (
@@ -36,12 +38,12 @@ class TestPort:
     def test_bad_io_direction_raises(self) -> None:
         """A non-IO io_direction is rejected."""
         with pytest.raises(TypeError):
-            Port(name="A", io_direction="INPUT", width=1)
+            Port(name="A", io_direction=cast("IO", "INPUT"), width=1)
 
     def test_non_string_name_raises(self) -> None:
         """A non-string name is rejected."""
         with pytest.raises(TypeError):
-            Port(name=123, io_direction=IO.INPUT, width=1)
+            Port(name=cast("str", 123), io_direction=IO.INPUT, width=1)
 
     @pytest.mark.parametrize(
         ("io_direction", "is_input", "is_output", "is_inout"),
@@ -140,8 +142,9 @@ class TestPortClockFields:
     @pytest.mark.parametrize("field", ["is_clock", "is_global"])
     def test_non_bool_flag_raises(self, field: str) -> None:
         """A non-bool clock flag is rejected."""
+        bad_flag: dict[str, Any] = {field: "yes"}
         with pytest.raises(TypeError, match=f"{field} must be a bool"):
-            Port(name="A", io_direction=IO.INPUT, width=1, **{field: "yes"})
+            Port(name="A", io_direction=IO.INPUT, width=1, **bad_flag)
 
     def test_serialize_includes_clock_fields(self) -> None:
         """Serialization carries is_clock, is_global and net."""
@@ -283,7 +286,7 @@ class TestSlicedPort:
         """The range must be given explicitly; there is no default slice."""
         original = BelPort(name="bus", io_direction=IO.OUTPUT, width=8)
         with pytest.raises(TypeError):
-            SlicedPort(original)  # type: ignore[call-arg]
+            SlicedPort(original)  # ty: ignore[missing-argument]
 
 
 class TestSharedPort:

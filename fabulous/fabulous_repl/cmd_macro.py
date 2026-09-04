@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, cast
 
 import yaml
-from cmd2 import with_annotated
+from cmd2 import Choices, CompletionItem, with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -113,9 +113,12 @@ class MacroFlowCommandSet(ReplCommandSet):
             str,
             Argument(
                 help_text="A tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
         optimise: Annotated[

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Self
 
 from librelane.config.variable import Variable
-from librelane.flows.flow import Flow, FlowException
+from librelane.flows.flow import FlowException
 
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
@@ -14,6 +14,7 @@ from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     _build_macros,
     _collect_fabric_verilog,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
 
@@ -47,7 +48,7 @@ def _discover_tile_macros(
     return discovered
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabric(FABulousFabricMacroFlow):
     """Drop-in replacement for `librelane_plugin_fabulous.FABulousFabric`."""
 

@@ -6,6 +6,7 @@ generate the SDF file from the Verilog netlist.
 """
 
 import re
+from typing import NamedTuple
 
 import networkx as nx
 
@@ -14,6 +15,24 @@ from fabulous.fabric_cad.timing_model.models import (
     DelayType,
 )
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool
+
+
+class _Instance(NamedTuple):
+    """One module instance parsed out of a structural Verilog netlist.
+
+    Attributes
+    ----------
+    type : str
+        The cell or module type being instantiated.
+    name : str
+        The instance name.
+    conns : dict[str, str]
+        Pin name to the net it is connected to.
+    """
+
+    type: str
+    name: str
+    conns: dict[str, str]
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):
@@ -51,6 +70,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         self.delay_type_str: DelayType = delay_type_str
         self.debug: bool = debug
         self.sta_tool: StaTool = sta_tool
+        self.verilog_netlist_content: str = sta_tool.sta_netlist_file.read_text()
 
         self.sta_tool.sta_analyze()
         super().__init__(self.sta_tool.sta_sdf_file, self.delay_type_str)
@@ -114,7 +134,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         # ------------------------------------------------------------------
         # Parse modules and their instances (type + name + pin connections)
         # ------------------------------------------------------------------
-        modules = {}
+        modules: dict[str, list[_Instance]] = {}
 
         module_pattern = re.compile(
             r"\bmodule\b\s+([A-Za-z_][\w$]*)\b(.*?)\bendmodule\b", flags=re.DOTALL
@@ -158,7 +178,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         for m in module_pattern.finditer(src_clean):
             mod_name = m.group(1)
             mod_body = m.group(2)
-            instances = []
+            instances: list[_Instance] = []
 
             for im in inst_pattern.finditer(mod_body):
                 cell_type, inst_name, conn_str = im.groups()
@@ -172,15 +192,9 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     net = net.strip()
                     conns[pin] = net
 
-                instances.append(
-                    {
-                        "type": cell_type,
-                        "name": inst_name,
-                        "conns": conns,
-                    }
-                )
+                instances.append(_Instance(type=cell_type, name=inst_name, conns=conns))
 
-            modules[mod_name] = {"instances": instances}
+            modules[mod_name] = instances
 
         # ------------------------------------------------------------------
         # Parse hierarchical pin path: Top/inst1/inst2/.../pin
@@ -212,17 +226,14 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         for inst_name in inst_chain:
             prev_module = curr_module
-            inst_list = modules.get(curr_module, {}).get("instances", [])
-            last_inst = None
-            for inst in inst_list:
-                if inst["name"] == inst_name:
-                    last_inst = inst
-                    break
+            last_inst = next(
+                (i for i in modules.get(curr_module, []) if i.name == inst_name), None
+            )
             if last_inst is None:
                 raise KeyError(
                     f"Instance {inst_name!r} not found in module {curr_module!r}"
                 )
-            curr_module = last_inst["type"]
+            curr_module = last_inst.type
             hier_prefix += f"{sep}" + inst_name
 
         if last_inst is None or prev_module is None:
@@ -231,9 +242,9 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             )
 
         # last_inst is the instance whose pin we are addressing
-        if target_pin not in last_inst["conns"]:
+        if target_pin not in last_inst.conns:
             raise KeyError(
-                f"Pin {target_pin!r} not found on instance {last_inst['name']!r} "
+                f"Pin {target_pin!r} not found on instance {last_inst.name!r} "
                 f"in module {prev_module!r}"
             )
 
@@ -269,12 +280,11 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             visited.add(key)
 
             results = []
-            inst_list = modules.get(mod_name, {}).get("instances", [])
 
-            for inst in inst_list:
-                inst_type = inst["type"]
-                inst_name = inst["name"]
-                for pin, net in inst["conns"].items():
+            for inst in modules.get(mod_name, []):
+                inst_type = inst.type
+                inst_name = inst.name
+                for pin, net in inst.conns.items():
                     if net != net_name:
                         continue
 
@@ -679,21 +689,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:
@@ -927,22 +936,21 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
             # find the instance in the current module
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:

@@ -4,7 +4,8 @@ from importlib import resources
 
 from librelane.steps import pyosys as pyYosys
 from librelane.steps.pyosys import JsonHeader, PyosysStep, verilog_rtl_cfg_vars
-from librelane.steps.step import Step
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 # Reuse the exact `VHDL_FILES` / `GHDL_ARGUMENTS` Variable objects declared by
 # `Yosys.VHDLSynthesis` so the shared config keys have identical definitions across
@@ -16,7 +17,7 @@ _vhdl_synth_vars = [
 ]
 
 
-@Step.factory.register()
+@register_step
 class FABulousVHDLJsonHeader(JsonHeader):
     """Generate the JSON header for a VHDL design using GHDL.
 
