@@ -125,6 +125,10 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
         return None
 
     field_name = item.target.id
+    # A leading underscore marks a pydantic private attribute, which no `FAB_*`
+    # variable can set.
+    if field_name.startswith("_"):
+        return None
 
     # Get type annotation as string
     field_type = ast.unparse(item.annotation)

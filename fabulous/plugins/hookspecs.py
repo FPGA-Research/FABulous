@@ -42,10 +42,10 @@ def fabulous_startup() -> None:
 
 @hookspec
 def fabulous_register_commands() -> "CommandSet | list[CommandSet] | None":
-    """Return a cmd2 `CommandSet` (or list of them) to add to the shell.
+    """Contribute a cmd2 `CommandSet`, or a list of them, to the shell.
 
-    The caller registers the returned command set(s) on the current shell
-    instance; a hookimpl never needs a reference to the shell itself.
+    The shell registers whatever is returned on itself, so a hookimpl never
+    needs a reference to the shell instance.
 
     Returns
     -------
@@ -56,7 +56,7 @@ def fabulous_register_commands() -> "CommandSet | list[CommandSet] | None":
 
 @hookspec
 def fabulous_register_code_generators() -> "list[CodeGeneratorProvider]":
-    """Return `list[CodeGeneratorProvider]` keyed by `HDLType`.
+    """Contribute code generators, each claiming one `HDLType`.
 
     Returns
     -------
@@ -67,7 +67,7 @@ def fabulous_register_code_generators() -> "list[CodeGeneratorProvider]":
 
 @hookspec
 def fabulous_register_parsers() -> "list[ParserProvider]":
-    """Return `list[ParserProvider]` keyed by file suffix.
+    """Contribute fabric-file parsers, each claiming one file suffix.
 
     Returns
     -------
@@ -78,7 +78,7 @@ def fabulous_register_parsers() -> "list[ParserProvider]":
 
 @hookspec
 def fabulous_register_pnr_models() -> "list[PnRModelProvider]":
-    """Return `list[PnRModelProvider]` keyed by place-and-route tool name.
+    """Contribute place-and-route model backends, each claiming one tool name.
 
     Returns
     -------
@@ -89,7 +89,7 @@ def fabulous_register_pnr_models() -> "list[PnRModelProvider]":
 
 @hookspec
 def fabulous_after_fabric_loaded(api: "FABulous_API") -> None:
-    """Fire at the end of `loadFabric`; `api.fabric` is populated.
+    """Run after every fabric load, once `api.fabric` is populated.
 
     Parameters
     ----------
