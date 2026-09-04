@@ -6,13 +6,13 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
 from fabulous.fabulous_api import FABulous_API
 from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
-from fabulous.plugins.types import PluginError
 
 
 def _core_manager() -> PluginManager:

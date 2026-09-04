@@ -21,6 +21,10 @@ def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
         Providers for the Verilog and VHDL generators.
     """
     return [
-        CodeGeneratorProvider(HDLType.VERILOG, VerilogCodeGenerator, "verilog"),
-        CodeGeneratorProvider(HDLType.VHDL, VHDLCodeGenerator, "vhdl"),
+        CodeGeneratorProvider(
+            hdl_type=HDLType.VERILOG, factory=VerilogCodeGenerator, name="verilog"
+        ),
+        CodeGeneratorProvider(
+            hdl_type=HDLType.VHDL, factory=VHDLCodeGenerator, name="vhdl"
+        ),
     ]
