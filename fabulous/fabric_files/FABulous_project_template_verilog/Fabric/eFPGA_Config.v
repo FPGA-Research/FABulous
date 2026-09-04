@@ -4,7 +4,11 @@ module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer desync_flag = 20
+    parameter integer desync_flag = 20,
+    parameter integer bitbang_enable = 1,
+    parameter integer uart_enable = 1,
+    parameter integer spi_enable = 1,
+    parameter integer parallel_enable = 1
 ) (
     input CLK,
     input resetn,
@@ -15,6 +19,10 @@ module eFPGA_Config #(
     // BitBang configuration port
     input s_clk,
     input s_data,
+    // SPI configuration port
+    input sck,
+    input mosi,
+    input ss_n,
     // Parallel configuration port
     input [31:0] SelfWriteData,
     input SelfWriteStrobe,
@@ -39,42 +47,92 @@ module eFPGA_Config #(
     wire BitBangWriteStrobe_Mux;
     wire BitBangActive;
 
+    wire [31:0] spi_write_data;
+    wire spi_strobe;
+    wire [31:0] spi_write_data_mux;
+    wire spi_strobe_mux;
+    wire spi_active;
+
     wire fsm_reset;
 
-    config_UART INST_config_UART (
-        .CLK(CLK),
-        .reset_n(resetn),
-        .Rx(Rx),
-        .WriteData(UART_WriteData),
-        .ComActive(UART_ComActive),
-        .WriteStrobe(UART_WriteStrobe),
-        .Command(Command),
-        .ReceiveLED(UART_LED)
-    );
+    // UART
+    generate
+        if (uart_enable == 1) begin : gen_uart
+            config_UART INST_config_UART (
+                .CLK(CLK),
+                .reset_n(resetn),
+                .Rx(Rx),
+                .WriteData(UART_WriteData),
+                .ComActive(UART_ComActive),
+                .WriteStrobe(UART_WriteStrobe),
+                .Command(Command),
+                .ReceiveLED(UART_LED)
+            );
+        end else begin : gen_no_uart
+            assign UART_WriteData = 32'b0;
+            assign UART_ComActive = 1'b0;
+            assign UART_WriteStrobe = 1'b0;
+            assign Command = 8'b0;
+            assign UART_LED = 1'b0;
+        end
+    endgenerate
 
     // BitBang
-    bitbang inst_bit_bang (
-        .s_clk(s_clk),
-        .s_data(s_data),
-        .strobe(BitBangWriteStrobe),
-        .data(BitBangWriteData),
-        .active(BitBangActive),
-        .clk(CLK),
-        .reset_n(resetn)
-    );
+    generate
+        if (bitbang_enable == 1) begin : gen_bitbang
+            bitbang inst_bit_bang (
+                .s_clk(s_clk),
+                .s_data(s_data),
+                .strobe(BitBangWriteStrobe),
+                .data(BitBangWriteData),
+                .active(BitBangActive),
+                .clk(CLK),
+                .reset_n(resetn)
+            );
+        end else begin : gen_no_bitbang
+            assign BitBangWriteData = 32'b0;
+            assign BitBangWriteStrobe = 1'b0;
+            assign BitBangActive = 1'b0;
+        end
+    endgenerate
 
-    // Configuration port priority (highest to lowest): UART > BitBang > Parallel
+    generate
+        if (spi_enable == 1) begin : gen_spi
+            config_SPI INST_config_SPI (
+                .sck(sck),
+                .mosi(mosi),
+                .ss_n(ss_n),
+                .strobe(spi_strobe),
+                .data(spi_write_data),
+                .active(spi_active),
+                .clk(CLK),
+                .reset_n(resetn)
+            );
+        end else begin : gen_no_spi
+            assign spi_strobe = 1'b0;
+            assign spi_write_data = 32'b0;
+            assign spi_active = 1'b0;
+        end
+    endgenerate
 
-    assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : SelfWriteData;
-    assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : SelfWriteStrobe;
+    wire [31:0] parallel_data_gated   = (parallel_enable == 1) ? SelfWriteData : 32'b0;
+    wire        parallel_strobe_gated = (parallel_enable == 1) ? SelfWriteStrobe : 1'b0;
 
-    assign UART_WriteData_Mux = UART_ComActive ? UART_WriteData : BitBangWriteData_Mux;
-    assign UART_WriteStrobe_Mux = UART_ComActive ? UART_WriteStrobe : BitBangWriteStrobe_Mux;
+    // Configuration port priority (highest to lowest): UART > SPI > BitBang > Parallel
+
+    assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : parallel_data_gated;
+    assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : parallel_strobe_gated;
+
+    assign spi_write_data_mux = spi_active ? spi_write_data : BitBangWriteData_Mux;
+    assign spi_strobe_mux = spi_active ? spi_strobe : BitBangWriteStrobe_Mux;
+
+    assign UART_WriteData_Mux = UART_ComActive ? UART_WriteData : spi_write_data_mux;
+    assign UART_WriteStrobe_Mux = UART_ComActive ? UART_WriteStrobe : spi_strobe_mux;
 
     assign ConfigWriteData = UART_WriteData_Mux;
     assign ConfigWriteStrobe = UART_WriteStrobe_Mux;
 
-    assign fsm_reset = UART_ComActive || BitBangActive;
+    assign fsm_reset = UART_ComActive || BitBangActive || spi_active;
 
     assign ComActive = UART_ComActive;
     assign ReceiveLED = UART_LED ^ BitBangWriteStrobe;
