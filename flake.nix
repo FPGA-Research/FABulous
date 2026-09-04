@@ -157,7 +157,6 @@
             in
             platforms == [ ] || (builtins.elem system platforms);
           toolPackages = [
-            pkgs.uv
             pkgs.which
             pkgs.git
             pkgs.fish

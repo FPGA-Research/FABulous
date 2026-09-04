@@ -19,6 +19,7 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+from fabulous.plugins.manager import PluginManager
 
 
 def sjump_port(
@@ -266,10 +267,27 @@ def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return make_default_project(tmp_path, monkeypatch)
 
 
+def use_core_only_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Restrict a REPL built after this call to the built-in plugins.
+
+    Full discovery would pick up whatever plugins happen to be installed in the
+    developer's environment, so a test result would depend on the machine.
+
+    Parameters
+    ----------
+    monkeypatch : pytest.MonkeyPatch
+        The patcher whose scope the restriction lasts for.
+    """
+    monkeypatch.setattr(
+        PluginManager, "create", lambda *_a, **_kw: PluginManager.core_only()
+    )
+
+
 @pytest.fixture
-def cli(fabulous_project: Path) -> FABulousREPL:
+def cli(fabulous_project: Path, monkeypatch: pytest.MonkeyPatch) -> FABulousREPL:
     """Create a FABulous CLI instance bound to ``fabulous_project``."""
     init_context(fabulous_project)
+    use_core_only_plugins(monkeypatch)
     cli = FABulousREPL(
         "verilog",
         force=False,

@@ -64,3 +64,7 @@ class PipelineCommandError(Exception):
 
 class InvalidState(Exception):
     """Exception raised for invalid state during fabric generation."""
+
+
+class PluginError(RuntimeError):
+    """Exception raised for plugin discovery, registration, or registry conflicts."""

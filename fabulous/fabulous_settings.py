@@ -9,7 +9,7 @@ import re
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
-from typing import Self
+from typing import ClassVar, Self, cast
 
 import ciel
 import typer
@@ -20,6 +20,7 @@ from loguru import logger
 from packaging.version import Version
 from pydantic import (
     Field,
+    TypeAdapter,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -30,7 +31,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from fabulous.fabric_definition.define import HDLType
+from fabulous.custom_exception import PluginError
+from fabulous.fabric_definition.define import HDLType, PnRTool
 
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
@@ -45,6 +47,55 @@ MODELS_PACK_REQUIRED_MODULES: list[str] = [
 ]
 
 
+class PluginSettings(BaseSettings):
+    """Base class a plugin subclasses to declare its own settings.
+
+    A subclass sets `group` (its key on the settings singleton) and its own
+    `model_config` env prefix. After discovery the plugin manager instantiates
+    each subclass and stores it on the singleton, so `from_context` hands back
+    the populated, fully typed instance anywhere in the codebase, e.g.
+
+    ```py
+        class SynthSettings(PluginSettings):
+            group = "synthesis"
+            model_config = SettingsConfigDict(env_prefix="FAB_SYNTHESIS__")
+            jobs: int = 4
+    ```
+
+        SynthSettings.from_context().jobs  # typed, reads the singleton
+
+    Attributes
+    ----------
+    group : ClassVar[str]
+        Unique key identifying this plugin's settings on the singleton.
+    """
+
+    group: ClassVar[str]
+
+    @classmethod
+    def from_context(cls) -> Self:
+        """Return this plugin's settings instance from the settings singleton.
+
+        Returns
+        -------
+        Self
+            The instance stored under `cls.group`.
+
+        Raises
+        ------
+        PluginError
+            If no settings for `cls.group` were registered (the plugin is
+            not installed, or it never registered settings).
+        """
+        store = get_context().plugin_settings
+        if cls.group not in store:
+            raise PluginError(
+                f"No settings registered for group '{cls.group}'. "
+                "Ensure the plugin is installed and registers its settings."
+            )
+        return cast("Self", store[cls.group])
+
+
 class FABulousSettings(BaseSettings):
     """FABulous settings.
 
@@ -52,7 +103,9 @@ class FABulousSettings(BaseSettings):
     (including PATH updates for oss-cad-suite) can occur beforehand.
     """
 
-    model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_prefix="FAB_", case_sensitive=False, env_nested_delimiter="__"
+    )
 
     user_config_dir: Path = Field(default_factory=lambda: FAB_USER_CONFIG_DIR)
 
@@ -69,6 +122,22 @@ class FABulousSettings(BaseSettings):
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: HDLType = HDLType.VERILOG
+    pnr_backend: str = Field(
+        default=PnRTool.NEXTPNR,
+        description="Place-and-route model backend used by `gen_pnr_model` "
+        "(a built-in `PnRTool` value, or a tool name registered by a plugin).",
+    )
+    plugin_dir: Path = Field(
+        default=Path("plugins"),
+        description="Directory scanned for tier-2 sub-plugins "
+        "(relative paths resolve against the project directory).",
+    )
+    skip_broken_plugins: bool = Field(
+        default=False,
+        description="Downgrade broken optional plugins to warnings "
+        "instead of aborting.",
+    )
+    plugin_settings: dict[str, PluginSettings] = Field(default_factory=dict)
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
@@ -528,6 +597,28 @@ class FABulousSettings(BaseSettings):
 _context_instance: FABulousSettings | None = None
 
 
+def _discovery_settings_from_env() -> dict[str, Path | bool]:
+    """Read the plugin-discovery settings the environment sets.
+
+    `model_construct` bypasses the settings sources, so without this the
+    `plugins` group outside a project ignores `FAB_PLUGIN_DIR` and
+    `FAB_SKIP_BROKEN_PLUGINS`. Only these two are read, since every other
+    setting is validated against a project and api_mode has none.
+
+    Returns
+    -------
+    dict[str, Path | bool]
+        Keyword arguments for `FABulousSettings.model_construct`, empty when
+        neither variable is set.
+    """
+    values: dict[str, Path | bool] = {}
+    if (plugin_dir := os.environ.get("FAB_PLUGIN_DIR")) is not None:
+        values["plugin_dir"] = Path(plugin_dir)
+    if (skip_broken := os.environ.get("FAB_SKIP_BROKEN_PLUGINS")) is not None:
+        values["skip_broken_plugins"] = TypeAdapter(bool).validate_python(skip_broken)
+    return values
+
+
 def init_context(
     project_dir: Path | None = None,
     global_dot_env: Path | None = None,
@@ -537,7 +628,9 @@ def init_context(
     """Initialize the global FABulous context with settings.
 
     This function gathers .env files and lets the pydantic-settings system handle
-    project directory resolution.
+    project directory resolution. The constructed instance becomes the global
+    context on both paths, so a caller that discards the return value still
+    sets what `get_context` hands out.
 
     Parameters
     ----------
@@ -562,9 +655,12 @@ def init_context(
 
     if api_mode:
         logger.debug("API mode: skipping all validation")
-        return FABulousSettings.model_construct(
+        _context_instance = FABulousSettings.model_construct(
+            proj_dir=project_dir if project_dir is not None else Path.cwd(),
             nix_shell=os.environ.get("FAB_NIX_SHELL"),
+            **_discovery_settings_from_env(),
         )
+        return _context_instance
 
     # 1. User config .env file (global)
     user_config_env = FAB_USER_CONFIG_DIR / ".env"

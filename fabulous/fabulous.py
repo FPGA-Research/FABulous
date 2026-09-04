@@ -37,6 +37,7 @@ from fabulous.fabulous_settings import (
     get_context,
     init_context,
 )
+from fabulous.plugins.manager import PluginManager
 
 APP_NAME = "FABulous"
 
@@ -54,14 +55,6 @@ install_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(install_app, name="install")
-
-
-def version_callback(value: bool) -> None:
-    """Print version information and exit."""
-    if value:
-        package_version = Version(version("FABulous-FPGA"))
-        typer.echo(f"FABulous CLI {package_version.base_version}")
-        raise typer.Exit
 
 
 def validate_project_directory(value: str) -> Path | None:
@@ -94,6 +87,75 @@ WriterType = Annotated[
 ]
 
 ForceType = Annotated[bool, typer.Option("--force", help="Enable force mode")]
+
+PluginOptType = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--plugin",
+        "-m",
+        help="Load a session plugin (dotted module or directory). Repeatable.",
+    ),
+]
+
+SkipBrokenType = Annotated[
+    bool | None,
+    typer.Option(
+        "--skip-broken-plugins/--no-skip-broken-plugins",
+        help="Warn and continue when an optional plugin fails to load. "
+        "Defaults to the project's 'skip_broken_plugins' setting.",
+    ),
+]
+
+plugins_app = typer.Typer(help="Manage FABulous plugins.", no_args_is_help=True)
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.callback()
+def plugins_callback(
+    ctx: typer.Context,
+    skip_broken_plugins: SkipBrokenType = None,
+) -> None:
+    """Carry the discovery policy to whichever `plugins` subcommand runs.
+
+    Only `list` and `info` need a discovered manager, so the discovery itself
+    is left to them: a plugin that fails to import must not stop
+    `plugins uninstall` from removing it.
+    """
+    ctx.obj = skip_broken_plugins
+
+
+@plugins_app.command("list")
+def plugins_list_cmd(ctx: typer.Context) -> None:
+    """List discovered plugins."""
+    typer.echo(PluginManager.create(skip_broken=ctx.obj).get_installed_plugins_str())
+
+
+@plugins_app.command("info")
+def plugins_info_cmd(ctx: typer.Context, name: str) -> None:
+    """Show detail for a single plugin."""
+    typer.echo(PluginManager.create(skip_broken=ctx.obj).get_plugin_info_str(name))
+
+
+@plugins_app.command("install")
+def plugins_install_cmd(spec: str) -> None:
+    """Install a plugin package via uv."""
+    _, message = PluginManager.install(spec)
+    typer.echo(message)
+
+
+@plugins_app.command("uninstall")
+def plugins_uninstall_cmd(name: str) -> None:
+    """Uninstall a plugin package via uv."""
+    _, message = PluginManager.uninstall(name)
+    typer.echo(message)
+
+
+def version_callback(value: bool) -> None:
+    """Print version information and exit."""
+    if value:
+        package_version = Version(version("FABulous-FPGA"))
+        typer.echo(f"FABulous CLI {package_version.base_version}")
+        raise typer.Exit
 
 
 class NixShell(StrEnum):
@@ -153,6 +215,7 @@ def reorder_options(argv: list[str]) -> list[str]:
         return argv
 
     command_names = {c.name for c in app.registered_commands}
+    command_names |= {g.name for g in app.registered_groups}
 
     # Find first subcommand occurrence
     cmd_index = None
@@ -252,6 +315,23 @@ def common_options(
         return
 
     resolved_dir = project_dir or Path.cwd()
+    if subcommand == "plugins":
+        # `plugins install/uninstall` has to work outside a project, but inside
+        # one the project's .env decides plugin_dir and skip_broken_plugins.
+        if (resolved_dir / ".FABulous").is_dir():
+            try:
+                init_context(
+                    project_dir=resolved_dir,
+                    global_dot_env=global_dot_env,
+                    project_dot_env=project_dot_env,
+                )
+            except ValidationError as e:
+                _log_settings_validation_error(e, resolved_dir)
+                raise typer.Exit(1) from None
+        else:
+            init_context(project_dir=resolved_dir, api_mode=True)
+        return
+
     try:
         init_context(
             project_dir=resolved_dir,
@@ -507,6 +587,8 @@ def script_cmd(
         ),
     ] = ScriptType.TCL,
     force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
     """Execute a script file with auto-detection of script type.
 
@@ -522,6 +604,8 @@ def script_cmd(
         writerType=get_context().proj_lang,
         force=force,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
     # Change to project directory
 
@@ -563,7 +647,11 @@ def script_cmd(
 
 @app.command("start")
 @app.command("s", hidden=True)
-def start_cmd(force: ForceType = False) -> None:
+def start_cmd(
+    force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = None,
+) -> None:
     """Start FABulous in interactive mode. Alias: s.
 
     This is the main command for running FABulous in interactive mode or with scripts.
@@ -575,6 +663,8 @@ def start_cmd(force: ForceType = False) -> None:
         interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
     repl.onecmd_plus_hooks("load_fabric")
     repl.cmdloop()
@@ -597,6 +687,8 @@ def run_cmd(
         ),
     ] = None,
     force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
     """Run commands directly in a FABulous project.
 
@@ -608,6 +700,8 @@ def run_cmd(
         interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
 
     # Change to project directory
@@ -707,12 +801,10 @@ def main() -> None:
         if len(sys.argv) == 1:
             app()
         sys.argv = reorder_options(sys.argv)
+        known = [c.name for c in app.registered_commands]
+        known += [g.name for g in app.registered_groups]
         for i in sys.argv[1:]:
-            if (
-                i in [i.name for i in app.registered_commands]
-                or i in [g.name for g in app.registered_groups if g.name]
-                or i == "--help"
-            ):
+            if i in known or i == "--help":
                 app()
                 break
         else:

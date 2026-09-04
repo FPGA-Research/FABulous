@@ -389,6 +389,31 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     csv_path.write_text("".join(result), encoding="utf-8")
 
 
+def write_pnr_model(artifacts: dict[str, str | bytes], out_dir: Path) -> None:
+    """Write a place-and-route model's files into `out_dir`.
+
+    The backend owns the file names and the file contents, so this only
+    decides where they land and logs each one. A name may contain directories,
+    which are created under `out_dir`.
+
+    Parameters
+    ----------
+    artifacts : dict[str, str | bytes]
+        File names, relative to `out_dir`, mapped to their content.
+    out_dir : Path
+        Directory the files are written to. Created if it does not exist.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in artifacts.items():
+        path = out_dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"output file: {path}")
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
+
+
 def make_hex(binfile: Path, outfile: Path) -> None:
     """Convert a binary file into hex file.
 
