@@ -1,45 +1,44 @@
 -- This VHDL was converted from Verilog using the
--- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
+-- Icarus Verilog VHDL Code Generator 12.0 (stable) ()
 
 library ieee;
   use ieee.std_logic_1164.all;
   use ieee.numeric_std.all;
 
--- Generated from Verilog module config_UART (config_UART.v:1)
+-- Generated from Verilog module config_UART (config_UART.v:3)
 --   ComRate = 217
---   DelayAfterStartBit = 1
---   EvalCommand = 5
---   GetBit0 = 2
---   GetBit1 = 3
---   GetBit2 = 4
---   GetBit3 = 5
---   GetBit4 = 6
---   GetBit5 = 7
---   GetBit6 = 8
---   GetBit7 = 9
---   GetCommand = 4
---   GetData = 6
---   GetID_00 = 1
---   GetID_AA = 2
---   GetID_FF = 3
---   GetStopBit = 10
---   HighNibble = 1
---   Idle = 0
---   LowNibble = 0
+--   DELAY_AFTER_START_BIT = 1
+--   EVAL_COMMAND = 5
+--   GET_BIT_0 = 2
+--   GET_BIT_1 = 3
+--   GET_BIT_2 = 4
+--   GET_BIT_3 = 5
+--   GET_BIT_4 = 6
+--   GET_BIT_5 = 7
+--   GET_BIT_6 = 8
+--   GET_BIT_7 = 9
+--   GET_COMMAND = 4
+--   GET_DATA = 6
+--   GET_ID_00 = 1
+--   GET_ID_AA = 2
+--   GET_ID_FF = 3
+--   GET_STOP_BIT = 10
+--   HIGH_NIBBLE = 1
+--   IDLE = 0
+--   LOW_NIBBLE = 0
+--   MODE_AUTO = 0
+--   MODE_BIN = 2
+--   MODE_HEX = 1
 --   Mode = 0
---   TestFileChecksum = 326400
---   TimeToSendValue = 16776
---   WaitForStartBit = 0
---   Word0 = 0
---   Word1 = 1
---   Word2 = 2
---   Word3 = 3
+--   RX_TIMEOUT_VALUE = 16665
+--   TEST_FILE_CHECKSUM = 326400
+--   WAIT_FOR_START_BIT = 0
+--   WORD_0 = 0
+--   WORD_1 = 1
+--   WORD_2 = 2
+--   WORD_3 = 3
 
 entity config_UART is
-  generic (
-    ComRate : integer := 217;
-    Mode    : integer := 0
-  );
   port (
     CLK         : in    std_logic;
     ComActive   : out   std_logic;
@@ -48,39 +47,42 @@ entity config_UART is
     Rx          : in    std_logic;
     WriteData   : out   unsigned(31 downto 0);
     WriteStrobe : out   std_logic;
-    resetn      : in    std_logic
+    reset_n     : in    std_logic
   );
 end entity config_UART;
 
--- Generated from Verilog module config_UART (config_UART.v:1)
+-- Generated from Verilog module config_UART (config_UART.v:3)
 --   ComRate = 217
---   DelayAfterStartBit = 1
---   EvalCommand = 5
---   GetBit0 = 2
---   GetBit1 = 3
---   GetBit2 = 4
---   GetBit3 = 5
---   GetBit4 = 6
---   GetBit5 = 7
---   GetBit6 = 8
---   GetBit7 = 9
---   GetCommand = 4
---   GetData = 6
---   GetID_00 = 1
---   GetID_AA = 2
---   GetID_FF = 3
---   GetStopBit = 10
---   HighNibble = 1
---   Idle = 0
---   LowNibble = 0
+--   DELAY_AFTER_START_BIT = 1
+--   EVAL_COMMAND = 5
+--   GET_BIT_0 = 2
+--   GET_BIT_1 = 3
+--   GET_BIT_2 = 4
+--   GET_BIT_3 = 5
+--   GET_BIT_4 = 6
+--   GET_BIT_5 = 7
+--   GET_BIT_6 = 8
+--   GET_BIT_7 = 9
+--   GET_COMMAND = 4
+--   GET_DATA = 6
+--   GET_ID_00 = 1
+--   GET_ID_AA = 2
+--   GET_ID_FF = 3
+--   GET_STOP_BIT = 10
+--   HIGH_NIBBLE = 1
+--   IDLE = 0
+--   LOW_NIBBLE = 0
+--   MODE_AUTO = 0
+--   MODE_BIN = 2
+--   MODE_HEX = 1
 --   Mode = 0
---   TestFileChecksum = 326400
---   TimeToSendValue = 16776
---   WaitForStartBit = 0
---   Word0 = 0
---   Word1 = 1
---   Word2 = 2
---   Word3 = 3
+--   RX_TIMEOUT_VALUE = 16665
+--   TEST_FILE_CHECKSUM = 326400
+--   WAIT_FOR_START_BIT = 0
+--   WORD_0 = 0
+--   WORD_1 = 1
+--   WORD_2 = 2
+--   WORD_3 = 3
 
 architecture from_verilog of config_UART is
 
@@ -89,48 +91,44 @@ architecture from_verilog of config_UART is
   )
   return unsigned;
 
-  signal ReceiveLED_Reg    : std_logic;
-  signal WriteData_Reg     : unsigned(31 downto 0);
-  signal WriteStrobe_Reg   : std_logic;
-  signal ByteWriteStrobe   : std_logic;             -- Declared at config_UART.v:98
-  signal CRCReg            : unsigned(19 downto 0); -- Declared at config_UART.v:104
-  signal ComCount          : unsigned(11 downto 0); -- Declared at config_UART.v:63
-  signal ComState          : unsigned(3 downto 0);  -- Declared at config_UART.v:68
-  signal ComTick           : std_logic;             -- Declared at config_UART.v:64
-  signal Command_Reg       : unsigned(7 downto 0);  -- Declared at config_UART.v:78
-  signal Data_Reg          : unsigned(7 downto 0);  -- Declared at config_UART.v:79
-  signal GetWordState      : unsigned(1 downto 0);  -- Declared at config_UART.v:94
-  signal HexData           : unsigned(7 downto 0);  -- Declared at config_UART.v:60
-  signal HexValue          : unsigned(4 downto 0);  -- Declared at config_UART.v:59
-  signal HexWriteStrobe    : std_logic;             -- Declared at config_UART.v:61
-  signal HighReg           : unsigned(3 downto 0);  -- Declared at config_UART.v:58
-  signal ID_Reg            : unsigned(23 downto 0); -- Declared at config_UART.v:74
-  signal LocalWriteStrobe  : std_logic;             -- Declared at config_UART.v:96
-  signal PresentState      : unsigned(2 downto 0);  -- Declared at config_UART.v:89
-  signal ReceiveState      : std_logic;             -- Declared at config_UART.v:57
-  signal ReceivedByte      : unsigned(7 downto 0);  -- Declared at config_UART.v:81
-  signal ReceivedWord      : unsigned(7 downto 0);  -- Declared at config_UART.v:69
-  signal RxLocal           : std_logic;             -- Declared at config_UART.v:70
-  signal Start_Reg         : unsigned(31 downto 0); -- Declared at config_UART.v:75
-  signal TimeToSend        : std_logic;             -- Declared at config_UART.v:83
-  signal TimeToSendCounter : unsigned(14 downto 0); -- Declared at config_UART.v:84
-  signal tmp_ivl_10        : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_13        : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_15        : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_18        : unsigned(31 downto 0); -- Temporary created at config_UART.v:437
-  signal tmp_ivl_2         : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_21        : unsigned(28 downto 0); -- Temporary created at config_UART.v:437
-  signal tmp_ivl_22        : unsigned(31 downto 0); -- Temporary created at config_UART.v:88
-  signal tmp_ivl_24        : std_logic;             -- Temporary created at config_UART.v:437
-  signal tmp_ivl_26        : std_logic;             -- Temporary created at config_UART.v:437
-  signal tmp_ivl_28        : std_logic;             -- Temporary created at config_UART.v:437
-  signal tmp_ivl_4         : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_7         : std_logic;             -- Temporary created at config_UART.v:434
-  signal tmp_ivl_8         : std_logic;             -- Temporary created at config_UART.v:434
-  signal b_counter         : unsigned(19 downto 0); -- Declared at config_UART.v:104
-  signal blink             : unsigned(22 downto 0); -- Declared at config_UART.v:106
+  signal ReceiveLED_Reg     : std_logic;
+  signal WriteData_Reg      : unsigned(31 downto 0);
+  signal WriteStrobe_Reg    : std_logic;
+  signal tmp_ivl_10         : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_13         : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_15         : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_18         : unsigned(2 downto 0);  -- Temporary created at config_UART.v:133
+  signal tmp_ivl_2          : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_20         : std_logic;             -- Temporary created at config_UART.v:603
+  signal tmp_ivl_22         : std_logic;             -- Temporary created at config_UART.v:603
+  signal tmp_ivl_24         : std_logic;             -- Temporary created at config_UART.v:603
+  signal tmp_ivl_4          : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_7          : std_logic;             -- Temporary created at config_UART.v:601
+  signal tmp_ivl_8          : std_logic;             -- Temporary created at config_UART.v:601
+  signal blink              : unsigned(22 downto 0); -- Declared at config_UART.v:146
+  signal byte_write_strobe  : std_logic;             -- Declared at config_UART.v:142
+  signal com_count          : unsigned(11 downto 0); -- Declared at config_UART.v:97
+  signal com_state          : unsigned(3 downto 0);  -- Declared at config_UART.v:113
+  signal com_tick           : std_logic;             -- Declared at config_UART.v:98
+  signal command_reg        : unsigned(7 downto 0);  -- Declared at config_UART.v:118
+  signal crc_reg            : unsigned(19 downto 0); -- Declared at config_UART.v:144
+  signal data_reg           : unsigned(7 downto 0);  -- Declared at config_UART.v:119
+  signal get_word_state     : unsigned(1 downto 0);  -- Declared at config_UART.v:138
+  signal hex_data           : unsigned(7 downto 0);  -- Declared at config_UART.v:94
+  signal hex_value          : unsigned(4 downto 0);  -- Declared at config_UART.v:93
+  signal hex_write_strobe   : std_logic;             -- Declared at config_UART.v:95
+  signal high_reg           : unsigned(3 downto 0);  -- Declared at config_UART.v:92
+  signal id_reg             : unsigned(23 downto 0); -- Declared at config_UART.v:117
+  signal local_write_strobe : std_logic;             -- Declared at config_UART.v:140
+  signal present_state      : unsigned(2 downto 0);  -- Declared at config_UART.v:135
+  signal received_byte      : unsigned(7 downto 0);  -- Declared at config_UART.v:121
+  signal received_state     : std_logic;             -- Declared at config_UART.v:91
+  signal received_word      : unsigned(7 downto 0);  -- Declared at config_UART.v:114
+  signal rx_local           : std_logic;             -- Declared at config_UART.v:115
+  signal rx_timeout         : std_logic;             -- Declared at config_UART.v:123
+  signal rx_timeout_counter : unsigned(14 downto 0); -- Declared at config_UART.v:124
 
-  -- Generated from function ASCII2HEX at config_UART.v:23
+  -- Generated from function ASCII2HEX at config_UART.v:34
 
   function ASCII2HEX (
     ASCII : unsigned(7 downto 0)
@@ -243,224 +241,221 @@ architecture from_verilog of config_UART is
 
 begin
 
-  ReceiveLED   <= ReceiveLED_Reg;
-  WriteData    <= WriteData_Reg;
-  WriteStrobe  <= WriteStrobe_Reg;
-  Command      <= Command_Reg;
-  tmp_ivl_10   <= tmp_ivl_7 xnor tmp_ivl_8;
-  tmp_ivl_13   <= tmp_ivl_4 and tmp_ivl_10;
-  tmp_ivl_15   <= tmp_ivl_2 or tmp_ivl_13;
-  tmp_ivl_7    <= Command_Reg(7);
-  ReceivedByte <= Data_Reg when tmp_ivl_15 = '1' else
-                  HexData;
-  tmp_ivl_18   <= tmp_ivl_21 & PresentState;
-  tmp_ivl_24   <= '1' when tmp_ivl_18 = tmp_ivl_22 else
-                  '0';
-  ComActive    <= tmp_ivl_26 when tmp_ivl_24 = '1' else
-                  tmp_ivl_28;
-  tmp_ivl_2    <= '0';
-  tmp_ivl_21   <= "00000000000000000000000000000";
-  tmp_ivl_22   <= x"00000006";
-  tmp_ivl_26   <= '1';
-  tmp_ivl_28   <= '0';
-  tmp_ivl_4    <= '1';
-  tmp_ivl_8    <= '0';
+  ReceiveLED    <= ReceiveLED_Reg;
+  WriteData     <= WriteData_Reg;
+  WriteStrobe   <= WriteStrobe_Reg;
+  Command       <= command_reg;
+  tmp_ivl_10    <= tmp_ivl_7 xnor tmp_ivl_8;
+  tmp_ivl_13    <= tmp_ivl_4 and tmp_ivl_10;
+  tmp_ivl_15    <= tmp_ivl_2 or tmp_ivl_13;
+  tmp_ivl_7     <= command_reg(7);
+  received_byte <= data_reg when tmp_ivl_15 = '1' else
+                   hex_data;
+  tmp_ivl_20    <= '1' when present_state = tmp_ivl_18 else
+                   '0';
+  ComActive     <= tmp_ivl_22 when tmp_ivl_20 = '1' else
+                   tmp_ivl_24;
+  tmp_ivl_18    <= "110";
+  tmp_ivl_2     <= '0';
+  tmp_ivl_22    <= '1';
+  tmp_ivl_24    <= '0';
+  tmp_ivl_4     <= '1';
+  tmp_ivl_8     <= '0';
 
-  -- Generated from always process in L_hexmode (config_UART.v:293)
-  process (CLK, resetn) is
+  -- Generated from always process in gen_L_hexmode (config_UART.v:400)
+  process (CLK, reset_n) is
   begin
 
-    if ((not resetn) = '1') then
-      ReceiveState   <= '1';
-      HexData        <= x"00";
-      HighReg        <= x"0";
-      HexWriteStrobe <= '0';
+    if ((not reset_n) = '1') then
+      received_state   <= '1';
+      hex_data         <= x"00";
+      high_reg         <= x"0";
+      hex_write_strobe <= '0';
     elsif rising_edge(CLK) then
-      if (Resize(PresentState, 32) /= x"00000006") then
-        ReceiveState <= '1';
+      if (present_state /= "110") then
+        received_state <= '1';
       else
-        if (((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) and (HexValue(4) = '0')) then
-          if ((unsigned'("0000000000000000000000000000000") & ReceiveState) = x"00000001") then
-            ReceiveState <= '0';
+        if (((com_state = x"A") and (com_tick = '1')) and (hex_value(4) = '0')) then
+          if (received_state = '1') then
+            received_state <= '0';
           end if;
         else
-          ReceiveState <= '1';
+          received_state <= '1';
         end if;
       end if;
-      if (((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) and (HexValue(4) = '0')) then
-        if ((unsigned'("0000000000000000000000000000000") & ReceiveState) = x"00000001") then
-          HighReg        <= HexValue(0 + 3 downto 0);
-          HexWriteStrobe <= '0';
+      if (((com_state = x"A") and (com_tick = '1')) and (hex_value(4) = '0')) then
+        if (received_state = '1') then
+          high_reg         <= hex_value(0 + 3 downto 0);
+          hex_write_strobe <= '0';
         else
-          HexData        <= HighReg & HexValue(0 + 3 downto 0);
-          HexWriteStrobe <= '1';
+          hex_data         <= high_reg & hex_value(0 + 3 downto 0);
+          hex_write_strobe <= '1';
         end if;
       else
-        HexWriteStrobe <= '0';
+        hex_write_strobe <= '0';
       end if;
     end if;
 
   end process;
 
-  -- Generated from always process in config_UART (config_UART.v:108)
-  p_sync : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:148)
+  p_sync : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        RxLocal <= '1';
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        rx_local <= '1';
       else
-        RxLocal <= Rx;
+        rx_local <= Rx;
       end if;
     end if;
 
-  end process p_sync;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:116)
-  p_com_en : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:156)
+  p_com_en : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        ComCount <= x"000";
-        ComTick  <= '0';
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        com_count <= x"000";
+        com_tick  <= '0';
       else
-        if (Resize(ComState, 32) = x"00000000") then
-          ComCount <= x"06C";
-          ComTick  <= '0';
+        if (com_state = x"0") then
+          com_count <= x"06C";
+          com_tick  <= '0';
         else
-          if (Resize(ComCount, 32) = x"00000000") then
-            ComCount <= x"0D9";
-            ComTick  <= '1';
+          if (Resize(com_count, 32) = x"00000000") then
+            com_count <= x"0D9";
+            com_tick  <= '1';
           else
-            ComCount <= ComCount - x"001";
-            ComTick  <= '0';
+            com_count <= com_count - x"001";
+            com_tick  <= '0';
           end if;
         end if;
       end if;
     end if;
 
-  end process p_com_en;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:135)
-  p_com : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:183)
+  p_com : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        ComState     <= x"0";
-        ReceivedWord <= x"00";
-        ID_Reg       <= x"000000";
-        Start_Reg    <= x"00000000";
-        Command_Reg  <= x"00";
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        com_state     <= x"0";
+        received_word <= x"00";
+        id_reg        <= x"000000";
+        command_reg   <= x"00";
       else
 
-        case ComState is
+        case com_state is
 
           when X"0" =>
 
-            if (RxLocal = '0') then
-              ComState     <= x"1";
-              ReceivedWord <= x"00";
+            if (rx_local = '0') then
+              com_state     <= x"1";
+              received_word <= x"00";
             end if;
 
           when X"1" =>
 
-            if (ComTick = '1') then
-              ComState <= x"2";
+            if (com_tick = '1') then
+              com_state <= x"2";
             end if;
 
           when X"2" =>
 
-            if (ComTick = '1') then
-              ComState        <= x"3";
-              ReceivedWord(0) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"3";
+              received_word(0) <= rx_local;
             end if;
 
           when X"3" =>
 
-            if (ComTick = '1') then
-              ComState        <= x"4";
-              ReceivedWord(1) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"4";
+              received_word(1) <= rx_local;
             end if;
 
           when X"4" =>
 
-            if (ComTick = '1') then
-              ComState        <= x"5";
-              ReceivedWord(2) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"5";
+              received_word(2) <= rx_local;
             end if;
 
           when X"5" =>
 
-            if (ComTick = '1') then
-              ComState        <= x"6";
-              ReceivedWord(3) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"6";
+              received_word(3) <= rx_local;
             end if;
 
           when X"6" =>
 
-            if (ComTick = '1') then
-              ComState        <= x"7";
-              ReceivedWord(4) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"7";
+              received_word(4) <= rx_local;
             end if;
 
           when X"7" =>
 
-            if (ComTick = '1') then
-              ComState        <= "1000";
-              ReceivedWord(5) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"8";
+              received_word(5) <= rx_local;
             end if;
 
           when X"8" =>
 
-            if (ComTick = '1') then
-              ComState        <= "1001";
-              ReceivedWord(6) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"9";
+              received_word(6) <= rx_local;
             end if;
 
           when X"9" =>
 
-            if (ComTick = '1') then
-              ComState        <= "1010";
-              ReceivedWord(7) <= RxLocal;
+            if (com_tick = '1') then
+              com_state        <= x"A";
+              received_word(7) <= rx_local;
             end if;
 
           when X"a" =>
 
-            if (ComTick = '1') then
-              ComState <= x"0";
+            if (com_tick = '1') then
+              com_state <= x"0";
             end if;
 
           when others =>
 
-            null;
+            com_state <= x"0";
 
         end case;
 
-        if ((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) then
+        if ((com_state = x"A") and (com_tick = '1')) then
 
-          case PresentState is
+          case present_state is
 
             when "001" =>
 
-              ID_Reg(16 + 7 downto 16) <= ReceivedWord;
+              id_reg(16 + 7 downto 16) <= received_word;
 
             when "010" =>
 
-              ID_Reg(8 + 7 downto 8) <= ReceivedWord;
+              id_reg(8 + 7 downto 8) <= received_word;
 
             when "011" =>
 
-              ID_Reg(0 + 7 downto 0) <= ReceivedWord;
+              id_reg(0 + 7 downto 0) <= received_word;
 
             when "100" =>
 
-              Command_Reg <= ReceivedWord;
+              command_reg <= received_word;
 
             when "110" =>
 
-              Data_Reg <= ReceivedWord;
+              data_reg <= received_word;
 
             when others =>
 
@@ -472,120 +467,116 @@ begin
       end if;
     end if;
 
-  end process p_com;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:229)
-  p_fsm : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:308)
+  p_fsm : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        PresentState <= "000";
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        present_state <= "000";
       else
 
-        case PresentState is
+        case present_state is
 
           when "000" =>
 
-            if ((Resize(ComState, 32) = x"00000000") and (RxLocal = '0')) then
-              PresentState <= "001";
+            if ((com_state = x"0") and (rx_local = '0')) then
+              present_state <= "001";
             end if;
 
           when "001" =>
 
-            if (TimeToSend = '1') then
-              PresentState <= "000";
+            if (rx_timeout = '1') then
+              present_state <= "000";
             else
-              if ((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) then
-                PresentState <= "010";
+              if ((com_state = x"A") and (com_tick = '1')) then
+                present_state <= "010";
               end if;
             end if;
 
           when "010" =>
 
-            if (TimeToSend = '1') then
-              PresentState <= "000";
+            if (rx_timeout = '1') then
+              present_state <= "000";
             else
-              if ((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) then
-                PresentState <= "011";
+              if ((com_state = x"A") and (com_tick = '1')) then
+                present_state <= "011";
               end if;
             end if;
 
           when "011" =>
 
-            if (TimeToSend = '1') then
-              PresentState <= "000";
+            if (rx_timeout = '1') then
+              present_state <= "000";
             else
-              if ((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) then
-                PresentState <= "100";
+              if ((com_state = x"A") and (com_tick = '1')) then
+                present_state <= "100";
               end if;
             end if;
 
           when "100" =>
 
-            if (TimeToSend = '1') then
-              PresentState <= "000";
+            if (rx_timeout = '1') then
+              present_state <= "000";
             else
-              if ((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) then
-                PresentState <= "101";
+              if ((com_state = x"A") and (com_tick = '1')) then
+                present_state <= "101";
               end if;
             end if;
 
           when "101" =>
 
-            if ((ID_Reg = x"00AAFF") and ((Command_Reg(0 + 6 downto 0) = "0000001") or (Command_Reg(0 + 6 downto 0) = "0000010"))) then
-              PresentState <= "110";
+            if ((id_reg = x"00AAFF") and ((command_reg(0 + 6 downto 0) = "0000001") or (command_reg(0 + 6 downto 0) = "0000010"))) then
+              present_state <= "110";
             else
-              PresentState <= "000";
+              present_state <= "000";
             end if;
 
           when "110" =>
 
-            if (TimeToSend = '1') then
-              PresentState <= "000";
+            if (rx_timeout = '1') then
+              present_state <= "000";
             end if;
 
           when others =>
 
-            null;
+            present_state <= "000";
 
         end case;
 
       end if;
     end if;
 
-  end process p_fsm;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:326)
-  p_checksum : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:447)
+  p_checksum : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        CRCReg    <= x"4FB00";
-        b_counter <= x"4FB00";
-        blink     <= "00000000000000000000000";
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        crc_reg <= x"4FB00";
+        blink   <= "00000000000000000000000";
       else
-        if (Resize(PresentState, 32) = x"00000004") then
-          CRCReg    <= x"00000";
-          b_counter <= x"00000";
+        if (present_state = "100") then
+          crc_reg <= x"00000";
         else
-          if (False or (True and (Command_Reg(7) = '1'))) then
-            if (((((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) and (HexValue(4) = '0')) and (Resize(PresentState, 32) = x"00000006")) and ((unsigned'("0000000000000000000000000000000") & ReceiveState) = x"00000000")) then
-              CRCReg    <= CRCReg + Resize((HighReg & HexValue(0 + 3 downto 0)), 20);
-              b_counter <= b_counter + x"00001";
+          if (False or (True and (command_reg(7) = '1'))) then
+            if (((((com_state = x"A") and (com_tick = '1')) and (hex_value(4) = '0')) and (present_state = "110")) and (received_state = '0')) then
+              crc_reg <= crc_reg + (x"000" & high_reg & hex_value(0 + 3 downto 0));
             end if;
           else
-            if (((Resize(ComState, 32) = x"0000000A") and (ComTick = '1')) and (Resize(PresentState, 32) = x"00000006")) then
-              CRCReg    <= CRCReg + Resize(ReceivedWord, 20);
-              b_counter <= b_counter + x"00001";
+            if (((com_state = x"A") and (com_tick = '1')) and (present_state = "110")) then
+              crc_reg <= crc_reg + (x"000" & received_word);
             end if;
           end if;
         end if;
-        if (Resize(PresentState, 32) = x"00000006") then
+        if (present_state = "110") then
           ReceiveLED_Reg <= '1';
         else
-          if ((Resize(PresentState, 32) = x"00000000") and (CRCReg /= x"4FB00")) then
+          if ((present_state = "000") and (crc_reg /= x"4FB00")) then
             ReceiveLED_Reg <= blink(22);
           else
             ReceiveLED_Reg <= '0';
@@ -595,89 +586,89 @@ begin
       end if;
     end if;
 
-  end process p_checksum;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:362)
-  p_bus : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:497)
+  p_bus : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        LocalWriteStrobe <= '0';
-        ByteWriteStrobe  <= '0';
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        local_write_strobe <= '0';
+        byte_write_strobe  <= '0';
       else
-        if (Resize(PresentState, 32) = x"00000005") then
-          LocalWriteStrobe <= '0';
+        if (present_state = "101") then
+          local_write_strobe <= '0';
         else
-          if (((Resize(PresentState, 32) = x"00000006") and (Resize(ComState, 32) = x"0000000A")) and (ComTick = '1')) then
-            LocalWriteStrobe <= '1';
+          if (((present_state = "110") and (com_state = x"A")) and (com_tick = '1')) then
+            local_write_strobe <= '1';
           else
-            LocalWriteStrobe <= '0';
+            local_write_strobe <= '0';
           end if;
         end if;
-        if (False or (True and (Command_Reg(7) = '0'))) then
-          ByteWriteStrobe <= LocalWriteStrobe;
+        if (False or (True and (command_reg(7) = '0'))) then
+          byte_write_strobe <= local_write_strobe;
         else
-          ByteWriteStrobe <= HexWriteStrobe;
+          byte_write_strobe <= hex_write_strobe;
         end if;
       end if;
     end if;
 
-  end process p_bus;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:386)
-  p_wordmode : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:533)
+  p_wordmode : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        GetWordState    <= "00";
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        get_word_state  <= "00";
         WriteData_Reg   <= x"00000000";
         WriteStrobe_Reg <= '0';
       else
-        if (Resize(PresentState, 32) = x"00000005") then
-          GetWordState  <= "00";
-          WriteData_Reg <= x"00000000";
+        if (present_state = "101") then
+          get_word_state <= "00";
+          WriteData_Reg  <= x"00000000";
         else
 
-          case GetWordState is
+          case get_word_state is
 
             when "00" =>
 
-              if (ByteWriteStrobe = '1') then
-                WriteData_Reg(24 + 7 downto 24) <= ReceivedByte;
-                GetWordState                    <= "01";
+              if (byte_write_strobe = '1') then
+                WriteData_Reg(24 + 7 downto 24) <= received_byte;
+                get_word_state                  <= "01";
               end if;
 
             when "01" =>
 
-              if (ByteWriteStrobe = '1') then
-                WriteData_Reg(16 + 7 downto 16) <= ReceivedByte;
-                GetWordState                    <= "10";
+              if (byte_write_strobe = '1') then
+                WriteData_Reg(16 + 7 downto 16) <= received_byte;
+                get_word_state                  <= "10";
               end if;
 
             when "10" =>
 
-              if (ByteWriteStrobe = '1') then
-                WriteData_Reg(8 + 7 downto 8) <= ReceivedByte;
-                GetWordState                  <= "11";
+              if (byte_write_strobe = '1') then
+                WriteData_Reg(8 + 7 downto 8) <= received_byte;
+                get_word_state                <= "11";
               end if;
 
             when "11" =>
 
-              if (ByteWriteStrobe = '1') then
-                WriteData_Reg(0 + 7 downto 0) <= ReceivedByte;
-                GetWordState                  <= "00";
+              if (byte_write_strobe = '1') then
+                WriteData_Reg(0 + 7 downto 0) <= received_byte;
+                get_word_state                <= "00";
               end if;
 
             when others =>
 
-              null;
+              get_word_state <= "00";
 
           end case;
 
         end if;
-        if ((ByteWriteStrobe = '1') and (Resize(GetWordState, 32) = x"00000003")) then
+        if ((byte_write_strobe = '1') and (get_word_state = "11")) then
           WriteStrobe_Reg <= '1';
         else
           WriteStrobe_Reg <= '0';
@@ -685,32 +676,31 @@ begin
       end if;
     end if;
 
-  end process p_wordmode;
+  end process;
 
-  -- Generated from always process in config_UART (config_UART.v:439)
-  p_timeout : process (resetn, CLK) is
+  -- Generated from always process in config_UART (config_UART.v:605)
+  p_timeout : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        TimeToSendCounter <= "100000110001000";
-        TimeToSendCounter <= "000000000000000";
+    if (falling_edge(reset_n) or rising_edge(CLK)) then
+      if ((not reset_n) = '1') then
+        rx_timeout_counter <= "100000100011001";
+        rx_timeout         <= '0';
       else
-        if ((Resize(PresentState, 32) = x"00000000") or (Resize(ComState, 32) = x"0000000A")) then
-          TimeToSendCounter <= "100000110001000";
-          TimeToSend        <= '0';
+        if ((present_state = "000") or (com_state = x"A")) then
+          rx_timeout_counter <= "100000100011001";
+          rx_timeout         <= '0';
         else
-          if (Resize(TimeToSendCounter, 32) > x"00000000") then
-            TimeToSendCounter <= TimeToSendCounter - "000000000000001";
-            TimeToSend        <= '0';
+          if (Resize(rx_timeout_counter, 32) > x"00000000") then
+            rx_timeout_counter <= rx_timeout_counter - "000000000000001";
+            rx_timeout         <= '0';
           else
-            TimeToSendCounter <= TimeToSendCounter;
-            TimeToSend        <= '1';
+            rx_timeout <= '1';
           end if;
         end if;
       end if;
     end if;
 
-  end process p_timeout;
+  end process;
 
 end architecture from_verilog;
