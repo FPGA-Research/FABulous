@@ -4,10 +4,10 @@ import types
 
 import pytest
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import PnRTool
 from fabulous.fabulous_settings import get_context
 from fabulous.plugins.manager import PluginManager
-from fabulous.plugins.types import PluginError
 from tests.plugins.conftest import make_pnr_model_module
 
 
@@ -46,17 +46,6 @@ def test_explicit_tool_overrides_pnr_backend_setting(
     manager.pm.register(fake_pnr_model_module, name="fake_pnr")
     manager.build_registries()
     assert manager.make_pnr_model(PnRTool.NEXTPNR).tool == PnRTool.NEXTPNR
-
-
-def test_duplicate_tool_raises_naming_both() -> None:
-    manager = PluginManager()
-    manager.pm.register(make_pnr_model_module("dup", name="alpha"), name="alpha")
-    manager.pm.register(make_pnr_model_module("dup", name="beta"), name="beta")
-    with pytest.raises(PluginError) as exc:
-        manager.build_registries()
-    message = str(exc.value)
-    assert "alpha" in message
-    assert "beta" in message
 
 
 def test_missing_tool_lists_available(

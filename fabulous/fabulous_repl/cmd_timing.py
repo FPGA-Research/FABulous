@@ -10,6 +10,7 @@ from cmd2 import with_annotated
 from cmd2.annotated import Option
 from loguru import logger
 
+from fabulous.custom_exception import CommandError
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
@@ -52,7 +53,8 @@ class TimingCommandSet(ReplCommandSet):
             Path | None,
             Option(
                 "--outfile",
-                help_text="Output file for the generated config template.",
+                help_text="Output file for the config template. Only meaningful "
+                "with --emit-config-template; use --outdir to place the model.",
             ),
         ] = None,
         backend: Annotated[
@@ -88,8 +90,9 @@ class TimingCommandSet(ReplCommandSet):
         Timing information is extracted from the GDS layout and used to create a timing
         model for timing-aware place and route. This command regenerates the selected
         backend's place-and-route model with real delays, based on the specified mode
-        (physical or structural), and writes it to the .FABulous directory. The untimed
-        model it overwrites is backed up alongside it. If no config file is provided,
+        (physical or structural), and writes it to `--outdir` (`.FABulous` by
+        default), replacing the untimed model already there. If no config file is
+        provided,
         the automated flow must be run first to generate post-layout files. If a config
         file is provided, it will be used for timing model generation instead of command
         arguments. This allows for more complex configurations like different PDK
@@ -99,6 +102,16 @@ class TimingCommandSet(ReplCommandSet):
         repl = self._cmd
         manual_config: TimingModelConfig | None = None
         resolved_outdir: Path = outdir or get_context().proj_dir / META_DATA_DIR
+
+        # --outfile used to name the timed pip file; it now names the config
+        # template, so silently ignoring it would write the model somewhere the
+        # caller did not ask for.
+        if outfile is not None and not emit_config_template:
+            raise CommandError(
+                "--outfile only names the config template emitted by "
+                "--emit-config-template. Pass --outdir to choose where the "
+                "timed place-and-route model is written."
+            )
 
         # If a config file is provided, use it to generate the timing model
         # instead of command arguments This allows for more complex configurations
@@ -153,7 +166,7 @@ class TimingCommandSet(ReplCommandSet):
             manual_config=manual_config,
             tool=backend,
         )
-        write_pnr_model(artifacts, resolved_outdir, backup_existing=True)
+        write_pnr_model(artifacts, resolved_outdir)
 
         resolved_path: Path = (
             get_context().proj_dir / META_DATA_DIR / "timing_model_config_resolved.json"

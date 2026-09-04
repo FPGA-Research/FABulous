@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
@@ -32,37 +33,44 @@ def test_plugins_install_runs(mocker: MockerFixture) -> None:
     install.assert_called_once_with("some-pkg")
 
 
-def test_plugins_group_skips_project_validation(mocker: MockerFixture) -> None:
+def test_plugins_group_skips_project_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The `plugins` group runs without a scaffolded FABulous project.
 
-    It still initialises the context (so an explicit `--project-dir` reaches
-    plugin discovery), but in `api_mode`, which skips the `.FABulous`
-    validation that a real project directory would otherwise require.
+    Outside a project there is no `.FABulous` to validate against, so the
+    context is built in `api_mode` and the group still lists its built-ins.
     """
-    init = mocker.patch.object(entry, "init_context")
-    mocker.patch.object(
-        entry.PluginManager, "get_installed_plugins_str", return_value="LISTING"
-    )
+    monkeypatch.chdir(tmp_path)
 
-    result = runner.invoke(entry.app, ["plugins", "list"])
+    result = runner.invoke(entry.app, ["plugins", "list"], catch_exceptions=False)
 
     assert result.exit_code == 0
-    init.assert_called_once_with(project_dir=None, api_mode=True)
+    assert "fabulous.fabric_generator.parser.plugin" in result.stdout
 
 
 def test_plugins_group_honours_explicit_project_dir(
-    tmp_path: Path, mocker: MockerFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--project-dir` must reach plugin discovery, not be silently dropped."""
+    """`--project-dir` must reach discovery, not be silently dropped.
+
+    The project holds a tier-2 sub-plugin, which only appears in the listing
+    if discovery ran against the passed directory rather than the cwd.
+    """
     (tmp_path / ".FABulous").mkdir()
-    init = mocker.patch.object(entry, "init_context")
-    mocker.patch.object(
-        entry.PluginManager, "get_installed_plugins_str", return_value="LISTING"
+    plugin_dir = tmp_path / "plugins" / "demo_plug"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
     )
+    monkeypatch.chdir(tmp_path.parent)
 
     result = runner.invoke(
-        entry.app, ["--project-dir", str(tmp_path), "plugins", "list"]
+        entry.app,
+        ["--project-dir", str(tmp_path), "plugins", "list"],
+        catch_exceptions=False,
     )
 
     assert result.exit_code == 0
-    init.assert_called_once_with(project_dir=tmp_path.resolve(), api_mode=True)
+    assert "demo_plug" in result.stdout

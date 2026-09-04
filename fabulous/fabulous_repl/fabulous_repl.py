@@ -42,7 +42,7 @@ from cmd2 import (
 from cmd2.annotated import Argument
 from loguru import logger
 
-from fabulous.custom_exception import CommandError
+from fabulous.custom_exception import CommandError, PluginError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl.cmd_fabric_gen import FabricGenCommandSet
@@ -126,9 +126,9 @@ class FABulousREPL(Cmd):
     extra_plugins : list[str] | None
         Tier-4 session plugin names to load in addition to discovery, by
         default None
-    skip_broken_plugins : bool
-        If True, skip plugins that fail to load instead of raising, by
-        default False
+    skip_broken_plugins : bool | None
+        If True, skip plugins that fail to load instead of raising. Defaults
+        to None, which uses the project's `skip_broken_plugins` setting.
 
     Attributes
     ----------
@@ -187,7 +187,7 @@ class FABulousREPL(Cmd):
         debug: bool = False,
         max_job: int = 4,
         extra_plugins: list[str] | None = None,
-        skip_broken_plugins: bool = False,
+        skip_broken_plugins: bool | None = None,
     ) -> None:
         self.plugin_manager = PluginManager.create(
             extra_plugins=extra_plugins or (), skip_broken=skip_broken_plugins
@@ -224,13 +224,10 @@ class FABulousREPL(Cmd):
 
         try:
             hdl_type = HDLType(writerType)
-        except ValueError:
-            valid = ", ".join(h.value for h in HDLType)
-            logger.critical(
-                f"Invalid writer type: {writerType!r}. Valid options are: {valid}"
-            )
+            writer = self.plugin_manager.make_writer(hdl_type)
+        except (ValueError, PluginError) as exc:
+            logger.critical(f"Cannot build a code generator for {writerType!r}: {exc}")
             sys.exit(1)
-        writer = self.plugin_manager.make_writer(hdl_type)
         self.fabulousAPI = FABulous_API(writer, plugin_manager=self.plugin_manager)
 
         self.projectDir = get_context().proj_dir
@@ -277,9 +274,15 @@ class FABulousREPL(Cmd):
         )
         categorize(self.do_run_pyscript, CMD_SCRIPT)
 
+        self.register_command_set(PluginCommands())
+        for command_set in self.plugin_manager.collect_command_sets():
+            self.register_command_set(command_set)
+
         self.tcl = tk.Tcl()
         # get_all_commands() includes commands provided by CommandSets, which are
-        # bound to the instance (not the class), so iterating the class would miss them.
+        # bound to the instance (not the class), so iterating the class would miss
+        # them. Plugin sets are registered above, so their commands reach Tcl too,
+        # and this has to precede disable_category, which unbinds what it disables.
         for command in self.get_all_commands():
             func = getattr(self, f"do_{command}")
             self.tcl.createcommand(command, wrap_with_except_handling(func))
@@ -297,10 +300,6 @@ class FABulousREPL(Cmd):
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
-
-        self.register_command_set(PluginCommands())
-        for command_set in self.plugin_manager.collect_command_sets():
-            self.register_command_set(command_set)
 
     def onecmd(
         self, statement: Statement | str, *, add_to_history: bool = True

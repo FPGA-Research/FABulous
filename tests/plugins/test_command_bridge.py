@@ -38,10 +38,14 @@ def test_plugin_command_registered(project: Path, mocker: MockerFixture) -> None
 
     cli = FABulousREPL("verilog", interactive=False)
     assert "demo_ping" in cli.get_all_commands()
+    # Tcl scripts see the same command table, so the bridge has to be built
+    # after every CommandSet is registered.
+    assert cli.tcl.eval("info commands demo_ping") == "demo_ping"
+    assert cli.tcl.eval("info commands plugins") == "plugins"
 
 
 def _plugins_cli(project: Path, mocker: MockerFixture) -> FABulousREPL:
-    """A non-interactive shell with the built-in ``plugins`` command set."""
+    """A non-interactive shell with the built-in `plugins` command set."""
     init_context(project)
     manager = PluginManager.core_only()
     mocker.patch.object(PluginManager, "create", return_value=manager)

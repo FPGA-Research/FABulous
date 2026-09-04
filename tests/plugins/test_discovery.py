@@ -1,16 +1,17 @@
 """Discovery tiers: core, dir-scan, entry points, session, broken."""
 
+import sys
 import types
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.plugins import PLUGIN_API_VERSION
 from fabulous.plugins import manager as manager_module
 from fabulous.plugins.manager import BuiltinPlugin, PluginManager
-from fabulous.plugins.types import PluginError
 
 PLUGIN_SRC = """
 from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
@@ -21,7 +22,7 @@ FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
 @hookimpl
 def fabulous_register_parsers():
-    return [ParserProvider("{suffix}", lambda path: path, "{name}")]
+    return [ParserProvider(suffix="{suffix}", parse=lambda path: path, name="{name}")]
 """
 
 
@@ -72,7 +73,7 @@ def test_entrypoint_discovery(tmp_path: Path, mocker: MockerFixture) -> None:
 
     @hookimpl
     def fabulous_register_parsers() -> list[ParserProvider]:
-        return [ParserProvider(".ep", lambda path: path, "ep")]
+        return [ParserProvider(suffix=".ep", parse=lambda path: path, name="ep")]
 
     ep_module.fabulous_register_parsers = fabulous_register_parsers
     ep_module.FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
@@ -141,3 +142,140 @@ def test_incompatible_api_skipped_when_lenient(
     _patch_context(mocker, tmp_path, skip_broken=True)
     manager = PluginManager.create()
     assert manager.pm.get_plugin("oldplug") is None
+
+
+def test_package_plugin_resolves_relative_import(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A multi-file plugin package may import its own submodules.
+
+    Executing the module without a `sys.modules` entry leaves the relative
+    import with no parent package to resolve against.
+    """
+    pkg = tmp_path / "multi"
+    pkg.mkdir()
+    (pkg / "provider.py").write_text(PLUGIN_SRC.format(suffix=".m", name="multi"))
+    (pkg / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION\n"
+        "from .provider import fabulous_register_parsers\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+    )
+    _patch_context(mocker, tmp_path)
+
+    manager = PluginManager.create()
+
+    assert manager.make_parser(Path("fabric.m")) is not None
+
+
+def test_failed_load_leaves_no_sys_modules_entry(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A half-executed plugin must not shadow a real module of the same name."""
+    pkg = tmp_path / "halfdead"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("raise ImportError('boom')")
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    PluginManager.create()
+
+    assert "halfdead" not in sys.modules
+
+
+def test_broken_hook_keeps_builtin_providers(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Skipping a broken plugin must not take the built-in generators with it.
+
+    The hooks aggregate across plugins, so a single raising implementation
+    would otherwise empty the whole registry it contributes to.
+    """
+    pkg = tmp_path / "raiser"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION, hookimpl\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+        "@hookimpl\n"
+        "def fabulous_register_code_generators():\n"
+        "    raise RuntimeError('boom')\n"
+    )
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    manager = PluginManager.create()
+
+    assert manager.make_writer(HDLType.VERILOG).file_extension == ".v"
+    assert manager.pm.get_plugin("raiser") is None
+
+
+def test_broken_hook_strict_names_the_plugin(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Without `skip_broken`, a raising hook aborts and says which plugin raised."""
+    pkg = tmp_path / "raiser"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION, hookimpl\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+        "@hookimpl\n"
+        "def fabulous_register_code_generators():\n"
+        "    raise RuntimeError('boom')\n"
+    )
+    _patch_context(mocker, tmp_path, skip_broken=False)
+
+    with pytest.raises(PluginError) as exc:
+        PluginManager.create()
+
+    assert "raiser" in str(exc.value)
+
+
+def test_skip_broken_defaults_to_the_setting(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """`create(skip_broken=None)` reads `skip_broken_plugins` off the context."""
+    pkg = tmp_path / "broke"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("raise ImportError('boom')")
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    manager = PluginManager.create(skip_broken=None)
+
+    assert manager.pm.get_plugin("broke") is None
+
+
+TYPO_HOOK_SRC = """
+from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
+
+FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
+
+
+@hookimpl
+def fabulous_register_code_generator():
+    return []
+"""
+
+
+def test_unknown_hook_name_aborts(tmp_path: Path, mocker: MockerFixture) -> None:
+    """A misspelled hook name is a load failure, not a silently inert plugin."""
+    pkg = tmp_path / "typoplug"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(TYPO_HOOK_SRC)
+    _patch_context(mocker, tmp_path, skip_broken=False)
+
+    with pytest.raises(PluginError) as exc:
+        PluginManager.create()
+
+    assert "typoplug" in str(exc.value)
+
+
+def test_unknown_hook_name_skipped_when_lenient(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """`skip_broken` covers a misspelled hook like any other load failure."""
+    pkg = tmp_path / "typoplug"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(TYPO_HOOK_SRC)
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    manager = PluginManager.create()
+
+    assert manager.pm.get_plugin("typoplug") is None
+    assert manager.make_writer(HDLType.VERILOG).file_extension == ".v"

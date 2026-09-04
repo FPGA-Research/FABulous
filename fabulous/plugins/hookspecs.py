@@ -1,17 +1,25 @@
-"""Hook specifications for the FABulous plugin system."""
+"""Hook specifications for the FABulous plugin system.
 
-from typing import Protocol
+Pluggy binds hook arguments by name and never evaluates annotations, so every
+type named below is imported for type checking only. That keeps
+`from fabulous.plugins import hookimpl` cheap for a plugin author, who would
+otherwise pay for the whole generator stack to reach a marker.
+"""
+
+from typing import TYPE_CHECKING
 
 import pluggy
-from cmd2 import CommandSet
 
-from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_settings import PluginSettings
-from fabulous.plugins.types import (
-    CodeGeneratorProvider,
-    ParserProvider,
-    PnRModelProvider,
-)
+if TYPE_CHECKING:
+    from cmd2 import CommandSet
+
+    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabulous_settings import PluginSettings
+    from fabulous.plugins.types import (
+        CodeGeneratorProvider,
+        ParserProvider,
+        PnRModelProvider,
+    )
 
 hookspec = pluggy.HookspecMarker("fabulous")
 hookimpl = pluggy.HookimplMarker("fabulous")
@@ -34,7 +42,7 @@ def fabulous_startup() -> None:
 
 
 @hookspec
-def fabulous_register_commands() -> CommandSet | list[CommandSet] | None:
+def fabulous_register_commands() -> "CommandSet | list[CommandSet] | None":
     """Return a cmd2 `CommandSet` (or list of them) to add to the shell.
 
     The caller registers the returned command set(s) on the current shell
@@ -48,7 +56,7 @@ def fabulous_register_commands() -> CommandSet | list[CommandSet] | None:
 
 
 @hookspec
-def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
+def fabulous_register_code_generators() -> "list[CodeGeneratorProvider]":
     """Return `list[CodeGeneratorProvider]` keyed by `HDLType`.
 
     Returns
@@ -59,7 +67,7 @@ def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
 
 
 @hookspec
-def fabulous_register_parsers() -> list[ParserProvider]:
+def fabulous_register_parsers() -> "list[ParserProvider]":
     """Return `list[ParserProvider]` keyed by file suffix.
 
     Returns
@@ -70,7 +78,7 @@ def fabulous_register_parsers() -> list[ParserProvider]:
 
 
 @hookspec
-def fabulous_register_pnr_models() -> list[PnRModelProvider]:
+def fabulous_register_pnr_models() -> "list[PnRModelProvider]":
     """Return `list[PnRModelProvider]` keyed by place-and-route tool name.
 
     Returns
@@ -81,7 +89,7 @@ def fabulous_register_pnr_models() -> list[PnRModelProvider]:
 
 
 @hookspec
-def fabulous_after_fabric_loaded(api: FABulous_API) -> None:
+def fabulous_after_fabric_loaded(api: "FABulous_API") -> None:
     """Fire at the end of `loadFabric`; `api.fabric` is populated.
 
     Parameters
@@ -92,48 +100,11 @@ def fabulous_after_fabric_loaded(api: FABulous_API) -> None:
 
 
 @hookspec
-def fabulous_register_settings() -> type[PluginSettings] | None:
-    """Return a ``PluginSettings`` subclass describing plugin-owned settings.
+def fabulous_register_settings() -> "type[PluginSettings] | None":
+    """Return a `PluginSettings` subclass describing plugin-owned settings.
 
     Returns
     -------
     type[PluginSettings] | None
-        The settings model class, or ``None`` if the plugin has no settings.
+        The settings model class, or `None` if the plugin has no settings.
     """
-
-
-class FABulousHookRelay(Protocol):
-    """Static type for `PluginManager.hook`, one method per hookspec above.
-
-    `pluggy.PluginManager.hook` is a `pluggy.HookRelay`, which type-checks
-    any attribute access as a `pluggy.HookCaller` whose `__call__` returns
-    `Any`. `PluginManager` casts `pm.hook` to this `Protocol` so call sites
-    get the real per-hook parameter and return types instead. Each method's
-    return type is `list[...]` because a hook call aggregates one result per
-    registered implementation.
-    """
-
-    def fabulous_startup(self) -> list[None]:
-        """See `fabulous_startup`."""
-
-    def fabulous_register_commands(
-        self,
-    ) -> list[CommandSet | list[CommandSet] | None]:
-        """See `fabulous_register_commands`."""
-
-    def fabulous_register_code_generators(
-        self,
-    ) -> list[list[CodeGeneratorProvider]]:
-        """See `fabulous_register_code_generators`."""
-
-    def fabulous_register_parsers(self) -> list[list[ParserProvider]]:
-        """See `fabulous_register_parsers`."""
-
-    def fabulous_register_pnr_models(self) -> list[list[PnRModelProvider]]:
-        """See `fabulous_register_pnr_models`."""
-
-    def fabulous_after_fabric_loaded(self, *, api: FABulous_API) -> list[None]:
-        """See `fabulous_after_fabric_loaded`."""
-
-    def fabulous_register_settings(self) -> list[type[PluginSettings] | None]:
-        """See `fabulous_register_settings`."""

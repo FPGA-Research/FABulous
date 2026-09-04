@@ -98,10 +98,11 @@ PluginOptType = Annotated[
 ]
 
 SkipBrokenType = Annotated[
-    bool,
+    bool | None,
     typer.Option(
-        "--skip-broken-plugins",
-        help="Warn and continue when an optional plugin fails to load.",
+        "--skip-broken-plugins/--no-skip-broken-plugins",
+        help="Warn and continue when an optional plugin fails to load. "
+        "Defaults to the project's 'skip_broken_plugins' setting.",
     ),
 ]
 
@@ -112,41 +113,40 @@ app.add_typer(plugins_app, name="plugins")
 @plugins_app.callback()
 def plugins_callback(
     ctx: typer.Context,
-    skip_broken_plugins: SkipBrokenType = False,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
-    """Build the plugin manager only when a `plugins` subcommand runs.
+    """Carry the discovery policy to whichever `plugins` subcommand runs.
 
-    Other FABulous commands never touch `ctx.obj`, so they no longer pay for
-    plugin discovery on every invocation. `--project-dir` is still honoured:
-    the root `common_options` callback initialises the context (without
-    project validation) before this callback runs.
+    Only `list` and `info` need a discovered manager, so the discovery itself
+    is left to them: a plugin that fails to import must not stop
+    `plugins uninstall` from removing it.
     """
-    ctx.obj = PluginManager.create(skip_broken=skip_broken_plugins)
+    ctx.obj = skip_broken_plugins
 
 
 @plugins_app.command("list")
 def plugins_list_cmd(ctx: typer.Context) -> None:
     """List discovered plugins."""
-    typer.echo(ctx.obj.get_installed_plugins_str())
+    typer.echo(PluginManager.create(skip_broken=ctx.obj).get_installed_plugins_str())
 
 
 @plugins_app.command("info")
 def plugins_info_cmd(ctx: typer.Context, name: str) -> None:
     """Show detail for a single plugin."""
-    typer.echo(ctx.obj.get_plugin_info_str(name))
+    typer.echo(PluginManager.create(skip_broken=ctx.obj).get_plugin_info_str(name))
 
 
 @plugins_app.command("install")
-def plugins_install_cmd(ctx: typer.Context, spec: str) -> None:
+def plugins_install_cmd(spec: str) -> None:
     """Install a plugin package via uv."""
-    _, message = ctx.obj.install(spec)
+    _, message = PluginManager.install(spec)
     typer.echo(message)
 
 
 @plugins_app.command("uninstall")
-def plugins_uninstall_cmd(ctx: typer.Context, name: str) -> None:
+def plugins_uninstall_cmd(name: str) -> None:
     """Uninstall a plugin package via uv."""
-    _, message = ctx.obj.uninstall(name)
+    _, message = PluginManager.uninstall(name)
     typer.echo(message)
 
 
@@ -314,11 +314,24 @@ def common_options(
     ):
         return
 
+    resolved_dir = project_dir or Path.cwd()
     if subcommand == "plugins":
-        init_context(project_dir=project_dir, api_mode=True)
+        # `plugins install/uninstall` has to work outside a project, but inside
+        # one the project's .env decides plugin_dir and skip_broken_plugins.
+        if (resolved_dir / ".FABulous").is_dir():
+            try:
+                init_context(
+                    project_dir=resolved_dir,
+                    global_dot_env=global_dot_env,
+                    project_dot_env=project_dot_env,
+                )
+            except ValidationError as e:
+                _log_settings_validation_error(e, resolved_dir)
+                raise typer.Exit(1) from None
+        else:
+            init_context(api_mode=True)
         return
 
-    resolved_dir = project_dir or Path.cwd()
     try:
         init_context(
             project_dir=resolved_dir,
@@ -575,7 +588,7 @@ def script_cmd(
     ] = ScriptType.TCL,
     force: ForceType = False,
     plugin: PluginOptType = None,
-    skip_broken_plugins: SkipBrokenType = False,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
     """Execute a script file with auto-detection of script type.
 
@@ -637,7 +650,7 @@ def script_cmd(
 def start_cmd(
     force: ForceType = False,
     plugin: PluginOptType = None,
-    skip_broken_plugins: SkipBrokenType = False,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
     """Start FABulous in interactive mode. Alias: s.
 
@@ -675,7 +688,7 @@ def run_cmd(
     ] = None,
     force: ForceType = False,
     plugin: PluginOptType = None,
-    skip_broken_plugins: SkipBrokenType = False,
+    skip_broken_plugins: SkipBrokenType = None,
 ) -> None:
     """Run commands directly in a FABulous project.
 
