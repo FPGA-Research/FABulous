@@ -6,15 +6,14 @@ from pathlib import Path
 import pytest
 from pydantic_settings import SettingsConfigDict
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabulous_settings import (
     PluginSettings,
-    add_var_to_project_env,
     get_context,
     init_context,
 )
 from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
-from fabulous.plugins.types import PluginError
 
 
 def test_plugin_settings_defaults(project: Path) -> None:
@@ -28,14 +27,6 @@ def test_plugin_settings_env(project: Path, monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("FAB_SKIP_BROKEN_PLUGINS", "true")
     init_context(project)
     assert get_context().skip_broken_plugins is True
-
-
-def test_add_var_to_project_env_writes_key(project: Path) -> None:
-    init_context(project)
-    add_var_to_project_env("FAB_SKIP_BROKEN_PLUGINS", "true")
-    env_file = project / ".FABulous" / ".env"
-    assert env_file.exists()
-    assert "FAB_SKIP_BROKEN_PLUGINS" in env_file.read_text()
 
 
 class _DemoSettings(PluginSettings):
@@ -95,3 +86,12 @@ def test_build_registries_replaces_prior_plugin_settings(project: Path) -> None:
     # clears the prior manager's published settings, so none can leak through.
     PluginManager().build_registries()
     assert "demo" not in get_context().plugin_settings
+
+
+def test_skip_broken_plugins_reads_project_dot_env(project: Path) -> None:
+    """The setting comes from `.FABulous/.env`, which is what discovery consults."""
+    (project / ".FABulous" / ".env").write_text("FAB_SKIP_BROKEN_PLUGINS=true\n")
+
+    init_context(project)
+
+    assert get_context().skip_broken_plugins is True

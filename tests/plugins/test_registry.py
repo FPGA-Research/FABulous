@@ -1,14 +1,19 @@
 """Registry folding and factory-method resolution semantics."""
 
 import types
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import HDLType
-from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
-from fabulous.plugins.types import CodeGeneratorProvider, PluginError
+from tests.plugins.conftest import (
+    make_codegen_module,
+    make_parser_module,
+    make_pnr_model_module,
+)
 
 
 def test_resolves_registered_code_generator(
@@ -29,25 +34,26 @@ def test_resolves_registered_parser(fake_parser_module: types.ModuleType) -> Non
     assert parse("path") == "path"
 
 
-def test_duplicate_code_generator_key_raises_naming_both() -> None:
-    class _W:
-        file_extension = ".v"
-
-    def _make_module(provider_name: str) -> types.ModuleType:
-        module = types.ModuleType(f"dup_{provider_name}")
-
-        @hookspecs.hookimpl
-        def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
-            return [CodeGeneratorProvider(HDLType.VERILOG, _W, provider_name)]
-
-        module.fabulous_register_code_generators = fabulous_register_code_generators
-        return module
-
+@pytest.mark.parametrize(
+    "make_module",
+    [
+        lambda name: make_codegen_module(HDLType.VERILOG, name),
+        lambda name: make_parser_module(".dup", name),
+        lambda name: make_pnr_model_module("dup", name=name),
+    ],
+    ids=["code_generator", "parser", "pnr_model"],
+)
+def test_duplicate_key_raises_naming_both(
+    make_module: Callable[[str], types.ModuleType],
+) -> None:
+    """Two providers claiming one key is a conflict, whichever registry it is."""
     manager = PluginManager()
-    manager.pm.register(_make_module("alpha"), name="alpha")
-    manager.pm.register(_make_module("beta"), name="beta")
+    manager.pm.register(make_module("alpha"), name="alpha")
+    manager.pm.register(make_module("beta"), name="beta")
+
     with pytest.raises(PluginError) as exc:
         manager.build_registries()
+
     message = str(exc.value)
     assert "alpha" in message
     assert "beta" in message

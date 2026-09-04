@@ -16,13 +16,14 @@ from collections.abc import Callable, Iterable
 from enum import StrEnum
 from functools import partial
 from pathlib import Path
-from typing import Protocol, Self, TypeVar, cast
+from typing import Protocol, Self, TypeVar
 
 import pluggy
 from cmd2 import CommandSet
 from loguru import logger
 from uv import find_uv_bin
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -31,28 +32,27 @@ from fabulous.fabulous_settings import (
     PluginSettings,
     get_context,
 )
-from fabulous.plugins.hookspecs import FABulousHookRelay
+from fabulous.plugins import hookspecs
+from fabulous.plugins.hookspecs import PLUGIN_API_VERSION
 from fabulous.plugins.types import (
     CodeGeneratorProvider,
     ParserProvider,
-    PluginError,
     PnRModelProvider,
 )
+
+PLUGIN_ENTRY_POINT_GROUP = "fabulous.plugins"
 
 
 class BuiltinPlugin(StrEnum):
     """Dotted module paths of the essential built-in provider plugins.
 
-    Each value is a real importable module exposing ``@hookimpl`` functions.
+    Each value is a real importable module exposing `@hookimpl` functions.
     Built-ins are always registered.
     """
 
     CODE_GENERATORS = "fabulous.fabric_generator.code_generator.plugin"
     PARSERS = "fabulous.fabric_generator.parser.plugin"
     PNR_MODELS = "fabulous.fabric_cad.plugin"
-
-
-ESSENTIAL_PLUGINS = frozenset(BuiltinPlugin)
 
 
 class _NamedProvider(Protocol):
@@ -69,27 +69,22 @@ class PluginManager:
     """Owns plugin discovery, lifecycle, the provider registries, and operations."""
 
     pm: pluggy.PluginManager
-    hook: FABulousHookRelay
     _code_generators: dict[HDLType, CodeGeneratorProvider]
     _parsers: dict[str, ParserProvider]
     _pnr_models: dict[str, PnRModelProvider]
     skip_broken: bool
+    _top_level_distributions: dict[str, list[str]] | None
 
     def __init__(self, skip_broken: bool = False) -> None:
-        # Imported here, not at module level: hookspecs imports PluginManager
-        # for its `fabulous_startup` annotation, so importing it back at
-        # manager.py's top level would cycle.
-        from fabulous.plugins import hookspecs
-
         self.pm = pluggy.PluginManager("fabulous")
         self.pm.add_hookspecs(hookspecs)
-        self.hook = cast("hookspecs.FABulousHookRelay", self.pm.hook)
         self._code_generators: dict[HDLType, CodeGeneratorProvider] = {}
         self._parsers: dict[str, ParserProvider] = {}
         self._pnr_models: dict[str, PnRModelProvider] = {}
         # Resolved once by `create` so the post-discovery hooks fired through
         # this manager honour the same policy discovery ran under.
         self.skip_broken = skip_broken
+        self._top_level_distributions = None
 
     # -- Registry construction ------------------------------------------------
 
@@ -111,14 +106,15 @@ class PluginManager:
         Returns
         -------
         str
-            The resolved version string, or ``"unknown"`` if none applies.
+            The resolved version string, or `"unknown"` if none applies.
         """
-        if name in ESSENTIAL_PLUGINS:
+        if name in BuiltinPlugin:
             return importlib_metadata.version("FABulous-FPGA")
 
-        for ep in importlib_metadata.entry_points(group="fabulous.plugins"):
-            if ep.name == name:
-                return ep.dist.version if ep.dist is not None else "unknown"
+        for ep in importlib_metadata.entry_points(
+            group=PLUGIN_ENTRY_POINT_GROUP, name=name
+        ):
+            return ep.dist.version if ep.dist is not None else "unknown"
 
         plugin = self.pm.get_plugin(name)
 
@@ -133,7 +129,9 @@ class PluginManager:
 
         module_name = getattr(plugin, "__name__", None)
         top_level = module_name.partition(".")[0] if module_name else None
-        for dist_name in importlib_metadata.packages_distributions().get(top_level, ()):
+        if self._top_level_distributions is None:
+            self._top_level_distributions = importlib_metadata.packages_distributions()
+        for dist_name in self._top_level_distributions.get(top_level, ()):
             try:
                 return importlib_metadata.version(dist_name)
             except importlib_metadata.PackageNotFoundError:
@@ -154,7 +152,7 @@ class PluginManager:
         status = [
             (
                 name,
-                "core" if name in ESSENTIAL_PLUGINS else "plugin",
+                "core" if name in BuiltinPlugin else "plugin",
                 self._plugin_version(name),
             )
             for name, _ in sorted(self.pm.list_name_plugin(), key=lambda kv: kv[0])
@@ -184,77 +182,90 @@ class PluginManager:
             raise PluginError(f"No plugin named '{name}'")
         lines = [
             f"Plugin: {name}",
-            f"  tier: {'core' if name in ESSENTIAL_PLUGINS else 'plugin'}",
+            f"  tier: {'core' if name in BuiltinPlugin else 'plugin'}",
             f"  version: {self._plugin_version(name)}",
         ]
 
-        plugin = self.pm.get_plugin(name)
-        register = getattr(plugin, "fabulous_register_settings", None)
-
-        if register is None:
-            lines.append("  settings: (none)")
-            return "\n".join(lines)
-        model = register()
+        # Read the settings hookimpl out of pluggy's registry rather than off
+        # the module, so a hookimpl registered under a different function name
+        # through `@hookimpl(specname=...)` is still found.
+        model = next(
+            (
+                impl.function()
+                for impl in self.pm.hook.fabulous_register_settings.get_hookimpls()
+                if impl.plugin_name == name
+            ),
+            None,
+        )
         if model is None:
             lines.append("  settings: (none)")
-            return "\n".join(lines)
-
-        prefix = model.model_config.get("env_prefix", "")
-        summary = f"{model.group} (env prefix {prefix})"
-
-        if summary is not None:
-            lines.append(f"  settings: {summary}")
+        else:
+            prefix = model.model_config.get("env_prefix", "")
+            lines.append(f"  settings: {model.group} (env prefix {prefix})")
         return "\n".join(lines)
 
     def _call_hook_or_skip(
-        self, hook_caller: Callable[[], list], hook_name: str, skip_broken: bool
+        self, hook_caller: pluggy.HookCaller, **kwargs: object
     ) -> list:
-        """Invoke an aggregating hook, honouring `skip_broken` on failure.
+        """Invoke an aggregating hook one implementation at a time.
 
-        Pluggy calls every registered implementation of a hook in one pass, so
-        a broken implementation fails the whole call; this cannot isolate
-        which single plugin raised. With `skip_broken`, the hook's entire
-        contribution for this call is dropped and a warning is logged instead
-        of aborting.
+        Calling the hook relay would run every implementation in one pass, so a
+        single raising plugin fails the whole call and takes the built-in
+        providers down with it. Driving the implementations individually
+        attributes a failure to its plugin, and under `skip_broken` unregisters
+        only that plugin so the later hooks no longer see it.
 
         Parameters
         ----------
-        hook_caller : Callable[[], list]
-            The bound hook (e.g. `self.hook.fabulous_register_parsers`).
-        hook_name : str
-            The hook's name, for the warning/error message.
-        skip_broken : bool
-            Whether to warn and continue instead of aborting on failure.
+        hook_caller : pluggy.HookCaller
+            The hook to drive, e.g. `self.pm.hook.fabulous_register_parsers`.
+        **kwargs : object
+            Arguments forwarded to each implementation.
 
         Returns
         -------
         list
-            The hook's aggregated results, or `[]` if it failed and
-            `skip_broken` is True.
+            One entry per implementation that returned a result, in pluggy's
+            call order.
 
         Raises
         ------
         PluginError
-            If the hook call fails and `skip_broken` is False.
+            If an implementation raises and `skip_broken` is False, or if it
+            is a hook wrapper, which this call path cannot drive.
         """
-        try:
-            return hook_caller()
-        except Exception as exc:  # noqa: BLE001 - policy decides re-raise
-            if skip_broken:
-                logger.warning(f"Skipping broken '{hook_name}' registration: {exc}")
-                return []
-            raise PluginError(
-                f"A plugin's '{hook_name}' hook failed: {exc}\n"
-                "Re-run with --skip-broken-plugins to continue past it."
-            ) from exc
+        results = []
+        for impl in list(hook_caller.get_hookimpls()):
+            if impl.hookwrapper or impl.wrapper:
+                raise PluginError(
+                    f"Plugin '{impl.plugin_name}' implements "
+                    f"'{hook_caller.name}' as a hook wrapper, which FABulous "
+                    "does not support."
+                )
+            try:
+                result = impl.function(**kwargs)
+            except Exception as exc:  # noqa: BLE001 - policy decides re-raise
+                if not self.skip_broken:
+                    raise PluginError(
+                        f"Plugin '{impl.plugin_name}' failed in "
+                        f"'{hook_caller.name}': {exc}\n"
+                        "Re-run with --skip-broken-plugins to continue past it."
+                    ) from exc
+                logger.warning(
+                    f"Unregistering broken plugin '{impl.plugin_name}': it "
+                    f"failed in '{hook_caller.name}': {exc}"
+                )
+                self.pm.unregister(name=impl.plugin_name)
+                continue
+            if result is not None:
+                results.append(result)
+        return results
 
     def _fold_registry(
         self,
-        hook_caller: Callable[[], list],
-        hook_name: str,
+        hook_caller: pluggy.HookCaller,
         key: Callable[[_ProviderT], _KeyT],
         describe: Callable[[_ProviderT], str],
-        skip_broken: bool,
     ) -> dict[_KeyT, _ProviderT]:
         """Fold one aggregating provider hook into a key-to-provider registry.
 
@@ -264,17 +275,13 @@ class PluginManager:
 
         Parameters
         ----------
-        hook_caller : Callable[[], list]
-            The bound hook (e.g. `self.hook.fabulous_register_parsers`).
-        hook_name : str
-            The hook's name, for the warning/error message.
+        hook_caller : pluggy.HookCaller
+            The hook to drive, e.g. `self.pm.hook.fabulous_register_parsers`.
         key : Callable[[_ProviderT], _KeyT]
             Returns the registry key a provider claims.
         describe : Callable[[_ProviderT], str]
             Returns the leading phrase naming a provider's key, used in the
             conflict message (e.g. `"Parser suffix '.csv'"`).
-        skip_broken : bool
-            Whether to warn and continue instead of aborting on failure.
 
         Returns
         -------
@@ -287,25 +294,20 @@ class PluginManager:
             If two providers claim the same key.
         """
         registry: dict[_KeyT, _ProviderT] = {}
-        for providers in self._call_hook_or_skip(hook_caller, hook_name, skip_broken):
+        for providers in self._call_hook_or_skip(hook_caller):
             for provider in providers:
-                existing = registry.get(key(provider))
+                provider_key = key(provider)
+                existing = registry.get(provider_key)
                 if existing is not None:
                     raise PluginError(
                         f"{describe(provider)} registered by both "
                         f"'{existing.name}' and '{provider.name}'"
                     )
-                registry[key(provider)] = provider
+                registry[provider_key] = provider
         return registry
 
-    def build_registries(self, skip_broken: bool = False) -> None:
+    def build_registries(self) -> None:
         """Fold the aggregating hooks into keyed registries and settings.
-
-        Parameters
-        ----------
-        skip_broken : bool
-            Whether to warn and continue instead of aborting when a hook
-            implementation raises.
 
         Raises
         ------
@@ -316,37 +318,24 @@ class PluginManager:
             is False.
         """
         self._code_generators = self._fold_registry(
-            self.hook.fabulous_register_code_generators,
-            "fabulous_register_code_generators",
+            self.pm.hook.fabulous_register_code_generators,
             key=lambda p: p.hdl_type,
             describe=lambda p: f"HDLType {p.hdl_type.name}",
-            skip_broken=skip_broken,
         )
         self._parsers = self._fold_registry(
-            self.hook.fabulous_register_parsers,
-            "fabulous_register_parsers",
+            self.pm.hook.fabulous_register_parsers,
             key=lambda p: p.suffix,
             describe=lambda p: f"Parser suffix '{p.suffix}'",
-            skip_broken=skip_broken,
         )
         self._pnr_models = self._fold_registry(
-            self.hook.fabulous_register_pnr_models,
-            "fabulous_register_pnr_models",
+            self.pm.hook.fabulous_register_pnr_models,
             key=lambda p: p.tool,
             describe=lambda p: f"Place-and-route tool '{p.tool}'",
-            skip_broken=skip_broken,
         )
 
         # build settings
-        settings_results = self._call_hook_or_skip(
-            self.hook.fabulous_register_settings,
-            "fabulous_register_settings",
-            skip_broken,
-        )
         new_settings: dict[str, PluginSettings] = {}
-        for model in settings_results:
-            if model is None:
-                continue
+        for model in self._call_hook_or_skip(self.pm.hook.fabulous_register_settings):
             if model.group in new_settings:
                 raise PluginError(
                     f"Settings group '{model.group}' registered more than once"
@@ -392,7 +381,7 @@ class PluginManager:
         return provider.factory()
 
     def make_parser(self, path: Path) -> Callable[[Path], Fabric]:
-        """Return the parse callable that handles ``path`` by its suffix.
+        """Return the parse callable that handles `path` by its suffix.
 
         Parameters
         ----------
@@ -468,9 +457,7 @@ class PluginManager:
         not, so building a manager purely to inspect or install plugins never
         runs a plugin's startup side effects.
         """
-        self._call_hook_or_skip(
-            self.hook.fabulous_startup, "fabulous_startup", self.skip_broken
-        )
+        self._call_hook_or_skip(self.pm.hook.fabulous_startup)
 
     def collect_command_sets(self) -> list[CommandSet]:
         """Gather the cmd2 command sets contributed by every plugin.
@@ -483,15 +470,8 @@ class PluginManager:
         list[CommandSet]
             Command sets to register on the shell, in hook-call order.
         """
-        results = self._call_hook_or_skip(
-            self.hook.fabulous_register_commands,
-            "fabulous_register_commands",
-            self.skip_broken,
-        )
         command_sets = []
-        for result in results:
-            if result is None:
-                continue
+        for result in self._call_hook_or_skip(self.pm.hook.fabulous_register_commands):
             if isinstance(result, (list, tuple)):
                 command_sets.extend(result)
             else:
@@ -511,12 +491,12 @@ class PluginManager:
         api : FABulous_API
             The API whose fabric was just loaded.
         """
-        self.hook.fabulous_after_fabric_loaded(api=api)
+        self._call_hook_or_skip(self.pm.hook.fabulous_after_fabric_loaded, api=api)
 
     # -- Plugin management (owned by the manager, not a plugin) ---------------
 
-    @property
-    def installed_plugins(self) -> set[str]:
+    @staticmethod
+    def installed_plugins() -> set[str]:
         """Return the names of the installed `fabulous.plugins` entry points.
 
         Returns
@@ -525,13 +505,18 @@ class PluginManager:
             Entry-point names currently registered in the `fabulous.plugins`
             group for the running interpreter.
         """
-        importlib.invalidate_caches()
         return {
-            ep.name for ep in importlib_metadata.entry_points(group="fabulous.plugins")
+            ep.name
+            for ep in importlib_metadata.entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
         }
 
-    def install(self, spec: str) -> tuple[bool, str]:
+    @classmethod
+    def install(cls, spec: str) -> tuple[bool, str]:
         """Install a plugin package into the running environment via uv.
+
+        Installing reads no plugin state, so this deliberately needs no
+        discovered manager: a plugin already broken on this machine must not
+        stop another one from being installed.
 
         Parameters
         ----------
@@ -544,12 +529,15 @@ class PluginManager:
             Whether the package added a new `fabulous.plugins` entry point,
             and a human-readable summary of the result.
         """
-        before = self.installed_plugins
+        before = cls.installed_plugins()
         subprocess.run(
             [find_uv_bin(), "pip", "install", "--python", sys.executable, spec],
             check=True,
         )
-        added = sorted(self.installed_plugins - before)
+        # The subprocess wrote new metadata that this interpreter's import
+        # caches predate.
+        importlib.invalidate_caches()
+        added = sorted(cls.installed_plugins() - before)
         if added:
             return True, f"Installed. Added plugin(s): {', '.join(added)}."
         return False, (
@@ -561,8 +549,12 @@ class PluginManager:
             "info <name>`."
         )
 
-    def uninstall(self, name: str) -> tuple[bool, str]:
+    @classmethod
+    def uninstall(cls, name: str) -> tuple[bool, str]:
         """Uninstall a plugin package via uv.
+
+        Like `install`, this needs no discovered manager, so a plugin that
+        fails to import can still be removed.
 
         Parameters
         ----------
@@ -575,13 +567,19 @@ class PluginManager:
             Whether any `fabulous.plugins` entry points were removed, and a
             human-readable summary of the result.
         """
-        before = self.installed_plugins
+        before = cls.installed_plugins()
         subprocess.run(
             [find_uv_bin(), "pip", "uninstall", "--python", sys.executable, name],
             check=True,
         )
-        removed = sorted(before - self.installed_plugins)
-        return bool(removed), f"Uninstalled. Removed plugin(s): {', '.join(removed)}."
+        importlib.invalidate_caches()
+        removed = sorted(before - cls.installed_plugins())
+        if not removed:
+            return False, (
+                "Uninstalled, but no plugin entry points disappeared. The "
+                "package was either not installed or is not a FABulous plugin."
+            )
+        return True, f"Uninstalled. Removed plugin(s): {', '.join(removed)}."
 
     # -- Discovery tiers ------------------------------------------------------
 
@@ -604,24 +602,39 @@ class PluginManager:
         Raises
         ------
         PluginError
-            If the path cannot be resolved to an importable module.
+            If the path does not exist or cannot be resolved to an importable
+            module.
+        BaseException
+            Whatever the plugin module itself raised while executing,
+            re-raised after its `sys.modules` entry is removed.
         """
+        if not init.exists():
+            if init.name == "__init__.py":
+                raise PluginError(
+                    f"No '__init__.py' found in plugin directory '{init.parent}'"
+                )
+            raise PluginError(f"No plugin module found at '{init}'")
         spec = importlib.util.spec_from_file_location(name, init)
         if spec is None or spec.loader is None:
             raise PluginError(f"'{init}' is not an importable Python module")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        # A package plugin's own `from .sub import x` resolves its parent
+        # through sys.modules, so the entry has to exist before execution.
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            del sys.modules[name]
+            raise
         return module
 
-    def _register_external(
-        self, name: str, load: Callable[[], object], skip_broken: bool
-    ) -> None:
+    def _register_external(self, name: str, load: Callable[[], object]) -> None:
         """Load, version-check, and register one externally discovered plugin.
 
         Tiers 2-4 are the untrusted boundary, so each plugin must declare a
-        compatible contract version through a module-level ``FABULOUS_PLUGIN_API``
+        compatible contract version through a module-level `FABULOUS_PLUGIN_API`
         attribute. A load failure, a version mismatch, or a registration clash
-        is routed through :meth:`_handle_broken`, honouring ``skip_broken``.
+        aborts, unless `skip_broken` downgrades it to a warning.
 
         Parameters
         ----------
@@ -629,19 +642,17 @@ class PluginManager:
             The registration name for the plugin.
         load : Callable[[], object]
             Zero-argument callable returning the imported plugin module.
-        skip_broken : bool
-            Whether to warn and continue instead of aborting on failure.
 
         Raises
         ------
         PluginError
             If the plugin fails to load, version-check, or register and
-            ``skip_broken`` is False.
+            `skip_broken` is False.
         """
         try:
             self._load_and_register_plugin(name, load)
         except Exception as exc:  # noqa: BLE001 - policy decides re-raise
-            if skip_broken:
+            if self.skip_broken:
                 logger.warning(f"Skipping broken plugin '{name}': {exc}")
                 return
             raise PluginError(
@@ -662,10 +673,9 @@ class PluginManager:
         Raises
         ------
         PluginError
-            If the plugin API version is incompatible.
+            If the plugin API version is incompatible, or if it implements a
+            hook this FABulous does not specify.
         """
-        from fabulous.plugins.hookspecs import PLUGIN_API_VERSION
-
         module = load()
         declared = getattr(module, "FABULOUS_PLUGIN_API", None)
         if declared != PLUGIN_API_VERSION:
@@ -675,8 +685,22 @@ class PluginManager:
                 f"{PLUGIN_API_VERSION} once the plugin supports it"
             )
         self.pm.register(module, name=name)
+        # A hookimpl whose name matches no hookspec is inert otherwise, so a
+        # misspelled hook leaves the plugin looking installed and doing nothing.
+        # Only this plugin can have added pending impls, so the blame is exact.
+        try:
+            self.pm.check_pending()
+        except pluggy.PluginValidationError as exc:
+            self.pm.unregister(name=name)
+            raise PluginError(str(exc)) from exc
 
     # -- Construction helpers -------------------------------------------------
+
+    def _register_builtins(self) -> None:
+        """Register the tier-1 built-ins, which are always present."""
+        for plugin in BuiltinPlugin:
+            module = importlib.import_module(plugin.value)
+            self.pm.register(module, name=plugin.value)
 
     @classmethod
     def core_only(cls) -> Self:
@@ -688,9 +712,7 @@ class PluginManager:
             A manager with tier-1 plugins registered and registries built.
         """
         manager = cls()
-        for plugin in BuiltinPlugin:
-            module = importlib.import_module(plugin.value)
-            manager.pm.register(module, name=plugin.value)
+        manager._register_builtins()
         manager.build_registries()
         return manager
 
@@ -718,11 +740,7 @@ class PluginManager:
             skip_broken = get_context().skip_broken_plugins
 
         manager = cls(skip_broken=skip_broken)
-
-        # Register tier-1 built-in plugins. These are always present and essential.
-        for plugin in BuiltinPlugin:
-            module = importlib.import_module(plugin.value)
-            manager.pm.register(module, name=plugin.value)
+        manager._register_builtins()
 
         # Discover tier-2 sub-plugins from the project plugin directory
         plugin_dir = get_context().plugin_dir
@@ -736,42 +754,29 @@ class PluginManager:
                     continue
                 name = child.name
                 manager._register_external(
-                    name, partial(manager._load_path_module, name, init), skip_broken
+                    name, partial(manager._load_path_module, name, init)
                 )
 
-        # Register tier-3 entry-point plugins. The `importlib_metadata` API returns
+        # Register tier-3 entry-point plugins, sorted so a registration clash
+        # is reported against the same pair of plugins on every run.
         eps = sorted(
-            importlib_metadata.entry_points(group="fabulous.plugins"),
+            importlib_metadata.entry_points(group=PLUGIN_ENTRY_POINT_GROUP),
             key=lambda ep: ep.name,
         )
         for ep in eps:
-            manager._register_external(ep.name, ep.load, skip_broken)
+            manager._register_external(ep.name, ep.load)
 
         # Register tier-4 session plugins.
         for spec in extra_plugins:
             path = Path(spec)
             if path.exists():
-                if path.is_dir():
-                    name = path.name
-                    init = path / "__init__.py"
-                    if not init.exists():
-
-                        def _missing_init(init: Path = init) -> object:
-                            raise PluginError(
-                                f"No '__init__.py' found in plugin directory "
-                                f"'{init.parent}'"
-                            )
-
-                        manager._register_external(name, _missing_init, skip_broken)
-                        continue
-                else:
-                    name = path.stem
-                    init = path
+                name = path.name if path.is_dir() else path.stem
+                init = path / "__init__.py" if path.is_dir() else path
                 load = partial(manager._load_path_module, name, init)
             else:
                 name = spec
                 load = partial(importlib.import_module, spec)
-            manager._register_external(name, load, skip_broken)
+            manager._register_external(name, load)
 
-        manager.build_registries(skip_broken=skip_broken)
+        manager.build_registries()
         return manager

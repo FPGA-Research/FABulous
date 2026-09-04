@@ -24,7 +24,11 @@ def fake_codegen_module() -> types.ModuleType:
 
     @hookspecs.hookimpl
     def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
-        return [CodeGeneratorProvider(HDLType.SYSTEM_VERILOG, _FakeWriter, "fake")]
+        return [
+            CodeGeneratorProvider(
+                hdl_type=HDLType.SYSTEM_VERILOG, factory=_FakeWriter, name="fake"
+            )
+        ]
 
     module.fabulous_register_code_generators = fabulous_register_code_generators
     return module
@@ -32,12 +36,64 @@ def fake_codegen_module() -> types.ModuleType:
 
 @pytest.fixture
 def fake_parser_module() -> types.ModuleType:
-    """A module exposing a parser hookimpl for the ``.fake`` suffix."""
+    """A module exposing a parser hookimpl for the `.fake` suffix."""
     module = types.ModuleType("fake_parser_plugin")
 
     @hookspecs.hookimpl
     def fabulous_register_parsers() -> list[ParserProvider]:
-        return [ParserProvider(".fake", lambda path: path, "fake")]
+        return [ParserProvider(suffix=".fake", parse=lambda path: path, name="fake")]
+
+    module.fabulous_register_parsers = fabulous_register_parsers
+    return module
+
+
+def make_codegen_module(hdl_type: HDLType, name: str) -> types.ModuleType:
+    """Build a module registering one code generator for `hdl_type`.
+
+    Parameters
+    ----------
+    hdl_type : HDLType
+        The HDL type the provider claims.
+    name : str
+        Provider name used in diagnostics.
+
+    Returns
+    -------
+    types.ModuleType
+        A module registering one `CodeGeneratorProvider`.
+    """
+    module = types.ModuleType(f"fake_codegen_plugin_{name}")
+
+    @hookspecs.hookimpl
+    def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
+        return [
+            CodeGeneratorProvider(hdl_type=hdl_type, factory=_FakeWriter, name=name)
+        ]
+
+    module.fabulous_register_code_generators = fabulous_register_code_generators
+    return module
+
+
+def make_parser_module(suffix: str, name: str) -> types.ModuleType:
+    """Build a module registering one parser for `suffix`.
+
+    Parameters
+    ----------
+    suffix : str
+        The file suffix the provider claims.
+    name : str
+        Provider name used in diagnostics.
+
+    Returns
+    -------
+    types.ModuleType
+        A module registering one `ParserProvider`.
+    """
+    module = types.ModuleType(f"fake_parser_plugin_{name}")
+
+    @hookspecs.hookimpl
+    def fabulous_register_parsers() -> list[ParserProvider]:
+        return [ParserProvider(suffix=suffix, parse=lambda path: path, name=name)]
 
     module.fabulous_register_parsers = fabulous_register_parsers
     return module
@@ -70,7 +126,14 @@ def make_pnr_model_module(
 
     @hookspecs.hookimpl
     def fabulous_register_pnr_models() -> list[PnRModelProvider]:
-        return [PnRModelProvider(tool, generate, supports_timing, name or tool)]
+        return [
+            PnRModelProvider(
+                tool=tool,
+                generate=generate,
+                supports_timing=supports_timing,
+                name=name or tool,
+            )
+        ]
 
     module.fabulous_register_pnr_models = fabulous_register_pnr_models
     return module

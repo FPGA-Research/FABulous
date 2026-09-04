@@ -2,14 +2,19 @@
 
 FABulous loads functionality through [pluggy](https://pluggy.readthedocs.io/).
 A plugin is a Python package that exposes one or more `@hookimpl` functions from
-`fabulous.plugins`.
+`fabulous.plugins`, plus a module-level `FABULOUS_PLUGIN_API` declaring the hook
+contract it targets. Discovery rejects a plugin whose declared version does not
+match the running FABulous, so an incompatible plugin fails at load rather than
+half-way through a flow.
 
 ## The smallest plugin
 
 ```python
 from cmd2 import CommandSet, with_default_category
 
-from fabulous.plugins import hookimpl
+from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
+
+FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
 
 @with_default_category("Hello")
@@ -23,6 +28,10 @@ def fabulous_register_commands():
     return HelloCommands()
 ```
 
+Put `FABULOUS_PLUGIN_API` in the module named by your entry point, or in the
+`__init__.py` of a directory plugin. A package plugin may import its own
+submodules normally, so `from .commands import HelloCommands` works.
+
 ## Available hooks
 
 - `fabulous_register_commands()` returns a cmd2 `CommandSet` (or a list); the
@@ -34,6 +43,11 @@ def fabulous_register_commands():
 - `fabulous_register_settings()` returns your `PluginSettings` subclass.
 - `fabulous_startup()` runs once after discovery.
 
+A hook implementation that raises aborts the session, naming your plugin. Under
+`--skip-broken-plugins` (or the `skip_broken_plugins` setting) FABulous instead
+warns and unregisters only that plugin, so the built-in providers and every
+other plugin survive.
+
 ## Place-and-route model backends
 
 `fabulous_register_pnr_models` contributes a way to describe the fabric to a
@@ -42,8 +56,10 @@ the whole model as a mapping of file name to file content, so your backend
 decides how many files it emits and what they are called:
 
 ```python
-from fabulous.plugins import hookimpl
+from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
 from fabulous.plugins.types import PnRModelProvider
+
+FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
 
 def generate_my_model(fabric, delay_model=None) -> dict[str, str | bytes]:
@@ -52,7 +68,14 @@ def generate_my_model(fabric, delay_model=None) -> dict[str, str | bytes]:
 
 @hookimpl
 def fabulous_register_pnr_models() -> list[PnRModelProvider]:
-    return [PnRModelProvider("my_router", generate_my_model, True, "my-router")]
+    return [
+        PnRModelProvider(
+            tool="my_router",
+            generate=generate_my_model,
+            supports_timing=True,
+            name="my-router",
+        )
+    ]
 ```
 
 Set `supports_timing` to `False` if `generate` cannot use a delay model.

@@ -389,13 +389,12 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     csv_path.write_text("".join(result), encoding="utf-8")
 
 
-def write_pnr_model(
-    artifacts: dict[str, str | bytes], out_dir: Path, backup_existing: bool = False
-) -> None:
+def write_pnr_model(artifacts: dict[str, str | bytes], out_dir: Path) -> None:
     """Write a place-and-route model's files into `out_dir`.
 
     The backend owns the file names and the file contents, so this only
-    decides where they land and logs each one.
+    decides where they land and logs each one. A name may contain directories,
+    which are created under `out_dir`.
 
     Parameters
     ----------
@@ -403,19 +402,11 @@ def write_pnr_model(
         File names, relative to `out_dir`, mapped to their content.
     out_dir : Path
         Directory the files are written to. Created if it does not exist.
-    backup_existing : bool
-        Whether to rename an existing file to `<name>.backup<suffix>` before
-        overwriting it. Defaults to False. The timed model overwrites the
-        untimed one in place, so that path keeps the previous generation
-        around.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, content in artifacts.items():
         path = out_dir / name
-        if backup_existing and path.exists():
-            backup_path = path.with_suffix(f".backup{path.suffix}")
-            logger.info(f"Backing up existing {path.name} to {backup_path}")
-            path.rename(backup_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
         logger.info(f"output file: {path}")
         if isinstance(content, bytes):
             path.write_bytes(content)

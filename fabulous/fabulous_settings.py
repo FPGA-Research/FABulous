@@ -30,6 +30,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import HDLType, PnRTool
 
 # User configuration directory for FABulous
@@ -85,8 +86,6 @@ class PluginSettings(BaseSettings):
             If no settings for `cls.group` were registered (the plugin is
             not installed, or it never registered settings).
         """
-        from fabulous.plugins.types import PluginError
-
         store = get_context().plugin_settings
         if cls.group not in store:
             raise PluginError(
@@ -606,7 +605,9 @@ def init_context(
     """Initialize the global FABulous context with settings.
 
     This function gathers .env files and lets the pydantic-settings system handle
-    project directory resolution.
+    project directory resolution. The constructed instance becomes the global
+    context on both paths, so a caller that discards the return value still
+    sets what `get_context` hands out.
 
     Parameters
     ----------
@@ -631,10 +632,11 @@ def init_context(
 
     if api_mode:
         logger.debug("API mode: skipping all validation")
-        return FABulousSettings.model_construct(
+        _context_instance = FABulousSettings.model_construct(
             proj_dir=project_dir if project_dir is not None else Path.cwd(),
             nix_shell=os.environ.get("FAB_NIX_SHELL"),
         )
+        return _context_instance
 
     # 1. User config .env file (global)
     user_config_env = FAB_USER_CONFIG_DIR / ".env"
@@ -724,23 +726,6 @@ def add_var_to_global_env(key: str, value: str) -> None:
         user_config_dir.mkdir(parents=True, exist_ok=True)
 
     env_file = user_config_dir / ".env"
-    if not env_file.exists():
-        env_file.touch()
-    set_key(env_file, key, value)
-
-
-def add_var_to_project_env(key: str, value: str) -> None:
-    """Add or update a key-value pair in the project ``.FABulous/.env`` file.
-
-    Parameters
-    ----------
-    key: str
-        The environment variable key to add or update.
-    value: str
-        The value to set for the environment variable.
-    """
-    env_file = get_context().proj_dir / ".FABulous" / ".env"
-    env_file.parent.mkdir(parents=True, exist_ok=True)
     if not env_file.exists():
         env_file.touch()
     set_key(env_file, key, value)

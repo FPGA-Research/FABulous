@@ -360,6 +360,19 @@ class FabricGenCommandSet(ReplCommandSet):
         write_pnr_model(artifacts, repl.projectDir / META_DATA_DIR)
         logger.info("Generated place and route model")
 
+    def do_gen_model_npnr(self, *_ignored: str) -> None:
+        """Generate the nextpnr model of the fabric.
+
+        deprecated: Use `gen_pnr_model` instead.
+        """
+        repl = self._cmd
+        logger.warning(
+            "The 'gen_model_npnr' command is deprecated. Use 'gen_pnr_model' instead."
+        )
+        repl.onecmd_plus_hooks("gen_pnr_model")
+        if repl.exit_code != 0:
+            raise CommandError("Place and route model generation failed")
+
     @with_annotated
     def do_gen_io_tiles(
         self,
