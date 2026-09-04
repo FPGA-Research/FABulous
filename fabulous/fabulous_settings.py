@@ -20,6 +20,7 @@ from loguru import logger
 from packaging.version import Version
 from pydantic import (
     Field,
+    PrivateAttr,
     TypeAdapter,
     ValidationError,
     ValidationInfo,
@@ -50,19 +51,20 @@ MODELS_PACK_REQUIRED_MODULES: list[str] = [
 class PluginSettings(BaseSettings):
     """Base class a plugin subclasses to declare its own settings.
 
-    A subclass sets `group` (its key on the settings singleton) and its own
+    A subclass sets `group`, its key on the settings singleton, and its own
     `model_config` env prefix. After discovery the plugin manager instantiates
-    each subclass and stores it on the singleton, so `from_context` hands back
-    the populated, fully typed instance anywhere in the codebase, e.g.
+    each subclass and stores it on the singleton, so `from_context` returns the
+    typed instance.
 
     ```py
-        class SynthSettings(PluginSettings):
-            group = "synthesis"
-            model_config = SettingsConfigDict(env_prefix="FAB_SYNTHESIS__")
-            jobs: int = 4
-    ```
+    class SynthSettings(PluginSettings):
+        group = "synthesis"
+        model_config = SettingsConfigDict(env_prefix="FAB_SYNTHESIS__")
+        jobs: int = 4
 
-        SynthSettings.from_context().jobs  # typed, reads the singleton
+
+    SynthSettings.from_context().jobs  # int, read from the singleton
+    ```
 
     Attributes
     ----------
@@ -84,14 +86,15 @@ class PluginSettings(BaseSettings):
         Raises
         ------
         PluginError
-            If no settings for `cls.group` were registered (the plugin is
-            not installed, or it never registered settings).
+            If no settings for `cls.group` were registered, because the plugin
+            is not installed or never registered settings.
         """
         store = get_context().plugin_settings
         if cls.group not in store:
             raise PluginError(
-                f"No settings registered for group '{cls.group}'. "
-                "Ensure the plugin is installed and registers its settings."
+                f"No settings registered for group '{cls.group}'. Install the "
+                "plugin and check that it returns this class from "
+                "fabulous_register_settings."
             )
         return cast("Self", store[cls.group])
 
@@ -103,9 +106,7 @@ class FABulousSettings(BaseSettings):
     (including PATH updates for oss-cad-suite) can occur beforehand.
     """
 
-    model_config = SettingsConfigDict(
-        env_prefix="FAB_", case_sensitive=False, env_nested_delimiter="__"
-    )
+    model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
 
     user_config_dir: Path = Field(default_factory=lambda: FAB_USER_CONFIG_DIR)
 
@@ -129,15 +130,17 @@ class FABulousSettings(BaseSettings):
     )
     plugin_dir: Path = Field(
         default=Path("plugins"),
-        description="Directory scanned for tier-2 sub-plugins "
-        "(relative paths resolve against the project directory).",
+        description="Directory scanned for project plugins, one package per "
+        "subdirectory. A relative path resolves against the project directory.",
     )
     skip_broken_plugins: bool = Field(
         default=False,
-        description="Downgrade broken optional plugins to warnings "
-        "instead of aborting.",
+        description="Warn and unregister a plugin that fails to load or raises "
+        "in a hook instead of aborting.",
     )
-    plugin_settings: dict[str, PluginSettings] = Field(default_factory=dict)
+    # Populated by the plugin manager after discovery, never by the settings
+    # sources, so it is a private attribute rather than a `FAB_*` field.
+    _plugin_settings: dict[str, PluginSettings] = PrivateAttr(default_factory=dict)
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
@@ -186,6 +189,15 @@ class FABulousSettings(BaseSettings):
 
     # Windows warning acknowledgement
     windows_warning_acknowledged: bool = False
+
+    @property
+    def plugin_settings(self) -> dict[str, PluginSettings]:
+        """Plugin settings instances keyed by their `group`.
+
+        The plugin manager fills this after discovery; read one entry through
+        `PluginSettings.from_context` on the owning subclass.
+        """
+        return self._plugin_settings
 
     @field_validator("oss_cad_suite", mode="before")
     @classmethod

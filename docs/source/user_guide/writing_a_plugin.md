@@ -125,9 +125,8 @@ singleton from `get_context()`:
 MySettings.from_context().jobs  # -> int, the configured value
 ```
 
-This is the recommended way to reach configuration from a plugin: it keeps the
-single `get_context()` source of truth while giving you a precisely typed handle
-instead of dictionary lookups.
+Read settings through `from_context` rather than through the singleton's
+`plugin_settings` dictionary, so the type checker sees your model's fields.
 
 ## Distributing
 
@@ -138,14 +137,17 @@ Declare the entry point so FABulous discovers your package:
 my_plugin = "my_plugin"
 ```
 
-Install it with `FABulous plugins install <spec>` and restart. For a ready-made
-starting point, fork the
-[FABulous plugin template](https://github.com/FPGA-Research/fabulous-plugin-template).
+Install it with `FABulous plugins install <spec>`; the next FABulous session
+discovers it. `FABulous plugins list` shows every discovered plugin and
+`FABulous plugins info <name>` its version and settings group.
 
 ## Developing without installing
 
 ```bash
-FABulous -m ./path/to/my_plugin <project-dir> start
+FABulous -p <project-dir> start -m ./path/to/my_plugin
 ```
 
-`-m`/`--plugin` is repeatable and takes either a dotted module path or a directory.
+`-m`/`--plugin` is an option of `start`, `run` and `script`. It is repeatable
+and takes either a dotted module path or a directory containing an
+`__init__.py`. A plugin loaded this way still has to declare
+`FABULOUS_PLUGIN_API`.

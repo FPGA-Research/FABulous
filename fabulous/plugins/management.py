@@ -1,10 +1,9 @@
 """The `plugins` command surface shared by the shell and the Typer entry.
 
-This is *not* a plugin. The manager owns every operation; these helpers only
-format the manager's state, and the `PluginCommands` set is a thin cmd2 bridge
-that the CLI registers directly. The shell subcommands (`plugins list`,
-`plugins info`, …) use cmd2's `with_annotated`, so each subparser is built from
-the handler's type-annotated signature instead of a hand-rolled parser.
+This is not a plugin. The manager owns every operation, and `PluginCommands`
+is a cmd2 bridge the shell registers directly, outside discovery. The
+subcommands use cmd2's `with_annotated`, so each subparser is built from the
+handler's type-annotated signature instead of a hand-rolled parser.
 """
 
 from collections.abc import Callable

@@ -12,9 +12,6 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-if TYPE_CHECKING:
-    from fabulous.plugins.manager import PluginManager
-
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -29,15 +26,12 @@ from fabulous.fabric_cad.timing_model.models import (
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import ConfigBitMode, Side
+from fabulous.fabric_definition.define import ConfigBitMode, HDLType, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     FABulousFabricVHDLMacroFlow,
@@ -71,6 +65,9 @@ from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
+if TYPE_CHECKING:
+    from fabulous.plugins.manager import PluginManager
+
 
 class FABulous_API:
     """Class for managing fabric and geometry generation.
@@ -99,13 +96,10 @@ class FABulous_API:
         Object responsible for generating geometry-related outputs.
     fabric : Fabric
         Represents the parsed fabric data.
-    fileExtension : str
-        Default file extension for generated output files ('.v' or '.vhdl').
     """
 
     geometryGenerator: GeometryGenerator
     fabric: Fabric
-    fileExtension: str
 
     def __init__(
         self,
@@ -114,7 +108,6 @@ class FABulous_API:
         fabricCSV: str = "",
     ) -> None:
         self.writer = writer
-        self.fileExtension = writer.file_extension
         self.plugin_manager = plugin_manager
         if fabricCSV != "":
             self.loadFabric(Path(fabricCSV))
@@ -133,11 +126,9 @@ class FABulous_API:
     def loadFabric(self, fabric_dir: Path) -> None:
         """Load fabric data from a file.
 
-        The file suffix selects a parser provider from the plugin manager. After
-        the fabric is built, the `fabulous_after_fabric_loaded` hook fires.
-
-        The plugin manager raises `PluginError` if no parser is registered for
-        the file's suffix.
+        The file suffix selects a parser provider from the plugin manager, which
+        raises `PluginError` when no parser claims that suffix. After the fabric
+        is built, the `fabulous_after_fabric_loaded` hook fires.
 
         Parameters
         ----------
@@ -687,11 +678,13 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        tile_flow_cls = (
-            FABulousTileVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousTileVerilogMacroFlow
-        )
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                tile_flow_cls = FABulousTileVerilogMacroFlow
+            case HDLType.VHDL:
+                tile_flow_cls = FABulousTileVHDLMacroFlow
+            case other:
+                raise ValueError(f"No tile macro flow for {other.value}")
         flow = tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
@@ -745,16 +738,23 @@ class FABulous_API:
             Additional configuration overrides.
         **custom_config_overrides : dict
             software configuration overrides.
+
+        Raises
+        ------
+        ValueError
+            If no stitching flow exists for the writer's HDL.
         """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
 
-        fabric_flow_cls = (
-            FABulousFabricVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousFabricMacroFlow
-        )
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                fabric_flow_cls = FABulousFabricMacroFlow
+            case HDLType.VHDL:
+                fabric_flow_cls = FABulousFabricVHDLMacroFlow
+            case other:
+                raise ValueError(f"No fabric macro flow for {other.value}")
         flow = fabric_flow_cls(
             fabric=self.fabric,
             fabric_hdl_paths=[fabric_path],

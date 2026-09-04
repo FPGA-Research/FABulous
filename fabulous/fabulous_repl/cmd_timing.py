@@ -69,9 +69,8 @@ class TimingCommandSet(ReplCommandSet):
             bool,
             Option(
                 "--emit-config-template",
-                help_text=(
-                    "Output file for the generated timing model config template."
-                ),
+                help_text="Write a JSON config template (to --outfile) instead of "
+                "generating the timing model.",
             ),
         ] = False,
         with_config_file: Annotated[
@@ -91,13 +90,12 @@ class TimingCommandSet(ReplCommandSet):
         model for timing-aware place and route. This command regenerates the selected
         backend's place-and-route model with real delays, based on the specified mode
         (physical or structural), and writes it to `--outdir` (`.FABulous` by
-        default), replacing the untimed model already there. If no config file is
-        provided,
-        the automated flow must be run first to generate post-layout files. If a config
-        file is provided, it will be used for timing model generation instead of command
-        arguments. This allows for more complex configurations like different PDK
-        support. If emit-config-template is specified, a config template will be output
-        and no timing model will be generated.
+        default), replacing the untimed model already there. Without a config file
+        the automated flow must have run first, since the delays come from its
+        post-layout files. A config file replaces the command arguments and allows
+        more complex configurations such as a different PDK. With
+        `--emit-config-template` a config template is written and no timing model is
+        generated.
         """
         repl = self._cmd
         manual_config: TimingModelConfig | None = None

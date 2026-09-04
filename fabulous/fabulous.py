@@ -57,6 +57,14 @@ install_app = typer.Typer(
 app.add_typer(install_app, name="install")
 
 
+def version_callback(value: bool) -> None:
+    """Print version information and exit."""
+    if value:
+        package_version = Version(version("FABulous-FPGA"))
+        typer.echo(f"FABulous CLI {package_version.base_version}")
+        raise typer.Exit
+
+
 def validate_project_directory(value: str) -> Path | None:
     """Validate the project directory."""
     if not (Path(value) / ".FABulous").exists():
@@ -148,14 +156,6 @@ def plugins_uninstall_cmd(name: str) -> None:
     """Uninstall a plugin package via uv."""
     _, message = PluginManager.uninstall(name)
     typer.echo(message)
-
-
-def version_callback(value: bool) -> None:
-    """Print version information and exit."""
-    if value:
-        package_version = Version(version("FABulous-FPGA"))
-        typer.echo(f"FABulous CLI {package_version.base_version}")
-        raise typer.Exit
 
 
 class NixShell(StrEnum):
@@ -315,21 +315,11 @@ def common_options(
         return
 
     resolved_dir = project_dir or Path.cwd()
-    if subcommand == "plugins":
-        # `plugins install/uninstall` has to work outside a project, but inside
-        # one the project's .env decides plugin_dir and skip_broken_plugins.
-        if (resolved_dir / ".FABulous").is_dir():
-            try:
-                init_context(
-                    project_dir=resolved_dir,
-                    global_dot_env=global_dot_env,
-                    project_dot_env=project_dot_env,
-                )
-            except ValidationError as e:
-                _log_settings_validation_error(e, resolved_dir)
-                raise typer.Exit(1) from None
-        else:
-            init_context(project_dir=resolved_dir, api_mode=True)
+    # `plugins` has to work outside a project too, e.g. to install one before
+    # any project exists. Inside a project it falls through, so the project's
+    # .env decides plugin_dir and skip_broken_plugins.
+    if subcommand == "plugins" and not (resolved_dir / ".FABulous").is_dir():
+        init_context(project_dir=resolved_dir, api_mode=True)
         return
 
     try:

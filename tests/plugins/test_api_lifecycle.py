@@ -15,19 +15,8 @@ from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
 
 
-def _core_manager() -> PluginManager:
-    from fabulous.fabric_generator.code_generator import plugin as codegen_plugin
-    from fabulous.fabric_generator.parser import plugin as parser_plugin
-
-    manager = PluginManager()
-    manager.pm.register(codegen_plugin, name="codegen")
-    manager.pm.register(parser_plugin, name="parser")
-    manager.build_registries()
-    return manager
-
-
 def test_loadfabric_unknown_suffix_raises(tmp_path: Path) -> None:
-    manager = _core_manager()
+    manager = PluginManager.core_only()
     api = FABulous_API(VerilogCodeGenerator(), plugin_manager=manager)
     bad = tmp_path / "fabric.unknown"
     bad.write_text("")
@@ -38,7 +27,7 @@ def test_loadfabric_unknown_suffix_raises(tmp_path: Path) -> None:
 def test_loadfabric_fires_after_fabric_loaded(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    manager = _core_manager()
+    manager = PluginManager.core_only()
 
     spy_module = types.ModuleType("spy_lifecycle")
     seen: list[object] = []

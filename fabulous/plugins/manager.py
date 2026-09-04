@@ -1,10 +1,11 @@
-"""The FABulous plugin manager: discovery authority, registries, and operations.
+"""The FABulous plugin manager: discovery, registries and management operations.
 
 The manager is the single authority over plugins. It discovers and registers
 them, folds their contributions into typed registries, builds writers and
-parsers through factory methods, and owns the plugin-management operations
-(list/info/install/uninstall). Plugin management is therefore *not*
-itself a plugin.
+parsers through factory methods and owns the management operations (list,
+info, install, uninstall). Plugin management is not itself a plugin, and
+`install` and `uninstall` run no discovery, so a plugin that fails to import
+can still be removed.
 """
 
 import importlib
@@ -56,7 +57,7 @@ class BuiltinPlugin(StrEnum):
 
 
 class _NamedProvider(Protocol):
-    """Any provider descriptor: it carries a `name` for diagnostics."""
+    """Any provider descriptor; each carries a `name` for diagnostics."""
 
     name: str
 
@@ -78,9 +79,9 @@ class PluginManager:
     def __init__(self, skip_broken: bool = False) -> None:
         self.pm = pluggy.PluginManager("fabulous")
         self.pm.add_hookspecs(hookspecs)
-        self._code_generators: dict[HDLType, CodeGeneratorProvider] = {}
-        self._parsers: dict[str, ParserProvider] = {}
-        self._pnr_models: dict[str, PnRModelProvider] = {}
+        self._code_generators = {}
+        self._parsers = {}
+        self._pnr_models = {}
         # Resolved once by `create` so the post-discovery hooks fired through
         # this manager honour the same policy discovery ran under.
         self.skip_broken = skip_broken
@@ -109,10 +110,10 @@ class PluginManager:
         if name in BuiltinPlugin:
             return importlib_metadata.version("FABulous-FPGA")
 
-        for ep in importlib_metadata.entry_points(
-            group=PLUGIN_ENTRY_POINT_GROUP, name=name
-        ):
-            return ep.dist.version if ep.dist is not None else "unknown"
+        eps = importlib_metadata.entry_points(group=PLUGIN_ENTRY_POINT_GROUP, name=name)
+        if eps:
+            dist = next(iter(eps)).dist
+            return dist.version if dist is not None else "unknown"
 
         plugin = self.pm.get_plugin(name)
 
@@ -146,17 +147,11 @@ class PluginManager:
             A human-readable table showing plugin names, tier (core or
             plugin) and version.
         """
-        header = f"  {'name':50s} {'tier':6s} version"
-        status = [
-            (
-                name,
-                "core" if name in BuiltinPlugin else "plugin",
-                self._plugin_version(name),
-            )
-            for name, _ in sorted(self.pm.list_name_plugin(), key=lambda kv: kv[0])
-        ]
-        rows = [f"  {s[0]:50s} {s[1]:6s} {s[2]}" for s in status]
-        return "Plugins:\n" + header + "\n" + "\n".join(rows)
+        rows = [f"  {'name':50s} {'tier':6s} version"]
+        for name, _ in sorted(self.pm.list_name_plugin(), key=lambda kv: kv[0]):
+            tier = "core" if name in BuiltinPlugin else "plugin"
+            rows.append(f"  {name:50s} {tier:6s} {self._plugin_version(name)}")
+        return "Plugins:\n" + "\n".join(rows)
 
     def get_plugin_info_str(self, name: str) -> str:
         """Build a detailed information string for a single plugin.
@@ -331,7 +326,6 @@ class PluginManager:
             describe=lambda p: f"Place-and-route tool '{p.tool}'",
         )
 
-        # build settings
         new_settings: dict[str, PluginSettings] = {}
         for model in self._call_hook_or_skip(self.pm.hook.fabulous_register_settings):
             if model.group in new_settings:
@@ -475,10 +469,8 @@ class PluginManager:
     def notify_fabric_loaded(self, api: FABulous_API) -> None:
         """Fire the post-load lifecycle hook for a freshly loaded fabric.
 
-        Centralising the firing here keeps the manager the sole authority over
-        hook dispatch, so callers never reach into the pluggy hook relay. Unlike
-        `fabulous_startup` (fired once per session by `notify_startup`), this
-        fires on every fabric load.
+        Unlike `fabulous_startup`, which `notify_startup` fires once per
+        session, this fires on every fabric load.
 
         Parameters
         ----------
@@ -711,10 +703,11 @@ class PluginManager:
 
         Parameters
         ----------
-        extra_plugins : Iterable[str], optional
-            Tier-4 session plugins (`-m/--plugin` values).
+        extra_plugins : Iterable[str]
+            Session plugins, the `-m/--plugin` values. Defaults to ().
         skip_broken : bool | None
-            Override for `skip_broken_plugins`; `None` uses the setting.
+            Override for the `skip_broken_plugins` setting. Defaults to None,
+            which reads the setting.
 
         Returns
         -------

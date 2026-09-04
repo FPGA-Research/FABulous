@@ -4,13 +4,14 @@ import math
 import re
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, HDLType
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
 class VerilogCodeGenerator(CodeGenerator):
     """The writer class for generating Verilog code."""
 
+    hdl_type = HDLType.VERILOG
     file_extension = ".v"
 
     def addComment(

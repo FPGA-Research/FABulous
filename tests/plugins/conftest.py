@@ -14,37 +14,8 @@ from fabulous.plugins.types import (
 
 
 class _FakeWriter:
+    hdl_type = HDLType.SYSTEM_VERILOG
     file_extension = ".fake"
-
-
-@pytest.fixture
-def fake_codegen_module() -> types.ModuleType:
-    """A module exposing a code-generator hookimpl for one fake HDLType."""
-    module = types.ModuleType("fake_codegen_plugin")
-
-    @hookspecs.hookimpl
-    def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
-        return [
-            CodeGeneratorProvider(
-                hdl_type=HDLType.SYSTEM_VERILOG, factory=_FakeWriter, name="fake"
-            )
-        ]
-
-    module.fabulous_register_code_generators = fabulous_register_code_generators
-    return module
-
-
-@pytest.fixture
-def fake_parser_module() -> types.ModuleType:
-    """A module exposing a parser hookimpl for the `.fake` suffix."""
-    module = types.ModuleType("fake_parser_plugin")
-
-    @hookspecs.hookimpl
-    def fabulous_register_parsers() -> list[ParserProvider]:
-        return [ParserProvider(suffix=".fake", parse=lambda path: path, name="fake")]
-
-    module.fabulous_register_parsers = fabulous_register_parsers
-    return module
 
 
 def make_codegen_module(hdl_type: HDLType, name: str) -> types.ModuleType:
@@ -137,6 +108,18 @@ def make_pnr_model_module(
 
     module.fabulous_register_pnr_models = fabulous_register_pnr_models
     return module
+
+
+@pytest.fixture
+def fake_codegen_module() -> types.ModuleType:
+    """A module exposing a code-generator hookimpl for one fake HDLType."""
+    return make_codegen_module(HDLType.SYSTEM_VERILOG, "fake")
+
+
+@pytest.fixture
+def fake_parser_module() -> types.ModuleType:
+    """A module exposing a parser hookimpl for the `.fake` suffix."""
+    return make_parser_module(".fake", "fake")
 
 
 @pytest.fixture
