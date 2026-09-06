@@ -239,13 +239,6 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
     return rows
 
 
-class ConfigMemConfig(NamedTuple):
-    """Configuration for ConfigMem test scenarios."""
-
-    name: str
-    scenario: str
-
-
 def create_switchmatrix_list(
     file_path: Path,
     connections: list[tuple[str, str]] | None = None,

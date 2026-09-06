@@ -97,7 +97,6 @@ ignore-regex = ".*Like$"
 # Exclude patterns - kept in sync with .gitignore
 # Note: interrogate doesn't natively support .gitignore files
 exclude = [
-  "setup.py",
   "docs",
   "build",
   ".venv",
@@ -113,7 +112,6 @@ exclude = [
   "fabulous_nix",
   "librelane_plugin_fabulous",
   ".codex",
-  "ttsim*",
 ]
 
 [dependency-groups]

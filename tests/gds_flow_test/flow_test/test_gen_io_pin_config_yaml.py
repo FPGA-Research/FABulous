@@ -440,14 +440,6 @@ class TestGenerateIOPinOrderConfig:
     """Tests for generate_IO_pin_order_config function."""
 
     @pytest.fixture
-    def mock_fabric(self, mocker: MockerFixture) -> Fabric:
-        """Create a mock fabric for testing."""
-        fabric = mocker.MagicMock(spec=Fabric)
-        fabric.find_tile_positions.return_value = [(0, 0)]
-        fabric.determine_border_side.return_value = Side.SOUTH
-        return fabric
-
-    @pytest.fixture
     def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
         tile = mocker.MagicMock(spec=Tile)

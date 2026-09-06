@@ -493,9 +493,3 @@ def project_factory(
 def project(project_factory: Callable[..., Path]) -> Path:
     """Verilog FABulous project in a temp directory."""
     return project_factory()
-
-
-@pytest.fixture
-def project_vhdl(project_factory: Callable[..., Path]) -> Path:
-    """VHDL FABulous project in a temp directory."""
-    return project_factory(lang=HDLType.VHDL)
