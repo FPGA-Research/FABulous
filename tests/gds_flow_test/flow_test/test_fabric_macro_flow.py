@@ -420,24 +420,28 @@ class TestComputeRowAndColumnSizes:
     def test_compute_sizes_with_none_tiles(
         self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
-        """Test computing sizes when some tiles are None."""
+        """Null grid cells are skipped; sizes come from the tiles that are present."""
         tile1: MagicMock = mocker.MagicMock()
         tile1.name = "tile1"
+        tile2: MagicMock = mocker.MagicMock()
+        tile2.name = "tile2"
 
-        # Only two tiles, rest are None
+        # Only the diagonal is populated, so each row and column is sized by
+        # exactly one tile.
         mock_fabric.__iter__ = mocker.MagicMock(
             return_value=iter(
                 [
                     ((0, 0), tile1),
                     ((1, 0), None),
                     ((0, 1), None),
-                    ((1, 1), tile1),
+                    ((1, 1), tile2),
                 ]
             )
         )
 
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(50))
+            "tile1": (Decimal(100), Decimal(50)),
+            "tile2": (Decimal(200), Decimal(75)),
         }
 
         row_heights: list[Decimal]
@@ -446,9 +450,8 @@ class TestComputeRowAndColumnSizes:
             flow, mock_fabric, tile_sizes
         )
 
-        # Should still compute sizes from available tiles
-        assert len(row_heights) == 2
-        assert len(col_widths) == 2
+        assert row_heights == [Decimal(50), Decimal(75)]
+        assert col_widths == [Decimal(100), Decimal(200)]
 
     def test_compute_sizes_non_uniform_raises_error(
         self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
@@ -583,8 +586,8 @@ class TestSpacingVariableTypes:
             self._compile_var("FABULOUS_HALO_SPACING", [1, 2])
 
 
-class TestFlowSubstitutionsAndAttributes:
-    """Tests for flow substitutions and class-level attributes."""
+class TestFlowSubstitutions:
+    """Tests for the flow's step substitutions."""
 
     def test_io_placement_substitution(self) -> None:
         """Test IO placement substitution."""
@@ -601,17 +604,3 @@ class TestFlowSubstitutionsAndAttributes:
         )
 
         assert subs["OpenROAD.GeneratePDN"] == FABulousPDN
-
-    def test_flow_steps_attribute(self) -> None:
-        """Test that flow has Steps attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "Steps")
-        assert isinstance(FABulousFabricMacroFlow.Steps, list)
-
-    def test_flow_substitutions_attribute(self) -> None:
-        """Test that flow has Substitutions attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "Substitutions")
-
-    def test_flow_config_vars_attribute(self) -> None:
-        """Test that flow has config_vars attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "config_vars")
-        assert isinstance(FABulousFabricMacroFlow.config_vars, list)

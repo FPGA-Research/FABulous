@@ -314,11 +314,7 @@ class TestWorkerCustomOverrides:
             CUSTOM_KEY="custom_value",
         )
 
-        # Check that custom override was passed
-        call_kwargs = mock_flow_class.call_args
-        assert "CUSTOM_KEY" in call_kwargs.kwargs or (
-            len(call_kwargs.args) > 0 and hasattr(call_kwargs, "kwargs")
-        )
+        assert mock_flow_class.call_args.kwargs["CUSTOM_KEY"] == "custom_value"
 
 
 class TestLogNlpSummary:

@@ -506,12 +506,6 @@ class TestContextMethods:
         assert isinstance(settings, FABulousSettings)
         assert settings.proj_dir == project
 
-    def test_init_context_with_project_dir(self, project: Path) -> None:
-        """Test context initialization with project directory."""
-        settings = init_context(project_dir=project)
-
-        assert settings.proj_dir == project
-
     def test_init_context_with_global_env_file(
         self, project: Path, tmp_path: Path
     ) -> None:
@@ -593,15 +587,17 @@ class TestContextMethods:
         assert settings.proj_lang == "system_verilog"  # From fabulous .env
 
     def test_init_context_missing_env_file_warning(
-        self, project: Path, tmp_path: Path
+        self, project: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Test that missing global .env file produces warning but doesn't fail."""
+        """A missing explicit global .env file is warned about, then ignored."""
         nonexistent_env = tmp_path / "nonexistent.env"
 
-        # This should work without raising an exception
         settings = init_context(project_dir=project, global_dot_env=nonexistent_env)
 
-        assert isinstance(settings, FABulousSettings)
+        assert (
+            f"Explicit Global .env file: {nonexistent_env} is provided, "
+            "but this is not found, this entry is ignored" in caplog.text
+        )
         assert settings.proj_dir == project
 
     def test_init_context_overwrites_existing(
@@ -722,21 +718,6 @@ class TestContextMethods:
         assert settings3.proj_lang == "verilog"  # Overridden by project
         assert settings3.proj_version_created == Version("1.0.0")  # From global
         assert settings3.switch_matrix_debug_signal is True  # From project
-
-    def test_context_thread_safety_basics(self, project: Path) -> None:
-        """Basic test for context state consistency."""
-        # Initialize context
-        settings = init_context(project_dir=project)
-
-        # Multiple get_context calls should return the same instance
-        context1 = get_context()
-        context2 = get_context()
-        context3 = get_context()
-
-        assert context1 is settings
-        assert context2 is settings
-        assert context3 is settings
-        assert context1 is context2 is context3
 
     def test_context_with_invalid_env_file_values(
         self, project: Path, tmp_path: Path

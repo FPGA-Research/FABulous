@@ -87,14 +87,14 @@ def test_expand_list_ports(
             id="no_connections",
         ),
         pytest.param(
-            "T,D0 # header comment\nSRC,1 # row comment\n",
-            None,
+            "T,D0,D1\n# full line comment\nSRC,0,1 # row comment\n",
+            {"SRC": ["D1"]},
             None,
             id="comments_stripped",
         ),
         pytest.param(
             "T,D0\n\nSRC,1\n\n",
-            None,
+            {"SRC": ["D0"]},
             None,
             id="blank_lines_skipped",
         ),
@@ -115,7 +115,7 @@ def test_expand_list_ports(
 def test_parse_matrix(
     tmp_path: Path,
     content: str,
-    expected_result: dict | None,
+    expected_result: dict[str, list[str]] | None,
     expected_error: type | None,
 ) -> None:
     """Test parseMatrix with preserve_list_order, honouring the cell encoding.
@@ -131,11 +131,7 @@ def test_parse_matrix(
         with pytest.raises(expected_error):
             parseMatrix(f, preserve_list_order=True)
     else:
-        result = parseMatrix(f, preserve_list_order=True)
-        if expected_result is not None:
-            assert result == expected_result
-        else:
-            assert isinstance(result, dict)
+        assert parseMatrix(f, preserve_list_order=True) == expected_result
 
 
 def test_parse_matrix_legacy_column_order(tmp_path: Path) -> None:

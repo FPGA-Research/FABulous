@@ -2,9 +2,9 @@
 
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -16,25 +16,25 @@ class TestFabricValidation:
     """Validate hardcoded bitstream and naming constraints."""
 
     @pytest.mark.parametrize(
-        "overrides",
+        ("rows", "columns"),
         [
-            pytest.param({}, id="defaults"),
-            pytest.param({"numberOfRows": 32}, id="rows_at_boundary"),
-            pytest.param({"numberOfColumns": 32}, id="columns_at_boundary"),
-            pytest.param(
-                {"numberOfRows": 32, "numberOfColumns": 32},
-                id="both_at_boundary",
-            ),
+            pytest.param(15, 15, id="defaults"),
+            pytest.param(32, 15, id="rows_at_boundary"),
+            pytest.param(15, 32, id="columns_at_boundary"),
+            pytest.param(32, 32, id="both_at_boundary"),
         ],
     )
     def test_valid_configurations(
         self,
         make_fabric: Callable[..., Fabric],
-        overrides: dict,
+        rows: int,
+        columns: int,
     ) -> None:
-        fabric = make_fabric(**overrides)
-        for key, value in overrides.items():
-            assert getattr(fabric, key) == value
+        """Grids up to the 32x32 bitstream limit are accepted unchanged."""
+        fabric = make_fabric(numberOfRows=rows, numberOfColumns=columns)
+
+        assert (fabric.numberOfRows, fabric.numberOfColumns) == (rows, columns)
+        assert (fabric.frameBitsPerRow, fabric.maxFramesPerCol) == (32, 20)
 
     @pytest.mark.parametrize(
         ("overrides", "error_match"),
@@ -101,28 +101,31 @@ class TestFabricValidation:
             make_fabric(**overrides)
 
     @pytest.mark.parametrize(
-        ("num_bels", "should_raise"),
+        ("num_bels", "expected_count"),
         [
-            pytest.param(26, False, id="bels_at_boundary"),
-            pytest.param(27, True, id="bels_exceed_26"),
-            pytest.param(30, True, id="bels_far_exceed_26"),
+            pytest.param(26, 26, id="bels_at_boundary"),
+            pytest.param(27, None, id="bels_exceed_26"),
+            pytest.param(30, None, id="bels_far_exceed_26"),
         ],
     )
     def test_tile_bel_count(
         self,
         make_fabric: Callable[..., Fabric],
+        mocker: MockerFixture,
         num_bels: int,
-        should_raise: bool,
+        expected_count: int | None,
     ) -> None:
-        tile = MagicMock(spec=Tile)
+        """A tile may hold at most 26 BELs, one per BEL naming letter."""
+        tile = mocker.MagicMock(spec=Tile)
         tile.name = "test_tile"
-        tile.bels = [MagicMock() for _ in range(num_bels)]
-        if should_raise:
+        tile.bels = [mocker.MagicMock() for _ in range(num_bels)]
+        if expected_count is None:
             with pytest.raises(ValueError, match="cannot have more than 26 BELs"):
                 make_fabric(tileDic={"test_tile": tile})
         else:
             fabric = make_fabric(tileDic={"test_tile": tile})
-            assert len(fabric.tileDic["test_tile"].bels) == num_bels
+            assert fabric.tileDic["test_tile"] is tile
+            assert len(fabric.tileDic["test_tile"].bels) == expected_count
 
 
 class TestGetSuperTileContaining:

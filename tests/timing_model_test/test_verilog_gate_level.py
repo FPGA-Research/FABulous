@@ -1,9 +1,14 @@
+from pathlib import Path
+
 import networkx as nx
 import pytest
 
+import fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base as base_mod
+from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
     VerilogGateLevelTimingGraph,
 )
+from fabulous.fabric_cad.timing_model.models import DelayType, SDFGobject
 
 TEST_NETLIST = r"""
 /* block comment with fake module
@@ -32,17 +37,71 @@ endmodule
 """
 
 
+class DummySynthTool:
+    """Synthesis tool stand-in that hands back an already written netlist."""
+
+    def __init__(self, netlist_file: Path) -> None:
+        self.synth_netlist_file = netlist_file
+        self.synth_design_name = "Top"
+        self.synth_liberty_files: list[Path] = []
+
+    def synth_synthesize(self) -> None:
+        """Do nothing; the netlist file is written by the fixture."""
+
+    def synth_clean_up(self) -> None:
+        """Do nothing; `tmp_path` owns the netlist file."""
+
+
+class DummyStaTool:
+    """STA tool stand-in that hands back an already written SDF file."""
+
+    def __init__(self, sdf_file: Path) -> None:
+        self.sta_sdf_file = sdf_file
+        self.sta_netlist_file: Path | None = None
+        self.sta_design_name: str | None = None
+        self.sta_liberty_files: list[Path] | None = None
+
+    def sta_analyze(self) -> None:
+        """Do nothing; the SDF file is written by the fixture."""
+
+    def sta_clean_up(self) -> None:
+        """Do nothing; `tmp_path` owns the SDF file."""
+
+
 @pytest.fixture
-def vg() -> VerilogGateLevelTimingGraph:
-    obj = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
-    obj.top_name = "Top"
-    obj.hier_sep = "/"
-    obj.verilog_netlist_content = TEST_NETLIST
-    obj.graph = nx.DiGraph()
-    obj.reverse_graph = nx.DiGraph()
-    obj.input_ports = {"IN1", "IN2"}
-    obj.output_ports = {"OUT1", "OUT2"}
-    return obj
+def vg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> VerilogGateLevelTimingGraph:
+    """Build the timing graph through the real constructor chain.
+
+    The netlist content is read back from a file on disc, so every reader test
+    exercises the parsing rather than a planted attribute. Only the SDF parser is
+    faked out, since the tests here never look at delays.
+    """
+    netlist_file = tmp_path / "Top.v"
+    netlist_file.write_text(TEST_NETLIST)
+    sdf_file = tmp_path / "Top.sdf"
+    sdf_file.write_text("(DELAYFILE)")
+
+    sdf_gobject = SDFGobject(
+        nx_graph=nx.DiGraph(),
+        hier_sep="/",
+        header_info={},
+        sdf_data={},
+        cells=[],
+        instances={},
+        io_paths=[],
+        interconnects=[],
+    )
+    monkeypatch.setattr(
+        base_mod,
+        "gen_timing_digraph",
+        lambda _path, _delay_type: sdf_gobject,
+    )
+
+    return HdlnxTimingModel(
+        DummyStaTool(sdf_file),
+        DummySynthTool(netlist_file),
+        DelayType.MAX_ALL,
+    )
 
 
 def test_get_raw_verilog_netlist_data(

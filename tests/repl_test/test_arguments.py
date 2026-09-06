@@ -20,6 +20,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabulous import main
 from fabulous.fabulous_api import FABulous_API
+from fabulous.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
@@ -665,12 +666,7 @@ def test_project_dir_precedence(
         global_dot_env=global_file,
         project_dot_env=project_file,
     )
-    if expected_dir == "default_dir":
-        # Fallback path: just ensure a project directory was resolved
-        assert settings.proj_dir is not None
-        assert settings.proj_dir.exists()
-    else:
-        assert settings.proj_dir.resolve() == dirs[expected_dir].resolve()
+    assert settings.proj_dir.resolve() == dirs[expected_dir].resolve()
 
 
 @pytest.mark.parametrize(
@@ -943,48 +939,49 @@ def test_run_variants(
 
 
 @pytest.mark.parametrize(
-    "argv",
+    ("argv", "expected_loads"),
     [
         pytest.param(
-            ["FABulous", "-gde", "/tmp/global.env", "run", "help"], id="short-gde"
+            ["FABulous", "-gde", "{global}", "run", "help"],
+            [("global", "global_dotenv_file")],
+            id="short-gde",
         ),
         pytest.param(
-            ["FABulous", "-pde", "/tmp/project.env", "run", "help"], id="short-pde"
+            ["FABulous", "-pde", "{project}", "run", "help"],
+            [("project", "project_dotenv_file")],
+            id="short-pde",
         ),
         pytest.param(
-            [
-                "FABulous",
-                "-gde",
-                "/tmp/global.env",
-                "-pde",
-                "/tmp/project.env",
-                "run",
-                "help",
-            ],
+            ["FABulous", "-gde", "{global}", "-pde", "{project}", "run", "help"],
+            [("global", "global_dotenv_file"), ("project", "project_dotenv_file")],
             id="both-short",
         ),
     ],
 )
 def test_short_dotenv_flags(
-    project_directories: dict[str, Path], argv: list[str]
+    project_directories: dict[str, Path],
+    argv: list[str],
+    expected_loads: list[tuple[str, str]],
 ) -> None:
-    """Test short flag versions of dotenv options (-gde, -pde)"""
+    """The short dotenv flags (-gde, -pde) load the .env file they point at."""
     dirs = project_directories
-    # Replace placeholder paths with actual test files
-    for i, arg in enumerate(argv):
-        if arg == "/tmp/global.env":
-            argv[i] = str(dirs["global_dotenv_file"])
-        elif arg == "/tmp/project.env":
-            argv[i] = str(dirs["project_dotenv_file"])
+    command = [
+        arg.replace("{global}", str(dirs["global_dotenv_file"])).replace(
+            "{project}", str(dirs["project_dotenv_file"])
+        )
+        for arg in argv
+    ]
 
     result = run(
-        argv,
+        command,
         capture_output=True,
         text=True,
         cwd=str(dirs["default_dir"]),
     )
-    # Should not crash and should process dotenv files
-    assert isinstance(result.returncode, int)
+
+    assert result.returncode == 0
+    for kind, dotenv_key in expected_loads:
+        assert f"Loading {kind} .env file from {dirs[dotenv_key]}" in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -1095,9 +1092,9 @@ def test_log_settings_validation_error_messages(
 @pytest.mark.parametrize(
     ("package_ver", "project_ver", "should_exit"),
     [
-        pytest.param("2.0.0", "1.0.0", False, id="package-newer-minor"),
+        pytest.param("2.0.0", "1.0.0", False, id="package-newer-major"),
         pytest.param("1.0.0", "2.0.0", True, id="package-older"),
-        pytest.param("2.0.0", "1.0.0", False, id="major-version-mismatch"),
+        pytest.param("1.0.0", "1.0.0", False, id="same-version"),
         pytest.param("1.1.0", "1.0.0", False, id="same-major-newer-minor"),
     ],
 )
@@ -1163,34 +1160,44 @@ def test_script_execution_with_content(
 
 
 @pytest.mark.parametrize(
-    ("file_ext", "expected_code"),
+    ("type_flag", "expected_command"),
     [
-        pytest.param(".fab", 0, id="fab-extension"),
-        pytest.param(".fs", 0, id="fs-extension"),
-        pytest.param(".tcl", 0, id="tcl-extension"),
-        pytest.param(".txt", 0, id="unknown-extension-defaults-tcl"),
+        pytest.param([], "run_tcl", id="default-is-tcl"),
+        pytest.param(["-t", "tcl"], "run_tcl", id="explicit-tcl"),
+        pytest.param(["-t", "fabulous"], "run_script", id="explicit-fabulous"),
     ],
 )
-def test_script_type_detection(
+def test_script_type_dispatch(
     tmp_path: Path,
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
-    file_ext: str,
-    expected_code: int,
+    mocker: MockerFixture,
+    type_flag: list[str],
+    expected_command: str,
 ) -> None:
-    """Test automatic script type detection based on file extension."""
-    # Note: expected_type is used for documentation but not assertion since
-    # we're only testing that the command succeeds with different extensions
-    script_file = tmp_path / f"test{file_ext}"
+    """`--type` decides which REPL command runs the script file."""
+    # A .tcl name keeps the rows valid whichever way the (currently unreachable)
+    # extension detection in `script_cmd` resolves.
+    script_file = tmp_path / "test.tcl"
     script_file.write_text("help\n")
+    spy = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
 
-    test_args = ["FABulous", "-p", str(project), "script", str(script_file)]
+    test_args = [
+        "FABulous",
+        "-p",
+        str(project),
+        "script",
+        *type_flag,
+        str(script_file),
+    ]
     monkeypatch.setattr(sys, "argv", test_args)
 
     with pytest.raises(SystemExit) as exc_info:
         main()
 
-    assert exc_info.value.code == expected_code
+    assert exc_info.value.code == 0
+    dispatched = [call.args[1] for call in spy.call_args_list]
+    assert f"{expected_command} {script_file.resolve()}" in dispatched
 
 
 def test_main_function_exception_handling(monkeypatch: pytest.MonkeyPatch) -> None:

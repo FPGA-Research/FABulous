@@ -143,13 +143,13 @@ def test_analyze_normalizes_inputs(mocker: MockerFixture, tmp_path: Path) -> Non
         result = OpenStaTool.analyze(netlist, lib, "NORM")
 
         assert result == sdf
-        assert run.call_args.kwargs["stdin_data"] == OpenStaTool.render_template(
-            "opensta_sdf.j2",
-            liberty_files=[lib],
-            verilog_netlist=netlist,
-            top_name="NORM",
-            spef_files=None,
-            sdf_path=sdf,
+        # the bare Path liberty argument is wrapped into a one-element list
+        assert run.call_args.kwargs["stdin_data"] == (
+            f"read_liberty {lib}\n"
+            f"read_verilog {netlist}\n"
+            "link_design NORM\n"
+            f"write_sdf {sdf}\n"
+            "exit\n"
         )
     finally:
         sdf.unlink(missing_ok=True)
@@ -168,5 +168,7 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
 @pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])
 def test_tool_cannot_be_instantiated(tool_cls: type[Tool]) -> None:
     """Tool wrappers are classmethod-only singletons and reject instantiation."""
-    with pytest.raises(TypeError, match="cannot be instantiated"):
+    with pytest.raises(
+        TypeError, match=rf"^{tool_cls.__name__} is a stateless tool wrapper"
+    ):
         tool_cls()

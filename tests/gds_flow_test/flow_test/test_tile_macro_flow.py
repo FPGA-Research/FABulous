@@ -25,7 +25,6 @@ from librelane.flows.flow import FlowException
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
 )
-from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 
 
@@ -154,24 +153,6 @@ class TestFABulousTileVerilogMacroFlowInit:
             y_pin_thickness_mult=Decimal("3.0"),
         )
 
-    def test_init_ignores_invalid_pdk_pad_paths_for_tile_flow(
-        self,
-        mock_tile: MagicMock,
-        io_pin_config: Path,
-        mock_pdk_root: dict[str, Any],
-    ) -> None:
-        """Test tile flow is not blocked by stale PAD_* paths from PDK config."""
-        mock_pdk_root["config_vars"]["PAD_GDS"] = ["/definitely/missing/pad.gds"]
-
-        flow: FABulousTileVerilogMacroFlow = self._create_flow(
-            tile_type=mock_tile,
-            io_pin_config=io_pin_config,
-            mock_pdk_root=mock_pdk_root,
-            models_pack_path=Path("/fake/models/pack.v"),
-        )
-
-        assert flow.config["PAD_GDS"] == ["/definitely/missing/pad.gds"]
-
     def test_die_area_set_with_ignore_default(
         self,
         mock_tile: MagicMock,
@@ -251,12 +232,10 @@ class TestFABulousTileVerilogMacroFlowInit:
 
         # User die area is honoured (not replaced by the computed minimum).
         assert flow.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] is False
-        assert flow.config["DIE_AREA"] == (
-            0,
-            0,
-            round_up_decimal(Decimal("50.0"), Decimal("0.28")),
-            round_up_decimal(Decimal("150.0"), Decimal("0.56")),
-        )
+        # DIE_AREA is rounded to pitch multiples (0.28 for X, 0.56 for Y)
+        # 50.0 / 0.28 = 178.57... -> 179 * 0.28 = 50.12
+        # 150.0 / 0.56 = 267.85... -> 268 * 0.56 = 150.08
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("50.12"), Decimal("150.08"))
 
     def test_find_min_width_rejects_height_below_physical_min(
         self,
@@ -297,12 +276,9 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] is False
-        assert flow.config["DIE_AREA"] == (
-            0,
-            0,
-            round_up_decimal(Decimal("150.0"), Decimal("0.28")),
-            round_up_decimal(Decimal("50.0"), Decimal("0.56")),
-        )
+        # 150.0 / 0.28 = 535.71... -> 536 * 0.28 = 150.08
+        # 50.0 / 0.56 = 89.28... -> 90 * 0.56 = 50.40
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("150.08"), Decimal("50.40"))
 
     def test_find_min_height_rejects_width_below_physical_min(
         self,
@@ -346,12 +322,9 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] is False
-        assert flow.config["DIE_AREA"] == (
-            0,
-            0,
-            round_up_decimal(Decimal("300.0"), Decimal("0.28")),
-            round_up_decimal(Decimal("300.0"), Decimal("0.56")),
-        )
+        # 300.0 / 0.28 = 1071.42... -> 1072 * 0.28 = 300.16
+        # 300.0 / 0.56 = 535.71... -> 536 * 0.56 = 300.16
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("300.16"), Decimal("300.16"))
 
     @pytest.mark.parametrize("opt_mode", [OptMode.BALANCE, OptMode.LARGE])
     def test_non_directional_discards_user_die_area_when_ignoring(
@@ -373,12 +346,9 @@ class TestFABulousTileVerilogMacroFlowInit:
             FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
         )
 
-        assert flow.config["DIE_AREA"] == (
-            0,
-            0,
-            round_up_decimal(Decimal("100.0"), Decimal("0.28")),
-            round_up_decimal(Decimal("100.0"), Decimal("0.56")),
-        )
+        # 100.0 / 0.28 = 357.14... -> 358 * 0.28 = 100.24
+        # 100.0 / 0.56 = 178.57... -> 179 * 0.56 = 100.24
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("100.24"), Decimal("100.24"))
 
     def test_balance_rejects_user_die_area_below_physical_min(
         self,
@@ -439,16 +409,39 @@ class TestFABulousTileVerilogMacroFlowInit:
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
     ) -> None:
-        """Test that routing obstructions are generated when not provided."""
+        """Generated obstructions guard every die edge on every routing layer."""
         flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
             mock_pdk_root=mock_pdk_root,
         )
 
-        # Routing obstructions should be generated (a list)
-        assert flow.config["ROUTING_OBSTRUCTIONS"] is not None
-        assert isinstance(flow.config["ROUTING_OBSTRUCTIONS"], list)
+        obstructions: list[tuple[str, Decimal, Decimal, Decimal, Decimal]] = (
+            flow.config["ROUTING_OBSTRUCTIONS"]
+        )
+
+        # Four half-pitch guard bands (one per die edge) for each of the four
+        # layers in the mock tracks file, around the 100.24 x 100.24 die.
+        assert len(obstructions) == 16
+        # M1 has a 0.28 pitch on both axes, so its bands are 0.14 deep.
+        assert [obs for obs in obstructions if obs[0] == "M1"] == [
+            ("M1", Decimal(0), Decimal("-0.14"), Decimal("100.24"), Decimal(0)),
+            (
+                "M1",
+                Decimal(0),
+                Decimal("100.24"),
+                Decimal("100.24"),
+                Decimal("100.38"),
+            ),
+            ("M1", Decimal("-0.14"), Decimal(0), Decimal(0), Decimal("100.24")),
+            (
+                "M1",
+                Decimal("100.24"),
+                Decimal(0),
+                Decimal("100.38"),
+                Decimal("100.24"),
+            ),
+        ]
 
     def test_routing_obstructions_not_generated_when_false(
         self,
@@ -527,7 +520,7 @@ class TestFABulousTileVerilogMacroFlowInit:
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
     ) -> None:
-        """Test that VERILOG_FILES are collected from tile directory."""
+        """VERILOG_FILES holds the tile sources, then the models pack."""
         flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
@@ -536,9 +529,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         verilog_files: list[str] = flow.config["VERILOG_FILES"]
-        assert isinstance(verilog_files, list)
-        assert len(verilog_files) > 0
-        assert all(f.endswith(".v") for f in verilog_files)
+        assert verilog_files == [
+            str(mock_tile.tileDir.parent / "test.v"),
+            "/fake/models/pack.v",
+        ]
 
     def test_verilog_files_include_out_of_tree_bel_source(
         self,

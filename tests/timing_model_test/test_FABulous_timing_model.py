@@ -176,50 +176,47 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
     return m
 
 
-def test_init_sets_attributes_and_calls_helpers(
+def test_init_discovers_rtl_and_switch_matrix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`__init__` runs the real helpers: RTL discovery then switch-matrix lookup."""
     monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
+    (tmp_path / "tile.v").write_text("module TILE_A(); endmodule\n")
 
-    called = {"init_tm": 0, "extract": 0}
+    synth = DummyHdlnx()
+    synth.find_instance_paths_by_regex = lambda _regex: ["tile_inst_switch_matrix"]
+    synth.find_verilog_modules_regex = lambda _regex: ["tile_switch_matrix"]
+    synth.get_module_instance_nets = lambda _module_name: {"mux0": ["A", "B", "Y"]}
+    synth.get_instance_pins = lambda _inst_path: ["A", "B", "Y"]
 
-    def fake_init_tm(self: FABulousTileTimingModel) -> None:
-        called["init_tm"] += 1
-        self.verilog_files = [tmp_path / "a.v"]
-        self.hdlnx_tm_synth = "SYNTH"
-        self.hdlnx_tm_phys = "PHYS"
+    created: list[tuple[object, object, object, object]] = []
 
-    def fake_extract(self: FABulousTileTimingModel) -> None:
-        called["extract"] += 1
-        self.switch_matrix_hier_path = "swm_inst"
-        self.switch_matrix_module_name = "swm_mod"
-        self.internal_pips_grouped_by_inst = {"u0": ["A", "B"]}
-        self.internal_pips = ["A", "B"]
+    def fake_hdlnx(
+        sta: object, synth_tool: object, delay_type: object, debug: object
+    ) -> DummyHdlnx:
+        created.append((sta, synth_tool, delay_type, debug))
+        return synth
 
-    monkeypatch.setattr(
-        FABulousTileTimingModel, "_initialize_timing_models", fake_init_tm
-    )
-    monkeypatch.setattr(
-        FABulousTileTimingModel, "_extract_switch_matrix_info", fake_extract
-    )
+    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", fake_hdlnx)
 
     fabric = DummyFabric([])
-    cfg = make_config(tmp_path)
 
-    obj = FABulousTileTimingModel(cfg, fabric, tile_name="TILE_A")
+    obj = FABulousTileTimingModel(make_config(tmp_path), fabric, tile_name="TILE_A")
 
     assert obj.fabric is fabric
     assert obj.tile_name == "TILE_A"
     assert obj.unique_tile_name == "TILE_A"
     assert obj.is_in_which_super_tile is None
-    assert obj.verilog_files == [tmp_path / "a.v"]
-    assert obj.hdlnx_tm_synth == "SYNTH"
-    assert obj.hdlnx_tm_phys == "PHYS"
-    assert obj.switch_matrix_hier_path == "swm_inst"
-    assert obj.switch_matrix_module_name == "swm_mod"
-    assert obj.internal_pips == ["A", "B"]
+    assert obj.verilog_files == [tmp_path / "tile.v"]
+    assert obj.hdlnx_tm_synth is synth
+    # STRUCTURAL mode stops after the synthesis-level model
+    assert obj.hdlnx_tm_phys is None
+    assert len(created) == 1
+    assert obj.switch_matrix_hier_path == "tile_inst_switch_matrix"
+    assert obj.switch_matrix_module_name == "tile_switch_matrix"
+    assert obj.internal_pips_grouped_by_inst == {"mux0": ["A", "B", "Y"]}
+    assert obj.internal_pips == ["A", "B", "Y"]
     assert obj.internal_pip_cache == {}
-    assert called == {"init_tm": 1, "extract": 1}
 
 
 def test_get_unique_tile_name_regular_tile_keeps_name(

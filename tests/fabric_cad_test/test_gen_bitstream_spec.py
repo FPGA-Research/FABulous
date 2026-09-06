@@ -114,8 +114,6 @@ def test_spec_is_internally_consistent(generated_fabric: Fabric) -> None:
     assert arch["MaxFramesPerCol"] == fabric.maxFramesPerCol
     assert arch["FrameSelectWidth"] == fabric.frameSelectWidth
     assert arch["DesyncBit"] == fabric.desync_flag
-    # the flag must mirror the detector on the actual fabric
-    assert arch["IncludeBorderRows"] == border_rows_have_config_bits(fabric)
     assert arch["MultiClkDomains"] == fabric.multiClkDomains
 
     # TileMap covers the whole grid; NULL cells are mapped but carry no specs

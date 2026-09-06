@@ -119,9 +119,22 @@ def fake_sdf_graph_object() -> SDFGobject:
     graph.add_edge("U2/B", "U2/Z", weight=0.5, component=comp_u2_iopath)
     graph.add_edge("U2/Z", "OUT", weight=0.6, component=comp_u2_out)
 
+    # U3 is a register-like instance whose only timing data is a check, not a path
+    comp_u3_setup = make_component(
+        c_type=SDFCellType.SETUP,
+        cell_name="DFF_X1",
+        connection_string="SETUP D CK",
+        from_cell_instance="U3",
+        to_cell_instance="U3",
+        from_cell_pin="D",
+        to_cell_pin="CK",
+        delay=0.7,
+    )
+
     instances = {
         "U1": [comp_u1_iopath, comp_u1_hold],
         "U2": [comp_u2_iopath],
+        "U3": [comp_u3_setup],
     }
 
     return SDFGobject(
@@ -227,12 +240,8 @@ def test_get_cell_instance_inputs_to_outputs_for_existing_instance(
 def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(
     sdf_base: SDFTimingGraphBase,
 ) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
-
-    assert "A" in input_pins
-    assert "Y" in output_pins
-    assert len(input_pins) == 1
-    assert len(output_pins) == 1
+    """An instance carrying only timing checks contributes no pins."""
+    assert sdf_base.get_cell_instance_input_and_output_pins("U3") == ([], [])
 
 
 def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_prints(

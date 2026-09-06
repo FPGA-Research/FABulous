@@ -77,20 +77,6 @@ class TestGetLayerInfo:
         assert "M1" in result
         assert "M2" in result
 
-    def test_get_layer_info_preserves_decimal_precision(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test that Decimal precision is preserved."""
-        mock_config.__getitem__.side_effect = lambda key: (
-            str(sample_tracks_file) if key == "FP_TRACKS_INFO" else None
-        )
-
-        result = get_layer_info(mock_config)
-
-        # Verify that Decimal objects are used
-        assert isinstance(result["M2"]["X"][0], Decimal)
-        assert isinstance(result["M2"]["X"][1], Decimal)
-
 
 class TestGetPitch:
     """Tests for get_pitch function."""
@@ -109,21 +95,6 @@ class TestGetPitch:
 
         assert x_pitch == Decimal("0.28")
         assert y_pitch == Decimal("0.56")
-
-    def test_get_pitch_returns_tuple_of_decimals(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test that get_pitch returns Decimal objects."""
-        mock_config.__getitem__.side_effect = lambda key: {
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-            "IO_PIN_V_LAYER": "M1",
-            "IO_PIN_H_LAYER": "M3",
-        }.get(key)
-
-        x_pitch, y_pitch = get_pitch(mock_config)
-
-        assert isinstance(x_pitch, Decimal)
-        assert isinstance(y_pitch, Decimal)
 
 
 class TestRoundUpDecimal:
@@ -225,11 +196,10 @@ class TestRoundDieArea:
 
         result = round_die_area(mock_config)
 
-        # Result should have DIE_AREA with rounded dimensions
-        assert result["DIE_AREA"][0] == 0
-        assert result["DIE_AREA"][1] == 0
-        assert result["DIE_AREA"][2] > 100
-        assert result["DIE_AREA"][3] > 200
+        # Each of the 10 logical divisions is rounded onto the grid:
+        # 100 / 10 = 10.0 -> 36 * 0.28 = 10.08, x10 -> 100.80
+        # 200 / 10 = 20.0 -> 36 * 0.56 = 20.16, x10 -> 201.60
+        assert result["DIE_AREA"] == (0, 0, Decimal("100.80"), Decimal("201.60"))
 
     def test_round_die_area_missing_die_area(
         self, sample_tracks_file: Path, mock_config: MagicMock
@@ -244,31 +214,6 @@ class TestRoundDieArea:
 
         with pytest.raises(ValueError, match="DIE_AREA metric not found in state"):
             round_die_area(mock_config)
-
-    def test_round_die_area_preserves_origin(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test that rounded die area starts at (0, 0)."""
-        mock_config.__getitem__.side_effect = lambda key: {
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-            "IO_PIN_V_LAYER": "M1",
-            "IO_PIN_H_LAYER": "M2",
-            "DIE_AREA": (0, 0, 100, 100),
-            "FABULOUS_TILE_LOGICAL_WIDTH": "1",
-            "FABULOUS_TILE_LOGICAL_HEIGHT": "1",
-        }.get(key)
-        mock_config.get.side_effect = lambda key: {
-            "DIE_AREA": (0, 0, 100, 100),
-        }.get(key)
-        mock_config.copy.side_effect = lambda **kwargs: {
-            **mock_config.__dict__,
-            **kwargs,
-        }
-
-        result = round_die_area(mock_config)
-
-        assert result["DIE_AREA"][0] == 0
-        assert result["DIE_AREA"][1] == 0
 
 
 class TestGetRoutingObstructions:

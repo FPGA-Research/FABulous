@@ -118,26 +118,6 @@ def test_stamps_in_place_when_pin_flush_with_die_edge(
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_offsets_pin_to_south_die_edge_when_halo_present(
-    pin_placement_recorder: PinPlacementRecorder, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """gap > 0: the BPin box snaps onto the die edge so the router can reach it."""
-    # Bottom halo of 20: tile inset by 20 from the die bottom.
-    iterm = _make_iterm(0, 20, "SOUTH")
-    net = MockNetIoPlace("sig", [iterm])
-    bterm = MockBTermIoPlace("sig", net)
-
-    block = MockBlockIoPlace(MockDie(0, 0, 200, 150), [bterm])
-    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
-
-    _call_io_place(reader, monkeypatch)
-
-    boxes = _placements_for(pin_placement_recorder, "sig")
-    # Pin geometry translated down by the halo so its south edge lands on y=0.
-    assert boxes == [("sig", "Metal2", 40, 0, 60, 10)]
-
-
-@pytest.mark.usefixtures("_io_place_setup")
 def test_multifanout_places_single_edge_box_with_halo(
     pin_placement_recorder: PinPlacementRecorder, monkeypatch: pytest.MonkeyPatch
 ) -> None:

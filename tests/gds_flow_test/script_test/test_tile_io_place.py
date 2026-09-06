@@ -204,27 +204,19 @@ class TestSegmentInfo:
         assert seg_info.actual_pin_count == 3
 
     def test_invalid_sort_mode(self) -> None:
-        """Test error on invalid sort mode."""
+        """A sort_mode outside `PinSortMode` fails the enum lookup in `from_config`."""
+        # Segments are built straight from YAML, so sort_mode arrives as a raw
+        # string and is looked up by member name.
         segment_config = PinOrderConfig(
             pins=["pin.*"],
-            sort_mode=PinSortMode.BUS_MAJOR,
+            sort_mode="invalid_mode",
             min_distance=None,
             max_distance=None,
             reverse_result=False,
         )
 
-        # The error comes from trying to convert an invalid string to PinSortMode
-        # Let's modify the config to have an invalid sort_mode string
-        segment_config_dict = {
-            "pins": ["pin.*"],
-            "sort_mode": "invalid_mode",
-            "min_distance": None,
-            "max_distance": None,
-            "reverse_result": False,
-        }
-
         with pytest.raises(KeyError):
-            PinSortMode[segment_config_dict["sort_mode"]]
+            SegmentInfo.from_config(Side.NORTH, segment_config, [], {}, set())
 
     def test_duplicate_regex_match(self, mocker: MockerFixture) -> None:
         """Test error when multiple regexes match same pin."""
@@ -657,14 +649,14 @@ class TestPinPlacementPlanPrivateMethods:
 class TestIntegration:
     """Integration tests for complete pin placement workflow."""
 
-    def test_track_allocation_respects_min_distance(
-        self, mocker: MockerFixture
-    ) -> None:
-        """Test that min_distance filtering works correctly.
+    @staticmethod
+    def _filtered_north_tracks(
+        mocker: MockerFixture, min_distance: float, max_distance: float | None
+    ) -> list[list[float]]:
+        """Return the stride-filtered NORTH tracks for a single three-pin segment.
 
-        The allocate_tracks() method generates raw tracks based on the track grid. The
-        min_distance constraint is then enforced by filtering these tracks with a
-        stride, as done in the io_place() function.
+        The segment spans 10.0 units on a 1.0 track step with a zero origin, so
+        `allocate_tracks` hands the filter the raw tracks 0.0 … 10.0.
         """
         config = {
             "X0Y0": {
@@ -672,8 +664,8 @@ class TestIntegration:
                     {
                         "pins": ["pin0", "pin1", "pin2"],
                         "sort_mode": "bus_major",
-                        "min_distance": 2.5,  # Minimum 2.5 units between pins
-                        "max_distance": None,
+                        "min_distance": min_distance,
+                        "max_distance": max_distance,
                         "reverse_result": False,
                     }
                 ]
@@ -685,88 +677,42 @@ class TestIntegration:
             pin.getName.return_value = pin.getName()
 
         plan = PinPlacementPlan(config, mock_pins, "none")
+        plan.allocate_tracks({Side.NORTH: (11, 1.0, 0.0, 10.0)}, offset=0)
 
-        # Ensure min_distance is set
-        plan.ensure_min_distances({Side.NORTH: 2.5})
-
-        # Allocate tracks with specific parameters
-        specs = {
-            Side.NORTH: (
-                10,
-                1.0,
-                0.0,
-                10.0,
-            ),  # 10 tracks, step=1.0, origin=0, length=10
-        }
-        plan.allocate_tracks(specs, offset=0)
-
-        # Verify tracks were allocated
-        assert len(plan.track_coordinates[Side.NORTH]) == 1
-        raw_tracks = plan.track_coordinates[Side.NORTH][0]
-
-        # Apply min_distance filtering (as done in io_place())
-        segment = plan.segments_by_side[Side.NORTH][0]
-        step = 1.0
-        assert segment.min_distance is not None
-        min_distance = segment.min_distance * 1.0  # Assume dbunits=1 for simplicity
-
-        # Calculate stride based on min_distance
-        import math
-
-        stride = max(1, math.ceil(min_distance / step))
-        filtered_tracks = [raw_tracks[i] for i in range(0, len(raw_tracks), stride)]
-
-        # Verify filtering: with min_distance=2.5 and step=1.0, stride=3
-        # So we get tracks at indices 0, 3, 6, 9
-        assert stride == 3, f"Expected stride=3, got {stride}"
-        assert len(filtered_tracks) == 4, (
-            f"Expected 4 filtered tracks, got {len(filtered_tracks)}"
+        pin_tracks, track_errors = filter_pin_tracks_by_stride_and_distance(
+            plan,
+            step_by_side={side: 1.0 for side in Side},
+            origin_by_side={side: 0.0 for side in Side},
+            micron_in_units=1.0,
         )
 
-        # Verify actual distances between consecutive filtered tracks
-        for i in range(len(filtered_tracks) - 1):
-            distance = abs(filtered_tracks[i + 1] - filtered_tracks[i])
-            assert distance >= min_distance, (
-                f"Distance {distance} < min_distance {min_distance}"
-            )
+        assert track_errors == [], f"filter reported track shortfalls: {track_errors}"
+        return pin_tracks[Side.NORTH]
+
+    def test_track_allocation_respects_min_distance(
+        self, mocker: MockerFixture
+    ) -> None:
+        """min_distance drops raw tracks so consecutive tracks are a stride apart.
+
+        min_distance 2.5 over a 1.0 step gives stride 3, so the raw tracks
+        0.0 … 10.0 collapse to every third one.
+        """
+        tracks = self._filtered_north_tracks(mocker, 2.5, None)
+
+        assert tracks == [[0.0, 3.0, 6.0, 9.0]]
 
     def test_track_allocation_respects_max_distance(
         self, mocker: MockerFixture
     ) -> None:
-        """Test that allocated tracks respect max_distance constraints."""
-        config = {
-            "X0Y0": {
-                "NORTH": [
-                    {
-                        "pins": ["pin0", "pin1", "pin2"],
-                        "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": 5.0,  # Maximum 5.0 units between consecutive pins
-                        "reverse_result": False,
-                    }
-                ]
-            }
-        }
+        """max_distance re-inserts tracks into gaps the stride filter opened up.
 
-        mock_pins = [mocker.Mock(getName=lambda i=i: f"pin{i}") for i in range(3)]
-        for pin in mock_pins:
-            pin.getName.return_value = pin.getName()
+        min_distance 3.0 alone leaves `[0.0, 3.0, 6.0, 9.0]`; a max_distance of
+        2.0 caps each gap at two steps, so an interim track is inserted in every
+        three-step gap.
+        """
+        tracks = self._filtered_north_tracks(mocker, 3.0, 2.0)
 
-        plan = PinPlacementPlan(config, mock_pins, "none")
-
-        # Allocate with large track space
-        specs = {
-            Side.NORTH: (100, 1.0, 0.0, 100.0),  # Many tracks available
-        }
-        plan.allocate_tracks(specs)
-
-        tracks = plan.track_coordinates[Side.NORTH][0]
-        assert len(tracks) >= 3
-
-        # Verify max distance is respected
-        for i in range(len(tracks) - 1):
-            distance = abs(tracks[i + 1] - tracks[i])
-            assert distance <= 5.0, f"Distance {distance} > max_distance 5.0"
+        assert tracks == [[0.0, 2.0, 3.0, 5.0, 6.0, 8.0, 9.0]]
 
     @pytest.mark.parametrize(
         ("sort_mode", "expected_order"),

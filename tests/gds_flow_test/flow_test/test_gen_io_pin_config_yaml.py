@@ -62,13 +62,6 @@ class TestPinOrderConfig:
         assert result is config
         assert config.pins == ["a", "b", "c"]
 
-    def test_call_returns_self(self) -> None:
-        """Test that __call__ returns self for chaining."""
-        config = PinOrderConfig()
-        result = config(["pin"])
-
-        assert result is config
-
     def test_to_dict_basic(self) -> None:
         """Test to_dict serialization with basic values."""
         config = PinOrderConfig()
@@ -156,73 +149,42 @@ class TestSerializeTilePorts:
 
         return tile
 
-    def test_serialize_tile_ports_basic(self, mock_tile: Tile) -> None:
-        """Test basic tile port serialization."""
-        result = _serialize_tile_ports(mock_tile)
-
-        # Should have all four sides
-        assert "NORTH" in result
-        assert "EAST" in result
-        assert "SOUTH" in result
-        assert "WEST" in result
-
-    def test_serialize_tile_ports_north_includes_clock_and_strobe(
-        self, mock_tile: Tile
+    @pytest.mark.parametrize(
+        ("user_clk_side", "expected_pins"),
+        [
+            (
+                Side.SOUTH,
+                {
+                    "NORTH": [[r"N\[\d+\]"], ["UserCLKo"], [r"FrameStrobe_O\[\d+\]"]],
+                    "EAST": [[r"E\[\d+\]"], [r"FrameData_O\[\d+\]"]],
+                    "SOUTH": [[r"S\[\d+\]"], ["UserCLK"], [r"FrameStrobe\[\d+\]"]],
+                    "WEST": [[r"W\[\d+\]"], [r"FrameData\[\d+\]"]],
+                },
+            ),
+            (
+                Side.WEST,
+                {
+                    "NORTH": [[r"N\[\d+\]"], [r"FrameStrobe_O\[\d+\]"]],
+                    "EAST": [[r"E\[\d+\]"], ["UserCLKo"], [r"FrameData_O\[\d+\]"]],
+                    "SOUTH": [[r"S\[\d+\]"], [r"FrameStrobe\[\d+\]"]],
+                    "WEST": [[r"W\[\d+\]"], ["UserCLK"], [r"FrameData\[\d+\]"]],
+                },
+            ),
+        ],
+    )
+    def test_serialize_tile_ports_appends_clock_and_frame_signals(
+        self,
+        mock_tile: Tile,
+        user_clk_side: Side,
+        expected_pins: dict[str, list[list[str]]],
     ) -> None:
-        """Test that north side includes UserCLKo and FrameStrobe_O."""
-        result = _serialize_tile_ports(mock_tile)
+        """UserCLK enters on `user_clk_side` and UserCLKo leaves opposite it."""
+        result = _serialize_tile_ports(mock_tile, user_clk_side=user_clk_side)
 
-        # North should have port + UserCLKo + FrameStrobe_O
-        assert len(result["NORTH"]) >= 3
-
-        # Check for expected pins in the config
-        pin_lists = [config["pins"] for config in result["NORTH"]]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "UserCLKo" in all_pins or any("UserCLKo" in str(p) for p in all_pins)
-
-    def test_serialize_tile_ports_south_includes_clock_and_strobe(
-        self, mock_tile: Tile
-    ) -> None:
-        """Test that south side includes UserCLK and FrameStrobe."""
-        result = _serialize_tile_ports(mock_tile)
-
-        # South should have port + UserCLK + FrameStrobe
-        assert len(result["SOUTH"]) >= 3
-
-        pin_lists = [config["pins"] for config in result["SOUTH"]]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "UserCLK" in all_pins or any("UserCLK" in str(p) for p in all_pins)
-
-    def test_serialize_tile_ports_user_clk_side_west(self, mock_tile: Tile) -> None:
-        """With a W2E clock, UserCLK sits on WEST and UserCLKo on EAST."""
-        result = _serialize_tile_ports(mock_tile, user_clk_side=Side.WEST)
-
-        def pins(side: str) -> list[str]:
-            return [p for config in result[side] for p in config["pins"]]
-
-        assert "UserCLK" in pins("WEST")
-        assert "UserCLKo" in pins("EAST")
-        assert not any("UserCLK" in p for p in pins("NORTH") + pins("SOUTH"))
-
-    def test_serialize_tile_ports_east_includes_frame_data_o(
-        self, mock_tile: Tile
-    ) -> None:
-        """Test that east side includes FrameData_O."""
-        result = _serialize_tile_ports(mock_tile)
-
-        # East should have port + FrameData_O
-        assert len(result["EAST"]) >= 2
-
-    def test_serialize_tile_ports_west_includes_frame_data(
-        self, mock_tile: Tile
-    ) -> None:
-        """Test that west side includes FrameData."""
-        result = _serialize_tile_ports(mock_tile)
-
-        # West should have port + FrameData
-        assert len(result["WEST"]) >= 2
+        assert {
+            side: [config["pins"] for config in configs]
+            for side, configs in result.items()
+        } == expected_pins
 
     def test_serialize_tile_ports_with_prefix(self, mock_tile: Tile) -> None:
         """Test serialization with a prefix."""
@@ -268,14 +230,17 @@ class TestSerializeTilePorts:
         assert "ext_out" in all_pins
 
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
-        """Test handling of ports that return empty regex."""
-        # Make one port return empty regex
+        """A port with an empty regex is dropped, the frame signals stay."""
         mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 
-        # Should still work without errors
-        assert "NORTH" in result
+        assert [config["pins"] for config in result["NORTH"]] == [
+            ["UserCLKo"],
+            [r"FrameStrobe_O\[\d+\]"],
+        ]
+        # Sides whose port still has a regex are unaffected.
+        assert result["EAST"][0]["pins"] == [r"E\[\d+\]"]
 
 
 class TestSerializeSupertilePorts:
@@ -342,11 +307,14 @@ class TestSerializeSupertilePorts:
     def test_serialize_supertile_ports_with_prefix(
         self, mock_supertile: SuperTile
     ) -> None:
-        """Test supertile serialization with prefix."""
+        """Sub-tile pin names carry the `Tile_X<x>Y<y>_` prefix and then `prefix`."""
         result = _serialize_supertile_ports(mock_supertile, prefix="Test_")
 
-        # Result should contain tile coordinates
-        assert isinstance(result, dict)
+        north_pins = [pin for entry in result["X0Y0"]["NORTH"] for pin in entry["pins"]]
+        assert north_pins == [
+            "Tile_X0Y0_Test_UserCLKo",
+            r"Tile_X0Y0_Test_FrameStrobe_O\[\d+\]",
+        ]
 
     def test_frame_signals_on_perimeter_sides_without_routing_ports(
         self, mocker: MockerFixture
@@ -464,9 +432,8 @@ class TestSerializeSupertilePorts:
 
         result = _serialize_supertile_ports(supertile)
 
-        # Should handle None tile gracefully
-        if "X0Y0" in result:
-            assert all(not config for config in result["X0Y0"].values())
+        # The entry is still emitted, but no port lands on a missing tile.
+        assert result == {"X0Y0": {"NORTH": [], "EAST": [], "SOUTH": [], "WEST": []}}
 
 
 class TestGenerateIOPinOrderConfig:
@@ -529,11 +496,17 @@ class TestGenerateIOPinOrderConfig:
         with outfile.open() as f:
             config = yaml.safe_load(f)
 
-        # Should have X0Y0 with all four sides
-        assert "NORTH" in config["X0Y0"]
-        assert "EAST" in config["X0Y0"]
-        assert "SOUTH" in config["X0Y0"]
-        assert "WEST" in config["X0Y0"]
+        # The tile has no routing ports and no BELs, so only the clock and
+        # frame-chain signals are emitted, one side each.
+        assert {
+            side: [entry["pins"] for entry in entries]
+            for side, entries in config["X0Y0"].items()
+        } == {
+            "NORTH": [["UserCLKo"], [r"FrameStrobe_O\[\d+\]"]],
+            "EAST": [[r"FrameData_O\[\d+\]"]],
+            "SOUTH": [["UserCLK"], [r"FrameStrobe\[\d+\]"]],
+            "WEST": [[r"FrameData\[\d+\]"]],
+        }
 
     def test_generate_io_pin_order_config_with_prefix(
         self, mock_tile: Tile, tmp_path: Path
@@ -546,9 +519,8 @@ class TestGenerateIOPinOrderConfig:
         with outfile.open() as f:
             config = yaml.safe_load(f)
 
-        # Config should be generated (specific prefix validation would need
-        # more detailed mock setup)
-        assert config is not None
+        north_pins = [pin for entry in config["X0Y0"]["NORTH"] for pin in entry["pins"]]
+        assert north_pins == ["Pre_UserCLKo", r"Pre_FrameStrobe_O\[\d+\]"]
 
     def test_generate_io_pin_order_config_supertile(
         self, mocker: MockerFixture, tmp_path: Path
@@ -595,32 +567,6 @@ class TestGenerateIOPinOrderConfig:
 
         south_configs = config["X0Y0"]["SOUTH"]
         pin_lists = [c["pins"] for c in south_configs]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "ext_in" in all_pins
-
-    def test_generate_io_pin_order_config_without_fabric_uses_external_side(
-        self, mock_tile: Tile, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Test generation without fabric placement context."""
-        bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
-        mock_tile.bels = [bel]
-
-        outfile = tmp_path / "test_config.yaml"
-
-        generate_IO_pin_order_config(
-            mock_tile,
-            outfile,
-            external_port_side=Side.EAST,
-        )
-
-        with outfile.open() as f:
-            config = yaml.safe_load(f)
-
-        east_configs = config["X0Y0"]["EAST"]
-        pin_lists = [c["pins"] for c in east_configs]
         all_pins = [pin for pins in pin_lists for pin in pins]
 
         assert "ext_in" in all_pins
@@ -741,38 +687,12 @@ class TestGenerateIOPinOrderConfig:
 class TestPinOrderConfigIntegration:
     """Integration tests for PinOrderConfig with serialization."""
 
-    def test_config_serialization_round_trip(self) -> None:
-        """Test that config can be serialized and matches expected format."""
-        config = PinOrderConfig(
-            min_distance=10,
-            max_distance=20,
-            sort_mode=PinSortMode.BUS_MAJOR,
-            reverse_result=False,
-        )
-        config([r"Signal\[\d+\]"])
-
-        result = config.to_dict()
-
-        # Verify all required fields
-        assert "min_distance" in result
-        assert "max_distance" in result
-        assert "pins" in result
-        assert "sort_mode" in result
-        assert "reverse_result" in result
-
-        # Should be YAML-serializable
-        yaml_str = yaml.dump(result)
-        loaded = yaml.safe_load(yaml_str)
-
-        assert loaded == result
-
     def test_multiple_configs_same_side(self) -> None:
-        """Test multiple configs can be created for the same side."""
+        """Each config keeps its own pins; binding one does not touch the other."""
         config1 = PinOrderConfig()([r"Signal1\[\d+\]"])
         config2 = PinOrderConfig()([r"Signal2\[\d+\]"])
 
         configs = [config1.to_dict(), config2.to_dict()]
 
-        assert len(configs) == 2
         assert configs[0]["pins"] == [r"Signal1\[\d+\]"]
         assert configs[1]["pins"] == [r"Signal2\[\d+\]"]
