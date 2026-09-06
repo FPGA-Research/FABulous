@@ -1131,9 +1131,11 @@ frame9,9,32,1111_1111_1111_1111_1111_1111_1111_1111,397:394,401:398,405:402,409:
 ```
 
 The more important use case of bitstream remapping is to optimize the physical
-implementation of the configuration tiles. FABulous includes a corresponding
-optimizer that generates the bitstream remapping files automatically. The
-process is described in detail in Chung et al {cite}`10.1145/3490422.3502371`.
+implementation of the configuration tiles. `opt_tile_from_placement <tile>
+--config-mapping` rewrites this file from the placed tile so that every
+configuration latch sits on the frame crosspoint nearest to it, following Chung
+et al {cite}`10.1145/3490422.3502371`; see
+[Placement-driven optimisations](#placement-opt).
 
 (supertiles)=
 

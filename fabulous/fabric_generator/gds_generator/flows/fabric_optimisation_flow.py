@@ -43,13 +43,16 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.opt.fabric_area_opt import (
+    FabricAreaOptimisation,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    interface_order_config,
+)
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
-from fabulous.fabric_generator.gds_generator.steps.fabric_area_opt import (
-    FabricAreaOptimisation,
-)
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 from fabulous.processpool import DillProcessPoolExecutor
 
@@ -351,6 +354,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().models_pack,
                     get_context().proj_lang,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
+                    **interface_order_config(proj_dir),
                 )
                 handlers.append((result, opt_mode, tile_type))
 
@@ -516,6 +520,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().proj_lang,
                     design_dir=optimised_design_dir,
                     DIE_AREA=die_area,
+                    **interface_order_config(proj_dir),
                 )
                 handlers.append((result, tile_type))
 

@@ -594,6 +594,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "scipy" },
     { name = "sdf-timing" },
     { name = "typer" },
 ]
@@ -632,6 +633,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
+    { name = "scipy", specifier = ">=1.18.0" },
     { name = "sdf-timing", git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" },
     { name = "typer", specifier = ">=0.20.0" },
 ]

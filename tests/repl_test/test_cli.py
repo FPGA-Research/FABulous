@@ -5,14 +5,40 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import re
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+import yaml
 from pytest_mock import MockerFixture
 
-from fabulous.custom_exception import CommandError
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.custom_exception import CommandError, GDSFlowError
+from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.tile_interface import (
+    FRAME_STROBE,
+    FRAME_STROBE_OUT,
+    USER_CLK,
+    USER_CLK_OUT,
+)
+from fabulous.fabric_generator.gds_generator.formats import (
+    CONFIG_MEM_FORMAT,
+    TILE_INTERFACE_ORDER_FORMAT,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    InterfaceOrder,
+    project_interface_order_path,
+    propagate_tile_interface_order,
+    write_interface_order,
+)
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+    CONFIG_MAPPING_VARIABLE,
+    TILE_INTERFACE_VARIABLE,
+)
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -204,6 +230,68 @@ def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     assert output_file.exists()
 
 
+def _install_frame_first_order(cli: FABulousREPL) -> InterfaceOrder:
+    """Install a project order putting the frame strobe ahead of the clock."""
+    strobes = range(cli.fabulousAPI.fabric.maxFramesPerCol)
+    order: InterfaceOrder = {
+        Side.NORTH: [f"{FRAME_STROBE_OUT}[{i}]" for i in strobes] + [USER_CLK_OUT],
+        Side.SOUTH: [f"{FRAME_STROBE}[{i}]" for i in strobes] + [USER_CLK],
+    }
+    order_path = project_interface_order_path(cli.projectDir)
+    order_path.parent.mkdir(parents=True, exist_ok=True)
+    write_interface_order(order, order_path)
+    return order
+
+
+def test_propagate_tile_interface_order_writes_every_tile(cli: FABulousREPL) -> None:
+    """Propagation rewrites one pin YAML per tile type, each led by the order."""
+    order = _install_frame_first_order(cli)
+
+    run_cmd(cli, "propagate_tile_interface_order")
+
+    tile_root = cli.projectDir / "Tile"
+    tile_types = cli.fabulousAPI.fabric.get_all_unique_tiles()
+    written = [
+        tile_root / tile.name / f"{tile.name}_io_pin_order.yaml" for tile in tile_types
+    ]
+    assert all(path.is_file() for path in written)
+    for path in written:
+        payload = yaml.safe_load(path.read_text())
+        for tile_key, sides in payload.items():
+            for side, names in order.items():
+                # A sub-tile of a super tile carries the border only when the
+                # border is on the super tile's perimeter, and prefixes its pins.
+                if not sides.get(side.name):
+                    continue
+                leading = sides[side.name][0]["pins"]
+                assert leading in (
+                    [re.escape(name) for name in names],
+                    [re.escape(f"Tile_{tile_key}_{name}") for name in names],
+                )
+
+
+def test_propagate_tile_interface_order_without_an_order(cli: FABulousREPL) -> None:
+    """Propagation fails loudly when the project has no order installed."""
+    with pytest.raises(GDSFlowError, match="No tile interface order"):
+        propagate_tile_interface_order(
+            cli.fabulousAPI.fabric,
+            cli.projectDir / "Tile",
+            project_interface_order_path(cli.projectDir),
+        )
+
+
+def test_gen_io_pin_order_config_applies_the_project_order(cli: FABulousREPL) -> None:
+    """Regenerating one tile's pin YAML keeps it on the installed project order."""
+    order = _install_frame_first_order(cli)
+    output_file = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+
+    run_cmd(cli, f"gen_io_pin_config {TILE}")
+
+    sides = yaml.safe_load(output_file.read_text())["X0Y0"]
+    for side, names in order.items():
+        assert sides[side.name][0]["pins"] == [re.escape(name) for name in names]
+
+
 def test_gen_tile_macro_with_io_pin_config_skips_generation(
     cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
 ) -> None:
@@ -231,14 +319,12 @@ def test_gen_tile_macro_without_io_pin_config_generates_for_tile(
     mocker.patch(
         "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
     )
-    gen_pin_order_mock = mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
     gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
 
     run_cmd(cli, f"gen_tile_macro {TILE}")
 
     expected_pin_order = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
-    gen_pin_order_mock.assert_called_once()
-    assert gen_pin_order_mock.call_args.args[1] == expected_pin_order
+    assert expected_pin_order.is_file()
     assert gen_tile_macro_mock.call_args.args[1] == expected_pin_order
 
 
@@ -577,7 +663,6 @@ class TestGenTileMacroFlags:
         mocker.patch(
             "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
-        mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
         return mocker.patch.object(cli.fabulousAPI, "genTileMacro")
 
     def test_fix_height_sets_mode_and_die_area(
@@ -635,6 +720,117 @@ class TestGenTileMacroFlags:
             gen_macro.call_args.kwargs["custom_config_overrides"]["DIODE_ON_PORTS"]
             == "both"
         )
+
+
+class TestOptTileFromPlacement:
+    """CLI wiring for the run that searches a tile for its own inputs."""
+
+    def _patch_flow(
+        self,
+        mocker: MockerFixture,
+        views: dict[object, Path] | None = None,
+    ) -> MockerFixture:
+        """Stand in for the optimisation flow, exporting the given views."""
+        mocker.patch(
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+        )
+        state = mocker.MagicMock()
+        state.get.side_effect = lambda fmt: (views or {}).get(fmt)
+        flow_cls = mocker.patch(
+            "fabulous.fabulous_repl.cmd_macro.FABulousTileVerilogPlacementOptFlow"
+        )
+        flow_cls.return_value.start.return_value = state
+        return flow_cls
+
+    def test_without_a_switch_nothing_runs(
+        self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        flow_cls = self._patch_flow(mocker)
+
+        run_cmd(cli, f"opt_tile_from_placement {TILE}")
+
+        flow_cls.assert_not_called()
+        assert "nothing to search for" in caplog.text
+
+    @pytest.mark.parametrize(
+        ("flag", "variable"),
+        [
+            ("--config-mapping", CONFIG_MAPPING_VARIABLE.name),
+            ("--tile-interface", TILE_INTERFACE_VARIABLE.name),
+        ],
+        ids=["config mapping", "tile interface"],
+    )
+    def test_the_switch_reaches_the_flow(
+        self, cli: FABulousREPL, mocker: MockerFixture, flag: str, variable: str
+    ) -> None:
+        flow_cls = self._patch_flow(mocker)
+
+        run_cmd(cli, f"opt_tile_from_placement {TILE} {flag}")
+
+        kwargs = flow_cls.call_args.kwargs
+        assert kwargs[variable] is True
+        assert (
+            kwargs[CONFIG_BIT_MODE_VARIABLE.name]
+            == cli.fabulousAPI.fabric.configBitMode
+        )
+        assert kwargs["design_dir"].parts[-2:] == ("macro", "placement_opt")
+
+    def test_a_super_tile_is_refused(
+        self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        flow_cls = self._patch_flow(mocker)
+
+        run_cmd(cli, "opt_tile_from_placement DSP --config-mapping")
+
+        flow_cls.assert_not_called()
+        assert "not a regular tile" in caplog.text
+
+    def test_the_winning_mapping_replaces_the_tile_csv(
+        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        tile_obj = cli.fabulousAPI.getTile(TILE)
+        assert isinstance(tile_obj, Tile)
+        before = ConfigMem.from_csv(tile_obj.config_mem_path)
+        # Move one bit onto a free crosspoint, so the file that comes back
+        # cannot be mistaken for the one that went in.
+        moved = dict(before.bit_at)
+        crosspoint, bit = next(iter(sorted(moved.items())))
+        del moved[crosspoint]
+        moved[before.free_crosspoints[0]] = bit
+        won = tmp_path / "won_ConfigMem.csv"
+        before.rebuilt_with(moved).to_csv(won)
+        self._patch_flow(mocker, {CONFIG_MEM_FORMAT: won})
+
+        run_cmd(cli, f"opt_tile_from_placement {TILE} --config-mapping")
+
+        assert tile_obj.config_mem is not None
+        assert tile_obj.config_mem.bit_at == moved
+        assert tile_obj.config_mem.bit_at != before.bit_at
+
+    def test_the_winning_order_is_installed_and_propagated(
+        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        won = tmp_path / "won_interface_order.yaml"
+        write_interface_order({Side.SOUTH: [USER_CLK]}, won)
+        self._patch_flow(mocker, {TILE_INTERFACE_ORDER_FORMAT: won})
+
+        run_cmd(cli, f"opt_tile_from_placement {TILE} --tile-interface")
+
+        order_path = project_interface_order_path(cli.projectDir)
+        assert order_path.read_text() == won.read_text()
+        pin_yaml = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+        sides = yaml.safe_load(pin_yaml.read_text())["X0Y0"]
+        assert sides[Side.SOUTH.name][0]["pins"] == [re.escape(USER_CLK)]
+
+    def test_an_empty_result_installs_nothing(
+        self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        self._patch_flow(mocker)
+
+        run_cmd(cli, f"opt_tile_from_placement {TILE} --config-mapping")
+
+        assert "nothing" in caplog.text
+        assert not project_interface_order_path(cli.projectDir).exists()
 
 
 class TestRunEFPGAMacroForwarding:

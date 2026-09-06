@@ -273,6 +273,10 @@ class TileAreaOptimisation(WhileStep):
 
         return any(cast("int", state.metrics.get(m, 0)) > 0 for m in metrics_to_check)
 
+    def _keep_working_state(self, state: State) -> None:
+        """Keep a clean iteration as the result of the loop."""
+        self.last_working_state = state.copy()
+
     def post_iteration_callback(
         self, post_iteration: State, full_iter_completed: bool
     ) -> State:
@@ -300,14 +304,14 @@ class TileAreaOptimisation(WhileStep):
                 # Smallest-so-far working target axis; keep the best working state.
                 if self.bracket_high is None or target < self.bracket_high:
                     self.bracket_high = target
-                    self.last_working_state = post_iteration.copy()
+                    self._keep_working_state(post_iteration)
             elif self.bracket_low is None or target > self.bracket_low:
                 self.bracket_low = target
 
             return post_iteration
 
         if full_iter_completed:
-            self.last_working_state = post_iteration.copy()
+            self._keep_working_state(post_iteration)
             return post_iteration
 
         self.iter_count += 1
@@ -392,6 +396,7 @@ class TileAreaOptimisation(WhileStep):
         self._refresh_routing_obstructions()
 
         if p := self.get_current_iteration_dir():
+            p.mkdir(parents=True, exist_ok=True)
             (p / "config.json").write_text(self.config.dumps())
 
         return pre_iteration
@@ -553,6 +558,10 @@ class TileAreaOptimisation(WhileStep):
 
         return any(cast("int", state.metrics.get(m, 0)) > 0 for m in metrics_to_check)
 
+    def _no_opt_iterations(self) -> int:
+        """Return the iteration count under NO_OPT, where the die is given."""
+        return 1
+
     def run(
         self,
         state_in: State,
@@ -564,7 +573,7 @@ class TileAreaOptimisation(WhileStep):
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)
         if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
-            self.max_iterations = 1
+            self.max_iterations = self._no_opt_iterations()
             return super().run(state_in, **_kwargs)
 
         opt_mode = self.config["FABULOUS_OPT_MODE"]

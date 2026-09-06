@@ -8,8 +8,10 @@ import yaml
 
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.tile_interface import FRAME_CHAIN_PAIRS
 
 
 @dataclass
@@ -39,55 +41,58 @@ class PinOrderConfig:
         }
 
 
+def _side_segments(
+    tile: Tile,
+    side: Side,
+    side_ports: list[TilePort],
+    fixed_regexes: list[str],
+    prefix: str,
+) -> list[dict]:
+    """Serialise the routing, frame and clock segments of one border.
+
+    Every port is its own segment followed by the frame and clock segments,
+    which is the layout every existing tile was hardened with. A tile interface
+    order is a transform `FABulousTileIOPlacement` applies on top of this.
+    """
+    port_regexes = [
+        regex
+        for port in side_ports
+        if (regex := port.get_port_regex(indexed=True, prefix=prefix))
+    ]
+    segments = [(tile.pinOrderConfig[side], regex) for regex in port_regexes] + [
+        (PinOrderConfig(), regex) for regex in fixed_regexes
+    ]
+    return [config([regex]).to_dict() for config, regex in segments]
+
+
+def _frame_regexes(side: Side, prefix: str) -> list[str]:
+    """Return the frame-chain and clock pin regexes that cross `side`."""
+    regexes: list[str] = []
+    for pair in FRAME_CHAIN_PAIRS:
+        if (name := pair.on(side)) is None:
+            continue
+        regexes.append(f"{prefix}{name}" if pair.scalar else rf"{prefix}{name}\[\d+\]")
+    return regexes
+
+
 def _serialize_tile_ports(
-    tile: Tile, prefix: str = "", external_port_side: Side = Side.SOUTH
+    tile: Tile,
+    prefix: str = "",
+    external_port_side: Side = Side.SOUTH,
 ) -> dict[str, list[dict]]:
     """Serialize a single tile's ports for IO pin placement."""
-    port_dict = {
-        Side.NORTH.name: [],
-        Side.EAST.name: [],
-        Side.SOUTH.name: [],
-        Side.WEST.name: [],
+    side_ports = {
+        Side.NORTH: tile.interface.ports_on(Side.NORTH),
+        Side.EAST: tile.interface.ports_on(Side.EAST),
+        Side.SOUTH: tile.interface.ports_on(Side.SOUTH),
+        Side.WEST: tile.interface.ports_on(Side.WEST),
     }
-
-    for port in tile.interface.ports_on(Side.NORTH):
-        if regex := port.get_port_regex(indexed=True, prefix=prefix):
-            port_dict[Side.NORTH.name].append(
-                tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
-            )
-    port_dict[Side.NORTH.name].append(PinOrderConfig()([f"{prefix}UserCLKo"]).to_dict())
-    port_dict[Side.NORTH.name].append(
-        PinOrderConfig()([rf"{prefix}FrameStrobe_O\[\d+\]"]).to_dict()
-    )
-
-    for port in tile.interface.ports_on(Side.EAST):
-        if regex := port.get_port_regex(indexed=True, prefix=prefix):
-            port_dict[Side.EAST.name].append(
-                tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
-            )
-    port_dict[Side.EAST.name].append(
-        PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
-    )
-
-    for port in tile.interface.ports_on(Side.SOUTH):
-        if regex := port.get_port_regex(indexed=True, prefix=prefix):
-            port_dict[Side.SOUTH.name].append(
-                tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
-            )
-    port_dict[Side.SOUTH.name].append(PinOrderConfig()([f"{prefix}UserCLK"]).to_dict())
-    port_dict[Side.SOUTH.name].append(
-        PinOrderConfig()([rf"{prefix}FrameStrobe\[\d+\]"]).to_dict()
-    )
-
-    for port in tile.interface.ports_on(Side.WEST):
-        if regex := port.get_port_regex(indexed=True, prefix=prefix):
-            port_dict[Side.WEST.name].append(
-                tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
-            )
-    port_dict[Side.WEST.name].append(
-        PinOrderConfig()([rf"{prefix}FrameData\[\d+\]"]).to_dict()
-    )
-
+    port_dict = {
+        side.name: _side_segments(
+            tile, side, ports, _frame_regexes(side, prefix), prefix
+        )
+        for side, ports in side_ports.items()
+    }
     # Place BEL external ports on the specified side
     for bel in tile.bels:
         pin_regexes = [
@@ -106,7 +111,11 @@ def _serialize_supertile_ports(
     prefix: str = "",
     external_port_sides: dict[tuple[int, int], Side] | None = None,
 ) -> dict[str, dict[str, list[dict]]]:
-    """Serialize SuperTile ports, processing only perimeter sides."""
+    """Serialize SuperTile ports, processing only perimeter sides.
+
+    Every perimeter face of a sub-tile is laid out like the same face of a
+    regular tile, with the sub-tile prefix on every pin.
+    """
     config_payload: dict[str, dict[str, list[dict]]] = {}
     ports_around = super_tile.get_ports_around_tile()
 
@@ -131,17 +140,12 @@ def _serialize_supertile_ports(
         tile_prefix = f"Tile_{tile_key}_{prefix}"
 
         # Routing ports: only present for sides that actually have wires.
-        perimeter_sides: set[Side] = set()
+        routing_ports: dict[Side, list[TilePort]] = {}
         for port_list in port_lists:
             if not port_list:
                 continue
-            side = port_list[0].side_of_tile
-            perimeter_sides.add(side)
-            for port in port_list:
-                if regex := port.get_port_regex(indexed=True, prefix=tile_prefix):
-                    config_payload[tile_key][side.name].append(
-                        tile.pinOrderConfig[side]([regex]).to_dict()
-                    )
+            routing_ports.setdefault(port_list[0].side_of_tile, []).extend(port_list)
+        perimeter_sides: set[Side] = set(routing_ports)
 
         # Frame-chain signals are present on every perimeter side, even when no
         # routing wires cross that side (e.g. an IO tile without WEST wires still
@@ -158,29 +162,17 @@ def _serialize_supertile_ports(
         if x_int == 0 or tm[y_int][x_int - 1] is None:
             all_perimeter_sides.add(Side.WEST)
 
-        for side in all_perimeter_sides:
-            if side == Side.NORTH:
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([f"{tile_prefix}UserCLKo"]).to_dict()
-                )
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([rf"{tile_prefix}FrameStrobe_O\[\d+\]"]).to_dict()
-                )
-            elif side == Side.EAST:
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([rf"{tile_prefix}FrameData_O\[\d+\]"]).to_dict()
-                )
-            elif side == Side.SOUTH:
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([f"{tile_prefix}UserCLK"]).to_dict()
-                )
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([rf"{tile_prefix}FrameStrobe\[\d+\]"]).to_dict()
-                )
-            elif side == Side.WEST:
-                config_payload[tile_key][side.name].append(
-                    PinOrderConfig()([rf"{tile_prefix}FrameData\[\d+\]"]).to_dict()
-                )
+        for side in perimeter_sides | all_perimeter_sides:
+            frame_regexes = (
+                _frame_regexes(side, tile_prefix) if side in all_perimeter_sides else []
+            )
+            config_payload[tile_key][side.name] = _side_segments(
+                tile,
+                side,
+                routing_ports.get(side, []),
+                frame_regexes,
+                tile_prefix,
+            )
 
         # Add BEL external ports
         if tile.bels:

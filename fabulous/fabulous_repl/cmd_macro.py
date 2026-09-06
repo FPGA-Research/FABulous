@@ -3,6 +3,7 @@
 Harden tiles and the fabric into GDS macros via the LibreLane flow.
 """
 
+import shutil
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, cast
@@ -10,9 +11,32 @@ from typing import Annotated, cast
 import yaml
 from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
+from librelane.state.state import State
 from loguru import logger
 
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_definition.define import HDLType
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.gds_generator.flows.placement_opt_flow import (
+    FABulousTileVerilogPlacementOptFlow,
+    FABulousTileVHDLPlacementOptFlow,
+)
+from fabulous.fabric_generator.gds_generator.formats import (
+    CONFIG_MEM_FORMAT,
+    TILE_INTERFACE_ORDER_FORMAT,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    interface_order_config,
+    project_interface_order_path,
+    propagate_tile_interface_order,
+    write_ordered_pin_yaml,
+)
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+    CONFIG_MAPPING_VARIABLE,
+    PLACEMENT_ITERATIONS_VARIABLE,
+    TILE_INTERFACE_VARIABLE,
+)
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     ReplCommandSet,
@@ -192,7 +216,7 @@ class MacroFlowCommandSet(ReplCommandSet):
             logger.error(str(exc))
             return
 
-        custom_overrides: dict = {}
+        custom_overrides: dict = dict(interface_order_config(repl.projectDir))
         if override:
             custom_overrides.update(yaml.safe_load(override.read_text()) or {})
         if die_area_override is not None:
@@ -207,14 +231,18 @@ class MacroFlowCommandSet(ReplCommandSet):
             return
 
         if not io_pin_config:
-            if tile_obj := repl.fabulousAPI.getTile(tile):
-                repl.fabulousAPI.gen_io_pin_order_config(tile_obj, pin_order_file)
-            else:
-                super_tile = repl.fabulousAPI.getSuperTile(tile)
-                if super_tile is None:
-                    logger.error(f"Tile {tile} not found in fabric definition")
-                    return
-                repl.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
+            tile_type = repl.fabulousAPI.getTile(tile) or repl.fabulousAPI.getSuperTile(
+                tile
+            )
+            if tile_type is None:
+                logger.error(f"Tile {tile} not found in fabric definition")
+                return
+            write_ordered_pin_yaml(
+                tile_type,
+                pin_order_file,
+                project_interface_order_path(repl.projectDir),
+                fabric=repl.fabulousAPI.fabric,
+            )
         else:
             pin_order_file = io_pin_config.resolve()
 
@@ -229,6 +257,194 @@ class MacroFlowCommandSet(ReplCommandSet):
             config_override_path=tile_dir / "gds_config.yaml",
             custom_config_overrides=custom_overrides or None,
         )
+
+    def do_propagate_tile_interface_order(self, *_args: str) -> None:
+        """Rewrite every tile's pin YAML to follow the project tile interface order.
+
+        Run this after copying an order into the project by hand;
+        `opt_tile_from_placement` propagates the order it found on its own.
+        """
+        repl = self._cmd
+        written = propagate_tile_interface_order(
+            repl.fabulousAPI.fabric,
+            repl.projectDir / "Tile",
+            project_interface_order_path(repl.projectDir),
+        )
+        for pin_file in written:
+            logger.info(f"Wrote {pin_file}")
+
+    @with_annotated
+    def do_opt_tile_from_placement(
+        self,
+        tile: Annotated[
+            str,
+            Argument(
+                help_text="A tile",
+                completer=lambda self: [
+                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
+                ],
+            ),
+        ],
+        config_mapping: Annotated[
+            bool,
+            Option(
+                "--config-mapping",
+                help_text=(
+                    "Move each configuration bit to the frame crosspoint nearest "
+                    "its placed latch and write the mapping to the tile's "
+                    "ConfigMem.csv."
+                ),
+            ),
+        ] = False,
+        tile_interface: Annotated[
+            bool,
+            Option(
+                "--tile-interface",
+                help_text=(
+                    "Order the border pins by the placed logic they feed and "
+                    "write the order to the project, applying it to every "
+                    "tile's pin YAML. Pairs already in the project order keep "
+                    "their rank."
+                ),
+            ),
+        ] = False,
+        optimise: Annotated[
+            OptMode,
+            Option(
+                "--optimise",
+                "-opt",
+                nargs="?",
+                const=OptMode.BALANCE,
+                help_text=(
+                    "Search the die size alongside the mapping. Available modes: "
+                    + ", ".join(m.value for m in OptMode)
+                ),
+            ),
+        ] = OptMode.NO_OPT,
+        iterations: Annotated[
+            int | None,
+            Option(
+                "--iterations",
+                help_text="Iterations to spend on the search. Defaults to 10.",
+            ),
+        ] = None,
+        override: Annotated[
+            Path | None,
+            Option(
+                "--override", help_text="Override config with a custom YAML config file"
+            ),
+        ] = None,
+    ) -> None:
+        """Search a tile for the configuration mapping and border order it prefers.
+
+        The run implements a proposal, reads the placement back and proposes
+        again, keeping the best clean iteration. Its macro is a by-product and
+        is thrown away: what it produces are inputs, so harden the tile again
+        afterwards to get a macro that implements them.
+        """
+        repl = self._cmd
+        if not (config_mapping or tile_interface):
+            logger.error(
+                "Pass --config-mapping, --tile-interface or both; there is "
+                "nothing to search for otherwise"
+            )
+            return
+
+        if not is_pdk_config_set():
+            logger.error(
+                "PDK configuration is not set. Please set the PDK configuration to "
+                "optimise a tile."
+            )
+            return
+
+        tile_obj = repl.fabulousAPI.getTile(tile)
+        if not isinstance(tile_obj, Tile):
+            logger.error(
+                f"{tile} is not a regular tile of the fabric definition; a super "
+                "tile's configuration memory borrows the master tile's "
+                "crosspoints and its borders are not reordered"
+            )
+            return
+
+        tile_dir = repl.projectDir / "Tile" / tile
+        design_dir = tile_dir / "macro" / "placement_opt"
+        design_dir.mkdir(parents=True, exist_ok=True)
+        pin_order_file = tile_dir / f"{tile}_io_pin_order.yaml"
+        write_ordered_pin_yaml(
+            tile_obj,
+            pin_order_file,
+            project_interface_order_path(repl.projectDir),
+            fabric=repl.fabulousAPI.fabric,
+        )
+
+        custom_overrides: dict = dict(interface_order_config(repl.projectDir))
+        if override:
+            custom_overrides.update(yaml.safe_load(override.read_text()) or {})
+        if iterations is not None:
+            custom_overrides[PLACEMENT_ITERATIONS_VARIABLE.name] = iterations
+
+        flow_cls = (
+            FABulousTileVHDLPlacementOptFlow
+            if get_context().proj_lang == HDLType.VHDL
+            else FABulousTileVerilogPlacementOptFlow
+        )
+        flow = flow_cls(
+            tile_obj,
+            pin_order_file,
+            OptMode(optimise),
+            pdk=cast("str", get_context().pdk),
+            pdk_root=cast("Path", get_context().pdk_root),
+            base_config_path=repl.projectDir / "Tile" / "include" / "gds_config.yaml",
+            override_config_path=tile_dir / "gds_config.yaml",
+            design_dir=design_dir,
+            **{
+                CONFIG_MAPPING_VARIABLE.name: config_mapping,
+                TILE_INTERFACE_VARIABLE.name: tile_interface,
+                CONFIG_BIT_MODE_VARIABLE.name: repl.fabulousAPI.fabric.configBitMode,
+            },
+            **custom_overrides,
+        )
+        self._install_placement_opt(tile_obj, flow.start())
+
+    def _install_placement_opt(self, tile_obj: Tile, state: State) -> None:
+        """Write what the winning iteration implemented back into the project.
+
+        Parameters
+        ----------
+        tile_obj : Tile
+            The tile that was optimised.
+        state : State
+            The final state of its optimisation flow.
+        """
+        repl = self._cmd
+        csv_view = state.get(CONFIG_MEM_FORMAT)
+        order_view = state.get(TILE_INTERFACE_ORDER_FORMAT)
+        if csv_view is None and order_view is None:
+            logger.error(
+                "No clean iteration implemented a proposal, so there is nothing "
+                "to install; raise --iterations or loosen the die size"
+            )
+            return
+        follow_up: list[str] = []
+        if csv_view is not None:
+            shutil.copyfile(Path(str(csv_view)), tile_obj.config_mem_path)
+            tile_obj.load_config_mem()
+            logger.info(f"Wrote the mapping to {tile_obj.config_mem_path}")
+            follow_up += [f"gen_config_mem {tile_obj.name}", "gen_bitStream_spec"]
+        if order_view is not None:
+            order_path = project_interface_order_path(repl.projectDir)
+            order_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(str(order_view)), order_path)
+            written = propagate_tile_interface_order(
+                repl.fabulousAPI.fabric, repl.projectDir / "Tile", order_path
+            )
+            logger.info(
+                f"Wrote the interface order to {order_path} and applied it to "
+                f"{len(written)} pin YAMLs; every tile sharing a border needs "
+                "hardening again"
+            )
+        follow_up.append(f"gen_tile_macro {tile_obj.name}")
+        logger.info(f"Run next: {', '.join(follow_up)}")
 
     @with_annotated
     def do_gen_all_tile_macros(

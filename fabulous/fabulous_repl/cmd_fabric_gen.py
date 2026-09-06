@@ -14,6 +14,10 @@ from loguru import logger
 
 from fabulous.custom_exception import CommandError
 from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    project_interface_order_path,
+    write_ordered_pin_yaml,
+)
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
@@ -438,7 +442,12 @@ class FabricGenCommandSet(ReplCommandSet):
             output_path = repl.projectDir / "Tile" / tile / f"{tile}_io_pin_order.yaml"
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        repl.fabulousAPI.gen_io_pin_order_config(tile_obj, output_path)
+        write_ordered_pin_yaml(
+            tile_obj,
+            output_path,
+            project_interface_order_path(repl.projectDir),
+            fabric=repl.fabulousAPI.fabric,
+        )
 
         logger.info(f"Generated IO pin config at {output_path}")
         logger.info("IO pin config generation complete")

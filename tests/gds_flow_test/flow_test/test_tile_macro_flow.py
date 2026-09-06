@@ -26,7 +26,7 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 @pytest.mark.usefixtures("mock_config_load")

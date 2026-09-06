@@ -146,6 +146,7 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     mock.name = "TestTile"
     mock.tileDir = tile_dir
     mock.bels = []
+    mock.portsInfo = []
     mock.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
 
     return mock

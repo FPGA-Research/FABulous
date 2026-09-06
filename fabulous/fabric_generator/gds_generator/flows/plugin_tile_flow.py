@@ -32,7 +32,10 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+)
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
@@ -74,14 +77,7 @@ class FABulousTile(SequentialFlow):
             "per-subtile Verilog.",
             default=False,
         ),
-        Variable(
-            "FABULOUS_CONFIG_BIT_MODE",
-            ConfigBitMode,
-            "Config-bit storage mode used when regenerating the tile switch "
-            "matrix and config memory. Must match the parent fabric; the "
-            "standalone tile flow has no fabric to read it from.",
-            default=ConfigBitMode.FRAME_BASED,
-        ),
+        CONFIG_BIT_MODE_VARIABLE,
         Variable(
             "FABULOUS_MULTIPLEXER_STYLE",
             MultiplexerStyle,
@@ -120,7 +116,7 @@ class FABulousTile(SequentialFlow):
         ) as exc:
             raise FlowException(str(exc)) from exc
 
-        config_bit_mode = ConfigBitMode(self.config["FABULOUS_CONFIG_BIT_MODE"])
+        config_bit_mode = ConfigBitMode(self.config[CONFIG_BIT_MODE_VARIABLE.name])
         multiplexer_style = MultiplexerStyle(self.config["FABULOUS_MULTIPLEXER_STYLE"])
         writer = VerilogCodeGenerator()
         _emit_tile_verilog(
@@ -142,9 +138,7 @@ class FABulousTile(SequentialFlow):
                 f"Invalid FABULOUS_EXTERNAL_SIDE={external_side_value!r}"
             ) from exc
         generate_IO_pin_order_config(
-            tile,
-            pin_yaml,
-            external_port_side=external_port_side,
+            tile, pin_yaml, external_port_side=external_port_side
         )
 
         file_list = [str(f) for f in self.config.get("VERILOG_FILES", []) or []]

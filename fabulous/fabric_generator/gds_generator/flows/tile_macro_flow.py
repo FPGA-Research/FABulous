@@ -27,7 +27,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 
 configs = Classic.config_vars + [
@@ -62,6 +62,27 @@ class FABulousTileMacroFlow(SequentialFlow):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _models_pack_first: bool = False
     _extra_synth_config: dict[str, object] = {}
+
+    def extra_tile_config(
+        self,
+        tile_type: Tile | SuperTile,  # noqa: ARG002
+        design_dir: Path,  # noqa: ARG002
+    ) -> dict[str, object]:
+        """Return config a subclass adds once the design directory is known.
+
+        Parameters
+        ----------
+        tile_type : Tile | SuperTile
+            The tile being hardened.
+        design_dir : Path
+            The run directory, which exists by the time this is called.
+
+        Returns
+        -------
+        dict[str, object]
+            Nothing; hardening a tile takes no input the caller has not given.
+        """
+        return {}
 
     def __new__(
         cls,
@@ -161,6 +182,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         )
         final_dir_path.mkdir(parents=True, exist_ok=True)
         final_dir = str(final_dir_path.resolve())
+        tile_config_dict.update(self.extra_tile_config(tile_type, final_dir_path))
 
         configs = [
             i
