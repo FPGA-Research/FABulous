@@ -6,7 +6,8 @@ import pytest
 from librelane.config.config import Config
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +30,10 @@ def mock_config() -> Config:  # type: ignore[name-defined]
             "IO_PIN_H_LENGTH": None,
             "AUTO_ECO_DIODE_INSERT_MODE": "none",
             "FABULOUS_RUN_TILE_OPTIMISATION": False,
+            "FABULOUS_CONFIG_BIT_MODE": ConfigBitMode.FRAME_BASED,
+            "FABULOUS_OPT_CONFIG_MAPPING": False,
+            "FABULOUS_OPT_TILE_INTERFACE": False,
+            "FABULOUS_TILE_INTERFACE_ORDER": None,
             "FABULOUS_IGNORE_ERROR": False,
             "FABULOUS_IGNORE_ERRORS": False,
             "IGNORE_ANTENNA_VIOLATIONS": False,

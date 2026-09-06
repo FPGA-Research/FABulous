@@ -1,7 +1,15 @@
-"""Tile size optimisation step for FABulous fabric generator."""
+"""Tile size optimisation step for FABulous fabric generator.
+
+With `FABULOUS_OPT_CONFIG_MAPPING` or `FABULOUS_OPT_TILE_INTERFACE` on, the
+loop also carries that optimisation's proposals from one iteration into the
+next, which is the loop of "How to shrink my FPGAs": implement, read the
+placement back, rewrite the inputs, shrink after a clean run and hold the die
+after a failed one. `PlacementOptLoop` keeps that bookkeeping.
+"""
 
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 from typing import cast
 
 from librelane.common import GenericImmutableDict
@@ -15,14 +23,35 @@ from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
+from fabulous.custom_exception import GDSFlowError
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
     round_die_dimension,
 )
+from fabulous.fabric_generator.gds_generator.opt.loop import PlacementOptLoop
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+    CONFIG_MAPPING_VARIABLE,
+    PLACEMENT_ITERATIONS_VARIABLE,
+    ROUTE_EVERY_ITERATION_VARIABLE,
+    TILE_INTERFACE_VARIABLE,
+)
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
+from fabulous.fabric_generator.gds_generator.steps.apply_config_mapping import (
+    ApplyConfigMapping,
+)
 from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
     FABulousDiodesOnPorts,
+)
+from fabulous.fabric_generator.gds_generator.steps.dump_placement import (
+    DumpPlacement,
+)
+from fabulous.fabric_generator.gds_generator.steps.propose_config_mapping import (
+    ProposeConfigMapping,
+)
+from fabulous.fabric_generator.gds_generator.steps.propose_tile_interface_order import (
+    ProposeTileInterfaceOrder,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
@@ -125,6 +154,11 @@ var = [
         "The base iteration number to start from for optimisations.",
         default=15,
     ),
+    CONFIG_BIT_MODE_VARIABLE,
+    CONFIG_MAPPING_VARIABLE,
+    TILE_INTERFACE_VARIABLE,
+    PLACEMENT_ITERATIONS_VARIABLE,
+    ROUTE_EVERY_ITERATION_VARIABLE,
 ]
 
 
@@ -139,6 +173,7 @@ class TileAreaOptimisation(WhileStep):
 
     Steps = [
         OpenROAD.Floorplan,
+        ApplyConfigMapping,
         OpenROAD.DumpRCValues,
         Odb.CheckMacroAntennaProperties,
         Odb.SetPowerConnections,
@@ -159,6 +194,11 @@ class TileAreaOptimisation(WhileStep):
         Odb.ManualGlobalPlacement,
         OpenROAD.DetailedPlacement,
         OpenROAD.CTS,
+        # Proposals come from the placement, so they are read before routing and
+        # a routing failure still yields the next iteration's inputs.
+        DumpPlacement,
+        ProposeConfigMapping,
+        ProposeTileInterfaceOrder,
         OpenROAD.GlobalRouting,
         OpenROAD.CheckAntennas,
         OpenROAD.RepairAntennas,
@@ -176,7 +216,14 @@ class TileAreaOptimisation(WhileStep):
 
     max_iterations = 20
 
+    # A placement optimisation fault must stop the flow, not read as a die
+    # that is too small.
+    propagate_exceptions = (GDSFlowError,)
+
     last_working_state: State | None = None
+
+    # Built from the config on first use, so hooks work before `run` as well.
+    loop: PlacementOptLoop | None = None
 
     clean_probes: list[list[float]] = []
 
@@ -245,8 +292,73 @@ class TileAreaOptimisation(WhileStep):
             return Decimal(w)
         return Decimal(h)
 
+    def _loop(self) -> PlacementOptLoop:
+        """Return the placement optimisation bookkeeping, built on first use."""
+        if self.loop is None:
+            self.loop = PlacementOptLoop(
+                self.config,
+                growth_cap=type(self).max_iterations,
+                no_opt=self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT,
+            )
+        return self.loop
+
+    def _keep_if_best(self, state: State) -> None:
+        """Keep a clean iteration as the winner when it beats the one kept so far.
+
+        Without a placement optimisation the latest clean iteration wins, as
+        before. With one, the loop scores it by die area then wirelength.
+        """
+        loop = self._loop()
+        if not loop.active or loop.consider(state):
+            self.last_working_state = state.copy()
+
+    def _compute_shrunk_dimensions(
+        self,
+        width: Decimal,
+        height: Decimal,
+        width_step: Decimal,
+        height_step: Decimal,
+    ) -> tuple[Decimal, Decimal]:
+        """Mirror the BALANCE / LARGE growth rule after a clean iteration.
+
+        After a failed iteration that follows a clean one the die holds, so the
+        fresh proposals get another attempt at the same size. A shrink that
+        would go below the pin-minimum die ends the loop instead.
+        """
+        loop = self._loop()
+        if not loop.last_clean:
+            return width, height
+        logical_w = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_WIDTH", 1))
+        logical_h = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_HEIGHT", 1))
+        new_width, new_height = width, height
+        match self.config["FABULOUS_OPT_MODE"]:
+            case OptMode.BALANCE:
+                if logical_w * logical_h > Decimal(1):
+                    cell_step = max(width_step / logical_w, height_step / logical_h)
+                    new_width -= cell_step * logical_w
+                    new_height -= cell_step * logical_h
+                elif width >= height:
+                    new_width -= width_step
+                else:
+                    new_height -= height_step
+            case OptMode.LARGE:
+                new_width -= width_step
+                new_height -= height_step
+            case mode:
+                raise ValueError(f"Unknown FABULOUS_OPT_MODE: {mode}")
+        pin_w = Decimal(self.config.get("FABULOUS_PIN_MIN_WIDTH", 0))
+        pin_h = Decimal(self.config.get("FABULOUS_PIN_MIN_HEIGHT", 0))
+        if new_width < pin_w or new_height < pin_h or new_width <= 0 or new_height <= 0:
+            info("The next shrink would fall below the pin-minimum die; stopping")
+            loop.shrink_exhausted = True
+            return width, height
+        return new_width, new_height
+
     def condition(self, state: State) -> bool:
         """Loop condition."""
+        loop = self._loop()
+        if loop.active and not self._is_directional():
+            return loop.should_continue()
         if self._is_directional():
             if self.bracket_exhausted:
                 return False
@@ -277,6 +389,10 @@ class TileAreaOptimisation(WhileStep):
         self, post_iteration: State, full_iter_completed: bool
     ) -> State:
         """Save state if iteration completed successfully."""
+        loop = self._loop()
+        if loop.active:
+            loop.end_iteration(post_iteration, full_iter_completed)
+
         # Capture core area for the next iteration's scaling check.
         # The WhileStep resets state each iteration, so we persist this
         # on the instance to carry it across resets.
@@ -300,14 +416,14 @@ class TileAreaOptimisation(WhileStep):
                 # Smallest-so-far working target axis; keep the best working state.
                 if self.bracket_high is None or target < self.bracket_high:
                     self.bracket_high = target
-                    self.last_working_state = post_iteration.copy()
+                    self._keep_if_best(post_iteration)
             elif self.bracket_low is None or target > self.bracket_low:
                 self.bracket_low = target
 
             return post_iteration
 
         if full_iter_completed:
-            self.last_working_state = post_iteration.copy()
+            self._keep_if_best(post_iteration)
             return post_iteration
 
         self.iter_count += 1
@@ -327,6 +443,9 @@ class TileAreaOptimisation(WhileStep):
 
     def pre_iteration_callback(self, pre_iteration: State) -> State:
         """Pre iteration callback."""
+        loop = self._loop()
+        if loop.active:
+            self.config = loop.begin_iteration(self.config)
         if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
             self.config = self.config.copy(DRT_OPT_ITERS=64)
             self._refresh_routing_obstructions()
@@ -366,6 +485,10 @@ class TileAreaOptimisation(WhileStep):
             new_width, new_height = self._compute_binary_search_dimensions(
                 width, height
             )
+        elif loop.active and loop.clean_seen:
+            new_width, new_height = self._compute_shrunk_dimensions(
+                width, height, width_step, height_step
+            )
         else:
             new_width, new_height = self._compute_new_dimensions(
                 width,
@@ -392,6 +515,7 @@ class TileAreaOptimisation(WhileStep):
         self._refresh_routing_obstructions()
 
         if p := self.get_current_iteration_dir():
+            p.mkdir(parents=True, exist_ok=True)
             (p / "config.json").write_text(self.config.dumps())
 
         return pre_iteration
@@ -535,9 +659,25 @@ class TileAreaOptimisation(WhileStep):
                 )
                 self.config = self.config.copy(DIE_AREA=new_die_area)
 
+        loop = self._loop()
+        if loop.active and loop.winner is not None:
+            views = loop.export_winner(Path(self.step_dir), self.config["DESIGN_NAME"])
+            result = State(result, overrides=views, metrics=result.metrics)
         return result
 
     def mid_iteration_break(self, state: State, step: Step) -> bool:
+        """Stop the body on violations, or after the proposals when not routing."""
+        loop = self._loop()
+        if (
+            loop.active
+            and isinstance(step, ProposeTileInterfaceOrder)
+            and not loop.last_routed
+        ):
+            info("Proposals read, skipping routing on this iteration")
+            return True
+        return self._violations_break(state, step)
+
+    def _violations_break(self, state: State, step: Step) -> bool:
         """Mid iteration callback."""
         if not isinstance(step, Checker.TrDRC):
             return False
@@ -560,11 +700,18 @@ class TileAreaOptimisation(WhileStep):
     ) -> tuple[ViewsUpdate, MetricsUpdate]:
         """Run the tile optimisation step."""
         self.clean_probes = []
+        self.loop = None
+        loop = self._loop()
+        if loop.active:
+            # The loop bounds the body itself; the sum keeps WhileStep's own
+            # cap from cutting in before the growth cap plus the budget.
+            self.max_iterations = loop.max_iterations
         if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)
-        if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
-            self.max_iterations = 1
+        if loop.no_opt:
+            if not loop.active:
+                self.max_iterations = 1
             return super().run(state_in, **_kwargs)
 
         opt_mode = self.config["FABULOUS_OPT_MODE"]

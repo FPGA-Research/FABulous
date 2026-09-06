@@ -5,14 +5,27 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import re
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+import yaml
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.tile_interface import (
+    FRAME_STROBE,
+    FRAME_STROBE_OUT,
+    USER_CLK,
+    USER_CLK_OUT,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    InterfaceOrder,
+    write_interface_order,
+)
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -202,6 +215,64 @@ def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     assert f"Generating IO pin config for {TILE}" in log[0]
     assert "IO pin config generation complete" in log[-1]
     assert output_file.exists()
+
+
+def _install_frame_first_order(cli: FABulousREPL) -> InterfaceOrder:
+    """Install a project order putting the frame strobe ahead of the clock."""
+    strobes = range(cli.fabulousAPI.fabric.maxFramesPerCol)
+    order: InterfaceOrder = {
+        Side.NORTH: [f"{FRAME_STROBE_OUT}[{i}]" for i in strobes] + [USER_CLK_OUT],
+        Side.SOUTH: [f"{FRAME_STROBE}[{i}]" for i in strobes] + [USER_CLK],
+    }
+    order_path = cli.fabulousAPI.project_interface_order_path()
+    order_path.parent.mkdir(parents=True, exist_ok=True)
+    write_interface_order(order, order_path)
+    return order
+
+
+def test_propagate_tile_interface_order_writes_every_tile(cli: FABulousREPL) -> None:
+    """Propagation rewrites one pin YAML per tile type, each led by the order."""
+    order = _install_frame_first_order(cli)
+
+    run_cmd(cli, "propagate_tile_interface_order")
+
+    tile_root = cli.projectDir / "Tile"
+    tile_types = cli.fabulousAPI.fabric.get_all_unique_tiles()
+    written = [
+        tile_root / tile.name / f"{tile.name}_io_pin_order.yaml" for tile in tile_types
+    ]
+    assert all(path.is_file() for path in written)
+    for path in written:
+        payload = yaml.safe_load(path.read_text())
+        for tile_key, sides in payload.items():
+            for side, names in order.items():
+                # A sub-tile of a super tile carries the border only when the
+                # border is on the super tile's perimeter, and prefixes its pins.
+                if not sides.get(side.name):
+                    continue
+                leading = sides[side.name][0]["pins"]
+                assert leading in (
+                    [re.escape(name) for name in names],
+                    [re.escape(f"Tile_{tile_key}_{name}") for name in names],
+                )
+
+
+def test_propagate_tile_interface_order_without_an_order(cli: FABulousREPL) -> None:
+    """Propagation fails loudly when the project has no order installed."""
+    with pytest.raises(FileNotFoundError, match="No tile interface order"):
+        cli.fabulousAPI.propagate_tile_interface_order()
+
+
+def test_gen_io_pin_order_config_applies_the_project_order(cli: FABulousREPL) -> None:
+    """Regenerating one tile's pin YAML keeps it on the installed project order."""
+    order = _install_frame_first_order(cli)
+    output_file = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+
+    run_cmd(cli, f"gen_io_pin_config {TILE}")
+
+    sides = yaml.safe_load(output_file.read_text())["X0Y0"]
+    for side, names in order.items():
+        assert sides[side.name][0]["pins"] == [re.escape(name) for name in names]
 
 
 def test_gen_tile_macro_with_io_pin_config_skips_generation(
@@ -608,6 +679,30 @@ class TestGenTileMacroFlags:
             Decimal(246),
             Decimal(246),
         ]
+
+    @pytest.mark.parametrize(
+        ("flag", "expected"),
+        [
+            ("--opt-config-mapping", {"opt_config_mapping": True}),
+            ("--opt-tile-interface", {"opt_tile_interface": True}),
+            ("", {}),
+        ],
+        ids=["config mapping", "tile interface", "neither"],
+    )
+    def test_the_optimisation_flags_are_forwarded(
+        self,
+        cli: FABulousREPL,
+        mocker: MockerFixture,
+        flag: str,
+        expected: dict[str, bool],
+    ) -> None:
+        gen_macro = self._patch(cli, mocker)
+
+        run_cmd(cli, f"gen_tile_macro {TILE} {flag}".strip())
+
+        kwargs = gen_macro.call_args.kwargs
+        assert kwargs["opt_config_mapping"] is expected.get("opt_config_mapping", False)
+        assert kwargs["opt_tile_interface"] is expected.get("opt_tile_interface", False)
 
     def test_fix_height_conflicting_mode_aborts(
         self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture

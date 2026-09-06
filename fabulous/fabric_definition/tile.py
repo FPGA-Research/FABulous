@@ -13,6 +13,7 @@ from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile_interface import TileInterface
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -325,6 +326,11 @@ class Tile:
             and p.wire_direction not in (Direction.JUMP, Direction.SJUMP)
             and p.is_output
         ]
+
+    @property
+    def interface(self) -> TileInterface:
+        """The tile's border pins as pairs, routing pairs then the chains."""
+        return TileInterface(self)
 
     @property
     def config_mem_path(self) -> Path:

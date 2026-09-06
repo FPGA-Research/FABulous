@@ -65,12 +65,11 @@ from fabulous.fabulous_repl.command_set_base import (
     CMD_OTHER,
     CMD_SCRIPT,
     CMD_USER_DESIGN_FLOW,
-    META_DATA_DIR,
 )
 from fabulous.fabulous_repl.helper import (
     wrap_with_except_handling,
 )
-from fabulous.fabulous_settings import get_context
+from fabulous.fabulous_settings import META_DATA_DIR, get_context
 
 INTO_STRING = rf"""
      ______      ____        __

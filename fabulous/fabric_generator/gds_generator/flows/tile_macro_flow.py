@@ -27,7 +27,10 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    write_bus_pairs,
+)
 from fabulous.fabulous_settings import get_context
 
 configs = Classic.config_vars + [
@@ -39,6 +42,31 @@ configs = Classic.config_vars + [
         default=False,
     ),
 ]
+
+
+def config_mem_csv_for(tile_type: Tile | SuperTile) -> str | None:
+    """Return the `ConfigMem.csv` the configuration mapping reads, or None.
+
+    A supertile's configuration memory borrows free crosspoints of its master
+    tile, so it is not mapped on its own, and a tile without configuration
+    bits, such as a termination tile, has no latches to place.
+    """
+    if isinstance(tile_type, SuperTile) or tile_type.globalConfigBits == 0:
+        return None
+    return str(tile_type.tileDir.parent / f"{tile_type.name}_ConfigMem.csv")
+
+
+def write_pin_pairs_for(tile_type: Tile | SuperTile, directory: Path) -> str | None:
+    """Write the tile's bus pairs for the interface ordering, or None for a supertile.
+
+    The step runs without the tile model, so the pairs it needs are written
+    next to the run as `<tile>_pin_pairs.yaml`.
+    """
+    if isinstance(tile_type, SuperTile):
+        return None
+    path = directory / f"{tile_type.name}_pin_pairs.yaml"
+    write_bus_pairs(path, tile_type.interface.pairs)
+    return str(path)
 
 
 class FABulousTileMacroFlow(SequentialFlow):
@@ -144,6 +172,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         tile_config_dict = {
             "DESIGN_NAME": tile_type.name,
             "FABULOUS_IO_PIN_ORDER_CFG": str(io_pin_config),
+            "FABULOUS_CONFIG_MEM_CSV": config_mem_csv_for(tile_type),
             self._hdl_files_config_key: file_list,
             "FABULOUS_OPT_MODE": OptMode(opt_mode),
             **self._extra_synth_config,
@@ -161,6 +190,9 @@ class FABulousTileMacroFlow(SequentialFlow):
         )
         final_dir_path.mkdir(parents=True, exist_ok=True)
         final_dir = str(final_dir_path.resolve())
+        tile_config_dict["FABULOUS_TILE_INTERFACE_PAIRS"] = write_pin_pairs_for(
+            tile_type, final_dir_path
+        )
 
         configs = [
             i

@@ -22,7 +22,7 @@ from fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow impo
     WorkerResult,
     _run_tile_flow_worker,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 # Shared fixtures
