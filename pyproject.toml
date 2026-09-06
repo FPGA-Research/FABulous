@@ -168,7 +168,7 @@ extend_exclude = [
 ]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["go-task-bin", "FABulous-bit-gen"]
+DEP002 = ["go-task-bin", "FABulous-bit-gen", "cocotbext-uart"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
