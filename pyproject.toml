@@ -26,7 +26,6 @@ dependencies = [
   'loguru>=0.7.0',
   'requests>=2.0.0',
   'cmd2>=4.1.2',
-  'bitarray>=3.10.0',
   "pydantic>=2.12.1",
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
@@ -43,6 +42,7 @@ dependencies = [
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
   "jinja2>=3.1.6",
+  "scipy>=1.18.0",
 ]
 
 [project.urls]

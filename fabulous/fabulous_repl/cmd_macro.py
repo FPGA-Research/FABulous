@@ -12,7 +12,7 @@ from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     ReplCommandSet,
@@ -166,6 +166,31 @@ class MacroFlowCommandSet(ReplCommandSet):
                 help_text="Path to a custom IO pin config YAML file",
             ),
         ] = None,
+        opt_config_mapping: Annotated[
+            bool,
+            Option(
+                "--opt-config-mapping",
+                help_text=(
+                    "Move each configuration bit to the frame crosspoint nearest "
+                    "its placed latch, iterating inside the area optimisation, "
+                    "and install the winner's ConfigMem.csv with a rewritten "
+                    "bitstream specification."
+                ),
+            ),
+        ] = False,
+        opt_tile_interface: Annotated[
+            bool,
+            Option(
+                "--opt-tile-interface",
+                help_text=(
+                    "Order the border pins by the placed logic they feed, "
+                    "iterating inside the area optimisation, and install the "
+                    "winner's order as the project tile interface order. Pairs "
+                    "already in the project order keep their rank. Re-harden "
+                    "the macros sharing a border afterwards."
+                ),
+            ),
+        ] = False,
     ) -> None:
         """Generate GDSII files for a specific tile.
 
@@ -228,7 +253,19 @@ class MacroFlowCommandSet(ReplCommandSet):
             base_config_path=repl.projectDir / "Tile" / "include" / "gds_config.yaml",
             config_override_path=tile_dir / "gds_config.yaml",
             custom_config_overrides=custom_overrides or None,
+            opt_config_mapping=opt_config_mapping,
+            opt_tile_interface=opt_tile_interface,
         )
+
+    def do_propagate_tile_interface_order(self, *_args: str) -> None:
+        """Rewrite every tile's pin YAML to follow the project tile interface order.
+
+        Run this after copying an order into the project by hand; hardening a
+        tile with `--opt-tile-interface` propagates its winner on its own.
+        """
+        repl = self._cmd
+        for pin_file in repl.fabulousAPI.propagate_tile_interface_order():
+            logger.info(f"Wrote {pin_file}")
 
     @with_annotated
     def do_gen_all_tile_macros(

@@ -254,6 +254,36 @@ In the manual flow, harden the macro tile with fixed dimensions (`FABULOUS_OPT_M
 
 The `io_pin_order.yaml` for each tile is generated during `gen_tile_macro` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
 
+(placement-opt)=
+
+### Placement-driven optimisations
+
+A hardened tile carries two choices that the placer never sees but that decide how congested it is. The `<tile>_ConfigMem.csv` decides which configuration bit sits on which frame data and frame strobe crosspoint, and the pin YAML decides where each border pin sits. Both can be rewritten from the placement the tile flow produced, which is the method of Chung et al {cite}`10.1145/3490422.3502371`. Each choice has its own switch. `FABULOUS_OPT_CONFIG_MAPPING` turns on the configuration mapping and `FABULOUS_OPT_TILE_INTERFACE` turns on the tile interface ordering, so a tile whose border is already fixed by a hardened neighbour can still have its configuration mapped.
+
+With either switch on, `FABulous.DumpPlacement` writes the placed cells, ports and nets as a JSON view after clock tree synthesis, before routing. `FABulous.ProposeConfigMapping` finds each configuration latch as the cell reached from both a `FrameData` and a `FrameStrobe` port through buffers, then assigns bits to crosspoints so that every latch sits on the crosspoint nearest to it, and writes the result as a `ConfigMem.csv` view together with the reconnections that implement it, next to the metrics `fabulous__config_mapping__distance_before` and `_after`. `FABulous.ProposeTileInterfaceOrder` orders the border pairs, a source pin and its destination pin on the opposite border, by the median position of the logic on their nets, spreads the frame pairs uniformly so the crosspoints cover the tile, and writes the order as an `interface_order.yaml` view. None of them touches the tile directory.
+
+The area optimisation is already the loop of the paper, so the optimisations iterate inside it: each iteration implements the previous iteration's proposals, reads its own placement back and proposes again.
+
+```bash
+fabulous> gen_tile_macro <tile_name> --opt-config-mapping --opt-tile-interface
+```
+
+Synthesis runs once. Each iteration rewires the floorplanned netlist so the latches implement the proposed `ConfigMem.csv` (`FABulous.ApplyConfigMapping`), places the pins in the proposed order (`FABulousTileIOPlacement` applies `FABULOUS_TILE_INTERFACE_ORDER` to the pin YAML) and produces the next proposals after clock tree synthesis, so a routing failure still yields them. Under `balance` and `large` the die grows until the first clean iteration, then shrinks by one optimisation step after every clean iteration and holds after a failed one, until `FABULOUS_OPT_PLACEMENT_ITERATIONS` (default 10) iterations have run or the next shrink would fall below the pin-minimum die. Under `no_opt` every iteration runs at the fixed die and only the last is routed, unless `FABULOUS_OPT_ROUTE_EVERY_ITERATION` is set, in which case every iteration routes and the smallest routed wirelength wins. The winner is the clean iteration with the smallest die, then the smallest wirelength, and its inputs are installed: the tile's `<tile>_ConfigMem.csv` and HDL, with the bitstream specification rewritten because it embeds the crosspoints, and the project-wide `Tile/include/tile_interface_order.yaml`.
+
+An interface order is an ordinary single-tile pin YAML naming every pin exactly, so the same file describes a proposal, the project order and an order imported from a neighbour. Every tile hardened after one is installed follows it through `FABULOUS_TILE_INTERFACE_ORDER`, which is what keeps the termination and IO tiles abutting the optimised tile, and the ordering keeps the pairs of that order at their rank, placing only pairs the order does not list. Two tiles sharing a border must carry the same pairs on it, which the even spread of the default layout already required. After an interface order changes, re-harden the tiles that share a border with the optimised one.
+
+Installing an order also rewrites every tile's `Tile/<name>/<name>_io_pin_order.yaml`, so the file a tile is hardened from already leads each border with the ordered pins, and the same rewrite happens whenever one of those files is regenerated. An order copied into `Tile/include/tile_interface_order.yaml` by hand reaches the pin YAMLs through
+
+```console
+fabulous> propagate_tile_interface_order
+```
+
+The flow still applies the order at placement time, because `gen_tile_macro --io-pin-config <file>` hardens a tile from a pin YAML the propagation never saw.
+
+The configuration mapping runs on frame-based fabrics only, since only frames form the crosspoint grid it assigns bits on. Neither optimisation runs on super tiles, whose configuration memory borrows free crosspoints of the master tile, but every perimeter face of a super tile follows the project order like a regular tile border. The ordering places pins by rank rather than exact track position, so a border whose logic bunches up is spread evenly along it. The rewire expects every latch pin directly on a frame port net, which the Verilog synthesis flow produces; any other structure stops the flow with `GDSFlowError` rather than being rewired.
+
+The LibreLane plugin flow `FABulousTile` takes the same variables: `FABULOUS_OPT_CONFIG_MAPPING` and `FABULOUS_OPT_TILE_INTERFACE` with `FABULOUS_OPT_PLACEMENT_ITERATIONS` iterate within one `librelane` invocation, and the final views carry the mapping and order the macro implements. `FABULOUS_TILE_INTERFACE_ORDER` hands a tile's order to the tiles hardened after it.
+
 (tile-size-optimisation)=
 
 ## Tile Size Optimisation

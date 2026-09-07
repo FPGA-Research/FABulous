@@ -24,9 +24,10 @@ from librelane.flows.flow import FlowException
 
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
+    config_mem_csv_for,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -616,3 +617,23 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT
+
+
+class TestConfigMemCsvFor:
+    def test_tile_with_config_bits_names_its_csv(self, mock_tile: MagicMock) -> None:
+        mock_tile.globalConfigBits = 16
+        assert config_mem_csv_for(mock_tile) == str(
+            mock_tile.tileDir.parent / "TestTile_ConfigMem.csv"
+        )
+
+    @pytest.mark.parametrize(
+        ("fixture", "config_bits"),
+        [("mock_tile", 0), ("mock_supertile", 16)],
+        ids=["no config bits", "supertile"],
+    )
+    def test_nothing_to_map(
+        self, request: pytest.FixtureRequest, fixture: str, config_bits: int
+    ) -> None:
+        tile_type: MagicMock = request.getfixturevalue(fixture)
+        tile_type.globalConfigBits = config_bits
+        assert config_mem_csv_for(tile_type) is None

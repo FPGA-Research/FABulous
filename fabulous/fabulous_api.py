@@ -5,10 +5,14 @@ parsing fabric definitions, generating HDL code, creating geometries, and handli
 various fabric-related operations.
 """
 
+import csv
+import pickle
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
+import yaml
+from librelane.state.state import State
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -47,10 +51,25 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
     FABulousTileVHDLMacroFlow,
 )
+from fabulous.fabric_generator.gds_generator.formats import (
+    CONFIG_MEM_FORMAT,
+    TILE_INTERFACE_ORDER_FORMAT,
+)
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    apply_interface_order,
+    interface_order_config,
+    project_interface_order_path,
+    read_interface_order,
+)
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+    CONFIG_MAPPING_VARIABLE,
+    TILE_INTERFACE_VARIABLE,
+)
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_super_tile_config_mem,
@@ -66,7 +85,7 @@ from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateTile,
 )
 from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
-from fabulous.fabulous_settings import get_context
+from fabulous.fabulous_settings import META_DATA_DIR, get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
 
@@ -206,6 +225,7 @@ class FABulous_API:
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
             )
+            tile.load_config_mem()
         else:
             raise ValueError(f"Tile {tileName} not found")
 
@@ -380,16 +400,14 @@ class FABulous_API:
         if tile := self.fabric.getSuperTileByName(tileName):
             mx, my = tile.get_master_tile_coords()
             master_tile = tile.tileMap[my][mx]
-            master_config_mem_csv = (
-                master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
-            )
             generate_super_tile_config_mem(
                 self.writer,
                 tile,
-                master_config_mem_csv,
+                master_tile.config_mem_path,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
             )
+            tile.load_config_mem()
         else:
             raise ValueError(f"SuperTile {tileName} not found")
 
@@ -625,6 +643,10 @@ class FABulous_API:
     ) -> None:
         """Generate IO pin order configuration YAML for a tile or super tile.
 
+        With a project tile interface order installed, the listed pins lead
+        each border of the file in the listed order, so every tile's pin YAML
+        carries the order the fabric abuts on.
+
         Parameters
         ----------
         tile : Tile | SuperTile
@@ -644,6 +666,53 @@ class FABulous_API:
             prefix=prefix,
             external_port_side=external_port_side,
         )
+        order_path = self.project_interface_order_path()
+        if not order_path.exists():
+            return
+        order = read_interface_order(order_path)
+        payload = apply_interface_order(yaml.safe_load(outfile.read_text()), order)
+        outfile.write_text(yaml.safe_dump(payload))
+
+    @staticmethod
+    def project_interface_order_path() -> Path:
+        """Return where the project keeps the tile interface order all tiles follow."""
+        return project_interface_order_path(Path(get_context().proj_dir))
+
+    def propagate_tile_interface_order(self) -> list[Path]:
+        """Rewrite every tile's pin YAML so it follows the project interface order.
+
+        Each unique tile and super tile of the fabric gets its
+        `Tile/<name>/<name>_io_pin_order.yaml` regenerated with the project
+        order applied, which is the file `gen_tile_macro` reads when no custom
+        pin configuration is given.
+
+        Returns
+        -------
+        list[Path]
+            The pin YAML files written.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the project has no tile interface order installed.
+        """
+        order_path = self.project_interface_order_path()
+        if not order_path.exists():
+            raise FileNotFoundError(
+                f"No tile interface order at {order_path}; harden a tile with "
+                "--opt-tile-interface or copy an order there first."
+            )
+        tile_root = Path(get_context().proj_dir) / "Tile"
+        written: list[Path] = []
+        for tile_type in self.fabric.get_all_unique_tiles():
+            pin_file = (
+                tile_root / tile_type.name / f"{tile_type.name}_io_pin_order.yaml"
+            )
+            pin_file.parent.mkdir(parents=True, exist_ok=True)
+            self.gen_io_pin_order_config(tile_type, pin_file)
+            written.append(pin_file)
+        logger.info(f"Applied the tile interface order to {len(written)} pin YAMLs")
+        return written
 
     def genTileMacro(
         self,
@@ -658,8 +727,22 @@ class FABulous_API:
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
+        opt_config_mapping: bool = False,
+        opt_tile_interface: bool = False,
     ) -> None:
-        """Run the macro flow to harden a tile, in the project's HDL language."""
+        """Run the macro flow to harden a tile, in the project's HDL language.
+
+        With `opt_config_mapping` the area optimisation moves each
+        configuration bit to the frame crosspoint nearest its placed latch and
+        with `opt_tile_interface` it orders the border pins by the logic they
+        feed, each iteration implementing the previous one's proposal. The
+        winning iteration's `ConfigMem.csv` and interface order are installed
+        in the project and the bitstream specification is rewritten; the tile
+        macros sharing a border must be re-hardened afterwards. A super tile
+        cannot be optimised this way, since its configuration memory borrows
+        the master tile's crosspoints, and the mapping needs a frame-based
+        fabric, since only frames form the crosspoint grid.
+        """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
@@ -668,17 +751,41 @@ class FABulous_API:
             if isinstance(self.writer, VHDLCodeGenerator)
             else FABulousTileVerilogMacroFlow
         )
+        tile = self.fabric.getTileByName(tile_dir.name)
+        if tile is None:
+            raise ValueError(f"Tile {tile_dir.name} not found")
+        if (opt_config_mapping or opt_tile_interface) and isinstance(tile, SuperTile):
+            raise ValueError(
+                f"{tile.name} is a super tile; only regular tiles take the "
+                "placement-driven optimisations"
+            )
+        switches: dict[str, bool] = {}
+        if opt_config_mapping:
+            switches[CONFIG_MAPPING_VARIABLE.name] = True
+        if opt_tile_interface:
+            switches[TILE_INTERFACE_VARIABLE.name] = True
+
         flow = tile_flow_cls(
-            self.fabric.getTileByName(tile_dir.name),
+            tile,
             io_pin_config,
             OptMode(optimisation),
             pdk=pdk,
             pdk_root=pdk_root,
             base_config_path=base_config_path,
             override_config_path=config_override_path,
+            **interface_order_config(Path(get_context().proj_dir)),
+            **{CONFIG_BIT_MODE_VARIABLE.name: self.fabric.configBitMode},
+            **switches,
             **custom_config_overrides or {},
         )
         result = flow.start()
+        # The project config may turn an optimisation on as well, so the install
+        # follows the flow's settings rather than the flags alone.
+        if (
+            flow.config[CONFIG_MAPPING_VARIABLE.name]
+            or flow.config[TILE_INTERFACE_VARIABLE.name]
+        ):
+            self._install_placement_opt_result(tile, result)
         if final_view:
             logger.info(f"Saving final view to {final_view}")
             result.save_snapshot(final_view)
@@ -688,6 +795,85 @@ class FABulous_API:
             )
             result.save_snapshot(out_folder / "final_views")
         logger.info("Macro flow completed.")
+
+    def _install_placement_opt_result(self, tile: Tile, state: State) -> None:
+        """Make the hardened macro's mapping and interface order the project's inputs.
+
+        The tile flow exports the `ConfigMem.csv` and the interface order its
+        kept iteration implemented, each when its optimisation was on. The CSV
+        replaces the tile's and its HDL is regenerated so the RTL matches the
+        macro, then the bitstream specification is rewritten because it embeds
+        the crosspoints. The order becomes the project order and every tile's
+        pin YAML is rewritten to follow it.
+
+        Parameters
+        ----------
+        tile : Tile
+            The tile that was hardened.
+        state : State
+            The final state of its tile flow.
+
+        Raises
+        ------
+        ValueError
+            If the flow exported neither view, which means no clean iteration
+            implemented a proposal.
+        """
+        csv_view = state.get(CONFIG_MEM_FORMAT)
+        order_view = state.get(TILE_INTERFACE_ORDER_FORMAT)
+        if csv_view is None and order_view is None:
+            raise ValueError(
+                "The tile flow exported neither a configuration memory mapping nor "
+                "a tile interface order; no clean iteration implemented a proposal."
+            )
+        if csv_view is not None:
+            tile_dir = tile.tileDir.parent
+            config_mem_csv = tile_dir / f"{tile.name}_ConfigMem.csv"
+            shutil.copyfile(Path(str(csv_view)), config_mem_csv)
+            extension = "vhdl" if isinstance(self.writer, VHDLCodeGenerator) else "v"
+            self.writer.outFileName = tile_dir / f"{tile.name}_ConfigMem.{extension}"
+            generateConfigMem(
+                self.writer,
+                tile.name,
+                tile.globalConfigBits,
+                config_mem_csv,
+                frame_bits_per_row=self.fabric.frameBitsPerRow,
+                max_frame_per_col=self.fabric.maxFramesPerCol,
+            )
+            tile.load_config_mem()
+            logger.info(f"Installed the configuration mapping at {config_mem_csv}")
+            spec_bin, _ = self.write_bitstream_spec()
+            logger.info(f"Rewrote the bitstream specification at {spec_bin}")
+        if order_view is not None:
+            order_path = self.project_interface_order_path()
+            order_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(str(order_view)), order_path)
+            logger.info(f"Installed the project tile interface order at {order_path}")
+            self.propagate_tile_interface_order()
+
+    def write_bitstream_spec(self) -> tuple[Path, Path]:
+        """Generate the bitstream specification and write it to the metadata directory.
+
+        Returns
+        -------
+        tuple[Path, Path]
+            The pickled specification `bitStreamSpec.bin` and its CSV listing
+            `bitStreamSpec.csv`, the two files the bitstream generator reads.
+        """
+        spec_object = self.genBitStreamSpec()
+        meta_dir = Path(get_context().proj_dir) / META_DATA_DIR
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        spec_bin = meta_dir / "bitStreamSpec.bin"
+        with spec_bin.open("wb") as out_file:
+            pickle.dump(spec_object, out_file)
+        spec_csv = meta_dir / "bitStreamSpec.csv"
+        with spec_csv.open("w", encoding="utf-8", newline="\n") as f:
+            w = csv.writer(f)
+            for key1 in spec_object["TileSpecs"]:
+                w.writerow([key1])
+                for key2, val in spec_object["TileSpecs"][key1].items():
+                    w.writerow([key2, val])
+        return spec_bin, spec_csv
 
     def fabric_stitching(
         self,

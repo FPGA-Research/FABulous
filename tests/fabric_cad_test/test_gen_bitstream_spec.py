@@ -313,9 +313,10 @@ def _build_fabric(
         gen_ios=[],
         userCLK=False,
     )
-    tile.wireList = wires
+    tile.load_config_mem()
 
     fabric = Fabric(fabric_dir=root)
+    fabric.wires = {(0, 0): wires}
     fabric.tile = [[tile]]
     fabric.numberOfRows = 1
     fabric.numberOfColumns = 1

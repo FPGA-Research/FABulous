@@ -32,6 +32,9 @@ from pydantic_settings import (
 
 from fabulous.fabric_definition.define import HDLType
 
+META_DATA_DIR = ".FABulous"
+"""Per-project directory holding the environment file and generated metadata."""
+
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
 MODELS_PACK_REQUIRED_MODULES: list[str] = [
@@ -213,7 +216,7 @@ class FABulousSettings(BaseSettings):
             else:
                 raise ValueError("Project directory is not set.")
 
-            fab_dir = proj_dir / ".FABulous"
+            fab_dir = proj_dir / META_DATA_DIR
             resolved = None
 
             if not value.is_absolute():
@@ -309,7 +312,7 @@ class FABulousSettings(BaseSettings):
         """Check if project_dir is a valid directory."""
         if value is None:
             raise ValueError("Project directory is not set.")
-        if not (Path(value) / ".FABulous").exists():
+        if not (Path(value) / META_DATA_DIR).exists():
             raise ValueError(f"{value} is not a FABulous project")
         return value.resolve()
 
@@ -584,13 +587,13 @@ def init_context(
             )
 
     # 3. cwd project dir .env
-    if project_dir is None and (Path().cwd() / ".FABulous" / ".env").exists():
-        env_files.append(Path().cwd() / ".FABulous" / ".env")
+    if project_dir is None and (Path().cwd() / META_DATA_DIR / ".env").exists():
+        env_files.append(Path().cwd() / META_DATA_DIR / ".env")
         logger.debug("Loading project .env file from cwd")
 
     # 4. explicit project dir .env
-    if project_dir is not None and (project_dir / ".FABulous" / ".env").exists():
-        env_files.append(project_dir / ".FABulous" / ".env")
+    if project_dir is not None and (project_dir / META_DATA_DIR / ".env").exists():
+        env_files.append(project_dir / META_DATA_DIR / ".env")
         logger.debug(f"Loading project .env file from project_dir: {project_dir}")
 
     # 5. User-provided project .env file (highest .env priority)

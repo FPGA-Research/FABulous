@@ -12,6 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -44,6 +45,10 @@ class SuperTile:
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
+    config_mem : ConfigMem | None
+        The super tile's own configuration memory, read from `config_mem_path`
+        by `load_config_mem`. None until that file exists, which is only when
+        the super tile has configuration bits of its own.
     """
 
     name: str
@@ -54,6 +59,7 @@ class SuperTile:
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+    config_mem: ConfigMem | None = None
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
@@ -244,6 +250,20 @@ class SuperTile:
     def total_config_bits(self) -> int:
         """Return the supertile's config bits: switch matrix bits plus BEL bits."""
         return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
+
+    @property
+    def config_mem_path(self) -> Path:
+        """Where the supertile keeps its own configuration memory.
+
+        Its bits borrow the crosspoints the master tile's memory leaves free,
+        so this file exists only when `total_config_bits` is positive.
+        """
+        return self.tileDir.parent / f"{self.name}_ConfigMem.csv"
+
+    def load_config_mem(self) -> None:
+        """Read `config_mem_path` into `config_mem`, or None where no file is there."""
+        path = self.config_mem_path
+        self.config_mem = ConfigMem.from_csv(path) if path.is_file() else None
 
     @property
     def supertile_matrix_dir(self) -> Path | None:

@@ -23,6 +23,8 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
+    config_mem_csv_for,
+    write_pin_pairs_for,
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
@@ -32,7 +34,10 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+)
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
@@ -74,14 +79,7 @@ class FABulousTile(SequentialFlow):
             "per-subtile Verilog.",
             default=False,
         ),
-        Variable(
-            "FABULOUS_CONFIG_BIT_MODE",
-            ConfigBitMode,
-            "Config-bit storage mode used when regenerating the tile switch "
-            "matrix and config memory. Must match the parent fabric; the "
-            "standalone tile flow has no fabric to read it from.",
-            default=ConfigBitMode.FRAME_BASED,
-        ),
+        CONFIG_BIT_MODE_VARIABLE,
         Variable(
             "FABULOUS_MULTIPLEXER_STYLE",
             MultiplexerStyle,
@@ -120,7 +118,7 @@ class FABulousTile(SequentialFlow):
         ) as exc:
             raise FlowException(str(exc)) from exc
 
-        config_bit_mode = ConfigBitMode(self.config["FABULOUS_CONFIG_BIT_MODE"])
+        config_bit_mode = ConfigBitMode(self.config[CONFIG_BIT_MODE_VARIABLE.name])
         multiplexer_style = MultiplexerStyle(self.config["FABULOUS_MULTIPLEXER_STYLE"])
         writer = VerilogCodeGenerator()
         _emit_tile_verilog(
@@ -142,9 +140,7 @@ class FABulousTile(SequentialFlow):
                 f"Invalid FABULOUS_EXTERNAL_SIDE={external_side_value!r}"
             ) from exc
         generate_IO_pin_order_config(
-            tile,
-            pin_yaml,
-            external_port_side=external_port_side,
+            tile, pin_yaml, external_port_side=external_port_side
         )
 
         file_list = [str(f) for f in self.config.get("VERILOG_FILES", []) or []]
@@ -183,6 +179,8 @@ class FABulousTile(SequentialFlow):
             DESIGN_NAME=tile_name,
             VERILOG_FILES=file_list,
             FABULOUS_IO_PIN_ORDER_CFG=str(pin_yaml),
+            FABULOUS_CONFIG_MEM_CSV=config_mem_csv_for(tile),
+            FABULOUS_TILE_INTERFACE_PAIRS=write_pin_pairs_for(tile, Path(self.run_dir)),
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
             FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
             FABULOUS_OPT_MODE=OptMode.NO_OPT,
@@ -260,7 +258,7 @@ def _emit_regular_tile_verilog(
         writer,
         tile.name,
         tile.globalConfigBits,
-        tile_dir / f"{tile.name}_ConfigMem.csv",
+        tile.config_mem_path,
     )
     writer.outFileName = tile_dir / f"{tile.name}.v"
     generateTile(

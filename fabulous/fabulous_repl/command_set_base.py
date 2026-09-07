@@ -28,7 +28,6 @@ CMD_TOOLS = "Tools"
 CMD_TIMING_MODEL = "Timing Characterization"
 
 # Directory holding FABulous project metadata.
-META_DATA_DIR = ".FABulous"
 
 if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL

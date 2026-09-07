@@ -16,7 +16,7 @@ import pytest
 from librelane.flows.flow import Flow, FlowException
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
 from fabulous.fabric_generator.gds_generator.flows import plugin_tile_flow
 from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
     FABulousTile,
@@ -24,6 +24,14 @@ from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    write_interface_order,
+)
+from fabulous.fabric_generator.gds_generator.opt.variables import (
+    CONFIG_MEM_CSV_VARIABLE,
+    TILE_INTERFACE_ORDER_VARIABLE,
+    TILE_INTERFACE_PAIRS_VARIABLE,
 )
 
 
@@ -135,6 +143,7 @@ class TestEmitTileVerilog:
         tile_dir.mkdir()
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.name = "LUT4AB"
+        mock_tile.config_mem_path = tile_dir / "LUT4AB_ConfigMem.csv"
 
         actual_paths: list[Path] = []
         gen_sm = mocker.patch.object(plugin_tile_flow, "genTileSwitchMatrix")
@@ -263,7 +272,8 @@ class TestFABulousTileRunAdapter:
         mock_tile.name = "LUT4AB"
         mock_tile.tileDir = tile_dir / "LUT4AB.csv"
         mock_tile.bels = []
-        mock_tile.globalConfigBits = 0
+        mock_tile.globalConfigBits = 16
+        mock_tile.portsInfo = []
 
         init_ctx = mocker.patch.object(plugin_tile_flow, "init_context")
         mocker.patch.object(
@@ -291,11 +301,16 @@ class TestFABulousTileRunAdapter:
             side_effect=lambda cfg: cfg,
         )
 
+        interface_order = tmp_path / "tile_interface_order.yaml"
+        write_interface_order(
+            {Side.NORTH: ["N1BEG[0]"], Side.SOUTH: ["N1END[0]"]}, interface_order
+        )
         flow = FABulousTile(
             config={
                 "DESIGN_NAME": "LUT4AB",
                 "FABULOUS_TILE_DIR": [str(tile_dir)],
                 "DESIGN_DIR": str(tile_dir),
+                TILE_INTERFACE_ORDER_VARIABLE.name: str(interface_order),
             },
             design_dir=str(tile_dir),
             pdk="sky130A",
@@ -319,11 +334,16 @@ class TestFABulousTileRunAdapter:
         init_ctx.assert_called_once_with(api_mode=True)
         parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False)
         emit_verilog.assert_called_once()
-        # Pin YAML should be generated below run_dir.
+        # The pin YAML is generated below run_dir; the order reaches the IO
+        # placement step through its own variable instead.
         assert gen_pin_yaml.call_count == 1
         assert gen_pin_yaml.call_args.args[:2] == (
             mock_tile,
             Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml",
+        )
+        assert "axis_order" not in gen_pin_yaml.call_args.kwargs
+        assert str(flow.config[TILE_INTERFACE_ORDER_VARIABLE.name]) == str(
+            interface_order
         )
         # Adapter must set the downstream keys.
         assert flow.config["DESIGN_NAME"] == "LUT4AB"
@@ -331,6 +351,14 @@ class TestFABulousTileRunAdapter:
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
         assert str(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]).endswith(
             "LUT4AB_io_pin_order.yaml"
+        )
+        # The placement optimisation steps read the tile's CSV and its bus
+        # pairs by path.
+        assert str(flow.config[CONFIG_MEM_CSV_VARIABLE.name]) == str(
+            tile_dir / "LUT4AB_ConfigMem.csv"
+        )
+        assert str(flow.config[TILE_INTERFACE_PAIRS_VARIABLE.name]) == str(
+            Path(flow.run_dir) / "LUT4AB_pin_pairs.yaml"
         )
         assert isinstance(flow.config, Config)
         super_run.assert_called_once()

@@ -8,9 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem, ConfigMemFrame
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -300,10 +299,9 @@ class TestGeneratedConfigMemRTL:
         self,
         default_fabric: Fabric,
         default_tile: Tile,
-        configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+        configmem_list: Callable[[Fabric, Tile], list[ConfigMemFrame]],
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
-        mocker: MockerFixture,
     ) -> None:
         """Test that generated RTL correctly maps FrameData and FrameStrobe to
         ConfigBits."""
@@ -311,23 +309,16 @@ class TestGeneratedConfigMemRTL:
         writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
         writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
 
-        # Create CSV file path
-        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
-        csv_path.touch()
-
         config_memlist_data = configmem_list(default_fabric, default_tile)
-
-        # Mock parseConfigMem to return our configmem_list fixture
-        mock_parse = mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
-        )
-        mock_parse.return_value = config_memlist_data
+        memory = ConfigMem(tuple(config_memlist_data), default_fabric.frameBitsPerRow)
+        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
+        memory.to_csv(csv_path)
 
         # Generate the ConfigMem RTL
         generateConfigMem(
             writer,
             default_tile.name,
-            default_tile.globalConfigBits,
+            memory.config_bits,
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,

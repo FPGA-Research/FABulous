@@ -9,9 +9,8 @@ from typing import Any, Protocol
 import cocotb
 import pytest
 from cocotb.triggers import Timer
-from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem, ConfigMemFrame
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -224,10 +223,9 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     tmp_path: Path,
     default_fabric: Fabric,
     default_tile: Tile,
-    configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+    configmem_list: Callable[[Fabric, Tile], list[ConfigMemFrame]],
     code_generator_factory: Callable[..., CodeGenerator],
     cocotb_runner: Callable[..., Callable],
-    mocker: MockerFixture,
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
     # Skip impossible configurations where fabric capacity < tile requirements
@@ -248,22 +246,16 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem{hdl_lang}"
     writer.outFileName.touch()
 
-    # Create CSV file in tmp_path
-    csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
     configmem_list_data = configmem_list(default_fabric, default_tile)
-
-    # Mock parseConfigMem to return our configmem_list fixture
-    mock_parse = mocker.patch(
-        "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
-        return_value=configmem_list,
-    )
-    mock_parse.return_value = configmem_list_data
+    memory = ConfigMem(tuple(configmem_list_data), default_fabric.frameBitsPerRow)
+    csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
+    memory.to_csv(csv_path)
 
     # Generate the ConfigMem RTL
     generateConfigMem(
         writer,
         default_tile.name,
-        default_tile.globalConfigBits,
+        memory.config_bits,
         csv_path,
         frame_bits_per_row=default_fabric.frameBitsPerRow,
         max_frame_per_col=default_fabric.maxFramesPerCol,

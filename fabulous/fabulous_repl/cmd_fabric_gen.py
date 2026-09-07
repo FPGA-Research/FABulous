@@ -3,8 +3,6 @@
 Generate config memory, switch matrices, tiles, IO, and the fabric.
 """
 
-import csv
-import pickle
 from pathlib import Path
 from typing import Annotated
 
@@ -21,12 +19,12 @@ from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     CMD_TOOLS,
-    META_DATA_DIR,
     ReplCommandSet,
 )
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
 )
+from fabulous.fabulous_settings import META_DATA_DIR
 
 
 class FabricGenCommandSet(ReplCommandSet):
@@ -261,30 +259,16 @@ class FabricGenCommandSet(ReplCommandSet):
     def do_gen_bitStream_spec(self, *_ignored: str) -> None:
         """Generate bitstream specification of the fabric.
 
-        By calling `genBitStreamSpec` and saving the specification to a binary and CSV
-        file.
+        By calling `write_bitstream_spec`, which saves the specification to a binary
+        and a CSV file.
 
         Also logs the paths of the output files.
         """
         repl = self._cmd
         logger.info("Generating bitstream specification")
-        spec_object = repl.fabulousAPI.genBitStreamSpec()
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin").open(
-            "wb"
-        ) as out_file:
-            pickle.dump(spec_object, out_file)
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv").open(
-            "w", encoding="utf-8", newline="\n"
-        ) as f:
-            w = csv.writer(f)
-            for key1 in spec_object["TileSpecs"]:
-                w.writerow([key1])
-                for key2, val in spec_object["TileSpecs"][key1].items():
-                    w.writerow([key2, val])
+        spec_bin, spec_csv = repl.fabulousAPI.write_bitstream_spec()
+        logger.info(f"output file: {spec_bin}")
+        logger.info(f"output file: {spec_csv}")
         logger.info("Bitstream specification generation complete")
 
     def do_gen_top_wrapper(self, *_ignored: str) -> None:
