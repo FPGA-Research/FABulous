@@ -1,7 +1,6 @@
 """Contains functions for parsing CSV files related to the fabric definition."""
 
 import re
-from copy import deepcopy
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -668,7 +667,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     continue
                 if j in tileDic:
                     tileDic[j].partOfSuperTile = True
-                    t = deepcopy(tileDic[j])
+                    t = tileDic[j]
                     row.append(t)
                     if t not in tiles:
                         tiles.append(t)
@@ -990,7 +989,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         fabricLine = []
         for i in fabricLineTmp:
             if i in tileDic:
-                fabricLine.append(deepcopy(tileDic[i]))
+                fabricLine.append(tileDic[i])
                 usedTile.add(i)
             elif i == "Null" or i == "NULL" or i == "None":
                 fabricLine.append(None)

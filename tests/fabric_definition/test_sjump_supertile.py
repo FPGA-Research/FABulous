@@ -31,11 +31,11 @@ def _tile(name: str, ports: list[TilePort]) -> Tile:
     return make_empty_tile(name, ports, pinOrderConfig={})
 
 
-def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
-    """Return (source, destination, x_offset, y_offset) for the tile's SJUMP wires."""
+def _sjump_wires(fabric: Fabric, x: int, y: int) -> set[tuple[str, str, int, int]]:
+    """Return (source, destination, x_offset, y_offset) of the SJUMP wires at X,Y."""
     return {
         (w.source, w.destination, w.x_offset, w.y_offset)
-        for w in tile.wireList
+        for w in fabric.wires.get((x, y), [])
         if w.direction == Direction.SJUMP
     }
 
@@ -182,17 +182,14 @@ class TestFabricSJumpWirePass:
         )
 
     def test_forward_wires_child_output_to_master(self, fabric: Fabric) -> None:
-        top = fabric.tile[0][0]
-        bot = fabric.tile[1][0]
         # DSP_top OUTPUT port jumps down to the master one row below (offset y=1).
-        assert ("top2bot0", "DSP_top_top2bot0", 0, 1) in _sjump_wires(top)
-        assert ("top2bot1", "DSP_top_top2bot1", 0, 1) in _sjump_wires(top)
+        assert ("top2bot0", "DSP_top_top2bot0", 0, 1) in _sjump_wires(fabric, 0, 0)
+        assert ("top2bot1", "DSP_top_top2bot1", 0, 1) in _sjump_wires(fabric, 0, 0)
         # The master's own OUTPUT port is a zero-offset self-jump.
-        assert ("A0", "DSP_bot_A0", 0, 0) in _sjump_wires(bot)
+        assert ("A0", "DSP_bot_A0", 0, 0) in _sjump_wires(fabric, 0, 1)
 
     def test_reverse_wires_master_to_child_input(self, fabric: Fabric) -> None:
-        bot = fabric.tile[1][0]
-        master_wires = _sjump_wires(bot)
+        master_wires = _sjump_wires(fabric, 0, 1)
         # Master drives its own INPUT port back (zero offset)...
         assert ("DSP_bot_Q0", "Q0", 0, 0) in master_wires
         # ...and the child tile's INPUT port one row up (offset y=-1).
@@ -200,10 +197,9 @@ class TestFabricSJumpWirePass:
         assert ("DSP_top_bot2top1", "bot2top1", 0, -1) in master_wires
 
     def test_no_duplicate_sjump_wires(self, fabric: Fabric) -> None:
-        for row in fabric.tile:
-            for tile in row:
-                sjump = [w for w in tile.wireList if w.direction == Direction.SJUMP]
-                assert len(sjump) == len(set(sjump))
+        for wires in fabric.wires.values():
+            sjump = [w for w in wires if w.direction == Direction.SJUMP]
+            assert len(sjump) == len(set(sjump))
 
 
 class TestSJumpRequiresSupertile:

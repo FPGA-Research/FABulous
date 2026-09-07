@@ -88,6 +88,10 @@ class Fabric:
         The key is the name of the tile and the value is the tile.
     commonWirePair : list[tuple[str, str]]
         A list of common wire pairs in the fabric.
+    wires : dict[tuple[int, int], list[Wire]]
+        The wires leaving the tile at each position, built by `__post_init__`.
+        They carry the position they were built for, so they belong to the
+        fabric rather than to the tile type sitting at that position.
     """
 
     fabric_dir: Path
@@ -116,6 +120,7 @@ class Fabric:
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
     unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
+    wires: dict[tuple[int, int], list[Wire]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Generate and get all the wire pairs in the fabric.
@@ -223,7 +228,7 @@ class Fabric:
                         and port.destination_name != "NULL"
                     ):
                         for i in range(port.wire_count):
-                            tile.wireList.append(
+                            self.wires.setdefault((x, y), []).append(
                                 Wire(
                                     direction=port.wire_direction,
                                     source=f"{port.source_name}{i}",
@@ -245,7 +250,7 @@ class Fabric:
                                 )
                             else:
                                 cascadedI = i - port.wire_count
-                                tile.wireList.append(
+                                self.wires.setdefault((x, y), []).append(
                                     Wire(
                                         direction=Direction.JUMP,
                                         source=f"{port.destination_name}{i}",
@@ -256,7 +261,7 @@ class Fabric:
                                         destinationTile=f"X{x}Y{y}",
                                     )
                                 )
-                            tile.wireList.append(
+                            self.wires.setdefault((x, y), []).append(
                                 Wire(
                                     direction=port.wire_direction,
                                     source=f"{port.source_name}{i}",
@@ -278,7 +283,7 @@ class Fabric:
                                 )
                             else:
                                 cascadedI = i - port.wire_count
-                                tile.wireList.append(
+                                self.wires.setdefault((x, y), []).append(
                                     Wire(
                                         direction=Direction.JUMP,
                                         source=f"{port.destination_name}{i}",
@@ -289,7 +294,7 @@ class Fabric:
                                         destinationTile=f"X{x}Y{y}",
                                     )
                                 )
-                            tile.wireList.append(
+                            self.wires.setdefault((x, y), []).append(
                                 Wire(
                                     direction=port.wire_direction,
                                     source=f"{port.source_name}{i}",
@@ -311,7 +316,7 @@ class Fabric:
 
                         value = min(max(port.x_offset, -1), 1)
                         for i in range(port.wire_count * abs(port.x_offset)):
-                            tile.wireList.append(
+                            self.wires.setdefault((x, y), []).append(
                                 Wire(
                                     direction=port.wire_direction,
                                     source=f"{source_name}{i}",
@@ -325,7 +330,7 @@ class Fabric:
 
                         value = min(max(port.y_offset, -1), 1)
                         for i in range(port.wire_count * abs(port.y_offset)):
-                            tile.wireList.append(
+                            self.wires.setdefault((x, y), []).append(
                                 Wire(
                                     direction=port.wire_direction,
                                     source=f"{source_name}{i}",
@@ -336,7 +341,8 @@ class Fabric:
                                     destinationTile=f"X{x + port.x_offset}Y{y + value}",
                                 )
                             )
-                tile.wireList = list(dict.fromkeys(tile.wireList))
+                if (x, y) in self.wires:
+                    self.wires[x, y] = list(dict.fromkeys(self.wires[x, y]))
 
         # SJUMP wire pass: for every supertile placement, add SJUMP wires from the
         # child tiles to the master tile (forward) and back (reverse).
@@ -361,7 +367,7 @@ class Fabric:
                         if not p.is_output:
                             continue
                         for i in range(p.wire_count):
-                            grid_tile.wireList.append(
+                            self.wires.setdefault((fx, fy), []).append(
                                 Wire(
                                     direction=Direction.SJUMP,
                                     source=f"{p.name}{i}",
@@ -380,7 +386,7 @@ class Fabric:
                         if not p.is_input:
                             continue
                         for i in range(p.wire_count):
-                            master_tile.wireList.append(
+                            self.wires.setdefault((ftx, fty), []).append(
                                 Wire(
                                     direction=Direction.SJUMP,
                                     source=f"{st_tile.name}_{p.name}{i}",
@@ -395,8 +401,8 @@ class Fabric:
                     touched.add((ftx, fty))
 
         for fx, fy in touched:
-            tile = self.tile[fy][fx]
-            tile.wireList = list(dict.fromkeys(tile.wireList))
+            if (fx, fy) in self.wires:
+                self.wires[fx, fy] = list(dict.fromkeys(self.wires[fx, fy]))
 
     def iter_super_tile_placements(
         self, superTile: SuperTile | None = None
