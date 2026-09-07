@@ -8,6 +8,7 @@ Tests focus on:
 """
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -23,6 +24,11 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     _serialize_tile_ports,
     generate_IO_pin_order_config,
 )
+
+
+def _ports_on(tile: MagicMock, by_side: dict[Side, list]) -> None:
+    """Make a mocked tile answer `interface.ports_on(side)` from a mapping."""
+    tile.interface.ports_on.side_effect = lambda side, io=None: by_side.get(side, [])  # noqa: ARG005
 
 
 class TestPinOrderConfig:
@@ -137,11 +143,16 @@ class TestSerializeTilePorts:
         west_port = mocker.MagicMock()
         west_port.get_port_regex.return_value = r"W\[\d+\]"
 
-        # Set up side port methods
-        tile.getNorthSidePorts.return_value = [north_port]
-        tile.getEastSidePorts.return_value = [east_port]
-        tile.getSouthSidePorts.return_value = [south_port]
-        tile.getWestSidePorts.return_value = [west_port]
+        # Set up the border accessor
+        _ports_on(
+            tile,
+            {
+                Side.NORTH: [north_port],
+                Side.EAST: [east_port],
+                Side.SOUTH: [south_port],
+                Side.WEST: [west_port],
+            },
+        )
 
         # Pin order config for each side
         tile.pinOrderConfig = {
@@ -228,10 +239,7 @@ class TestSerializeTilePorts:
         tile = mocker.MagicMock()
 
         # Empty side ports
-        tile.getNorthSidePorts.return_value = []
-        tile.getEastSidePorts.return_value = []
-        tile.getSouthSidePorts.return_value = []
-        tile.getWestSidePorts.return_value = []
+        _ports_on(tile, {})
 
         tile.pinOrderConfig = {
             Side.NORTH: PinOrderConfig(),
@@ -259,7 +267,7 @@ class TestSerializeTilePorts:
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
-        mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
+        mock_tile.interface.ports_on(Side.NORTH)[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 
@@ -475,10 +483,7 @@ class TestGenerateIOPinOrderConfig:
         tile = mocker.MagicMock(spec=Tile)
 
         # Empty side ports for simplicity
-        tile.getNorthSidePorts.return_value = []
-        tile.getEastSidePorts.return_value = []
-        tile.getSouthSidePorts.return_value = []
-        tile.getWestSidePorts.return_value = []
+        _ports_on(tile, {})
 
         tile.pinOrderConfig = {
             Side.NORTH: PinOrderConfig(),

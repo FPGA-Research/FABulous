@@ -15,6 +15,7 @@ optimisation pipeline, so any drift in their semantics propagates silently.
 
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from pytest_mock import MockerFixture
 
@@ -22,6 +23,12 @@ from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from tests.fabric_definition.conftest import make_empty_tile, make_side_port
+
+
+def _ports_on(tile: MagicMock, prefix: str) -> None:
+    """Give a mocked tile one named pin per border, `<prefix><side letter>`."""
+    named = {side: [f"{prefix}{side.value}"] for side in Side}
+    tile.interface.ports_on.side_effect = lambda side, io=None: named[side]  # noqa: ARG005
 
 
 class TestSuperTileLayout:
@@ -78,10 +85,7 @@ class TestSuperTilePortQueries:
     ) -> None:
         # A 1x1 supertile: every edge is outer, none are internal.
         tile = mocker.MagicMock(spec=Tile)
-        tile.getNorthSidePorts.return_value = ["N"]
-        tile.getEastSidePorts.return_value = ["E"]
-        tile.getSouthSidePorts.return_value = ["S"]
-        tile.getWestSidePorts.return_value = ["W"]
+        _ports_on(tile, "")
 
         st = SuperTile(
             name="ST",
@@ -106,16 +110,10 @@ class TestSuperTilePortQueries:
         # its east edge is internal (faces the right tile); mirror for the
         # right tile.
         left = mocker.MagicMock(spec=Tile)
-        left.getNorthSidePorts.return_value = ["LN"]
-        left.getEastSidePorts.return_value = ["LE"]
-        left.getSouthSidePorts.return_value = ["LS"]
-        left.getWestSidePorts.return_value = ["LW"]
+        _ports_on(left, "L")
 
         right = mocker.MagicMock(spec=Tile)
-        right.getNorthSidePorts.return_value = ["RN"]
-        right.getEastSidePorts.return_value = ["RE"]
-        right.getSouthSidePorts.return_value = ["RS"]
-        right.getWestSidePorts.return_value = ["RW"]
+        _ports_on(right, "R")
 
         st = SuperTile(
             name="ST",

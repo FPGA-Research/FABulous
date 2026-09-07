@@ -10,7 +10,7 @@ from fabulous.fabric_definition.tile import Tile
 
 
 def _mk_tile(ports: list[TilePort]) -> Tile:
-    """Construct a Tile with only portsInfo set — enough for get_port_count tests."""
+    """Construct a Tile with only portsInfo set — enough for pin_count tests."""
     return Tile(
         name="T",
         ports=ports,
@@ -61,21 +61,21 @@ def _directional_ports(
 
 
 class TestGetPortCount:
-    """``get_port_count`` must return physical pin count, not 2× the wire count."""
+    """``pin_count`` must return physical pin count, not 2× the wire count."""
 
     def test_single_direction_counts_once_per_wire(self) -> None:
         # One NORTH wire produces N1BEG on N edge and N1END on S edge.
         # Each edge should report exactly wire_count pins, not 2× wire_count.
         tile = _mk_tile(_directional_ports("NORTH", "N1BEG", "N1END", 4))
-        assert tile.get_port_count(Side.NORTH) == 4
-        assert tile.get_port_count(Side.SOUTH) == 4
+        assert tile.interface.pin_count(Side.NORTH) == 4
+        assert tile.interface.pin_count(Side.SOUTH) == 4
 
     def test_distance_multiplies_wire_count(self) -> None:
         # N4 wire with distance 4 and wire_count=4 expands to 16 physical pins
         # per edge in "all" mode (4 tiles of passthrough × 4 wires).
         tile = _mk_tile(_directional_ports("NORTH", "N4BEG", "N4END", 4, y_offset=-4))
-        assert tile.get_port_count(Side.NORTH) == 16
-        assert tile.get_port_count(Side.SOUTH) == 16
+        assert tile.interface.pin_count(Side.NORTH) == 16
+        assert tile.interface.pin_count(Side.SOUTH) == 16
 
     def test_opposite_directions_sum_on_shared_edge(self) -> None:
         # A north-going wire (N1BEG on N edge) and a south-going wire
@@ -85,8 +85,8 @@ class TestGetPortCount:
             "SOUTH", "S1BEG", "S1END", 4, y_offset=1
         )
         tile = _mk_tile(ports)
-        assert tile.get_port_count(Side.NORTH) == 8  # 4 N1BEG + 4 S1END
-        assert tile.get_port_count(Side.SOUTH) == 8  # 4 N1END + 4 S1BEG
+        assert tile.interface.pin_count(Side.NORTH) == 8  # 4 N1BEG + 4 S1END
+        assert tile.interface.pin_count(Side.SOUTH) == 8  # 4 N1END + 4 S1BEG
 
     def test_null_ports_excluded(self) -> None:
         # GND/VCC-like ports with NULL source count only the non-NULL side.
@@ -103,11 +103,11 @@ class TestGetPortCount:
             wire_count=1,
         )
         tile = _mk_tile([port])
-        assert tile.get_port_count(Side.ANY) == 1
+        assert tile.interface.pin_count(Side.ANY) == 1
 
 
 class TestGetMinDieArea:
-    """``get_min_die_area`` derives pin-limited min dimensions from get_port_count."""
+    """``get_min_die_area`` derives pin-limited min dimensions from pin_count."""
 
     def test_pin_min_reflects_physical_pins_only(self) -> None:
         # Without the double-count bug, 4 wires on N should produce pin_min_w

@@ -1,7 +1,7 @@
 """Unit tests for the SJUMP / supertile-BEL data model.
 
 Covers the model pieces added to route a BEL that lives in a supertile's master
-tile from its child tiles: SJUMP port expansion, `Tile.get_sjump_ports`,
+tile from its child tiles: SJUMP port expansion, `TileInterface.ports_along`,
 `SuperTile` helpers, and the bidirectional SJUMP wire pass run by
 `Fabric.__post_init__`.
 """
@@ -65,7 +65,7 @@ class TestPortSJumpExpansion:
 
 
 class TestTileGetSJumpPorts:
-    """`Tile.get_sjump_ports` returns only the SJUMP-direction, non-NULL ports."""
+    """`TileInterface.ports_along` returns only the SJUMP-direction, non-NULL ports."""
 
     def test_returns_only_sjump_ports(self) -> None:
         sjump_out = sjump_port("A", IO.OUTPUT)
@@ -98,11 +98,11 @@ class TestTileGetSJumpPorts:
 
         tile = _tile("DSP_bot", [sjump_out, jump, normal, sjump_in, null_sjump])
 
-        assert tile.get_sjump_ports() == [sjump_out, sjump_in]
+        assert tile.interface.ports_along(Direction.SJUMP) == [sjump_out, sjump_in]
 
     def test_empty_when_no_sjump_ports(self) -> None:
         tile = _tile("LUT", [])
-        assert tile.get_sjump_ports() == []
+        assert tile.interface.ports_along(Direction.SJUMP) == []
 
 
 class TestSuperTileHelpers:

@@ -89,10 +89,10 @@ def _tile_stub(tile: Tile) -> str:
     """
     decls: list[str] = []
     for p in (
-        tile.getNorthSidePorts()
-        + tile.getEastSidePorts()
-        + tile.getWestSidePorts()
-        + tile.getSouthSidePorts()
+        tile.interface.ports_on(Side.NORTH)
+        + tile.interface.ports_on(Side.EAST)
+        + tile.interface.ports_on(Side.WEST)
+        + tile.interface.ports_on(Side.SOUTH)
     ):
         width = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
         direction = "input" if p.io_direction == IO.INPUT else "output"

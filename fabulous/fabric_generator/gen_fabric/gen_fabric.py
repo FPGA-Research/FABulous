@@ -18,20 +18,20 @@ from collections.abc import Generator
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 
-# (side port getter, neighbour dx, dy) for the four fabric edges. Each side's
-# local INPUT ports pair with the same-side OUTPUT ports of the neighbour at the
-# given offset; dy grows downward (south).
+# (wire direction, neighbour dx, dy) for the four fabric edges. A tile's INPUT
+# ports of one direction pair with the OUTPUT ports of the same direction on the
+# neighbour at the given offset, the two ends of one wire; dy grows downward
+# (south).
 _SIDE_INPUT_CONNECTIONS = (
-    (Tile.getNorthPorts, 0, 1),  # north input <- south neighbour
-    (Tile.getEastPorts, -1, 0),  # east input  <- west neighbour
-    (Tile.getSouthPorts, 0, -1),  # south input <- north neighbour
-    (Tile.getWestPorts, 1, 0),  # west input  <- east neighbour
+    (Direction.NORTH, 0, 1),  # north input <- south neighbour
+    (Direction.EAST, -1, 0),  # east input  <- west neighbour
+    (Direction.SOUTH, 0, -1),  # south input <- north neighbour
+    (Direction.WEST, 1, 0),  # west input  <- east neighbour
 )
 
 
@@ -305,11 +305,13 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
-                for get_side_ports, dx, dy in _SIDE_INPUT_CONNECTIONS:
+                for direction, dx, dy in _SIDE_INPUT_CONNECTIONS:
                     neighbor_x, neighbor_y = x + i + dx, y + j + dy
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
-                    localPorts = _local_names(get_side_ports(here, IO.INPUT))
+                    localPorts = _local_names(
+                        here.interface.ports_along(direction, IO.INPUT)
+                    )
                     if (
                         0 <= neighbor_y < len(fabric.tile)
                         and 0 <= neighbor_x < len(fabric.tile[0])
@@ -317,9 +319,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     ):
                         neighborInput = [
                             f"Tile_X{neighbor_x}Y{neighbor_y}_{p.name}"
-                            for p in get_side_ports(
-                                fabric.tile[neighbor_y][neighbor_x], IO.OUTPUT
-                            )
+                            for p in fabric.tile[neighbor_y][
+                                neighbor_x
+                            ].interface.ports_along(direction, IO.OUTPUT)
                         ]
                         portsPairs += list(zip(localPorts, neighborInput, strict=False))
                     else:

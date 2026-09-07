@@ -195,7 +195,10 @@ class Fabric:
             for tile in row:
                 if tile is None:
                     continue
-                if tile.get_sjump_ports() and not tile.partOfSuperTile:
+                if (
+                    tile.interface.ports_along(Direction.SJUMP)
+                    and not tile.partOfSuperTile
+                ):
                     raise ValueError(
                         f"Tile '{tile.name}' declares SJUMP wires but is not part "
                         "of any supertile. SJUMP wires route to a supertile-hosted "
@@ -363,7 +366,7 @@ class Fabric:
                     fx = base_fx + lx
                     grid_tile = self.tile[fy][fx]
 
-                    for p in grid_tile.get_sjump_ports():
+                    for p in grid_tile.interface.ports_along(Direction.SJUMP):
                         if not p.is_output:
                             continue
                         for i in range(p.wire_count):
@@ -382,7 +385,7 @@ class Fabric:
                     # Reverse: supertile SM output ({child_name}_{port}) back down to
                     # the child tile's INPUT port. The source lives in the wrapper at
                     # the master tile, so the wire is owned by the master.
-                    for p in grid_tile.get_sjump_ports():
+                    for p in grid_tile.interface.ports_along(Direction.SJUMP):
                         if not p.is_input:
                             continue
                         for i in range(p.wire_count):

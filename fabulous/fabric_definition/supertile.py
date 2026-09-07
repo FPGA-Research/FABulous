@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import ConfigMem
-from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.define import Direction, Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -81,13 +81,13 @@ class SuperTile:
                     continue
                 ports[f"{x},{y}"] = []
                 if y - 1 < 0 or self.tileMap[y - 1][x] is None:
-                    ports[f"{x},{y}"].append(tile.getNorthSidePorts())
+                    ports[f"{x},{y}"].append(tile.interface.ports_on(Side.NORTH))
                 if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] is None:
-                    ports[f"{x},{y}"].append(tile.getEastSidePorts())
+                    ports[f"{x},{y}"].append(tile.interface.ports_on(Side.EAST))
                 if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] is None:
-                    ports[f"{x},{y}"].append(tile.getSouthSidePorts())
+                    ports[f"{x},{y}"].append(tile.interface.ports_on(Side.SOUTH))
                 if x - 1 < 0 or self.tileMap[y][x - 1] is None:
-                    ports[f"{x},{y}"].append(tile.getWestSidePorts())
+                    ports[f"{x},{y}"].append(tile.interface.ports_on(Side.WEST))
         return ports
 
     def __iter__(self) -> Generator[tuple[tuple[int, int], Tile], None, None]:
@@ -115,22 +115,30 @@ class SuperTile:
                     0 <= y - 1 < len(self.tileMap)
                     and self.tileMap[y - 1][x] is not None
                 ):
-                    internalConnections.append((tile.getNorthSidePorts(), x, y))
+                    internalConnections.append(
+                        (tile.interface.ports_on(Side.NORTH), x, y)
+                    )
                 if (
                     0 <= x + 1 < len(self.tileMap[0])
                     and self.tileMap[y][x + 1] is not None
                 ):
-                    internalConnections.append((tile.getEastSidePorts(), x, y))
+                    internalConnections.append(
+                        (tile.interface.ports_on(Side.EAST), x, y)
+                    )
                 if (
                     0 <= y + 1 < len(self.tileMap)
                     and self.tileMap[y + 1][x] is not None
                 ):
-                    internalConnections.append((tile.getSouthSidePorts(), x, y))
+                    internalConnections.append(
+                        (tile.interface.ports_on(Side.SOUTH), x, y)
+                    )
                 if (
                     0 <= x - 1 < len(self.tileMap[0])
                     and self.tileMap[y][x - 1] is not None
                 ):
-                    internalConnections.append((tile.getWestSidePorts(), x, y))
+                    internalConnections.append(
+                        (tile.interface.ports_on(Side.WEST), x, y)
+                    )
         return internalConnections
 
     def get_master_tile_coords(self) -> tuple[int, int]:
@@ -187,7 +195,7 @@ class SuperTile:
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                for p in tile.get_sjump_ports():
+                for p in tile.interface.ports_along(Direction.SJUMP):
                     if p.is_output:
                         result.append((x, y, p))
         return result
@@ -206,7 +214,7 @@ class SuperTile:
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                for p in tile.get_sjump_ports():
+                for p in tile.interface.ports_along(Direction.SJUMP):
                     if p.is_input:
                         result.append((x, y, p))
         return result
@@ -233,7 +241,7 @@ class SuperTile:
             for tile in row:
                 if tile is None:
                     continue
-                for p in tile.get_sjump_ports():
+                for p in tile.interface.ports_along(Direction.SJUMP):
                     names = {f"{tile.name}_{p.name}{k}" for k in range(p.wire_count)}
                     if p.is_output:
                         valid_sources |= names
@@ -325,10 +333,10 @@ class SuperTile:
         max_east = 0
 
         for subtile in self.tiles:
-            max_north = max(max_north, subtile.get_port_count(Side.NORTH))
-            max_south = max(max_south, subtile.get_port_count(Side.SOUTH))
-            max_west = max(max_west, subtile.get_port_count(Side.WEST))
-            max_east = max(max_east, subtile.get_port_count(Side.EAST))
+            max_north = max(max_north, subtile.interface.pin_count(Side.NORTH))
+            max_south = max(max_south, subtile.interface.pin_count(Side.SOUTH))
+            max_west = max(max_west, subtile.interface.pin_count(Side.WEST))
+            max_east = max(max_east, subtile.interface.pin_count(Side.EAST))
 
         x_io_count = Decimal(max(max_north, max_south))
         min_width_io = (x_io_count * x_pin_thickness_mult + edge_offset) * x_pitch

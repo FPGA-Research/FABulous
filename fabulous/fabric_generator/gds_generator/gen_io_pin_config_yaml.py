@@ -50,7 +50,7 @@ def _serialize_tile_ports(
         Side.WEST.name: [],
     }
 
-    for port in tile.getNorthSidePorts():
+    for port in tile.interface.ports_on(Side.NORTH):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
                 tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
@@ -60,7 +60,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getEastSidePorts():
+    for port in tile.interface.ports_on(Side.EAST):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
                 tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
@@ -69,7 +69,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getSouthSidePorts():
+    for port in tile.interface.ports_on(Side.SOUTH):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
                 tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
@@ -79,7 +79,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getWestSidePorts():
+    for port in tile.interface.ports_on(Side.WEST):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
                 tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
