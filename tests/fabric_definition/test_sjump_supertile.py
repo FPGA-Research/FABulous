@@ -385,6 +385,7 @@ class TestGenBitstreamSpecSupertileMux:
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
+        supertile.load_config_mem()
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
         return generateBitstreamSpec(fabric)
 

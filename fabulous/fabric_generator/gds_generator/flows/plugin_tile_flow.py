@@ -260,7 +260,7 @@ def _emit_regular_tile_verilog(
         writer,
         tile.name,
         tile.globalConfigBits,
-        tile_dir / f"{tile.name}_ConfigMem.csv",
+        tile.config_mem_path,
     )
     writer.outFileName = tile_dir / f"{tile.name}.v"
     generateTile(

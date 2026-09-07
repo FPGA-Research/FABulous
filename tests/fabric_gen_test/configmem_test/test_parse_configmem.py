@@ -330,7 +330,7 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=4,
                 expected_result_len=0,
-                expected_error="mismatch between the number of bits used in the frame",
+                expected_error="marks 4 data lines used but lists 3 configuration bits",
             ),
             id="mask_range_len_mismatch",
         ),

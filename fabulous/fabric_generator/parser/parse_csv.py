@@ -519,23 +519,23 @@ def parseTilesCSV(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
 
-        new_tiles.append(
-            Tile(
-                name=tileName,
+        tile = Tile(
+            name=tileName,
+            ports=ports,
+            bels=bels,
+            tileDir=fileName,
+            switch_matrix=SwitchMatrix.from_file(
+                matrixDir,
+                tileName,
                 ports=ports,
                 bels=bels,
-                tileDir=fileName,
-                switch_matrix=SwitchMatrix.from_file(
-                    matrixDir,
-                    tileName,
-                    ports=ports,
-                    bels=bels,
-                    preserve_list_order=preserve_list_order,
-                ),
-                gen_ios=gen_ios,
-                userCLK=withUserCLK,
-            )
+                preserve_list_order=preserve_list_order,
+            ),
+            gen_ios=gen_ios,
+            userCLK=withUserCLK,
         )
+        tile.load_config_mem()
+        new_tiles.append(tile)
 
     return (new_tiles, common_wire_pairs)
 
@@ -717,6 +717,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             )
             super_tile.switch_matrix = switch_matrix
 
+        super_tile.load_config_mem()
         new_supertiles.append(super_tile)
 
     return new_supertiles

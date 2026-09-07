@@ -7,16 +7,10 @@ locations and is used during bitstream generation.
 
 import string
 from importlib.metadata import version
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
-from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.configmem import ConfigMem
 
 
 def border_rows_have_config_bits(fabric: Fabric) -> bool:
@@ -59,6 +53,12 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
     -------
     dict[str, dict]
         The bits stream specification of the fabric.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a supertile with configuration bits has no configuration memory
+        file yet.
     """
     specData = {
         "TileMap": {},
@@ -87,66 +87,40 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                 tileMap[f"X{x}Y{y}"] = "NULL"
 
     specData["TileMap"] = tileMap
-    configMemList: list[ConfigMem] = []
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            if "fabric.csv" in str(tile.tileDir):
-                # Backward compat: in the old fabric.csv-embedded layout the
-                # tile's real location comes from its switch-matrix file path.
-                matrix_file = tile.switch_matrix.matrix_file
-                if matrix_file.is_file():
-                    configMemPath = matrix_file.parent / f"{tile.name}_ConfigMem.csv"
-                else:
-                    configMemPath = (
-                        get_context().proj_dir
-                        / "Tile"
-                        / tile.name
-                        / f"{tile.name}_ConfigMem.csv"
-                    )
-                    logger.warning(
-                        f"MatrixDir for {tile.name} is not a valid file or directory. "
-                        f"Assuming default path: {configMemPath}"
-                    )
-            else:
-                configMemPath = tile.tileDir.parent.joinpath(
-                    f"{tile.name}_ConfigMem.csv"
-                )
-            logger.info(f"ConfigMemPath: {configMemPath}")
-
-            if configMemPath.exists() and configMemPath.is_file():
-                configMemList = parseConfigMem(
-                    configMemPath,
-                    fabric.maxFramesPerCol,
-                    fabric.frameBitsPerRow,
-                    tile.globalConfigBits,
+            logger.info(f"ConfigMemPath: {tile.config_mem_path}")
+            memory = tile.config_mem
+            if memory is not None:
+                memory.validate(
+                    frame_bits_per_row=fabric.frameBitsPerRow,
+                    max_frames_per_col=fabric.maxFramesPerCol,
+                    config_bits=tile.globalConfigBits,
                 )
             elif tile.globalConfigBits > 0:
                 logger.critical(
                     f"No ConfigMem csv file found for {tile.name} which "
                     "have config bits"
                 )
-                configMemList = []
             else:
                 logger.info(f"No config memory for {tile.name}.")
-                configMemList = []
 
+            # The frame position of a bit is its data line within its frame.
             encodeDict = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
-            maskDic = {}
-            for cfm in configMemList:
-                maskDic[cfm.frameIndex] = cfm.usedBitMask
-                # matching the value in the configBitRanges with the reversedBitMask
-                # bit 0 in bit mask is the first value in the configBitRanges
-                for i, char in enumerate(cfm.usedBitMask):
-                    if char == "1":
-                        encodeDict[cfm.configBitRanges.pop(0)] = (
-                            fabric.frameBitsPerRow - 1 - i
-                        ) + fabric.frameBitsPerRow * cfm.frameIndex
-
-            # filling the maskDic with the unused frames
-            for i in range(fabric.maxFramesPerCol - len(configMemList)):
-                maskDic[len(configMemList) + i] = "0" * fabric.frameBitsPerRow
+            maskDic = {
+                index: "0" * fabric.frameBitsPerRow
+                for index in range(fabric.maxFramesPerCol)
+            }
+            if memory is not None:
+                maskDic.update(
+                    (frame.frameIndex, frame.usedBitMask) for frame in memory.frames
+                )
+                for crosspoint, bit in memory.bit_at.items():
+                    encodeDict[bit] = (
+                        crosspoint.data_bit + fabric.frameBitsPerRow * crosspoint.frame
+                    )
 
             specData["FrameMap"][tile.name] = maskDic
             if tile.globalConfigBits == 0:
@@ -217,19 +191,25 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         st_encode_dict = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
         st_mask_dic: dict[int, str] = {}
         if st_config_bits > 0:
-            st_config_mem_list = parseConfigMem(
-                super_tile.tileDir.parent / f"{super_tile.name}_ConfigMem.csv",
-                fabric.maxFramesPerCol,
-                fabric.frameBitsPerRow,
-                st_config_bits,
+            st_memory = super_tile.config_mem
+            if st_memory is None:
+                raise FileNotFoundError(
+                    f"Supertile {super_tile.name} has {st_config_bits} config bits "
+                    f"but no configuration memory at {super_tile.config_mem_path}; "
+                    "run gen_config_mem for it first."
+                )
+            st_memory.validate(
+                frame_bits_per_row=fabric.frameBitsPerRow,
+                max_frames_per_col=fabric.maxFramesPerCol,
+                config_bits=st_config_bits,
             )
-            for cfm in st_config_mem_list:
-                st_mask_dic[cfm.frameIndex] = cfm.usedBitMask
-                for i, char in enumerate(cfm.usedBitMask):
-                    if char == "1":
-                        st_encode_dict[cfm.configBitRanges.pop(0)] = (
-                            fabric.frameBitsPerRow - 1 - i
-                        ) + fabric.frameBitsPerRow * cfm.frameIndex
+            st_mask_dic = {
+                frame.frameIndex: frame.usedBitMask for frame in st_memory.used_frames
+            }
+            for crosspoint, bit in st_memory.bit_at.items():
+                st_encode_dict[bit] = (
+                    crosspoint.data_bit + fabric.frameBitsPerRow * crosspoint.frame
+                )
 
         sm_connections: dict[str, list[str]] = {}
         if super_tile.switch_matrix is not None:

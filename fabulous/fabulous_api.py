@@ -206,6 +206,7 @@ class FABulous_API:
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
             )
+            tile.load_config_mem()
         else:
             raise ValueError(f"Tile {tileName} not found")
 
@@ -380,16 +381,14 @@ class FABulous_API:
         if tile := self.fabric.getSuperTileByName(tileName):
             mx, my = tile.get_master_tile_coords()
             master_tile = tile.tileMap[my][mx]
-            master_config_mem_csv = (
-                master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
-            )
             generate_super_tile_config_mem(
                 self.writer,
                 tile,
-                master_config_mem_csv,
+                master_tile.config_mem_path,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
             )
+            tile.load_config_mem()
         else:
             raise ValueError(f"SuperTile {tileName} not found")
 

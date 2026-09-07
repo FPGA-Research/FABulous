@@ -5,11 +5,15 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from loguru import logger
+
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -62,6 +66,9 @@ class Tile:
         Whether the tile is part of a super tile. Default is False.
     pinOrderConfig : dict, optional
         Configuration for pin ordering on each side of the tile.
+    config_mem : ConfigMem | None
+        The tile's configuration memory, read from `config_mem_path` by
+        `load_config_mem`. None until that file exists.
     """
 
     name: str
@@ -73,6 +80,7 @@ class Tile:
     tileDir: Path = Path()
     partOfSuperTile: bool = False
     pinOrderConfig: dict = field(default_factory=dict)
+    config_mem: ConfigMem | None = None
 
     def __init__(
         self,
@@ -92,6 +100,7 @@ class Tile:
         self.switch_matrix = switch_matrix
         self.withUserCLK = userCLK
         self.tileDir = tileDir
+        self.config_mem = None
 
         if pinOrderConfig is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -316,6 +325,38 @@ class Tile:
             and p.wire_direction not in (Direction.JUMP, Direction.SJUMP)
             and p.is_output
         ]
+
+    @property
+    def config_mem_path(self) -> Path:
+        """Where the tile keeps its configuration memory, `<tile>_ConfigMem.csv`.
+
+        A tile defined inside `fabric.csv` has no directory of its own, so its
+        memory sits next to its switch matrix file, or under the project's
+        `Tile/<name>` when that file does not exist either.
+        """
+        file_name = f"{self.name}_ConfigMem.csv"
+        if "fabric.csv" not in str(self.tileDir):
+            return self.tileDir.parent / file_name
+        matrix_file = self.switch_matrix.matrix_file
+        if matrix_file.is_file():
+            return matrix_file.parent / file_name
+        path = get_context().proj_dir / "Tile" / self.name / file_name
+        logger.warning(
+            f"MatrixDir for {self.name} is not a valid file or directory. "
+            f"Assuming default path: {path}"
+        )
+        return path
+
+    def load_config_mem(self) -> None:
+        """Read `config_mem_path` into `config_mem`, or None where no file is there.
+
+        The parser calls this for every tile it builds and each writer of a
+        `ConfigMem.csv` calls it again, since the file is written long after
+        the tile is parsed and the tile is the one object every consumer of the
+        mapping reads it from.
+        """
+        path = self.config_mem_path
+        self.config_mem = ConfigMem.from_csv(path) if path.is_file() else None
 
     @property
     def globalConfigBits(self) -> int:

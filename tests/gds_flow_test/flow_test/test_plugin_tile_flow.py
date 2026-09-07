@@ -135,6 +135,7 @@ class TestEmitTileVerilog:
         tile_dir.mkdir()
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.name = "LUT4AB"
+        mock_tile.config_mem_path = tile_dir / "LUT4AB_ConfigMem.csv"
 
         actual_paths: list[Path] = []
         gen_sm = mocker.patch.object(plugin_tile_flow, "genTileSwitchMatrix")

@@ -11,7 +11,7 @@ import pytest
 from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMemFrame
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -336,10 +336,10 @@ def connections_factory() -> Callable[..., dict[str, list[str]]]:
 @pytest.fixture(params=[1, 2, 3, 4, 5], ids=lambda param: f"ConfigMemPattern{param}")
 def configmem_list(
     request: pytest.FixtureRequest,
-) -> Callable[[Fabric, Tile], list[ConfigMem]]:
+) -> Callable[[Fabric, Tile], list[ConfigMemFrame]]:
     """Parameterized fixture returning various ConfigMem object lists."""
 
-    def _create(fabric: Fabric, tile: Tile) -> list[ConfigMem]:
+    def _create(fabric: Fabric, tile: Tile) -> list[ConfigMemFrame]:
         import itertools
         import random
         from random import shuffle
@@ -391,12 +391,11 @@ def configmem_list(
         for frame_index in range(fabric.maxFramesPerCol):
             if frame_index not in frame_groups:
                 configmems.append(
-                    ConfigMem(
+                    ConfigMemFrame(
                         frameName=f"frame{frame_index}",
                         frameIndex=frame_index,
-                        bitsUsedInFrame=0,
-                        usedBitMask=generate_mask(0, fabric.frameBitsPerRow),
-                        configBitRanges=[],
+                        width=fabric.frameBitsPerRow,
+                        bits={},
                     )
                 )
                 continue
@@ -410,13 +409,16 @@ def configmem_list(
                     range(total_bits_assigned, total_bits_assigned + bits_used)
                 )
                 random.shuffle(bit_ranges)
+                mask = generate_mask(bits_used, fabric.frameBitsPerRow)
+                lines = [
+                    len(mask) - 1 - k for k, char in enumerate(mask) if char == "1"
+                ]
                 configmems.append(
-                    ConfigMem(
+                    ConfigMemFrame(
                         frameName=f"frame{frame_index}",
                         frameIndex=frame_index,
-                        bitsUsedInFrame=bits_used,
-                        usedBitMask=generate_mask(bits_used, fabric.frameBitsPerRow),
-                        configBitRanges=bit_ranges,
+                        width=fabric.frameBitsPerRow,
+                        bits=dict(zip(lines, bit_ranges, strict=True)),
                     )
                 )
                 total_bits_assigned += bits_used
