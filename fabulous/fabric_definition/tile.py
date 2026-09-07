@@ -20,7 +20,6 @@ from fabulous.fabric_definition.port import (
     TilePort,
 )
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.wire import Wire
 
 if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -88,8 +87,6 @@ class Tile:
         The list of GEN_IOs of the tile
     withUserCLK : bool
         Whether the tile has a userCLK port. Default is False.
-    wire_list : list[Wire]
-        The list of wires of the tile
     tile_dir : Path
         The path to the tile folder
     part_of_composite : bool
@@ -113,7 +110,6 @@ class Tile:
     switch_matrix: SwitchMatrix
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
-    wire_list: list[Wire] = field(default_factory=list)
     tile_dir: Path = Path()
     part_of_composite: bool = False
     pin_order_config: dict = field(default_factory=dict)
@@ -143,7 +139,6 @@ class Tile:
         self.matrix_dir = matrix_dir
         self.switch_matrix = switch_matrix
         self.withUserCLK = userCLK
-        self.wire_list = []
         self.tile_dir = tile_dir
         self.tile_map = tile_map
         self.sub_tiles = sub_tiles if sub_tiles is not None else []
