@@ -9,16 +9,12 @@ from typing import Any, Protocol
 import cocotb
 import pytest
 from cocotb.triggers import Timer
-from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem, ConfigMemFrame
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
-
-# Use parseConfigMem function to get accurate bit mapping
-from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
 
 class ConfigMemDUT(Protocol):
@@ -162,10 +158,12 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     generateConfigMem(
         writer,
         tile_config.name,
-        tile_config.total_config_bits,
-        csv_path,
-        frame_bits_per_row=fabric_config.frameBitsPerRow,
-        max_frame_per_col=fabric_config.maxFramesPerCol,
+        ConfigMem.for_tile(
+            csv_path,
+            config_bits=tile_config.total_config_bits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+        ),
     )
 
     # Check if RTL file was created - skip if no config bits were generated
@@ -177,25 +175,25 @@ def test_configmem_rtl_with_generated_configmem_simulation(
         return
 
     bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index
-    config_mem_entries = parseConfigMem(
+    config_mem_entries = ConfigMem.for_tile(
         csv_path,
-        fabric_config.maxFramesPerCol,
-        fabric_config.frameBitsPerRow,
-        tile_config.total_config_bits,
-    )
+        config_bits=tile_config.total_config_bits,
+        frame_bits_per_row=fabric_config.frameBitsPerRow,
+        max_frames_per_col=fabric_config.maxFramesPerCol,
+    ).used_frames
 
     # Create direct mapping using the parsed ConfigMem objects
     for config_mem in config_mem_entries:
-        frame_index = config_mem.frameIndex
-        config_bit_ranges = config_mem.configBitRanges
-        used_bit_mask = config_mem.usedBitMask
+        frame_index = config_mem.frame_index
+        config_bit_ranges = config_mem.config_bit_ranges
+        used_bit_mask = config_mem.used_bits_mask
 
         # Find which FrameData bits are used (positions of '1' in mask)
-        # The usedBitMask is interpreted right-to-left (little endian)
+        # The used_bits_mask is interpreted right-to-left (little endian)
         used_framedata_bits = [
             len(used_bit_mask) - 1 - i
             for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
+            if bit
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit
@@ -224,10 +222,9 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     tmp_path: Path,
     default_fabric: Fabric,
     default_tile: Tile,
-    configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+    configmem_list: Callable[[Fabric, Tile], list[ConfigMemFrame]],
     code_generator_factory: Callable[..., CodeGenerator],
     cocotb_runner: Callable[..., Callable],
-    mocker: MockerFixture,
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
     # Skip impossible configurations where fabric capacity < tile requirements
@@ -248,41 +245,32 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem{hdl_lang}"
     writer.outFileName.touch()
 
-    # Create CSV file in tmp_path
-    csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
     configmem_list_data = configmem_list(default_fabric, default_tile)
-
-    # Mock parseConfigMem to return our configmem_list fixture
-    mock_parse = mocker.patch(
-        "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
-        return_value=configmem_list,
+    memory = ConfigMem(
+        tuple(configmem_list_data),
+        default_fabric.frameBitsPerRow,
+        len(configmem_list_data),
     )
-    mock_parse.return_value = configmem_list_data
+    csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
+    memory.to_csv(csv_path)
 
     # Generate the ConfigMem RTL
-    generateConfigMem(
-        writer,
-        default_tile.name,
-        default_tile.total_config_bits,
-        csv_path,
-        frame_bits_per_row=default_fabric.frameBitsPerRow,
-        max_frame_per_col=default_fabric.maxFramesPerCol,
-    )
+    generateConfigMem(writer, default_tile.name, memory)
 
     bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index
 
     # Create direct mapping using the parsed ConfigMem objects
     for config_mem in configmem_list_data:
-        frame_index = config_mem.frameIndex
-        config_bit_ranges = config_mem.configBitRanges
-        used_bit_mask = config_mem.usedBitMask
+        frame_index = config_mem.frame_index
+        config_bit_ranges = config_mem.config_bit_ranges
+        used_bit_mask = config_mem.used_bits_mask
 
         # Find which FrameData bits are used (positions of '1' in mask)
-        # The usedBitMask is interpreted right-to-left (little endian)
+        # The used_bits_mask is interpreted right-to-left (little endian)
         used_framedata_bits = [
             len(used_bit_mask) - 1 - i
             for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
+            if bit
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit

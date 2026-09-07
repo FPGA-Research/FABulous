@@ -15,6 +15,7 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import (
     IO,
     SWITCH_MATRIX_CONSTANTS,
@@ -226,6 +227,76 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     else:
         raise InvalidPortType(f"Unknown port type: {port_type}")
     return (ports, common_wire_pair)
+
+
+def config_mem_csv_of(tile: Tile) -> Path:
+    """Return where a tile keeps its `<name>_ConfigMem.csv`.
+
+    A tile defined inside `fabric.csv` has no directory of its own, so its
+    memory sits next to its switch matrix file, or under the project's
+    `Tile/<name>` when that file does not exist either. A composite has no
+    switch matrix file to sit beside, so it always uses its own directory.
+
+    Parameters
+    ----------
+    tile : Tile
+        The tile whose memory is wanted.
+
+    Returns
+    -------
+    Path
+        The file, which need not exist yet.
+    """
+    file_name = f"{tile.name}_ConfigMem.csv"
+    if tile.is_composite or "fabric.csv" not in str(tile.tile_dir):
+        return tile.tile_dir.parent / file_name
+    matrix_file = tile.switch_matrix.matrix_file
+    if matrix_file.is_file():
+        return matrix_file.parent / file_name
+    path = get_context().proj_dir / "Tile" / tile.name / file_name
+    logger.warning(
+        f"MatrixDir for {tile.name} is not a valid file or directory. "
+        f"Assuming default path: {path}"
+    )
+    return path
+
+
+def read_config_mem_of(
+    tile: Tile, *, frame_bits_per_row: int, max_frames_per_col: int
+) -> ConfigMem:
+    """Read a tile's configuration memory, or the mapping it is due to get.
+
+    A composite's wrapper bits sit in the crosspoints its master cell leaves
+    free, so the enumerated default is not its mapping; until one is generated
+    it holds no bits, which the bit count then catches.
+
+    Parameters
+    ----------
+    tile : Tile
+        The tile whose memory is read.
+    frame_bits_per_row : int
+        The fabric's `FrameBitsPerRow`.
+    max_frames_per_col : int
+        The fabric's `MaxFramesPerCol`.
+
+    Returns
+    -------
+    ConfigMem
+        The memory, which is empty for a composite that has none yet.
+    """
+    path = config_mem_csv_of(tile)
+    if tile.is_composite and not path.is_file():
+        return ConfigMem.default(
+            0,
+            frame_bits_per_row=frame_bits_per_row,
+            max_frames_per_col=max_frames_per_col,
+        )
+    return ConfigMem.for_tile(
+        path,
+        config_bits=tile.total_config_bits,
+        frame_bits_per_row=frame_bits_per_row,
+        max_frames_per_col=max_frames_per_col,
+    )
 
 
 def parseTilesCSV(
@@ -1108,6 +1179,15 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     height = len(fabricTiles)
     width = len(fabricTiles[0])
+
+    # The frame parameters may follow the tile rows in the file, so the memory
+    # is read once they are all known.
+    for tile_type in list(tileDic.values()) + list(unusedTileDic.values()):
+        tile_type.config_mem = read_config_mem_of(
+            tile_type,
+            frame_bits_per_row=frameBitsPerRow,
+            max_frames_per_col=maxFramesPerCol,
+        )
 
     common_wire_pair = list(dict.fromkeys(common_wire_pair))
     common_wire_pair = [

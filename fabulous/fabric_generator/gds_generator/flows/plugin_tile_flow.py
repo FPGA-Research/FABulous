@@ -15,6 +15,7 @@ from fabulous.custom_exception import (
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -35,7 +36,10 @@ from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile
-from fabulous.fabric_generator.parser.parse_csv import parse_tile_from_dir
+from fabulous.fabric_generator.parser.parse_csv import (
+    config_mem_csv_of,
+    parse_tile_from_dir,
+)
 from fabulous.fabulous_settings import get_context, init_context
 
 
@@ -229,6 +233,12 @@ def _emit_tile_verilog(
     )
 
 
+# The standalone tile flow has no fabric to read the frame grid from, so the
+# memory is laid out on the grid the fabric model defaults to.
+_FRAME_BITS_PER_ROW = 32
+_MAX_FRAMES_PER_COL = 20
+
+
 def _emit_regular_tile_verilog(
     writer: VerilogCodeGenerator,
     tile: Tile,
@@ -249,12 +259,13 @@ def _emit_regular_tile_verilog(
         default_pip_delay=_SWITCH_MATRIX_PIP_DELAY,
     )
     writer.outFileName = tile_dir / f"{tile.name}_ConfigMem.v"
-    generateConfigMem(
-        writer,
-        tile.name,
-        tile.total_config_bits,
-        tile_dir / f"{tile.name}_ConfigMem.csv",
+    tile.config_mem = ConfigMem.for_tile(
+        config_mem_csv_of(tile),
+        config_bits=tile.total_config_bits,
+        frame_bits_per_row=_FRAME_BITS_PER_ROW,
+        max_frames_per_col=_MAX_FRAMES_PER_COL,
     )
+    generateConfigMem(writer, tile.name, tile.config_mem)
     writer.outFileName = tile_dir / f"{tile.name}.v"
     generateTile(
         writer,

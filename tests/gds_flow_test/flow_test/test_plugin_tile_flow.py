@@ -136,6 +136,8 @@ class TestEmitTileVerilog:
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.name = "LUT4AB"
         mock_tile.is_composite = False
+        mock_tile.tile_dir = tile_dir / "LUT4AB.csv"
+        mock_tile.total_config_bits = 16
 
         actual_paths: list[Path] = []
         gen_sm = mocker.patch.object(plugin_tile_flow, "genTileSwitchMatrix")
@@ -175,12 +177,11 @@ class TestEmitTileVerilog:
         sm_kwargs = gen_sm.call_args.kwargs
         assert sm_kwargs["config_bit_mode"] == ConfigBitMode.FLIPFLOP_CHAIN
         assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
+        # The tile carries the memory the module implements.
         gen_cm.assert_called_once_with(
-            mock_writer,
-            mock_tile.name,
-            mock_tile.total_config_bits,
-            tile_dir / "LUT4AB_ConfigMem.csv",
+            mock_writer, mock_tile.name, mock_tile.config_mem
         )
+        assert mock_tile.config_mem.config_bits == 16
         gen_tile.assert_called_once()
 
     def test_composite_emits_per_subtile_then_wrapper(

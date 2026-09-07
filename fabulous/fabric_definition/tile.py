@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from loguru import logger
 
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import EMPTY_CONFIG_MEM, ConfigMem
 from fabulous.fabric_definition.define import (
     IO,
     Direction,
@@ -72,6 +73,9 @@ class Tile:
         Explicit `(x, y)` cell of the master sub-tile (where the wrapper BELs
         and config bits live). When None, the master defaults to the last
         non-None cell in row-major order. Defaults to None.
+    config_mem : ConfigMem
+        The tile's configuration memory. Defaults to the empty grid, which a
+        tile carries until the parser knows the fabric's frame parameters.
 
     Attributes
     ----------
@@ -102,6 +106,9 @@ class Tile:
     master_offset : tuple[int, int] | None
         Explicit `(x, y)` cell of the master sub-tile, or None to use the
         row-major default.
+    config_mem : ConfigMem
+        The tile's configuration memory. Empty until the parser reads the
+        fabric's frame parameters and hands it one.
     """
 
     name: str
@@ -116,6 +123,7 @@ class Tile:
     tile_map: list[list["Tile | None"]] | None = None  # 2D sub-tile layout
     sub_tiles: list["Tile"] = field(default_factory=list)  # flat list of sub-tiles
     master_offset: tuple[int, int] | None = None  # explicit master cell (x, y)
+    config_mem: ConfigMem = EMPTY_CONFIG_MEM
 
     def __init__(
         self,
@@ -131,6 +139,7 @@ class Tile:
         tile_map: list[list["Tile | None"]] | None = None,
         sub_tiles: list["Tile"] | None = None,
         master_offset: tuple[int, int] | None = None,
+        config_mem: ConfigMem = EMPTY_CONFIG_MEM,
     ) -> None:
         self.name = name
         self.ports_info = ports
@@ -143,6 +152,7 @@ class Tile:
         self.tile_map = tile_map
         self.sub_tiles = sub_tiles if sub_tiles is not None else []
         self.master_offset = master_offset
+        self.config_mem = config_mem
 
         if pin_order_config is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (

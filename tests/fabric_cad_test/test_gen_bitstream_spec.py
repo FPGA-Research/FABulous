@@ -29,6 +29,7 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
+from fabulous.fabric_generator.parser.parse_csv import read_config_mem_of
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import make_empty_tile, make_fabric_from_grid, run_cmd
 
@@ -353,6 +354,10 @@ def _build_fabric(
         gen_ios=[],
         userCLK=False,
     )
+    tile.config_mem = read_config_mem_of(
+        tile, frame_bits_per_row=_FRAME_BITS, max_frames_per_col=_MAX_FRAMES
+    )
+
     fabric = Fabric(fabric_dir=root)
     fabric.wires = {(0, 0): wires}
     fabric.tile = [[tile]]

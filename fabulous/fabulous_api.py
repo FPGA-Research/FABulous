@@ -51,10 +51,6 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
-from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    generate_composite_config_mem,
-    generateConfigMem,
-)
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile
@@ -174,46 +170,6 @@ class FABulous_API:
         SwitchMatrix.from_file(
             matrix, matrix.stem, preserve_list_order=preserve_list_order
         ).to_list_file(listFile)
-
-    def genConfigMem(self, tileName: str, configMem: Path) -> None:
-        """Generate configuration memory for specified tile.
-
-        A composite tile's wrapper bits live in its master sub-tile's frame
-        column, so they are allocated from the slots the master leaves free
-        instead of being packed from frame 0.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the tile for which configuration memory will be generated.
-        configMem : Path
-            File path where the configuration memory will be saved.
-
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
-        """
-        if tile := self.fabric.getTileByName(tileName):
-            if tile.is_composite:
-                generate_composite_config_mem(
-                    self.writer,
-                    tile,
-                    configMem,
-                    frame_bits_per_row=self.fabric.frameBitsPerRow,
-                    max_frame_per_col=self.fabric.maxFramesPerCol,
-                )
-                return
-            generateConfigMem(
-                self.writer,
-                tile.name,
-                tile.total_config_bits,
-                configMem,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
 
     def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix for specified tile.

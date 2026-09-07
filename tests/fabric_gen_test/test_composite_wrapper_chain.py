@@ -32,7 +32,10 @@ from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile
-from fabulous.fabric_generator.parser.parse_csv import parse_composite_tiles_csv
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_composite_tiles_csv,
+    read_config_mem_of,
+)
 from fabulous.geometry_generator.fabric_geometry import FabricGeometry
 from tests.conftest import (
     jump_port,
@@ -429,6 +432,10 @@ class TestBitstreamSpec:
         """
         tmp_path = wrapper_composite.tile_dir.parent
         _write_wrapper_configmem(tmp_path / "C_ConfigMem.csv")
+        # The spec reads the model, so the written mapping has to reach it.
+        wrapper_composite.config_mem = read_config_mem_of(
+            wrapper_composite, frame_bits_per_row=32, max_frames_per_col=20
+        )
         fabric = _build_fabric(wrapper_composite, tmp_path)
 
         spec = generateBitstreamSpec(fabric)

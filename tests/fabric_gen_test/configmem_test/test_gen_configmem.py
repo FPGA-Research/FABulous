@@ -8,19 +8,17 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem, ConfigMemFrame
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    _read_config_mem_masks,
     generate_composite_config_mem,
+    generate_tile_config_mem,
     generateConfigMem,
-    generateConfigMemInit,
 )
 from tests.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import create_config_csv, verify_csv_content
@@ -44,24 +42,23 @@ def _expect_capacity_error(
 ) -> None:
     """Test that capacity error is raised with meaningful message."""
     with pytest.raises((ValueError, RuntimeError, AssertionError)) as exc_info:
-        generateConfigMemInit(
-            output_file,
+        ConfigMem.default(
             tile_config_bits,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
-            max_frame_per_col=fabric_config.maxFramesPerCol,
-        )
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+        ).to_csv(output_file)
     # Verify that the error message is meaningful
     error_msg = str(exc_info.value).lower()
     assert "exceed fabric capacity" in error_msg
 
 
-class TestGenerateConfigMemInit:
-    """Parametric test cases for generateConfigMemInit function."""
+class TestDefaultConfigMemCsv:
+    """Parametric test cases for ConfigMem.default function."""
 
     def test_configmem_init_generates_correct_csv_structure(
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
-        """Test that generateConfigMemInit creates CSV with correct structure."""
+        """Test that the default mapping writes a CSV with correct structure."""
         output_file = tmp_path / f"test_{fabric_config.name}_{tile_config.name}.csv"
         tile_config_bits = tile_config.total_config_bits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
@@ -76,12 +73,11 @@ class TestGenerateConfigMemInit:
         if tile_config_bits == 0:
             return
 
-        generateConfigMemInit(
-            output_file,
+        ConfigMem.default(
             tile_config_bits,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
-            max_frame_per_col=fabric_config.maxFramesPerCol,
-        )
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+        ).to_csv(output_file)
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
         )
@@ -106,21 +102,19 @@ class TestGenerateConfigMemInit:
 
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(
-                    tmp_path / "should_fail.csv",
+                ConfigMem.default(
                     tile_config_bits,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
-                    max_frame_per_col=fabric_config.maxFramesPerCol,
-                )
+                    max_frames_per_col=fabric_config.maxFramesPerCol,
+                ).to_csv(tmp_path / "should_fail.csv")
             return
 
         output_file = tmp_path / f"bitmask_{fabric_config.name}_{tile_config.name}.csv"
-        generateConfigMemInit(
-            output_file,
+        ConfigMem.default(
             tile_config_bits,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
-            max_frame_per_col=fabric_config.maxFramesPerCol,
-        )
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+        ).to_csv(output_file)
 
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
@@ -156,23 +150,21 @@ class TestGenerateConfigMemInit:
 
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(
-                    tmp_path / "should_fail.csv",
+                ConfigMem.default(
                     tile_config_bits,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
-                    max_frame_per_col=fabric_config.maxFramesPerCol,
-                )
+                    max_frames_per_col=fabric_config.maxFramesPerCol,
+                ).to_csv(tmp_path / "should_fail.csv")
             return
 
         output_file = (
             tmp_path / f"allocation_{fabric_config.name}_{tile_config.name}.csv"
         )
-        generateConfigMemInit(
-            output_file,
+        ConfigMem.default(
             tile_config_bits,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
-            max_frame_per_col=fabric_config.maxFramesPerCol,
-        )
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+        ).to_csv(output_file)
 
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
@@ -212,20 +204,18 @@ class TestGenerateConfigMemInit:
         # Expect error when fabric can't accommodate the config bits
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(
-                    output_file,
+                ConfigMem.default(
                     tile_config_bits,
                     frame_bits_per_row=default_fabric.frameBitsPerRow,
-                    max_frame_per_col=default_fabric.maxFramesPerCol,
-                )
+                    max_frames_per_col=default_fabric.maxFramesPerCol,
+                ).to_csv(output_file)
             return
 
-        generateConfigMemInit(
-            output_file,
+        ConfigMem.default(
             tile_config_bits,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
-            max_frame_per_col=default_fabric.maxFramesPerCol,
-        )
+            max_frames_per_col=default_fabric.maxFramesPerCol,
+        ).to_csv(output_file)
 
         rows = verify_csv_content(output_file)
 
@@ -263,24 +253,24 @@ class TestGeneratedConfigMemRTL:
             fabric_config, tile_config.total_config_bits
         )
         if not has_capacity and tile_config.total_config_bits > 0:
-            with pytest.raises(ValueError, match="adjust the configuration."):
-                generateConfigMem(
-                    writer,
-                    tile_config.name,
-                    tile_config.total_config_bits,
+            with pytest.raises(ValueError, match="exceed fabric capacity"):
+                ConfigMem.for_tile(
                     config_csv,
+                    config_bits=tile_config.total_config_bits,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
-                    max_frame_per_col=fabric_config.maxFramesPerCol,
+                    max_frames_per_col=fabric_config.maxFramesPerCol,
                 )
             return
 
         generateConfigMem(
             writer,
             tile_config.name,
-            tile_config.total_config_bits,
-            config_csv,
-            frame_bits_per_row=fabric_config.frameBitsPerRow,
-            max_frame_per_col=fabric_config.maxFramesPerCol,
+            ConfigMem.for_tile(
+                config_csv,
+                config_bits=tile_config.total_config_bits,
+                frame_bits_per_row=fabric_config.frameBitsPerRow,
+                max_frames_per_col=fabric_config.maxFramesPerCol,
+            ),
         )
 
         # Verify output file was created and contains expected content
@@ -304,10 +294,9 @@ class TestGeneratedConfigMemRTL:
         self,
         default_fabric: Fabric,
         default_tile: Tile,
-        configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+        configmem_list: Callable[[Fabric, Tile], list[ConfigMemFrame]],
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
-        mocker: MockerFixture,
     ) -> None:
         """Test that generated RTL correctly maps FrameData and FrameStrobe to
         ConfigBits."""
@@ -315,39 +304,29 @@ class TestGeneratedConfigMemRTL:
         writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
         writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
 
-        # Create CSV file path
-        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
-        csv_path.touch()
-
         config_memlist_data = configmem_list(default_fabric, default_tile)
-
-        # Mock parseConfigMem to return our configmem_list fixture
-        mock_parse = mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
+        memory = ConfigMem(
+            tuple(config_memlist_data),
+            default_fabric.frameBitsPerRow,
+            len(config_memlist_data),
         )
-        mock_parse.return_value = config_memlist_data
+        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
+        memory.to_csv(csv_path)
 
         # Generate the ConfigMem RTL
-        generateConfigMem(
-            writer,
-            default_tile.name,
-            default_tile.total_config_bits,
-            csv_path,
-            frame_bits_per_row=default_fabric.frameBitsPerRow,
-            max_frame_per_col=default_fabric.maxFramesPerCol,
-        )
+        generateConfigMem(writer, default_tile.name, memory)
 
         # Read the generated RTL
         rtl_content = writer.outFileName.read_text()
 
         # Verify each frame mapping
         for config_mem in config_memlist_data:
-            if config_mem.bitsUsedInFrame == 0:
+            if config_mem.bits_used_in_frame == 0:
                 continue
 
-            frame_idx = config_mem.frameIndex
-            bit_mask = config_mem.usedBitMask
-            expected_config_bits = config_mem.configBitRanges
+            frame_idx = config_mem.frame_index
+            bit_mask = config_mem.used_bits_mask
+            expected_config_bits = config_mem.config_bit_ranges
 
             # Check each bit in the frame
             config_bit_counter = 0
@@ -361,7 +340,7 @@ class TestGeneratedConfigMemRTL:
                     # Verify the config_latch instantiation exists with correct
                     # connections
                     expected_inst_name = (
-                        f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
+                        f"Inst_{config_mem.frame_name}_bit{frame_data_bit}"
                     )
                     assert expected_inst_name in rtl_content, (
                         f"Missing config_latch instantiation: {expected_inst_name}"
@@ -482,12 +461,12 @@ def _make_composite(tmp_path: Path, *, master_config_bits: int) -> Tile:
     )
 
 
-class TestReadConfigMemMasksFrameKeySet:
-    """`_read_config_mem_masks` requires exactly one row per frame index.
+class TestConfigMemFrameKeySet:
+    """`ConfigMem.from_csv` requires exactly one row per frame index.
 
-    Both call sites (`_validate_composite_config_mem` and
-    `_build_composite_config_mem_csv`) rely on this to index the returned
-    dict directly instead of defaulting missing frames to all-free.
+    A composite is allocated from the free slots of its master's frames, which
+    are indexed directly, so a row-count-correct but key-set-incomplete CSV must
+    raise rather than default the missing frames to all-free.
     """
 
     def test_complete_frame_set_is_read(self, tmp_path: Path) -> None:
@@ -499,23 +478,28 @@ class TestReadConfigMemMasksFrameKeySet:
             ["0;1", "# NULL", "# NULL", "# NULL"],
         )
 
-        masks = _read_config_mem_masks(path, max_frames_per_col=4)
+        memory = ConfigMem.from_csv(path, frame_bits_per_row=4, max_frames_per_col=4)
 
-        assert masks == {0: "1100", 1: "0000", 2: "0000", 3: "0000"}
+        assert [frame.used_bits_mask.to01() for frame in memory.frames] == [
+            "1100",
+            "0000",
+            "0000",
+            "0000",
+        ]
 
     @pytest.mark.parametrize(
-        ("frame_indices", "error_match"),
+        "frame_indices",
         [
             # Duplicate frame_index 1 leaves frame_index 2 entirely missing,
             # while the row count (4) still matches max_frames_per_col.
-            pytest.param([0, 1, 1, 3], "missing \\[2\\]", id="duplicate_index"),
+            pytest.param([0, 1, 1, 3], id="duplicate_index"),
             # frame_index 4 is out of range for max_frames_per_col=4 (0..3),
             # while the row count still matches.
-            pytest.param([0, 1, 2, 4], "missing \\[3\\]", id="out_of_range_index"),
+            pytest.param([0, 1, 2, 4], id="out_of_range_index"),
         ],
     )
     def test_incomplete_frame_key_set_raises(
-        self, tmp_path: Path, frame_indices: list[int], error_match: str
+        self, tmp_path: Path, frame_indices: list[int]
     ) -> None:
         """A row-count-correct but key-set-incomplete CSV raises, not silently."""
         path = tmp_path / "ConfigMem.csv"
@@ -533,8 +517,8 @@ class TestReadConfigMemMasksFrameKeySet:
             ],
         )
 
-        with pytest.raises(ValueError, match=error_match):
-            _read_config_mem_masks(path, max_frames_per_col=4)
+        with pytest.raises(ValueError, match="indexed 0 .. n-1 in order"):
+            ConfigMem.from_csv(path, frame_bits_per_row=4, max_frames_per_col=4)
 
 
 class TestCompositeConfigMemAllocation:
@@ -554,15 +538,13 @@ class TestCompositeConfigMemAllocation:
     ) -> Path:
         """Run composite ConfigMem generation and return the composite CSV path."""
         writer = code_generator_factory(".v", f"{composite.name}_ConfigMem")
-        out = composite.tile_dir.parent / f"{composite.name}_ConfigMem.csv"
         generate_composite_config_mem(
             writer,
             composite,
-            out,
             frame_bits_per_row=self.FRAME_BITS,
-            max_frame_per_col=self.MAX_FRAMES,
+            max_frames_per_col=self.MAX_FRAMES,
         )
-        return out
+        return composite.tile_dir.parent / f"{composite.name}_ConfigMem.csv"
 
     def _master_csv(self, composite: Tile) -> Path:
         """Return the master sub-tile's own ConfigMem CSV path."""
@@ -712,15 +694,12 @@ class TestCompositeConfigMemBitstreamSpec:
         composite = _make_composite(tmp_path, master_config_bits=2)
         top, bot = composite.get_sub_tiles()
         writer = code_generator_factory(".v", "C_bot_ConfigMem")
-        generateConfigMem(
-            writer,
-            bot.name,
-            bot.total_config_bits,
-            bot.tile_dir.parent / f"{bot.name}_ConfigMem.csv",
+        generate_tile_config_mem(
+            writer, bot, frame_bits_per_row=32, max_frames_per_col=20
         )
         writer = code_generator_factory(".v", "C_ConfigMem")
         generate_composite_config_mem(
-            writer, composite, composite.tile_dir.parent / "C_ConfigMem.csv"
+            writer, composite, frame_bits_per_row=32, max_frames_per_col=20
         )
         fabric = Fabric(
             fabric_dir=tmp_path,

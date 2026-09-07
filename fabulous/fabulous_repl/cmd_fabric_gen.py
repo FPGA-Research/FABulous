@@ -17,6 +17,10 @@ from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
+    generate_composite_config_mem,
+    generate_tile_config_mem,
+)
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
@@ -49,19 +53,24 @@ class FabricGenCommandSet(ReplCommandSet):
     ) -> None:
         """Generate configuration memory of the given tile.
 
-        Parsing input arguments and calling `genConfigMem`.
+        Parsing input arguments and calling `generate_tile_config_mem`.
 
         Logs generation processes for each specified tile.
         """
         repl = self._cmd
         logger.info(f"Generating Config Memory for {' '.join(tiles)}")
+        fabric = repl.fabulousAPI.fabric
         for i in tiles:
             logger.info(f"Generating configMem for {i}")
-            repl.fabulousAPI.setWriterOutputFile(
-                repl.projectDir / f"Tile/{i}/{i}_ConfigMem.{repl.extension}"
-            )
-            repl.fabulousAPI.genConfigMem(
-                i, repl.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
+            tile = fabric.getTileByName(i)
+            if tile is None:
+                logger.error(f"Tile {i} not found in the fabric definition")
+                return
+            generate_tile_config_mem(
+                repl.fabulousAPI.writer,
+                tile,
+                frame_bits_per_row=fabric.frameBitsPerRow,
+                max_frames_per_col=fabric.maxFramesPerCol,
             )
         logger.info("ConfigMem generation complete")
 
@@ -110,11 +119,13 @@ class FabricGenCommandSet(ReplCommandSet):
         """Generate given tile with switch matrix and configuration memory.
 
         Parsing input arguments, call functions such as `genSwitchMatrix` and
-        `genConfigMem`. Handle both regular tiles and super tiles with sub-tiles.
+        `generate_tile_config_mem`. Handle both regular tiles and super tiles
+        with sub-tiles.
 
         Also logs generation process for each specified tile and sub-tile.
         """
         repl = self._cmd
+        fabric = repl.fabulousAPI.fabric
         logger.info(f"Generating tile {' '.join(tiles)}")
         for t in tiles:
             if sub_tiles := [
@@ -139,11 +150,11 @@ class FabricGenCommandSet(ReplCommandSet):
                     # Gen config mem
                     logger.info(f"Generating configMem for tile {t}")
                     logger.info(f"Generating ConfigMem for {st}")
-                    repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}_ConfigMem.{repl.extension}"
-                    )
-                    repl.fabulousAPI.genConfigMem(
-                        st, repl.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
+                    generate_tile_config_mem(
+                        repl.fabulousAPI.writer,
+                        repl.fabulousAPI.fabric.getTileByName(st),
+                        frame_bits_per_row=fabric.frameBitsPerRow,
+                        max_frames_per_col=fabric.maxFramesPerCol,
                     )
                     logger.info(f"Generated configMem for {st}")
 
@@ -168,13 +179,17 @@ class FabricGenCommandSet(ReplCommandSet):
                 repl.fabulousAPI.genSwitchMatrix(t)
                 logger.info(f"Generated switch matrix for composite tile {t}")
 
-                # Gen composite wrapper ConfigMem (no-op if no wrapper config bits)
+                # Gen composite wrapper ConfigMem (no-op without wrapper bits)
                 logger.info(f"Generating ConfigMem for composite tile {t}")
-                repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}_ConfigMem.{repl.extension}"
-                )
-                repl.fabulousAPI.genConfigMem(
-                    t, repl.projectDir / f"Tile/{t}/{t}_ConfigMem.csv"
+                composite = fabric.getTileByName(t)
+                if composite is None:
+                    logger.error(f"Composite tile {t} not found in the fabric")
+                    return
+                generate_composite_config_mem(
+                    repl.fabulousAPI.writer,
+                    composite,
+                    frame_bits_per_row=fabric.frameBitsPerRow,
+                    max_frames_per_col=fabric.maxFramesPerCol,
                 )
                 logger.info(f"Generated ConfigMem for composite tile {t}")
 
