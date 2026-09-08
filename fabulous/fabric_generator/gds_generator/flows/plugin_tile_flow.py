@@ -181,6 +181,7 @@ class FABulousTile(SequentialFlow):
 
         self.config = self.config.copy(
             DESIGN_NAME=tile_name,
+            FABULOUS_TILE=tile,
             VERILOG_FILES=file_list,
             FABULOUS_IO_PIN_ORDER_CFG=str(pin_yaml),
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,

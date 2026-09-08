@@ -11,6 +11,10 @@ from librelane.steps import pyosys as pyYosys
 from librelane.steps import verilator as Verilator
 from librelane.steps.step import Step
 
+from fabulous.fabric_generator.gds_generator.steps.antenna_precheck import (
+    FABulousAntennaPrecheck,
+    FABulousAntennaPrecheckChecker,
+)
 from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
@@ -142,6 +146,13 @@ check_steps: list[type[Step]] = [
     Misc.ReportManufacturability,
 ]
 
+# Tile-only. The antenna pre-check predicts what a tile's boundary nets will
+# reach once abutted, so it has nothing to say about an already-stitched fabric.
+tile_check_steps: list[type[Step]] = check_steps + [
+    FABulousAntennaPrecheck,
+    FABulousAntennaPrecheckChecker,
+]
+
 
 classic_gating_config_vars: dict[str, list[str]] = {
     "OpenROAD.RepairDesignPostGPL": ["RUN_POST_GPL_DESIGN_REPAIR"],
@@ -185,4 +196,12 @@ classic_gating_config_vars: dict[str, list[str]] = {
     "Checker.LintTimingConstructs": [
         "RUN_LINTER",
     ],
+}
+
+
+# The antenna pre-check only exists in the tile flow, so its gating lives here
+# rather than in `classic_gating_config_vars`, which the fabric flow shares.
+tile_gating_config_vars: dict[str, list[str]] = classic_gating_config_vars | {
+    "FABulous.AntennaPrecheck": ["RUN_FABULOUS_ANTENNA_PRECHECK"],
+    "Checker.FABulousAntennaPrecheck": ["RUN_FABULOUS_ANTENNA_PRECHECK"],
 }

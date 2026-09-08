@@ -287,6 +287,26 @@ If no feasible solution can be found after all iterations, the flow will raise a
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
 - `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
 
+## Fabric-Level Antenna Pre-check
+
+A wire that crosses several tiles is far longer in the finished fabric than it is
+in the tile you are hardening, so a tile can pass its own antenna check and still
+break once the tiles are stitched together. `FABulous.AntennaPrecheck` predicts
+that while the tile is still being built, when a fix is still cheap.
+
+It runs by default and needs no configuration. If it finds anything, it warns and
+writes two files into its step directory:
+
+- `antenna_precheck.rpt`: the wires at risk, worst first
+- `diode_targets.json`: the sinks needing a diode, ready to pass to
+  `Odb.InsertECODiodes`
+
+| Variable | Effect |
+|----------|--------|
+| `RUN_FABULOUS_ANTENNA_PRECHECK` | Run the check. Default `true` |
+| `ERROR_ON_PREDICTED_ANTENNA` | Fail the flow on a prediction. Default `false`, as the prediction guides diode placement rather than signing off |
+| `FABULOUS_ANTENNA_MAX_SPAN` | Assume this many tiles for every wire, for a tile hardened without its parent fabric |
+
 ## Output Structure
 
 After successful compilation, the output is organized as follows:
@@ -323,6 +343,10 @@ The `metrics.json` file contains useful information:
 - `design__instance__utilization`: Utilization percentage
 - `route__drc_errors`: Number of DRC violations
 - `antenna__violating__pins`: Pins with antenna violations
+- `fabulous__antenna_predicted_violation__count`: Wires predicted to violate their
+  antenna ratio once the fabric is stitched
+- `fabulous__antenna_predicted_ratio__max`: Worst predicted ratio, as a multiple of
+  its layer's limit
 
 ### Viewing Results
 
