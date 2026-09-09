@@ -42,6 +42,56 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
 
 
+def _canonical_offset(
+    direction: Direction, raw_x: int, raw_y: int, line: str
+) -> tuple[int, int]:
+    """Derive a wire's canonical bottom-left offset from its direction and reach.
+
+    A cardinal wire's orientation is fixed by its direction token, so only the
+    reach magnitude of the authored offsets is meaningful; the sign is derived
+    here. The reach lies on the direction's own axis, and the orthogonal offset
+    must be zero.
+
+    Parameters
+    ----------
+    direction : Direction
+        The wire's cardinal direction (NORTH, SOUTH, EAST or WEST).
+    raw_x : int
+        The authored x offset.
+    raw_y : int
+        The authored y offset.
+    line : str
+        The originating CSV line, used in the error message.
+
+    Raises
+    ------
+    InvalidSwitchMatrixDefinition
+        If the offset orthogonal to the direction is non-zero, i.e. the wire is
+        diagonal and has no unambiguous cardinal reach.
+
+    Returns
+    -------
+    tuple[int, int]
+        The canonical `(x_offset, y_offset)` under the bottom-left origin.
+    """
+    match direction:
+        case Direction.NORTH:
+            off_axis, x, y = raw_x, 0, abs(raw_y)
+        case Direction.SOUTH:
+            off_axis, x, y = raw_x, 0, -abs(raw_y)
+        case Direction.EAST:
+            off_axis, x, y = raw_y, abs(raw_x), 0
+        case Direction.WEST:
+            off_axis, x, y = raw_y, -abs(raw_x), 0
+    if off_axis != 0:
+        raise InvalidSwitchMatrixDefinition(
+            f"Invalid port definition line {line!r}: a {direction.value} wire "
+            f"must have a zero offset on the orthogonal axis, got ({raw_x}, "
+            f"{raw_y})."
+        )
+    return x, y
+
+
 def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
 
@@ -102,6 +152,13 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
         Direction.SOUTH,
         Direction.WEST,
     ):
+        # The direction token is authoritative for the wire's orientation and
+        # sign; the offsets contribute only reach (magnitude). Deriving the sign
+        # here rather than trusting the authored one lets both the top-first
+        # (pre-bottom-left origin) and the current bottom-left CSV conventions
+        # parse to the same model, so existing fabric definitions keep working.
+        x_offset, y_offset = _canonical_offset(wire_direction, x_offset, y_offset, line)
+
         # Output port (source side)
         ports.append(
             TilePort(
@@ -695,6 +752,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 master_set = True
             tileMap.append(row)
 
+        # Reverse tileMap to use bottom-left origin coordinate system
+        # After this: tileMap[0] = bottom row, tileMap[-1] = top row
+        tileMap.reverse()
+
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
         # consumers use `tileDir.parent` for the supertile's directory.
@@ -1016,6 +1077,10 @@ def parseFabricCSV(fileName: str) -> Fabric:
             )
             unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]
+
+    # Reverse rows to use bottom-left origin coordinate system
+    # After this: fabricTiles[0] = bottom row (y=0), fabricTiles[-1] = top row
+    fabricTiles.reverse()
 
     height = len(fabricTiles)
     width = len(fabricTiles[0])

@@ -26,11 +26,11 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 
 # (side port getter, neighbour dx, dy) for the four fabric edges. Each side's
 # local INPUT ports pair with the same-side OUTPUT ports of the neighbour at the
-# given offset; dy grows downward (south).
+# given offset; dy grows upward (north).
 _SIDE_INPUT_CONNECTIONS = (
-    (Tile.getNorthPorts, 0, 1),  # north input <- south neighbour
+    (Tile.getNorthPorts, 0, -1),  # north input <- south neighbour
     (Tile.getEastPorts, -1, 0),  # east input  <- west neighbour
-    (Tile.getSouthPorts, 0, -1),  # south input <- north neighbour
+    (Tile.getSouthPorts, 0, 1),  # south input <- north neighbour
     (Tile.getWestPorts, 1, 0),  # west input  <- east neighbour
 )
 
@@ -407,6 +407,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                             )
 
                         # UserCLKo signal
+                        # Bottom-left origin: UserCLKo goes to the tile below (y-1);
+                        # expose as a port when that tile is not in the supertile.
                         if (x + i, y + j - 1) not in superTileLoc:
                             portsPairs.append(
                                 (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
@@ -484,8 +486,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                     # Get all y-positions to the south of this tile
                     # Note: the FrameStrobe signals come from the bottom of the
-                    #       fabric, therefore count upwards
-                    for search_y in range(supertile_y + 1, fabric.numberOfRows):
+                    #       fabric (y=0), therefore count downwards
+                    # Bottom-left origin: south is y-1
+                    for search_y in range(supertile_y - 1, -1, -1):
                         # Previous tile is part of the same supertile.
                         # FrameStrobe signals are connected internally.
                         # Stop the search and be done.
@@ -523,7 +526,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     # (to the north of it)
                     # in the column is part of the supertile
                     # (already connected internally).
-                    if (supertile_x, supertile_y - 1) not in superTileLoc:
+                    # Bottom-left origin: north is y+1
+                    if (supertile_x, supertile_y + 1) not in superTileLoc:
                         portsPairs.append(
                             (
                                 f"{pre}FrameStrobe_O",

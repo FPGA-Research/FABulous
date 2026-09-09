@@ -161,3 +161,29 @@ class TestGetSuperTileContaining:
         fabric = make_fabric()
 
         assert fabric.get_super_tile_containing("ANY") is None
+
+
+class TestFabricRepr:
+    """`Fabric.__repr__` must print the grid north-first, matching the CSV."""
+
+    def test_grid_prints_north_row_before_south_row(
+        self, make_fabric: Callable[..., Fabric]
+    ) -> None:
+        """Storage is bottom-first (row 0 = south); the repr must flip it."""
+        south = make_empty_tile("SOUTH_TILE", pinOrderConfig={})
+        north = make_empty_tile("NORTH_TILE", pinOrderConfig={})
+        fabric = make_fabric(
+            tile=[[south], [north]],
+            numberOfRows=2,
+            numberOfColumns=1,
+            tileDic={"SOUTH_TILE": south, "NORTH_TILE": north},
+        )
+
+        lines = repr(fabric).splitlines()
+        grid_lines = [
+            line for line in lines if line.startswith(("NORTH_TILE", "SOUTH_TILE"))
+        ]
+
+        assert len(grid_lines) == 2
+        assert grid_lines[0].startswith("NORTH_TILE")
+        assert grid_lines[1].startswith("SOUTH_TILE")
