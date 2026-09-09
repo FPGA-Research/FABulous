@@ -470,7 +470,7 @@ def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
 
         hdl_toplevel_lang = lang.pop()
         if hdl_toplevel_lang == ".v":
-            sim, test_lang = "icarus", "verilog"
+            sim, test_lang = "verilator", "verilog"
         elif hdl_toplevel_lang in {".vhd", ".vhdl"}:
             test_lang = "vhdl"
             if shutil.which("nvc") is not None:

@@ -1,11 +1,14 @@
 """Global pytest configuration and fixtures for all FABulous tests."""
 
 import os
+import shutil
 from collections.abc import Callable, Generator
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 from _pytest.logging import LogCaptureFixture
+from cocotb_tools.runner import get_runner
 from loguru import logger
 
 import fabulous.fabulous
@@ -19,6 +22,157 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+
+VERILOG_SOURCE_PATH = (
+    Path(__file__).parent.parent
+    / "fabulous"
+    / "fabric_files"
+    / "FABulous_project_template_verilog"
+)
+
+VHDL_SOURCE_PATH = (
+    Path(__file__).parent.parent
+    / "fabulous"
+    / "fabric_files"
+    / "FABulous_project_template_vhdl"
+)
+
+SIM_FOR_SUFFIX: dict[str, str] = {
+    ".v": "verilator",
+    ".sv": "verilator",
+    ".vhdl": "ghdl",
+    ".vhd": "ghdl",
+}
+
+GHDL_FLAGS: list[str] = ["--std=08", "--ieee=synopsys"]
+
+
+class CocotbRunner(Protocol):
+    """Callable Protocol for our cocotb runner fixture.
+
+    The runner is called with keyword-only arguments. Protocol structural typing
+    allows any compatible callable to satisfy this contract.
+    """
+
+    def __call__(
+        self,
+        *,
+        sources: list[Path],
+        hdl_top_level: str,
+        test_module_path: Path,
+        coverage: bool = False,
+    ) -> None:  # pragma: no cover - typing only
+        ...
+
+
+@pytest.fixture
+def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunner:
+    """Factory fixture to create cocotb runners for RTL simulation."""
+    coverage_enabled = request.config.getoption("--hdl-coverage", default=False)
+
+    def _create_runner(
+        sources: list[Path],
+        hdl_top_level: str,
+        test_module_path: Path,
+        *,
+        coverage: bool = False,
+    ) -> None:
+        """Build and run a cocotb simulation.
+
+        Inject correct model pack file for each language (verilog: models_pack.v,
+        vhdl: models_pack.vhdl) if not already supplied, replacing the previous
+        reference to a non-existent tests/testdata directory.
+        """
+        if not sources:
+            raise ValueError("No HDL sources provided")
+
+        lang = {p.suffix for p in sources}
+        if len(lang) > 1:
+            raise ValueError("All source files must have the same HDL language suffix")
+        hdl_toplevel_lang = lang.pop()
+        if hdl_toplevel_lang not in SIM_FOR_SUFFIX:
+            raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
+
+        sim = SIM_FOR_SUFFIX[hdl_toplevel_lang]
+        enable_coverage = coverage or coverage_enabled
+
+        # Ensure model pack file is present for primitives if not explicitly provided
+        if sim == "verilator":
+            model_pack_path = VERILOG_SOURCE_PATH / "Fabric" / "models_pack.v"
+        else:
+            model_pack_path = VHDL_SOURCE_PATH / "Fabric" / "models_pack.vhdl"
+
+        # Only add if not already one of the provided sources (compare resolved paths)
+        resolved_sources = {p.resolve() for p in sources}
+        if (
+            model_pack_path.exists()
+            and model_pack_path.resolve() not in resolved_sources
+        ):
+            sources.insert(0, model_pack_path)
+
+        # Avoid errors when reading 'X'/'Z' by telling cocotb how to resolve them
+        os.environ.setdefault("COCOTB_RESOLVE_X", "ZEROS")
+
+        runner = get_runner(sim)
+
+        test_dir = tmp_path / "tests"
+        test_dir.mkdir(exist_ok=True)
+        shutil.copy(test_module_path, test_dir / test_module_path.name)
+
+        build_dir = tmp_path / "cocotb_build"
+
+        if sim == "verilator":
+            build_args = ["-Wno-fatal", "--timing"]
+            if enable_coverage:
+                build_args.append("--coverage")
+            runner.build(
+                sources=sources,
+                hdl_toplevel=hdl_top_level,
+                always=True,
+                build_dir=build_dir,
+                defines={"NOTIMESCALE": 1},
+                timescale=("1ns", "1ps"),
+                build_args=build_args,
+            )
+        else:
+            # GHDL converts identifiers to lowercase for elaboration and execution
+            hdl_top_level = hdl_top_level.lower()
+            runner.build(
+                sources=sources,
+                hdl_toplevel=hdl_top_level,
+                always=True,
+                build_dir=build_dir,
+                defines={"NOTIMESCALE": 1},
+                build_args=GHDL_FLAGS,
+                timescale=("1ns", "1ps"),
+            )
+
+            # GHDL mcode backend requires running from the build directory.
+            shutil.copy(test_module_path, build_dir / test_module_path.name)
+            test_dir = build_dir
+
+        # GHDL mcode backend requires --std and --ieee flags during run as well,
+        # otherwise it cannot find entities compiled with those options.
+        test_args = GHDL_FLAGS if sim == "ghdl" else []
+
+        runner.test(
+            hdl_toplevel=hdl_top_level,
+            test_module=test_module_path.stem,
+            build_dir=build_dir,
+            test_dir=test_dir,
+            test_args=test_args,
+        )
+
+        # Collect Verilator coverage data if enabled.
+        # Verilator writes coverage.dat to test_dir (the simulation working directory).
+        if enable_coverage and sim == "verilator":
+            cov_src = test_dir / "coverage.dat"
+            if cov_src.exists():
+                cov_dest = Path(__file__).parent.parent / "coverage_hdl"
+                cov_dest.mkdir(exist_ok=True)
+                shutil.copy(cov_src, cov_dest / f"{test_module_path.stem}.dat")
+
+    return _create_runner
 
 
 def sjump_port(
@@ -103,6 +257,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
     Usage:
         pytest --runslow
         pytest --gl --gl-fabric-project=<path>
+        pytest --hdl-coverage
 
     Without these flags, tests marked ``@pytest.mark.slow`` /
     ``@pytest.mark.gl`` are excluded via the default ``addopts`` filter in
@@ -130,6 +285,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
         "May also be supplied via the FAB_GL_FABRIC_PROJECT env var. "
         "Typically the unpacked `fabric-output-<pdk>` artifact from "
         "gds-flow-ci.yml.",
+    )
+    parser.addoption(
+        "--hdl-coverage",
+        action="store_true",
+        default=False,
+        help="enable Verilator structural coverage for Verilog BEL tests",
     )
 
 

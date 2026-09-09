@@ -177,6 +177,15 @@ begin
       X  => AH
     );
 
+  -- EH_GH <= GH when (CB_C0 = '0') else EH;
+  cus_mux21_eh_gh : component cus_mux21
+    port map (
+      A0 => GH,
+      A1 => EH,
+      S  => CB_C0,
+      X  => EH_GH
+    );
+
   M_AB <= AB;
 
   -- M_AD <= CD when (CB_C0 = '0') else AD;
