@@ -233,18 +233,23 @@ def genNextpnrModel(
     belStr = []
     belv2Str = []
     belv3Str = []
-    belStr.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0,"
-        f" bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
-    )
-    belv2Str.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, "
-        f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
-    )
-    belv3Str.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, "
-        f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
-    )
+    if fabric.north_step == 1:
+        bel_header = (
+            f"# BEL descriptions: bottom left corner Tile_X0Y0, "
+            f"top right Tile_X{fabric.numberOfColumns - 1}Y{fabric.numberOfRows - 1}"
+        )
+    else:
+        # The pre-3.0 header names the far corner with the row and column
+        # counts rather than the last indices, so it is one tile past the grid.
+        # The reference goldens pin it byte for byte, so it stays wrong until
+        # the top-left origin is removed in 3.0.
+        bel_header = (
+            f"# BEL descriptions: top left corner Tile_X0Y0, "
+            f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
+        )
+    belStr.append(bel_header)
+    belv2Str.append(bel_header)
+    belv3Str.append(bel_header)
     constrainStr = []
 
     for y, row in enumerate(fabric.tile):
