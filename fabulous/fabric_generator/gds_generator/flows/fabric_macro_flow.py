@@ -608,9 +608,14 @@ class FABulousFabricMacroFlow(Classic):
         tile_spacing_x = round_up_decimal(tile_spacing_x, pitch_x)
         tile_spacing_y = round_up_decimal(tile_spacing_y, pitch_y)
 
-        # Place macros (using bottom-left origin: y=0 is bottom row)
+        # Macros are placed bottom-up, so visit the grid south row first. `y`
+        # stays the fabric index under either origin, which is what names the
+        # macro and indexes row_heights.
+        rows = list(enumerate(self.fabric.tile))
+        if self.fabric.north_step == -1:
+            rows.reverse()
         cur_y = 0
-        for y, row in enumerate(self.fabric.tile):
+        for y, row in rows:
             cur_x = 0
 
             for x, tile in enumerate(row):
@@ -620,8 +625,11 @@ class FABulousFabricMacroFlow(Classic):
                 for supertile_name, supertile in self.fabric.superTileDic.items():
                     subtiles = [tile.name for tile in supertile.tiles]
 
-                    # Get the anchor of the supertile (bottom left)
-                    anchor = supertile.tileMap[-1][0]
+                    # Get the anchor of the supertile (bottom left), which is
+                    # whichever tileMap row holds its south edge.
+                    anchor = supertile.tileMap[0 if supertile.north_step == 1 else -1][
+                        0
+                    ]
 
                     if tile_name in subtiles:
                         if tile_name == anchor.name:

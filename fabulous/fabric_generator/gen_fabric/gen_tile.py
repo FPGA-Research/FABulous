@@ -628,6 +628,8 @@ def generateSuperTile(
         (per the instantiation conditions) but missing; run matrix / config_mem
         generation first.
     """
+    # One north step in tileMap indices; -1 under the deprecated top-left origin.
+    step = superTile.north_step
     writer.addHeader(f"{superTile.name}")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):
@@ -703,10 +705,10 @@ def generateSuperTile(
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                # Bottom-left origin: expose FrameStrobe_O if no tile above (y+1)
-                if (
-                    y + 1 >= len(superTile.tileMap)
-                    or superTile.tileMap[y + 1][x] is None
+                # Expose FrameStrobe_O when there is no tile to the north.
+                north = y + step
+                if not (0 <= north < len(superTile.tileMap)) or (
+                    superTile.tileMap[north][x] is None
                 ):
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe_O",
@@ -723,8 +725,11 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-                # Bottom-left origin: expose FrameStrobe if no tile below (y-1)
-                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+                # Expose FrameStrobe when there is no tile to the south.
+                south = y - step
+                if not (0 <= south < len(superTile.tileMap)) or (
+                    superTile.tileMap[south][x] is None
+                ):
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe",
                         IO.INPUT,
@@ -850,22 +855,26 @@ def generateSuperTile(
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            # Bottom-left origin: internal FrameStrobe_O wire if a tile is above (y+1)
+            # An internal FrameStrobe_O wire is needed when a tile sits north.
+            north, south = y + step, y - step
             if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
+                0 <= north < len(superTile.tileMap)
+                and superTile.tileMap[north][x] is not None
             ):
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameStrobe_O",
                     "MaxFramesPerCol-1",
                     indentLevel=1,
                 )
-            # Bottom-left origin: internal UserCLKo wire only when there's a tile
-            # below (y-1) to receive it, and the user clock is enabled.
+            # An internal UserCLKo wire is needed only when the tile that
+            # consumes this clock is itself inside the supertile. That sink is
+            # the row below in storage order under either origin, which is south
+            # for bottom-left and north for top-left, so the index is literal.
+            clk_sink = y - 1
             if (
                 not disable_user_clk
-                and 0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
+                and 0 <= clk_sink < len(superTile.tileMap)
+                and superTile.tileMap[clk_sink][x] is not None
             ):
                 writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
@@ -898,13 +907,14 @@ def generateSuperTile(
 
             # north direction input connection
             north_port = [i.name for i in tile.getNorthPorts(IO.INPUT)]
-            # Bottom-left origin: north input comes from south tile (y-1)
+            # A north input is driven by the tile to the south.
+            north, south = y + step, y - step
             if (
-                0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
+                0 <= south < len(superTile.tileMap)
+                and superTile.tileMap[south][x] is not None
             ):
-                for p in superTile.tileMap[y - 1][x].getNorthPorts(IO.OUTPUT):
-                    north_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
+                for p in superTile.tileMap[south][x].getNorthPorts(IO.OUTPUT):
+                    north_input.append(f"Tile_X{x}Y{south}_{p.name}")
             else:
                 for p in tile.getNorthPorts(IO.INPUT):
                     north_input.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -926,13 +936,13 @@ def generateSuperTile(
 
             # south direction input connection
             south_port = [i.name for i in tile.getSouthPorts(IO.INPUT)]
-            # Bottom-left origin: south input comes from north tile (y+1)
+            # A south input is driven by the tile to the north.
             if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
+                0 <= north < len(superTile.tileMap)
+                and superTile.tileMap[north][x] is not None
             ):
-                for p in superTile.tileMap[y + 1][x].getSouthPorts(IO.OUTPUT):
-                    south_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
+                for p in superTile.tileMap[north][x].getSouthPorts(IO.OUTPUT):
+                    south_input.append(f"Tile_X{x}Y{north}_{p.name}")
             else:
                 for p in tile.getSouthPorts(IO.INPUT):
                     south_input.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -999,13 +1009,13 @@ def generateSuperTile(
 
                 ports_pairs.append(("FrameData_O", f"Tile_X{x}Y{y}_FrameData_O"))
 
-                # Bottom-left origin: FrameStrobe comes from tile below (y-1)
+                # FrameStrobe comes from the tile to the south.
                 if (
-                    0 <= y - 1 < len(superTile.tileMap)
-                    and superTile.tileMap[y - 1][x] is not None
+                    0 <= south < len(superTile.tileMap)
+                    and superTile.tileMap[south][x] is not None
                 ):
                     ports_pairs.append(
-                        ("FrameStrobe", f"Tile_X{x}Y{y - 1}_FrameStrobe_O")
+                        ("FrameStrobe", f"Tile_X{x}Y{south}_FrameStrobe_O")
                     )
                 else:
                     ports_pairs.append(("FrameStrobe", f"Tile_X{x}Y{y}_FrameStrobe"))

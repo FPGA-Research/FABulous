@@ -3,7 +3,7 @@
 import pytest
 
 from fabulous.custom_exception import InvalidPortType, InvalidSwitchMatrixDefinition
-from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.define import IO, Direction, Origin, Side
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 
 # (kind, OUTPUT/start side, INPUT/end side, unit x_offset, unit y_offset) with a
@@ -13,6 +13,13 @@ DIRECTIONAL_CASES = [
     ("SOUTH", Side.SOUTH, Side.NORTH, 0, -1),
     ("EAST", Side.EAST, Side.WEST, 1, 0),
     ("WEST", Side.WEST, Side.EAST, -1, 0),
+]
+
+# Every case again per origin, with the y offset negated for the top-left one.
+ORIGIN_OFFSET_CASES = [
+    (origin, kind, x_off, y_off * (1 if origin is Origin.BOTTOM_LEFT else -1))
+    for origin in Origin
+    for kind, _, _, x_off, y_off in DIRECTIONAL_CASES
 ]
 
 
@@ -40,13 +47,13 @@ class TestDirectionalPorts:
 
         assert commonWirePair == ("N1BEG", "N1END")
 
-    @pytest.mark.parametrize(
-        ("kind", "x_off", "y_off"), [(c[0], c[3], c[4]) for c in DIRECTIONAL_CASES]
-    )
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
     def test_shared_attributes_carry_through(
-        self, kind: str, x_off: int, y_off: int
+        self, origin: Origin, kind: str, x_off: int, y_off: int
     ) -> None:
-        ports, _ = parse_port_line(f"{kind},N2BEG,{x_off * 2},{y_off * 2},N2END,8")
+        ports, _ = parse_port_line(
+            f"{kind},N2BEG,{x_off * 2},{y_off * 2},N2END,8", origin
+        )
 
         for port in ports:
             assert port.wire_direction is Direction[kind]
@@ -56,21 +63,18 @@ class TestDirectionalPorts:
             assert port.y_offset == y_off * 2
             assert port.wire_count == 8
 
-    @pytest.mark.parametrize(
-        ("kind", "x_off", "y_off"), [(c[0], c[3], c[4]) for c in DIRECTIONAL_CASES]
-    )
-    def test_legacy_top_first_offset_is_normalized(
-        self, kind: str, x_off: int, y_off: int
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
+    def test_authored_offset_sign_is_ignored(
+        self, origin: Origin, kind: str, x_off: int, y_off: int
     ) -> None:
-        """Legacy top-first offsets parse to the same bottom-left model.
+        """The direction token, not the authored sign, fixes the offset.
 
-        Pre-bottom-left fabric definitions authored NORTH/SOUTH with the
-        opposite y sign. The direction token is authoritative, so the sign is
-        derived from it and the authored one is ignored, leaving existing
-        projects readable without change.
+        A fabric may write either sign for a NORTH or SOUTH wire. The sign is
+        derived from the direction token and the origin, so the authored one is
+        ignored and existing projects stay readable under either convention.
         """
-        # Feed the sign-flipped (legacy) offset; expect the canonical one back.
-        ports, _ = parse_port_line(f"{kind},N1BEG,{-x_off},{-y_off},N1END,4")
+        # Feed the sign-flipped offset; expect the canonical one back.
+        ports, _ = parse_port_line(f"{kind},N1BEG,{-x_off},{-y_off},N1END,4", origin)
 
         for port in ports:
             assert port.x_offset == x_off

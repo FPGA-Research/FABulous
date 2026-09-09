@@ -11,9 +11,11 @@ signals. The directions:
 - _FrameData_ flows West to East: tile `(x, y)` consumes the `FrameData_O`
   of tile `(x-1, y)`; the first column reads a boundary input port and the
   last column drives a boundary output port.
-- _FrameStrobe_ and _UserCLK_ flow vertically, in opposite directions. With the
-  bottom-left origin, tile `(x, y)` consumes the `FrameStrobe_O` of the tile
-  below it, `(x, y-1)`, and the `UserCLKo` of the tile above it, `(x, y+1)`.
+- _FrameStrobe_ and _UserCLK_ flow vertically, in opposite directions. Tile
+  `(x, y)` consumes the `FrameStrobe_O` of the tile to its south, which is
+  `(x, y - north_step)`, and the `UserCLKo` of the tile at `(x, y+1)`, an index
+  that means north under the bottom-left origin and south under the top-left
+  one. Every test here runs under both origins.
 
 A tile's output is wired to a neighbour when that neighbour exists inside the
 grid, otherwise to the matching supertile boundary port. Issue #875 was a
@@ -30,7 +32,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    ConfigBitMode,
+    Direction,
+    Origin,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -143,15 +151,29 @@ def supertile_grid(
     )
 
 
+@pytest.fixture(params=list(Origin), ids=lambda o: o.value)
+def origin(request: pytest.FixtureRequest) -> Origin:
+    """Run every connectivity test under both coordinate origins."""
+    return request.param
+
+
+@pytest.fixture
+def north_step(origin: Origin) -> int:
+    """Return the tileMap y increment that moves one sub-tile north."""
+    return 1 if origin is Origin.BOTTOM_LEFT else -1
+
+
 @pytest.fixture
 def supertile_netlist(
-    elaborate: Callable[..., Netlist], tmp_path: Path
+    elaborate: Callable[..., Netlist], tmp_path: Path, origin: Origin
 ) -> Callable[..., GridConnectivity]:
     """Render a supertile (plus stub sub-tiles) and elaborate it with Yosys."""
 
     def _build(tileMap: list[list[Tile | None]], **kwargs: object) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
-        st = SuperTile(name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap)
+        st = SuperTile(
+            name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap, origin=origin
+        )
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
@@ -174,7 +196,12 @@ GRIDS = [(1, 1), (1, 2), (2, 2), (5, 2), (3, 3)]
 class TestConfigChainConnectivity:
     """Each tile's config/clock terminals tie to the correct neighbour or port."""
 
-    def _check(self, net: GridConnectivity, tileMap: list[list[Tile | None]]) -> None:
+    def _check(
+        self,
+        net: GridConnectivity,
+        tileMap: list[list[Tile | None]],
+        north_step: int,
+    ) -> None:
         for y in range(len(tileMap)):
             for x in range(len(tileMap[y])):
                 if not net.exists(x, y):
@@ -193,23 +220,23 @@ class TestConfigChainConnectivity:
                 else:
                     assert fd_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameData_O")
 
-                # FrameStrobe flows vertically (consumer at y+1); with the
-                # bottom-left origin row 0 is the bottom row, so the producer of
-                # a tile's FrameStrobe sits at y-1.
+                # FrameStrobe climbs from the south edge, so a tile's producer
+                # is its south neighbour under either origin.
+                south, north = y - north_step, y + north_step
                 fs_in = net.cell_net(x, y, "FrameStrobe")
-                if net.exists(x, y - 1):
-                    assert fs_in == net.cell_net(x, y - 1, "FrameStrobe_O")
+                if net.exists(x, south):
+                    assert fs_in == net.cell_net(x, south, "FrameStrobe_O")
                 else:
                     assert fs_in == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe")
 
                 fs_out = net.cell_net(x, y, "FrameStrobe_O")
-                if net.exists(x, y + 1):
-                    assert fs_out == net.cell_net(x, y + 1, "FrameStrobe")
+                if net.exists(x, north):
+                    assert fs_out == net.cell_net(x, north, "FrameStrobe")
                 else:
                     assert fs_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe_O")
 
-                # UserCLK runs the other way, downwards, so its producer is the
-                # tile above (y+1).
+                # UserCLK runs the other way. Its sink is always the row below in
+                # storage order, so its producer is always at y+1.
                 clk_in = net.cell_net(x, y, "UserCLK")
                 if net.exists(x, y + 1):
                     assert clk_in == net.cell_net(x, y + 1, "UserCLKo")
@@ -228,16 +255,20 @@ class TestConfigChainConnectivity:
         supertile_netlist: Callable[..., GridConnectivity],
         rows: int,
         cols: int,
+        north_step: int,
     ) -> None:
         tileMap = grid(rows, cols)
-        self._check(supertile_netlist(tileMap), tileMap)
+        self._check(supertile_netlist(tileMap), tileMap, north_step)
 
     @pytest.mark.parametrize("name", sorted(SHAPES))
     def test_irregular_shapes(
-        self, supertile_netlist: Callable[..., GridConnectivity], name: str
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+        north_step: int,
     ) -> None:
         tileMap = shape(SHAPES[name])
-        self._check(supertile_netlist(tileMap), tileMap)
+        self._check(supertile_netlist(tileMap), tileMap, north_step)
 
 
 class TestCrossBoundaryDriverSinks:
@@ -258,16 +289,20 @@ class TestCrossBoundaryDriverSinks:
             assert ("Tile_X1Y0_T_X1Y0", "FrameData") in net.sinks(bit)
 
     def test_cross_row_framestrobe_net(
-        self, supertile_netlist: Callable[..., GridConnectivity]
+        self, supertile_netlist: Callable[..., GridConnectivity], north_step: int
     ) -> None:
-        # Bottom-left origin: the strobe climbs from row 0 to row 1.
+        """The strobe climbs from the south row to the north one."""
         net = supertile_netlist(grid(2, 1))
-        fs_out = net.cell_net(0, 0, "FrameStrobe_O")
+        south, north = (0, 1) if north_step == 1 else (1, 0)
+        fs_out = net.cell_net(0, south, "FrameStrobe_O")
         assert len(fs_out) == 20
 
         for bit in fs_out:
-            assert net.driver(bit) == ("Tile_X0Y0_T_X0Y0", "FrameStrobe_O")
-            assert ("Tile_X0Y1_T_X0Y1", "FrameStrobe") in net.sinks(bit)
+            assert net.driver(bit) == (
+                f"Tile_X0Y{south}_T_X0Y{south}",
+                "FrameStrobe_O",
+            )
+            assert (f"Tile_X0Y{north}_T_X0Y{north}", "FrameStrobe") in net.sinks(bit)
 
 
 class TestNoPhantomCells:

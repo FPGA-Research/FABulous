@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from fabulous.fabric_definition.define import Origin
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -166,16 +167,21 @@ class TestGetSuperTileContaining:
 class TestFabricRepr:
     """`Fabric.__repr__` must print the grid north-first, matching the CSV."""
 
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
     def test_grid_prints_north_row_before_south_row(
-        self, make_fabric: Callable[..., Fabric]
+        self, make_fabric: Callable[..., Fabric], origin: Origin
     ) -> None:
-        """Storage is bottom-first (row 0 = south); the repr must flip it."""
+        """Whichever row storage puts first, the repr prints north first."""
         south = make_empty_tile("SOUTH_TILE", pinOrderConfig={})
         north = make_empty_tile("NORTH_TILE", pinOrderConfig={})
+        rows = (
+            [[south], [north]] if origin is Origin.BOTTOM_LEFT else [[north], [south]]
+        )
         fabric = make_fabric(
-            tile=[[south], [north]],
+            tile=rows,
             numberOfRows=2,
             numberOfColumns=1,
+            origin=origin,
             tileDic={"SOUTH_TILE": south, "NORTH_TILE": north},
         )
 
