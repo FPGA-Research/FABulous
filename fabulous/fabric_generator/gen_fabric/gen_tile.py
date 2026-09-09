@@ -753,13 +753,17 @@ def generateSuperTile(
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+                # Expose UserCLKo when there is no tile to the north to
+                # consume it, and UserCLK when no tile to the south drives it.
+                north, south = y + step, y - step
+                if not (0 <= north < len(superTile.tileMap)) or (
+                    superTile.tileMap[north][x] is None
+                ):
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
                     )
-                if (
-                    y + 1 >= len(superTile.tileMap)
-                    or superTile.tileMap[y + 1][x] is None
+                if not (0 <= south < len(superTile.tileMap)) or (
+                    superTile.tileMap[south][x] is None
                 ):
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
@@ -867,10 +871,9 @@ def generateSuperTile(
                     indentLevel=1,
                 )
             # An internal UserCLKo wire is needed only when the tile that
-            # consumes this clock is itself inside the supertile. That sink is
-            # the row below in storage order under either origin, which is south
-            # for bottom-left and north for top-left, so the index is literal.
-            clk_sink = y - 1
+            # consumes this clock is itself inside the supertile. The clock
+            # chain runs south to north, so that sink is the northern tile.
+            clk_sink = north
             if (
                 not disable_user_clk
                 and 0 <= clk_sink < len(superTile.tileMap)
@@ -989,11 +992,13 @@ def generateSuperTile(
 
             # add clock to tile
             if not disable_user_clk:
+                # The clock enters from the south, so the source is the
+                # southern tile's UserCLKo.
                 if (
-                    0 <= y + 1 < len(superTile.tileMap)
-                    and superTile.tileMap[y + 1][x] is not None
+                    0 <= south < len(superTile.tileMap)
+                    and superTile.tileMap[south][x] is not None
                 ):
-                    ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                    ports_pairs.append(("UserCLK", f"Tile_X{x}Y{south}_UserCLKo"))
                 else:
                     ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
                 ports_pairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
@@ -1043,11 +1048,12 @@ def generateSuperTile(
             cm_frame_data = f"Tile_X{mx - 1}Y{my}_FrameData_O"
         else:
             cm_frame_data = f"Tile_X{mx}Y{my}_FrameData"
+        cm_strobe_src = my - step
         if (
-            0 <= my + 1 < len(superTile.tileMap)
-            and superTile.tileMap[my + 1][mx] is not None
+            0 <= cm_strobe_src < len(superTile.tileMap)
+            and superTile.tileMap[cm_strobe_src][mx] is not None
         ):
-            cm_frame_strobe = f"Tile_X{mx}Y{my + 1}_FrameStrobe_O"
+            cm_frame_strobe = f"Tile_X{mx}Y{cm_strobe_src}_FrameStrobe_O"
         else:
             cm_frame_strobe = f"Tile_X{mx}Y{my}_FrameStrobe"
         writer.addInstantiation(

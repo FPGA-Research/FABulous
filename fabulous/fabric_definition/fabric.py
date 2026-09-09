@@ -427,7 +427,7 @@ class Fabric:
         """Yield `(base_fx, base_fy, superTile)` for every supertile placement.
 
         Each supertile type's `tileMap` pattern is matched against the fabric
-        grid; `(base_fx, base_fy)` is the top-left corner of a match. Shared by
+        grid; `(base_fx, base_fy)` is the lowest-index corner of a match. Shared by
         the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
         locate supertile instances identically.
 
@@ -440,7 +440,7 @@ class Fabric:
         Yields
         ------
         tuple[int, int, SuperTile]
-            The placement's top-left grid coordinates and the supertile there.
+            The placement's lowest-index grid coordinates and the supertile there.
         """
         candidates = (
             [superTile] if superTile is not None else list(self.superTileDic.values())

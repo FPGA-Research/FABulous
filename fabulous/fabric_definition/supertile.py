@@ -159,9 +159,9 @@ class SuperTile:
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural *anchor* tile (the top-left tile, where `gen_fabric` places
-        the wrapper instance); the master and the anchor are usually different
-        tiles (e.g. DSP master = `DSP_bot`, anchor = `DSP_top`).
+        structural *anchor* tile (`tileMap[0][0]`, where `gen_fabric` places the
+        wrapper instance); the two coincide only when the master happens to be
+        the first tile in row-major order.
 
         Returns
         -------

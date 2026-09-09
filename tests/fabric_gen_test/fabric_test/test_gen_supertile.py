@@ -11,11 +11,9 @@ signals. The directions:
 - _FrameData_ flows West to East: tile `(x, y)` consumes the `FrameData_O`
   of tile `(x-1, y)`; the first column reads a boundary input port and the
   last column drives a boundary output port.
-- _FrameStrobe_ and _UserCLK_ flow vertically, in opposite directions. Tile
-  `(x, y)` consumes the `FrameStrobe_O` of the tile to its south, which is
-  `(x, y - north_step)`, and the `UserCLKo` of the tile at `(x, y+1)`, an index
-  that means north under the bottom-left origin and south under the top-left
-  one. Every test here runs under both origins.
+- _FrameStrobe_ and _UserCLK_ both climb from the south edge. Tile `(x, y)`
+  consumes the `FrameStrobe_O` and the `UserCLKo` of the tile to its south,
+  which is `(x, y - north_step)`. Every test here runs under both origins.
 
 A tile's output is wired to a neighbour when that neighbour exists inside the
 grid, otherwise to the matching supertile boundary port. Issue #875 was a
@@ -235,17 +233,17 @@ class TestConfigChainConnectivity:
                 else:
                     assert fs_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe_O")
 
-                # UserCLK runs the other way. Its sink is always the row below in
-                # storage order, so its producer is always at y+1.
+                # UserCLK climbs from the south edge too, so a tile's clock
+                # producer is its south neighbour and its sink the north one.
                 clk_in = net.cell_net(x, y, "UserCLK")
-                if net.exists(x, y + 1):
-                    assert clk_in == net.cell_net(x, y + 1, "UserCLKo")
+                if net.exists(x, south):
+                    assert clk_in == net.cell_net(x, south, "UserCLKo")
                 else:
                     assert clk_in == net.top_port_net(f"Tile_X{x}Y{y}_UserCLK")
 
                 clk_out = net.cell_net(x, y, "UserCLKo")
-                if net.exists(x, y - 1):
-                    assert clk_out == net.cell_net(x, y - 1, "UserCLK")
+                if net.exists(x, north):
+                    assert clk_out == net.cell_net(x, north, "UserCLK")
                 else:
                     assert clk_out == net.top_port_net(f"Tile_X{x}Y{y}_UserCLKo")
 

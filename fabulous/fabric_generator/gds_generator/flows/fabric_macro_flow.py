@@ -229,7 +229,9 @@ class FABulousFabricMacroFlow(Classic):
         supertile_anchors: dict[str, str] = {}
         subtile_to_anchor: dict[str, str] = {}
         for supertile_name, supertile in fabric.superTileDic.items():
-            anchor = supertile.tileMap[-1][0]
+            # `tileMap` rows advance in the same direction as fabric rows under
+            # either origin, so row 0 is always the supertile's lowest y.
+            anchor = supertile.tileMap[0][0]
             supertile_anchors[anchor.name] = supertile_name
             # Create back-references from all subtiles to their anchor
             for tile in supertile.tiles:
@@ -274,7 +276,7 @@ class FABulousFabricMacroFlow(Classic):
 
             # Record row heights for all rows spanned by this tile/supertile
             for row_offset in range(num_rows_spanned):
-                row_idx = y - row_offset
+                row_idx = y + row_offset
                 if row_idx not in row_heights_map:
                     row_heights_map[row_idx] = height / num_rows_spanned
                 else:
@@ -625,17 +627,20 @@ class FABulousFabricMacroFlow(Classic):
                 for supertile_name, supertile in self.fabric.superTileDic.items():
                     subtiles = [tile.name for tile in supertile.tiles]
 
-                    # Get the anchor of the supertile (bottom left), which is
-                    # whichever tileMap row holds its south edge.
-                    anchor = supertile.tileMap[0 if supertile.north_step == 1 else -1][
-                        0
-                    ]
+                    # The macro sits at the supertile's physical bottom left,
+                    # which is the last `tileMap` row under the deprecated
+                    # top-left origin and the first one under bottom-left.
+                    south_row = (
+                        0 if supertile.north_step == 1 else len(supertile.tileMap) - 1
+                    )
+                    anchor = supertile.tileMap[south_row][0]
 
                     if tile_name in subtiles:
                         if tile_name == anchor.name:
                             tile_name = supertile_name
-                            # The anchor is at the bottom-left of the supertile
-                            prefix = f"Tile_X{x}Y{y}_"
+                            # `generateFabric` names the wrapper instance after
+                            # `tileMap[0][0]`, so step back from the south row.
+                            prefix = f"Tile_X{x}Y{y - south_row}_"
                         else:
                             tile_name = None
 

@@ -402,12 +402,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             if not fabric.disableUserCLK:
                 if not superTile:
-                    # for userCLK
+                    # The clock chain runs south to north, so a tile takes its
+                    # clock from the tile to its south.
+                    clk_src = y - fabric.north_step
                     if (
-                        y + 1 < fabric.numberOfRows
-                        and fabric.tile[y + 1][x] is not None
+                        0 <= clk_src < fabric.numberOfRows
+                        and fabric.tile[clk_src][x] is not None
                     ):
-                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{clk_src}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
 
@@ -418,10 +420,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         # prefix for super tile port
                         pre = f"Tile_X{i}Y{j}_"
 
-                        # UserCLK signal
-                        next_row = y + j + 1
+                        # UserCLK signal, sourced from the tile to the south.
+                        next_row = y + j - fabric.north_step
                         if (
-                            next_row >= fabric.numberOfRows
+                            not 0 <= next_row < fabric.numberOfRows
                             or fabric.tile[next_row][x + i] is None
                         ):
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
@@ -431,9 +433,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                 (f"{pre}UserCLK", f"Tile_X{x + i}Y{next_row}_UserCLKo")
                             )
 
-                        # UserCLKo signal. Its sink is the row below in storage
-                        # order under either origin, so the index is literal.
-                        if (x + i, y + j - 1) not in superTileLoc:
+                        # UserCLKo signal, whose sink is the tile to the north.
+                        if (x + i, y + j + fabric.north_step) not in superTileLoc:
                             portsPairs.append(
                                 (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
                             )

@@ -19,6 +19,7 @@ from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import Origin
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     configs,
@@ -480,6 +481,55 @@ class TestComputeRowAndColumnSizes:
 
         with pytest.raises(ValueError, match="Non-uniform tile widths"):
             flow._compute_row_and_column_sizes(flow, mock_fabric, tile_sizes)
+
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    def test_compute_sizes_supertile_spans_every_row(
+        self,
+        flow: MagicMock,
+        mock_fabric: MagicMock,
+        mocker: MockerFixture,
+        origin: Origin,
+    ) -> None:
+        """A supertile must contribute a height to each row it spans.
+
+        The parser stores `tileMap` in the same row order as the grid, so which
+        subtile sits at row 0 follows the origin; the sizing must find the
+        supertile either way.
+        """
+        mock_fabric.numberOfRows = 2
+        mock_fabric.numberOfColumns = 1
+
+        st_north: MagicMock = mocker.MagicMock()
+        st_north.name = "st_north"
+        st_south: MagicMock = mocker.MagicMock()
+        st_south.name = "st_south"
+
+        rows = (
+            [[st_south], [st_north]]
+            if origin is Origin.BOTTOM_LEFT
+            else [[st_north], [st_south]]
+        )
+        supertile: MagicMock = mocker.MagicMock()
+        supertile.tileMap = rows
+        supertile.tiles = [st_north, st_south]
+        mock_fabric.superTileDic = {"super1": supertile}
+
+        mock_fabric.__iter__ = mocker.MagicMock(
+            return_value=iter([((0, 0), rows[0][0]), ((0, 1), rows[1][0])])
+        )
+
+        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
+            "super1": (Decimal(100), Decimal(120))
+        }
+
+        row_heights: list[Decimal]
+        col_widths: list[Decimal]
+        row_heights, col_widths = flow._compute_row_and_column_sizes(
+            flow, mock_fabric, tile_sizes
+        )
+
+        assert row_heights == [Decimal(60), Decimal(60)]
+        assert col_widths == [Decimal(100)]
 
 
 class TestFlowConfiguration:
