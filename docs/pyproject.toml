@@ -24,6 +24,7 @@ dependencies = [
   "jinja2>=3.1.6",
   "sphinx-llm[gen]>=0.4.1",
   "sphinxcontrib-mermaid>=2.1.0",
+  "sphinxcontrib-wavedrom>=3.0.4",   # build-time WaveJSON -> SVG
 ]
 
 # Editable installation of FABulous package

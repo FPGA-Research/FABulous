@@ -40,23 +40,23 @@ decoded, and assembled into 32-bit words that feed the configuration port.
 
 ### Bitbang
 
-The bitbang adapter offers a quick asynchronous serial configuration port interface that is ideal for configuring the fabric via a microcontroller. The idea of the protocol is as follows:
+The bitbang adapter offers a quick asynchronous serial configuration port interface that is ideal for configuring the fabric via a microcontroller. Two pins carry the whole protocol, because every `s_clk` period transports one configuration data bit on its rising edge and one control bit on its falling edge.
 
-:::{figure} ./figs/bitbang1.*
+:::{wavedrom} ./figs/bitbang1.json
 :align: center
-:alt: Bitbang description
+:alt: Timing diagram of one bitbang word. Each rising edge of s_clk shifts a bit into the 32-bit serial_data register and each falling edge shifts a bit into the 16-bit serial_control register, and the word is released to the configuration port once serial_control holds 0xFAB1.
+:caption: Transfer of one word, carrying `0xDEADBEEF` on the rising-edge lane and sixteen zeros followed by `0xFAB1` on the falling-edge lane. The diagram is drawn against `s_clk`, so the single-`clk` `strobe` pulse appears far wider than it is.
 :::
 
-- **Signals:** `s_clk` and `s_data`, as well as a one-cycle strobe output (active 1).
-- **Protocol:** Data is sampled on each rising edge of `s_clk`, and control is sampled on the falling edge.
-- **Word assembly:** Both values get shifted in a separate register; if the control register sees the bit-pattern x"FAB0", it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
+- **Signals:** `s_clk` and `s_data` are the two serial inputs, `data[31:0]`, `strobe` and `active` the outputs, and `clk` and `reset_n` the fabric-side clock and reset.
+- **Sampling:** `s_clk` and `s_data` are asynchronous to `clk` and pass through a four-stage synchroniser, so each register update lags its `s_clk` edge by several `clk` cycles. The edge detector compares two consecutive synchroniser taps, so each `s_clk` phase has to span at least one full `clk` period to be seen at all.
+- **Protocol:** a rising edge of `s_clk` shifts `s_data` into the 32-bit `serial_data` register and a falling edge shifts it into the 16-bit `serial_control` register. Both registers shift MSB first.
+- **Word assembly:** reaching `0xFAB1` in `serial_control` copies `serial_data` into the `data` output register and pulses `strobe` high for one `clk` cycle. One word therefore spans 32 `s_clk` periods, of which the last 16 falling edges spell out `0xFAB1`. `serial_control` holds `0xFAB1` until the next falling edge shifts it out, but `strobe` still pulses only once.
+- **Activity flag:** `0xFAB1` also raises `active` and `0xFAB0` clears it. While `active` is high the fabric takes its configuration word and strobe from the bitbang adapter rather than the parallel port, and the rising edge of `active` returns the configuration state machine to its unsynced state.
 
-The next figure shows the enable generation (and input sampling) for generating the enable signals for
-
-- the control shift register and
-- the data shift register.
+The next figure shows how the synchroniser chain generates the two shift enables. The control shift register is enabled when the older tap is high and the newer one low, and the data shift register when the pattern is reversed.
 
 :::{figure} ./figs/bitbang2.*
 :align: center
-:alt: An illustration of the signals used in the custom bitbang protocol as well as the decoding of these signals.
+:alt: Schematic of the four-stage s_clk synchroniser, whose last two taps feed two AND gates producing control_shift_enable and data_shift_enable.
 :::

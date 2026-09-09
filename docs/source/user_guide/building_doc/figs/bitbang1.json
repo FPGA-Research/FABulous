@@ -1,0 +1,19 @@
+{
+  "signal": [
+    { "name": "s_clk", "wave": "l.H.L.H.L.|.H.L.H.L....." },
+    { "name": "s_data", "wave": "x5.4.5.2..|5.4.5.4.x....",
+      "data": ["D31", "0", "D30", "…", "D1", "0", "D0", "1"] },
+    {},
+    { "name": "serial_data[31:0]", "wave": "x.2...2...|.2...2.......",
+      "data": ["D31", "D31 D30", "D31 … D1", "0xDEADBEEF"] },
+    { "name": "serial_control[15:0]", "wave": "x...2.....|...2...2.....",
+      "data": ["0x0000", "0x7D58", "0xFAB1"] },
+    {},
+    { "name": "data[31:0]", "wave": "x.........|........2....", "data": ["0xDEADBEEF"] },
+    { "name": "strobe", "wave": "0.........|........10..." },
+    { "name": "active", "wave": "0.........|........1...." }
+  ],
+  "head": { "text": "One bitbang word, released when the control register reaches 0xFAB1" },
+  "foot": { "text": "blue = shifted into serial_data on a rising s_clk edge, orange = shifted into serial_control on a falling s_clk edge" },
+  "config": { "hscale": 1 }
+}
