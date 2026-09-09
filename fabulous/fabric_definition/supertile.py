@@ -148,6 +148,34 @@ class SuperTile:
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
 
+    def get_anchor_tile_coords(self) -> tuple[int, int]:
+        """Return the (x, y) coordinates of the anchor tile in local space.
+
+        The anchor is the first non-None tile in row-major order over
+        `tileMap`. `gen_fabric` instantiates the supertile wrapper at the
+        matching fabric cell, so this is what names the wrapper instance and
+        what the GDS macro flow must name its macro after. It is a structural
+        position, unrelated to the config chain that `get_master_tile_coords`
+        anchors.
+
+        Returns
+        -------
+        tuple[int, int]
+            `(x, y)` in local supertile coordinates.
+
+        Raises
+        ------
+        ValueError
+            If the supertile contains no tiles.
+        """
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    return x, y
+        raise ValueError(
+            f"SuperTile '{self.name}' has no tiles; cannot determine anchor tile"
+        )
+
     def get_master_tile_coords(self) -> tuple[int, int]:
         """Return the (x, y) coordinates of the master tile in local space.
 
@@ -159,9 +187,8 @@ class SuperTile:
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural *anchor* tile (`tileMap[0][0]`, where `gen_fabric` places the
-        wrapper instance); the two coincide only when the master happens to be
-        the first tile in row-major order.
+        structural anchor tile, `get_anchor_tile_coords`; the two coincide only
+        when the master happens to be the first tile in row-major order.
 
         Returns
         -------

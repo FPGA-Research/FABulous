@@ -11,6 +11,7 @@ Tests focus on:
 # ruff: noqa: SLF001
 
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -20,11 +21,45 @@ from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import Origin
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     configs,
     subs,
 )
+
+
+def _make_tile(name: str) -> Tile:
+    """Build a minimal real Tile with no BELs, ports or switch matrix."""
+    return Tile(
+        name=name,
+        ports=[],
+        bels=[],
+        tileDir=Path(),
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+        gen_ios=[],
+        userCLK=False,
+    )
+
+
+def _make_fabric(grid: list[list[Tile | None]], origin: Origin) -> Fabric:
+    """Build a real Fabric from a row-major grid, rows ordered as stored."""
+    tile_dic: dict[str, Tile] = {}
+    for row in grid:
+        for tile in row:
+            if tile is not None:
+                tile_dic.setdefault(tile.name, tile)
+    return Fabric(
+        fabric_dir=Path("/tmp"),
+        tile=grid,
+        numberOfRows=len(grid),
+        numberOfColumns=len(grid[0]),
+        tileDic=tile_dic,
+        origin=origin,
+    )
 
 
 class TestComputeDieArea:
@@ -483,53 +518,62 @@ class TestComputeRowAndColumnSizes:
             flow._compute_row_and_column_sizes(flow, mock_fabric, tile_sizes)
 
     @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    @pytest.mark.parametrize(
+        ("shape", "expected_rows", "expected_cols"),
+        [
+            ("rectangular", [Decimal(60), Decimal(60)], [Decimal(200)]),
+            (
+                "hole_at_lowest_corner",
+                [Decimal(60), Decimal(60)],
+                [Decimal(100), Decimal(100)],
+            ),
+        ],
+        ids=["rectangular", "hole-at-lowest-corner"],
+    )
     def test_compute_sizes_supertile_spans_every_row(
         self,
         flow: MagicMock,
-        mock_fabric: MagicMock,
-        mocker: MockerFixture,
         origin: Origin,
+        shape: str,
+        expected_rows: list[Decimal],
+        expected_cols: list[Decimal],
     ) -> None:
-        """A supertile must contribute a height to each row it spans.
+        """A supertile contributes its size to every row of its bounding box.
 
         The parser stores `tileMap` in the same row order as the grid, so which
-        subtile sits at row 0 follows the origin; the sizing must find the
-        supertile either way.
+        subtile sits at row 0 follows the origin. A hole at the box's lowest
+        corner additionally makes that grid cell NULL, so the supertile cannot
+        be found from the tile sitting there.
         """
-        mock_fabric.numberOfRows = 2
-        mock_fabric.numberOfColumns = 1
-
-        st_north: MagicMock = mocker.MagicMock()
-        st_north.name = "st_north"
-        st_south: MagicMock = mocker.MagicMock()
-        st_south.name = "st_south"
-
-        rows = (
-            [[st_south], [st_north]]
-            if origin is Origin.BOTTOM_LEFT
-            else [[st_north], [st_south]]
+        st_low, st_high = _make_tile("st_low"), _make_tile("st_high")
+        tile_map: list[list[Tile | None]] = (
+            [[st_low], [st_high]]
+            if shape == "rectangular"
+            else [[None, st_low], [st_high, st_high]]
         )
-        supertile: MagicMock = mocker.MagicMock()
-        supertile.tileMap = rows
-        supertile.tiles = [st_north, st_south]
-        mock_fabric.superTileDic = {"super1": supertile}
 
-        mock_fabric.__iter__ = mocker.MagicMock(
-            return_value=iter([((0, 0), rows[0][0]), ((0, 1), rows[1][0])])
+        supertile = SuperTile(
+            name="super1",
+            tileDir=Path(),
+            tiles=[st_low, st_high],
+            tileMap=tile_map,
+            origin=origin,
         )
+        fabric = _make_fabric([list(row) for row in tile_map], origin)
+        fabric.superTileDic = {"super1": supertile}
 
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "super1": (Decimal(100), Decimal(120))
+            "super1": (Decimal(200), Decimal(120))
         }
 
         row_heights: list[Decimal]
         col_widths: list[Decimal]
         row_heights, col_widths = flow._compute_row_and_column_sizes(
-            flow, mock_fabric, tile_sizes
+            flow, fabric, tile_sizes
         )
 
-        assert row_heights == [Decimal(60), Decimal(60)]
-        assert col_widths == [Decimal(100)]
+        assert row_heights == expected_rows
+        assert col_widths == expected_cols
 
 
 class TestFlowConfiguration:

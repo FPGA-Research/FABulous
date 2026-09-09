@@ -64,8 +64,8 @@ def iter_super_tile_anchors(
 ) -> Generator[tuple[int, int, SuperTile], None, None]:
     """Yield `(anchor_x, anchor_y, superTile)` for every supertile placement.
 
-    The anchor is the first non-NULL child tile in row-major order for each
-    placement -- the same position at which `generateFabric` instantiates the
+    The anchor is `SuperTile.get_anchor_tile_coords` offset by the placement
+    base, the same position at which `generateFabric` instantiates the
     supertile wrapper.
 
     Parameters
@@ -79,14 +79,8 @@ def iter_super_tile_anchors(
         The anchor `(x, y)` and the `SuperTile` placed there.
     """
     for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        for ly, row in enumerate(superTile.tileMap):
-            for lx, tile in enumerate(row):
-                if tile is not None:
-                    yield base_fx + lx, base_fy + ly, superTile
-                    break
-            else:
-                continue
-            break
+        lx, ly = superTile.get_anchor_tile_coords()
+        yield base_fx + lx, base_fy + ly, superTile
 
 
 def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
