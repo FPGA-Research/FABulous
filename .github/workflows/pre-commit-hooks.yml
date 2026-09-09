@@ -21,6 +21,10 @@ jobs:
         uv sync --locked --all-extras --dev
 
     - name: run pre-commit
+      # svlint_wrapper resolves its pinned release through the GitHub API, which
+      # rate-limits unauthenticated runners off a shared IP.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         uv run pre-commit install
         SKIP=no-commit-to-branch uv run pre-commit run --show-diff-on-failure --color=always --all-files

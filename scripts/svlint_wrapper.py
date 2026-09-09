@@ -107,6 +107,36 @@ def file_lock(path: Path) -> Iterator[None]:
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def api_request(url: str) -> urllib.request.Request:
+    """Build a GitHub API request, authenticated when `GITHUB_TOKEN` is set.
+
+    Unauthenticated callers share a 60 requests per hour quota with everything
+    else on the same IP, which CI runners exhaust routinely. A token raises the
+    ceiling to 1000 per hour for the repository.
+    """
+    request = urllib.request.Request(  # noqa: S310
+        url, headers={"Accept": "application/vnd.github+json"}
+    )
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        request.add_header("Authorization", f"Bearer {token}")
+    return request
+
+
+def is_retryable(error: urllib.error.HTTPError) -> bool:
+    """Report whether another attempt could succeed.
+
+    GitHub answers an exhausted rate limit with 403 rather than 429, so a plain
+    status-set test never retries the case the loop exists for. The quota resets
+    on the hour, so the backoff rarely outlasts it on its own; the token in
+    `api_request` is what keeps this from failing. A 403 without the header is a
+    permission error and is not worth retrying.
+    """
+    if error.code in TRANSIENT_STATUSES:
+        return True
+    return error.code == 403 and error.headers.get("x-ratelimit-remaining") == "0"
+
+
 def fetch_json(url: str) -> dict[str, object]:
     """Fetch a JSON document, retrying transient errors."""
     last_exc: Exception | None = None
@@ -115,11 +145,11 @@ def fetch_json(url: str) -> dict[str, object]:
         msg += f"(attempt {attempt}/{DOWNLOAD_ATTEMPTS})\n"
         sys.stderr.write(msg)
         try:
-            with urllib.request.urlopen(url, timeout=60) as resp:
+            with urllib.request.urlopen(api_request(url), timeout=60) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             last_exc = e
-            if e.code not in TRANSIENT_STATUSES:
+            if not is_retryable(e):
                 raise
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             last_exc = e
@@ -148,7 +178,7 @@ def fetch_archive(url: str, dest_dir: Path) -> Path:
                 return Path(tmp.name)
         except urllib.error.HTTPError as e:
             last_exc = e
-            if e.code not in TRANSIENT_STATUSES:
+            if not is_retryable(e):
                 raise
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             last_exc = e
