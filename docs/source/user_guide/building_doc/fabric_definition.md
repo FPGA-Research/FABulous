@@ -181,14 +181,13 @@ It is planned to remove these limitations in future versions of FABulous.
 
     This is useful when a specific input must occupy a known mux position.
 
-  - `TopLeftOrigin`, `[TRUE|FALSE]` (default `TRUE`) — **deprecated, do not use
-    in new fabrics**
+  - `TopLeftOrigin`, `[TRUE|FALSE]` (default `TRUE`, deprecated)
 
-    Restores the pre-3.0 convention of putting `X0Y0` at the top-left tile with
-    `y` counting downwards. It exists only so fabrics authored before the origin
-    moved keep generating the output they did before, and it is removed in 3.0
-    along with every code path that reads it. Reading `TRUE` logs a deprecation
-    warning.
+    Do not set this in a new fabric. It restores the pre-3.0 convention of
+    putting `X0Y0` at the top-left tile with `y` counting downwards. It exists
+    only so fabrics authored before the origin moved keep generating the output
+    they did before, and it is removed in 3.0 along with every code path that
+    reads it. Reading `TRUE` logs a deprecation warning.
 
     Absent means `TRUE`, so an untouched pre-3.0 fabric keeps its old
     coordinates. Every fabric written from now on sets `FALSE`, which is what
