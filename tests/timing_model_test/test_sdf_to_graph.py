@@ -493,6 +493,7 @@ def test_path_to_nearest_target_sentinel_unweighted_forward(
         "A", ["D", "E"], weight=None
     )
 
+    assert path is not None
     assert path == ["A", "B", "D"]
     assert closest == "D"
     assert all("_sentinel_" not in node for node in path)

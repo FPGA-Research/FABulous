@@ -184,6 +184,8 @@ class TestFabricSJumpWirePass:
     def test_forward_wires_child_output_to_master(self, fabric: Fabric) -> None:
         top = fabric.tile[0][0]
         bot = fabric.tile[1][0]
+        assert top is not None
+        assert bot is not None
         # DSP_top OUTPUT port jumps down to the master one row below (offset y=1).
         assert ("top2bot0", "DSP_top_top2bot0", 0, 1) in _sjump_wires(top)
         assert ("top2bot1", "DSP_top_top2bot1", 0, 1) in _sjump_wires(top)
@@ -192,6 +194,7 @@ class TestFabricSJumpWirePass:
 
     def test_reverse_wires_master_to_child_input(self, fabric: Fabric) -> None:
         bot = fabric.tile[1][0]
+        assert bot is not None
         master_wires = _sjump_wires(bot)
         # Master drives its own INPUT port back (zero offset)...
         assert ("DSP_bot_Q0", "Q0", 0, 0) in master_wires
@@ -202,6 +205,7 @@ class TestFabricSJumpWirePass:
     def test_no_duplicate_sjump_wires(self, fabric: Fabric) -> None:
         for row in fabric.tile:
             for tile in row:
+                assert tile is not None
                 sjump = [w for w in tile.wireList if w.direction == Direction.SJUMP]
                 assert len(sjump) == len(set(sjump))
 

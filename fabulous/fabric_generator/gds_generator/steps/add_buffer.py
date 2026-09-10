@@ -11,12 +11,13 @@ from librelane.steps.common_variables import (
 from librelane.steps.openroad import OpenROADStep
 from librelane.steps.step import (
     MetricsUpdate,
-    Step,
     ViewsUpdate,
 )
 
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
-@Step.factory.register()
+
+@register_step
 class AddBuffers(OpenROADStep):
     """Adds buffers to a global-placed ODB file."""
 

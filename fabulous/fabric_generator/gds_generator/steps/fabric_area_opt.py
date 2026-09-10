@@ -21,6 +21,7 @@ from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
+from fabulous.fabric_generator.gds_generator.registry import register_step
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 
 
@@ -154,9 +155,12 @@ class NLPTileProblem(ElementwiseProblem):
             # Update width bounds from column neighbors
             for col_idx in range(supertile.max_width):
                 for row in supertile.tileMap:
-                    if col_idx >= len(row) or row[col_idx] is None:
+                    if col_idx >= len(row):
                         continue
-                    name = row[col_idx].name
+                    col_tile = row[col_idx]
+                    if col_tile is None:
+                        continue
+                    name = col_tile.name
                     neighbors = self._find_sharing_tiles(name, self.tile_column_set)
                     neighbor_w = max(
                         (tile_min[n][0] for n in neighbors if n in tile_min),
@@ -570,7 +574,7 @@ class NLPTileProblem(ElementwiseProblem):
         out["G"] = np.array(result, dtype=float)
 
 
-@Step.factory.register()
+@register_step
 class FabricAreaOptimisation(Step):
     """LibreLane step for NLP optimisation of tile dimensions.
 
@@ -744,7 +748,12 @@ class FabricAreaOptimisation(Step):
         n_row_vars = len(set(problem.row_groups.values()))
 
         class RoundRepair(Repair):
-            def _do(self, _problem: Any, X: np.ndarray, **_kwargs: Any) -> np.ndarray:  # noqa: ANN401
+            def _do(
+                self,
+                problem: Any,  # noqa: ANN401, ARG002
+                X: np.ndarray,
+                **kwargs: Any,  # noqa: ANN401, ARG002
+            ) -> np.ndarray:
                 """Round variables to nearest grid pitch."""
                 for j in range(X.shape[0]):
                     for i in range(X.shape[1]):

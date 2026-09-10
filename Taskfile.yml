@@ -71,6 +71,15 @@ tasks:
     cmds:
       - uv run scripts/run_tests.py {{.CLI_ARGS}}
 
+  # Usage examples:
+  #   task typecheck
+  #   task typecheck -- fabulous/fabric_definition
+  #   task typecheck -- --output-format concise
+  typecheck:
+    desc: Type check the project with ty
+    cmds:
+      - uv run ty check {{.CLI_ARGS}}
+
   upgrade:
     desc: Refresh lockfiles, update the Nix flake, and run tests
     cmds:

@@ -24,7 +24,7 @@ def default_worker_count() -> int:
         max_workers=None, mp_context=multiprocessing.get_context("spawn")
     )
     try:
-        return executor._max_workers
+        return executor._max_workers  # ty: ignore[unresolved-attribute]
     finally:
         executor.shutdown()
 
@@ -38,7 +38,7 @@ class TestDillProcessPoolWorkers:
         mocker.patch.object(processpool, "get_context")
         executor = processpool.DillProcessPoolExecutor(max_workers=0)
         try:
-            assert executor._max_workers == default_worker_count
+            assert executor._max_workers == default_worker_count  # ty: ignore[unresolved-attribute]
         finally:
             executor.shutdown()
 
@@ -48,7 +48,7 @@ class TestDillProcessPoolWorkers:
         mocker.patch.object(processpool, "get_context").return_value.max_worker = 0
         executor = processpool.DillProcessPoolExecutor(max_workers=None)
         try:
-            assert executor._max_workers == default_worker_count
+            assert executor._max_workers == default_worker_count  # ty: ignore[unresolved-attribute]
         finally:
             executor.shutdown()
 
@@ -56,7 +56,7 @@ class TestDillProcessPoolWorkers:
         mocker.patch.object(processpool, "get_context")
         executor = processpool.DillProcessPoolExecutor(max_workers=3)
         try:
-            assert executor._max_workers == 3
+            assert executor._max_workers == 3  # ty: ignore[unresolved-attribute]
         finally:
             executor.shutdown()
 
@@ -64,6 +64,6 @@ class TestDillProcessPoolWorkers:
         mocker.patch.object(processpool, "get_context").return_value.max_worker = 5
         executor = processpool.DillProcessPoolExecutor(max_workers=None)
         try:
-            assert executor._max_workers == 5
+            assert executor._max_workers == 5  # ty: ignore[unresolved-attribute]
         finally:
             executor.shutdown()

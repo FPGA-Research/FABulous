@@ -15,6 +15,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from pathlib import Path
+
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.geometry_generator.fabric_geometry import FabricGeometry
 
@@ -32,16 +34,15 @@ class GeometryGenerator:
     ----------
     fabric : Fabric
         The fabric object passed from the CSV definition files
-    fabricGeometry : FabricGeometry | None, optional
-        The generated geometry object
+    fabricGeometry : FabricGeometry
+        The generated geometry object; set by `generateGeometry`
     """
 
     fabric: Fabric
-    fabricGeometry: FabricGeometry | None
+    fabricGeometry: FabricGeometry
 
     def __init__(self, fabric: Fabric) -> None:
         self.fabric = fabric
-        self.fabricGeometry = None
 
     def generateGeometry(self, padding: int = 8) -> None:
         """Start the geometry generation for the given fabric.
@@ -57,7 +58,7 @@ class GeometryGenerator:
         """
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
 
-    def saveToCSV(self, fileName: str) -> None:
+    def saveToCSV(self, fileName: Path) -> None:
         """Save the generated geometry into a file specified by the given file name.
 
         Exports the complete fabric geometry data to a CSV file that can be
@@ -65,7 +66,7 @@ class GeometryGenerator:
 
         Parameters
         ----------
-        fileName : str
-            The name of the CSV file to create
+        fileName : Path
+            The path of the CSV file to create
         """
         self.fabricGeometry.saveToCSV(fileName)

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,8 +23,8 @@ def make_fabric() -> Callable[..., Fabric]:
     validation logic.
     """
 
-    def _make(**overrides: int) -> Fabric:
-        defaults = {
+    def _make(**overrides: object) -> Fabric:
+        defaults: dict[str, Any] = {
             "fabric_dir": Path("/tmp"),
             "frameBitsPerRow": 32,
             "maxFramesPerCol": 20,

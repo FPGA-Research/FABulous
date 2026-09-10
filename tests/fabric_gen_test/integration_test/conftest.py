@@ -4,13 +4,14 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast, overload
 
 import ciel.common
 import cocotb
 import pytest
-from cocotb.handle import HierarchyObject, LogicObject
+from cocotb.handle import HierarchyObject, LogicObject, SimHandleBase
 from cocotb.triggers import Timer
 from cocotb.types import Logic, LogicArray
 from dotenv import unset_key
@@ -45,7 +46,10 @@ def _disable_pdk_download(
 
     real_run = subprocess.run
 
-    def scrubbing_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess:
+    def scrubbing_run(
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> subprocess.CompletedProcess:
         result = real_run(*args, **kwargs)
         for env_file in tmp_path.rglob(".FABulous/.env"):
             unset_key(env_file, "FAB_PDK")
@@ -69,11 +73,22 @@ class FabricConfigDUT(Protocol):
     FrameData: LogicObject
     FrameStrobe: LogicObject
 
+    def __iter__(self) -> Iterator[SimHandleBase]:
+        """Iterate the DUT's child handles."""
+        ...
+
 
 class FabricClockedDUT(FabricConfigDUT, Protocol):
     """Fabric DUT that also exposes the top-level ``UserCLK`` input."""
 
     UserCLK: LogicObject
+
+
+def _plusarg_path(name: str) -> Path:
+    """Read a path from cocotb's plusargs, which are typed `bool | str`."""
+    value = cocotb.plusargs[name]
+    assert isinstance(value, str)
+    return Path(value)
 
 
 # set_io <signal>[<index>] X<tile_x>Y<tile_y>/<bel>
@@ -128,7 +143,7 @@ class PCF:
         self._port_index: dict[tuple[str, str, str, str], LogicObject] = {}
         for element in dut:
             match = _PORT_NAME_RE.match(element._name)  # noqa: SLF001
-            if match is None:
+            if match is None or not isinstance(element, LogicObject):
                 continue
             key = (
                 match.group("tilex"),
@@ -178,6 +193,10 @@ class PCF:
         key = (tile_x, tile_y, bel.lower(), _USE_TO_PORT[use].lower())
         return self._port_index.get(key)
 
+    @overload
+    def get(self, signal: str, index: None = None) -> LogicArray: ...
+    @overload
+    def get(self, signal: str, index: int) -> Logic: ...
     def get(self, signal: str, index: int | None = None) -> LogicArray | Logic:
         """Read the current ``IN`` value of ``signal``.
 
@@ -221,9 +240,11 @@ class PCF:
             If given, only this bit is updated.
         """
         if index is None:
+            assert isinstance(value, LogicArray)
             for bit_index, bit in enumerate(reversed(value)):
                 self.signals[signal][bit_index]["OUT"].value = bit
         else:
+            assert isinstance(value, Logic)
             self.signals[signal][index]["OUT"].value = value
 
     def get_raw(self, signal: str, use: str, index: int = 0) -> LogicObject:
@@ -380,12 +401,12 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
         A parsed PCF object for driving/sampling signals by user-design
         signal name.
     """
-    pcf = PCF(dut, Path(cocotb.plusargs["FAB_PCF"]))
+    pcf = PCF(cast("HierarchyObject", dut), _plusarg_path("FAB_PCF"))
     await zero_bitstream(dut)
     await Timer(settle_ns, unit="ns")
     await upload_bitstream(
         dut,
-        Path(cocotb.plusargs["FAB_BIT"]),
+        _plusarg_path("FAB_BIT"),
         num_data_rows=int(cocotb.plusargs["FAB_NUM_DATA_ROWS"]),
     )
     await Timer(settle_ns, unit="ns")

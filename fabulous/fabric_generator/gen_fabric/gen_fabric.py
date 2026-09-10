@@ -291,6 +291,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # if is a normal tile then the offset is (0, 0)
             for i, j in tileLocationOffset:
                 here = fabric.tile[y + j][x + i]
+                if here is None:
+                    continue
                 in_super = here.partOfSuperTile
 
                 def _local_names(
@@ -310,16 +312,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
                     localPorts = _local_names(get_side_ports(here, IO.INPUT))
-                    if (
-                        0 <= neighbor_y < len(fabric.tile)
+                    neighbor = (
+                        fabric.tile[neighbor_y][neighbor_x]
+                        if 0 <= neighbor_y < len(fabric.tile)
                         and 0 <= neighbor_x < len(fabric.tile[0])
-                        and fabric.tile[neighbor_y][neighbor_x] is not None
-                    ):
+                        else None
+                    )
+                    if neighbor is not None:
                         neighborInput = [
                             f"Tile_X{neighbor_x}Y{neighbor_y}_{p.name}"
-                            for p in get_side_ports(
-                                fabric.tile[neighbor_y][neighbor_x], IO.OUTPUT
-                            )
+                            for p in get_side_ports(neighbor, IO.OUTPUT)
                         ]
                         portsPairs += list(zip(localPorts, neighborInput, strict=False))
                     else:
@@ -354,7 +356,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 indentLevel=0,
             )
             for i, j in tileLocationOffset:
-                for b in fabric.tile[y + j][x + i].bels:
+                offset_tile = fabric.tile[y + j][x + i]
+                if offset_tile is None:
+                    continue
+                for b in offset_tile.bels:
                     for p in b.externalInput:
                         portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 

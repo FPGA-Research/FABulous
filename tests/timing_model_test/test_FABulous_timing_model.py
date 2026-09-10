@@ -1,19 +1,33 @@
 from pathlib import Path
-from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 import fabulous.fabric_cad.timing_model.FABulous_timing_model as tm_mod
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
+    CadTools,
     FABulousTileTimingModel,
+)
+from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import (
+    HdlnxTimingModel,
 )
 from fabulous.fabric_cad.timing_model.models import (
     DelayType,
     InternalPipCacheEntry,
+    TimingModelConfig,
     TimingModelMode,
     TimingModelStaTools,
     TimingModelSynthTools,
+    TimingModelTileSourceFiles,
 )
+from fabulous.fabric_cad.timing_model.tools.specification import (  # noqa: TC001
+    StaTool,
+    SynthTool,
+)
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
+from tests.conftest import make_empty_tile
 
 
 def make_source_override(
@@ -21,8 +35,8 @@ def make_source_override(
     rtl_files: Path | list[Path] | None = None,
     netlist_file: Path | None = None,
     rc_file: Path | None = None,
-) -> SimpleNamespace:
-    return SimpleNamespace(
+) -> TimingModelTileSourceFiles:
+    return TimingModelTileSourceFiles(
         rtl_files=rtl_files,
         netlist_file=netlist_file,
         rc_file=rc_file,
@@ -37,10 +51,10 @@ def make_config(
     debug: bool = False,
     synth_program: TimingModelSynthTools = TimingModelSynthTools.YOSYS,
     sta_program: TimingModelStaTools = TimingModelStaTools.OPENSTA,
-    custom_per_tile_source_files: dict[str, SimpleNamespace] | None = None,
+    custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None,
     delay_scaling_factor: float = 1.0,
-) -> SimpleNamespace:
-    return SimpleNamespace(
+) -> TimingModelConfig:
+    return TimingModelConfig(
         project_dir=tmp_path,
         liberty_files=[tmp_path / "lib.lib"],
         delay_type_str=DelayType.MAX_ALL,
@@ -50,9 +64,9 @@ def make_config(
         synth_executable="yosys",
         sta_executable="opensta",
         techmap_files=[tmp_path / "techmap.v"],
-        tiehi_cell_and_port=("TIEHI", "Y"),
-        tielo_cell_and_port=("TIELO", "Y"),
-        min_buf_cell_and_ports=("BUF", "A", "Y"),
+        tiehi_cell_and_port="TIEHI Y",
+        tielo_cell_and_port="TIELO Y",
+        min_buf_cell_and_ports="BUF A Y",
         consider_wire_delay=consider_wire_delay,
         mode=mode,
         custom_per_tile_source_files=custom_per_tile_source_files,
@@ -60,23 +74,21 @@ def make_config(
     )
 
 
-class DummyFabric:
-    def __init__(self, unique_tiles: list[object]) -> None:
+class DummyFabric(Fabric):
+    # Only `get_all_unique_tiles` is exercised, so `super().__init__` and its
+    # validation are skipped; subclassing keeps the return type honest.
+    def __init__(self, unique_tiles: list[Tile | SuperTile]) -> None:
         self._unique_tiles = unique_tiles
 
-    def get_all_unique_tiles(self) -> list[object]:
+    def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         return self._unique_tiles
 
 
-class DummyTile:
-    def __init__(self, name: object) -> None:
-        self.name = name
-
-
-class DummySuperTile:
-    def __init__(self, name: object, tiles: object) -> None:
-        self.name = name
-        self.tiles = tiles
+def make_super_tile(name: str, tile_names: list[str]) -> SuperTile:
+    """Build a real SuperTile so production isinstance checks apply."""
+    tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
+    tile_map: list[list[Tile | None]] = [list(tiles)]
+    return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=tile_map)
 
 
 class DummySynthTool:
@@ -90,70 +102,84 @@ class DummyStaTool:
         self.sta_rc_files = None
 
 
-class DummyHdlnx:
-    def __init__(self) -> None:
-        self.output_ports = set()
-        self.input_ports = set()
+class DummyHdlnx(HdlnxTimingModel):
+    # Deliberately does not call `super().__init__`, which would run real
+    # synthesis. Subclassing keeps the stubs below honest: a signature that
+    # drifts from `HdlnxTimingModel` fails type checking here.
+    def __init__(
+        self,
+        *,
+        instance_paths: list[str] | None = None,
+        verilog_modules: list[str] | None = None,
+        module_instance_nets: dict[str, list[str]] | None = None,
+        instance_pins: list[str] | None = None,
+    ) -> None:
+        self.output_ports: list[str] = []
+        self.input_ports: list[str] = []
+        self._instance_paths = instance_paths if instance_paths is not None else []
+        self._verilog_modules = verilog_modules if verilog_modules is not None else []
+        self._module_instance_nets = (
+            module_instance_nets if module_instance_nets is not None else {}
+        )
+        self._instance_pins = instance_pins if instance_pins is not None else []
 
-    def find_instance_paths_by_regex(self, _regex: object) -> list[object]:
-        return []
+    def find_instance_paths_by_regex(
+        self, inst_regex: str, filter_regex: str | None = None
+    ) -> list[str]:
+        return self._instance_paths
 
-    def find_verilog_modules_regex(self, _regex: object) -> list[object]:
-        return []
+    def find_verilog_modules_regex(self, name_pattern: str) -> list[str]:
+        return self._verilog_modules
 
-    def get_module_instance_nets(self, _module_name: object) -> dict[object, object]:
-        return {}
+    def get_module_instance_nets(self, module_name: str) -> dict[str, list[str]]:
+        return self._module_instance_nets
 
-    def get_instance_pins(self, _inst_path: object) -> list[object]:
-        return []
+    def get_instance_pins(self, hier_inst_path: str) -> list[str]:
+        return self._instance_pins
 
     def find_instances_paths_with_all_nets(
-        self, _module_name: object, _nets: object, filter_regex: object = None
-    ) -> list[object]:
-        _ = filter_regex
+        self, module_name: str, nets: list[str], filter_regex: str | None = None
+    ) -> list[str]:
         return []
 
     def net_to_pin_paths_for_instance_resolved(
-        self, _inst: object
-    ) -> dict[object, object]:
+        self, hier_inst_path: str
+    ) -> dict[str, list[str]]:
         return {}
 
-    def single_delay(self, _src: object, _dst: object) -> float:
+    def single_delay(self, source: str, target: str) -> float:
         return 0.0
 
     def nearest_ports_from_instance_pin_nets(
-        self, _inst_path: object, reverse: bool = False, num_ports: int = 1
+        self, inst_path: str, reverse: bool = False, num_ports: int = 1
     ) -> tuple[dict[str, list[str]], list[str]]:
-        _ = (reverse, num_ports)
         return {}, []
 
     def earliest_common_nodes(
         self,
-        sources: object,
+        sources: list[str],
         mode: str = "max",
-        sentinel: object = None,
+        sentinel: str | None = None,
         prefer_sentinel_for_single_source: bool = False,
         follow_steps_to_sentinel: int = 0,
-    ) -> tuple[list[str], int, dict[str, object]]:
-        _ = (
-            sources,
-            mode,
-            sentinel,
-            prefer_sentinel_for_single_source,
-            follow_steps_to_sentinel,
-        )
-        return ["X"], 1, {}
+        stop: float | None = None,
+    ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
+        return ["X"], 1.0, {}
 
     def follow_first_fanout_from_pins(
-        self, hier_pin_path: object, num_follow: int = 1
+        self, hier_pin_path: str, num_follow: int = 1
     ) -> str:
-        _ = num_follow
         assert hier_pin_path == "X"
         return "X"
 
     def path_to_nearest_target_sentinel(
-        self, _src: object, _targets: object
-    ) -> tuple[list[str], object | None]:
+        self,
+        source: str,
+        targets: list[str],
+        weight: str | None = None,
+        sentinel_prefix: str = "_sentinel_",
+        reverse: bool = False,
+    ) -> tuple[list[str] | None, str | None]:
         return [], None
 
 
@@ -165,7 +191,7 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
     m.unique_tile_name = "TILE_A"
     m.is_in_which_super_tile = None
     m.tm_config = make_config(tmp_path)
-    m.verilog_files = None
+    m.verilog_files = []
     m.hdlnx_tm_synth = DummyHdlnx()
     m.hdlnx_tm_phys = DummyHdlnx()
     m.switch_matrix_hier_path = "tile_inst_switch_matrix"
@@ -179,15 +205,16 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
 def test_init_sets_attributes_and_calls_helpers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
 
     called = {"init_tm": 0, "extract": 0}
+    synth_model = DummyHdlnx()
+    phys_model = DummyHdlnx()
 
     def fake_init_tm(self: FABulousTileTimingModel) -> None:
         called["init_tm"] += 1
         self.verilog_files = [tmp_path / "a.v"]
-        self.hdlnx_tm_synth = "SYNTH"
-        self.hdlnx_tm_phys = "PHYS"
+        self.hdlnx_tm_synth = synth_model
+        self.hdlnx_tm_phys = phys_model
 
     def fake_extract(self: FABulousTileTimingModel) -> None:
         called["extract"] += 1
@@ -213,8 +240,8 @@ def test_init_sets_attributes_and_calls_helpers(
     assert obj.unique_tile_name == "TILE_A"
     assert obj.is_in_which_super_tile is None
     assert obj.verilog_files == [tmp_path / "a.v"]
-    assert obj.hdlnx_tm_synth == "SYNTH"
-    assert obj.hdlnx_tm_phys == "PHYS"
+    assert obj.hdlnx_tm_synth is synth_model
+    assert obj.hdlnx_tm_phys is phys_model
     assert obj.switch_matrix_hier_path == "swm_inst"
     assert obj.switch_matrix_module_name == "swm_mod"
     assert obj.internal_pips == ["A", "B"]
@@ -223,10 +250,9 @@ def test_init_sets_attributes_and_calls_helpers(
 
 
 def test_get_unique_tile_name_regular_tile_keeps_name(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+    bare_model: FABulousTileTimingModel,
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
-    bare_model.fabric = DummyFabric([DummyTile("OTHER")])
+    bare_model.fabric = DummyFabric([make_empty_tile("OTHER")])
 
     bare_model._get_unique_tile_name()  # noqa: SLF001
 
@@ -235,10 +261,9 @@ def test_get_unique_tile_name_regular_tile_keeps_name(
 
 
 def test_get_unique_tile_name_inside_supertile(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+    bare_model: FABulousTileTimingModel,
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
-    st = DummySuperTile("SUPER_X", [DummyTile("TILE_A"), DummyTile("TILE_B")])
+    st = make_super_tile("SUPER_X", ["TILE_A", "TILE_B"])
     bare_model.fabric = DummyFabric([st])
 
     bare_model._get_unique_tile_name()  # noqa: SLF001
@@ -414,8 +439,8 @@ def test_cad_tools_success(
 
     tools = bare_model._cad_tools()  # noqa: SLF001
 
-    assert isinstance(tools["synth_tool"], FakeYosys)
-    assert isinstance(tools["sta_tool"], FakeOpenSta)
+    assert isinstance(tools.synth, FakeYosys)
+    assert isinstance(tools.sta, FakeOpenSta)
 
     assert calls["yosys"]["verilog_files"] == [tmp_path / "rtl.v"]
     assert calls["yosys"]["liberty_files"] == [tmp_path / "lib.lib"]
@@ -433,7 +458,11 @@ def test_cad_tools_success(
 def test_cad_tools_unsupported_synth_raises(
     tmp_path: Path, bare_model: FABulousTileTimingModel
 ) -> None:
-    bare_model.tm_config = make_config(tmp_path, synth_program="bad_synth")
+    # `model_construct` skips validation so an unsupported tool reaches
+    # `_cad_tools`, which is where the guard under test lives.
+    bare_model.tm_config = TimingModelConfig.model_construct(
+        None, **(dict(make_config(tmp_path)) | {"synth_program": "bad_synth"})
+    )
     with pytest.raises(ValueError, match="Unsupported synthesis tool"):
         bare_model._cad_tools()  # noqa: SLF001
 
@@ -441,7 +470,11 @@ def test_cad_tools_unsupported_synth_raises(
 def test_cad_tools_unsupported_sta_raises(
     tmp_path: Path, bare_model: FABulousTileTimingModel
 ) -> None:
-    bare_model.tm_config = make_config(tmp_path, sta_program="bad_sta")
+    # `model_construct` skips validation so an unsupported tool reaches
+    # `_cad_tools`, which is where the guard under test lives.
+    bare_model.tm_config = TimingModelConfig.model_construct(
+        None, **(dict(make_config(tmp_path)) | {"sta_program": "bad_sta"})
+    )
     with pytest.raises(ValueError, match="Unsupported STA tool"):
         bare_model._cad_tools()  # noqa: SLF001
 
@@ -451,8 +484,8 @@ def test_initialize_timing_models_structural_calls_project_rtl_loader(
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
     called = {"rtl": 0}
 
@@ -460,8 +493,8 @@ def test_initialize_timing_models_structural_calls_project_rtl_loader(
         called["rtl"] += 1
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -492,15 +525,15 @@ def test_initialize_timing_models_physical_without_wire_delay(
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
 
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -535,15 +568,15 @@ def test_initialize_timing_models_physical_with_wire_delay(
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
 
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -583,16 +616,16 @@ def test_initialize_timing_models_physical_uses_custom_netlist_file(
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
     custom_netlist = tmp_path / "custom.nl.v"
 
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -627,16 +660,16 @@ def test_initialize_timing_models_physical_uses_custom_rc_file(
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
     custom_rc = tmp_path / "custom.nom.spef"
 
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -671,15 +704,15 @@ def test_initialize_timing_models_physical_missing_tile_in_custom_source_mapping
     bare_model: FABulousTileTimingModel,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
+    synth_tool = cast("SynthTool", DummySynthTool())
+    sta_tool = cast("StaTool", DummyStaTool())
     created = []
 
     def fake_get_project_rtl_files() -> None:
         bare_model.verilog_files = [tmp_path / "rtl.v"]
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+    def fake_cad_tools() -> CadTools:
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     class FakeHdlnxTimingModel:
         def __init__(
@@ -760,17 +793,18 @@ def test_find_matching_files_invalid_root_raises(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     with pytest.raises(TypeError, match="root_dir must be a Path object"):
-        bare_model._find_matching_files("not_a_path", r".*\.v$")  # noqa: SLF001
+        bare_model._find_matching_files(cast("Path", "not_a_path"), r".*\.v$")  # noqa: SLF001
 
 
 def test_extract_switch_matrix_info_regular_success(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["tile_inst_switch_matrix"]
-    synth.find_verilog_modules_regex = lambda _regex: ["tile_switch_matrix"]
-    synth.get_module_instance_nets = lambda _module_name: {"mux0": ["A", "B", "Y"]}
-    synth.get_instance_pins = lambda _inst_path: ["A", "B", "Y"]
+    synth = DummyHdlnx(
+        instance_paths=["tile_inst_switch_matrix"],
+        verilog_modules=["tile_switch_matrix"],
+        module_instance_nets={"mux0": ["A", "B", "Y"]},
+        instance_pins=["A", "B", "Y"],
+    )
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.is_in_which_super_tile = None
@@ -787,8 +821,6 @@ def test_extract_switch_matrix_info_none_found_returns_without_loading(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: []
-    synth.find_verilog_modules_regex = lambda _regex: []
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.switch_matrix_hier_path = None
@@ -798,8 +830,8 @@ def test_extract_switch_matrix_info_none_found_returns_without_loading(
 
     bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
-    assert bare_model.switch_matrix_hier_path == []
-    assert bare_model.switch_matrix_module_name == []
+    assert bare_model.switch_matrix_hier_path is None
+    assert bare_model.switch_matrix_module_name is None
     assert bare_model.internal_pips_grouped_by_inst is None
     assert bare_model.internal_pips is None
 
@@ -807,9 +839,7 @@ def test_extract_switch_matrix_info_none_found_returns_without_loading(
 def test_extract_switch_matrix_info_regular_multiple_raises(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["a", "b"]
-    synth.find_verilog_modules_regex = lambda _regex: ["m1", "m2"]
+    synth = DummyHdlnx(instance_paths=["a", "b"], verilog_modules=["m1", "m2"])
     bare_model.hdlnx_tm_synth = synth
     bare_model.is_in_which_super_tile = None
 
@@ -823,17 +853,12 @@ def test_extract_switch_matrix_info_regular_multiple_raises(
 def test_extract_switch_matrix_info_supertile_success(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: [
-        "OTHER_switch_matrix",
-        "TILE_A_switch_matrix",
-    ]
-    synth.find_verilog_modules_regex = lambda _regex: [
-        "OTHER_switch_matrix_mod",
-        "TILE_A_switch_matrix_mod",
-    ]
-    synth.get_module_instance_nets = lambda _module_name: {"mux0": ["I0", "I1", "O"]}
-    synth.get_instance_pins = lambda _inst_path: ["I0", "I1", "O"]
+    synth = DummyHdlnx(
+        instance_paths=["OTHER_switch_matrix", "TILE_A_switch_matrix"],
+        verilog_modules=["OTHER_switch_matrix_mod", "TILE_A_switch_matrix_mod"],
+        module_instance_nets={"mux0": ["I0", "I1", "O"]},
+        instance_pins=["I0", "I1", "O"],
+    )
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.tile_name = "TILE_A"
@@ -850,9 +875,10 @@ def test_extract_switch_matrix_info_supertile_success(
 def test_extract_switch_matrix_info_supertile_none_raises(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["OTHER_switch_matrix"]
-    synth.find_verilog_modules_regex = lambda _regex: ["OTHER_switch_matrix_mod"]
+    synth = DummyHdlnx(
+        instance_paths=["OTHER_switch_matrix"],
+        verilog_modules=["OTHER_switch_matrix_mod"],
+    )
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.tile_name = "TILE_A"
@@ -869,12 +895,10 @@ def test_extract_switch_matrix_info_supertile_none_raises(
 def test_extract_switch_matrix_info_supertile_multiple_raises(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: [
-        "TILE_A_swm0",
-        "TILE_A_swm1",
-    ]
-    synth.find_verilog_modules_regex = lambda _regex: ["TILE_A_mod0", "TILE_A_mod1"]
+    synth = DummyHdlnx(
+        instance_paths=["TILE_A_swm0", "TILE_A_swm1"],
+        verilog_modules=["TILE_A_mod0", "TILE_A_mod1"],
+    )
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.tile_name = "TILE_A"
@@ -920,17 +944,7 @@ def test_is_tile_internal_pip_false_when_same_src_and_dst(
 def test_internal_pip_delay_structural_no_mux_raises_indexerror(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-
-    def _find_instances_paths_with_all_nets(
-        _module_name: object, _nets: object, filter_regex: object = None
-    ) -> list[object]:
-        _ = filter_regex
-        return []
-
-    synth.find_instances_paths_with_all_nets = _find_instances_paths_with_all_nets
-
-    bare_model.hdlnx_tm_synth = synth
+    bare_model.hdlnx_tm_synth = DummyHdlnx()
 
     with pytest.raises(IndexError, match="list index out of range"):
         bare_model.internal_pip_delay_structural("A", "Y")
@@ -946,14 +960,13 @@ def test_internal_pip_delay_structural_success_and_caches(
             self.resolve_calls = 0
 
         def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
+            self, module_name: str, nets: list[str], filter_regex: str | None = None
         ) -> list[str]:
-            _ = filter_regex
             self.find_instances_calls += 1
             return ["mux0", "mux1"]
 
         def net_to_pin_paths_for_instance_resolved(
-            self, _inst: object
+            self, hier_inst_path: str
         ) -> dict[str, list[str]]:
             self.resolve_calls += 1
             return {
@@ -961,7 +974,7 @@ def test_internal_pip_delay_structural_success_and_caches(
                 "Y": ["mux0/Y0", "mux0/Y1"],
             }
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.123
 
     synth = Synth()
@@ -994,19 +1007,18 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
             self.resolve_calls = 0
 
         def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
+            self, module_name: str, nets: list[str], filter_regex: str | None = None
         ) -> list[str]:
-            _ = filter_regex
             self.find_instances_calls += 1
             return ["should_not_be_used"]
 
         def net_to_pin_paths_for_instance_resolved(
-            self, _inst: object
+            self, hier_inst_path: str
         ) -> dict[str, list[str]]:
             self.resolve_calls += 1
             return {"bad": ["bad"]}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 1.5
 
     synth = Synth()
@@ -1042,19 +1054,17 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
             self.nearest_calls = 0
 
         def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
+            self, module_name: str, nets: list[str], filter_regex: str | None = None
         ) -> list[str]:
-            _ = filter_regex
             self.find_instances_calls += 1
             return ["mux0", "mux1"]
 
         def nearest_ports_from_instance_pin_nets(
             self,
-            _inst_path: object,
+            inst_path: str,
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
-            _ = num_ports
             self.nearest_calls += 1
             if reverse:
                 return (
@@ -1073,21 +1083,22 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
 
         def earliest_common_nodes(
             self,
-            sources: object,
+            sources: list[str],
             mode: str = "max",
-            sentinel: object = None,
+            sentinel: str | None = None,
             prefer_sentinel_for_single_source: bool = False,
             follow_steps_to_sentinel: int = 0,
-        ) -> tuple[list[str], int, dict[str, object]]:
+            stop: float | None = None,
+        ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
             self.earliest_calls += 1
             assert sources == ["IN_A", "IN_Y"]
             assert mode == "max"
             assert sentinel is None
             assert prefer_sentinel_for_single_source is True
             assert follow_steps_to_sentinel == 3
-            return ["OUT2", "OUT1"], 3, {"dummy": 1}
+            return ["OUT2", "OUT1"], 3.0, {"dummy": {"d": 1.0}}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.456
 
     synth = Synth()
@@ -1113,7 +1124,7 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
         ["IN_A", "IN_Y"],
     )
     assert cache_entry.swm_nearest_ports_out is None
-    assert cache_entry.swm_output_pin == (["OUT2", "OUT1"], 3, {"dummy": 1})
+    assert cache_entry.swm_output_pin == (["OUT2", "OUT1"], 3.0, {"dummy": {"d": 1.0}})
     assert cache_entry.swm_mux_resolved is None
 
 
@@ -1126,18 +1137,16 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             self.nearest_calls = 0
 
         def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
+            self, module_name: str, nets: list[str], filter_regex: str | None = None
         ) -> list[str]:
-            _ = filter_regex
             return ["mux0"]
 
         def nearest_ports_from_instance_pin_nets(
             self,
-            _inst_path: object,
+            inst_path: str,
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
-            _ = num_ports
             self.nearest_calls += 1
             if reverse:
                 return (
@@ -1152,12 +1161,13 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
     class Phys(DummyHdlnx):
         def earliest_common_nodes(
             self,
-            sources: object,
+            sources: list[str],
             mode: str = "max",
-            sentinel: object = None,
+            sentinel: str | None = None,
             prefer_sentinel_for_single_source: bool = False,
             follow_steps_to_sentinel: int = 0,
-        ) -> tuple[list[str], int, dict[str, object]]:
+            stop: float | None = None,
+        ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
             _ = mode
             assert sources == ["IN_A"]
             assert sentinel == "OUT_REF"
@@ -1165,7 +1175,7 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             assert follow_steps_to_sentinel == 3
             return ["PHYS_OUT"], 1, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.789
 
     synth = Synth()
@@ -1194,19 +1204,17 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
             self.nearest_calls = 0
 
         def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
+            self, module_name: str, nets: list[str], filter_regex: str | None = None
         ) -> list[str]:
-            _ = filter_regex
             self.find_instances_calls += 1
             return ["should_not_be_used"]
 
         def nearest_ports_from_instance_pin_nets(
             self,
-            _inst_path: object,
+            inst_path: str,
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
-            _ = (reverse, num_ports)
             self.nearest_calls += 1
             return {"bad": ["bad"]}, ["bad"]
 
@@ -1217,12 +1225,13 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
 
         def earliest_common_nodes(
             self,
-            sources: object,
+            sources: list[str],
             mode: str = "max",
-            sentinel: object = None,
+            sentinel: str | None = None,
             prefer_sentinel_for_single_source: bool = False,
             follow_steps_to_sentinel: int = 0,
-        ) -> tuple[list[str], int, dict[str, object]]:
+            stop: float | None = None,
+        ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
             _ = (
                 sources,
                 mode,
@@ -1233,7 +1242,7 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
             self.earliest_calls += 1
             return ["should_not_be_used"], 0, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 1.234
 
     synth = Synth()
@@ -1267,7 +1276,7 @@ def test_external_pip_delay_structural_output_port_returns_default(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     synth = DummyHdlnx()
-    synth.output_ports = {"NN2BEG[3]"}
+    synth.output_ports = ["NN2BEG[3]"]
     bare_model.hdlnx_tm_synth = synth
 
     assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
@@ -1279,14 +1288,19 @@ def test_external_pip_delay_structural_input_port_no_nearest_returns_default_rea
     class Synth(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.input_ports = {"NN2BEG[3]"}
-            self.output_ports = {"OUT0"}
+            self.input_ports = ["NN2BEG[3]"]
+            self.output_ports = ["OUT0"]
 
         def path_to_nearest_target_sentinel(
-            self, src: object, targets: object
-        ) -> tuple[list[str], object | None]:
-            assert src == "NN2BEG[3]"
-            assert targets == {"OUT0"}
+            self,
+            source: str,
+            targets: list[str],
+            weight: str | None = None,
+            sentinel_prefix: str = "_sentinel_",
+            reverse: bool = False,
+        ) -> tuple[list[str] | None, str | None]:
+            assert source == "NN2BEG[3]"
+            assert targets == ["OUT0"]
             return [], None
 
     bare_model.hdlnx_tm_synth = Synth()
@@ -1300,15 +1314,20 @@ def test_external_pip_delay_structural_input_port_uses_single_delay(
     class Synth(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.input_ports = {"NN2BEG[3]"}
-            self.output_ports = {"OUT0"}
+            self.input_ports = ["NN2BEG[3]"]
+            self.output_ports = ["OUT0"]
 
         def path_to_nearest_target_sentinel(
-            self, _src: object, _targets: object
-        ) -> tuple[list[str], object | None]:
+            self,
+            source: str,
+            targets: list[str],
+            weight: str | None = None,
+            sentinel_prefix: str = "_sentinel_",
+            reverse: bool = False,
+        ) -> tuple[list[str] | None, str | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.222
 
     bare_model.hdlnx_tm_synth = Synth()
@@ -1320,8 +1339,8 @@ def test_external_pip_delay_structural_swm_to_swm_without_cache_returns_default(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     synth = DummyHdlnx()
-    synth.input_ports = {"IN0"}
-    synth.output_ports = {"OUT0"}
+    synth.input_ports = ["IN0"]
+    synth.output_ports = ["OUT0"]
     bare_model.hdlnx_tm_synth = synth
     bare_model.internal_pip_cache = {}
 
@@ -1339,9 +1358,9 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, src: object, dst: object) -> float:
-            assert src == "SWM_OUT_PIN"
-            assert dst == "NEXT_INPUT_PIN"
+        def single_delay(self, source: str, target: str) -> float:
+            assert source == "SWM_OUT_PIN"
+            assert target == "NEXT_INPUT_PIN"
             return 0.444
 
     bare_model.hdlnx_tm_synth = Synth()
@@ -1370,7 +1389,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.0
 
     bare_model.hdlnx_tm_synth = Synth()
@@ -1392,7 +1411,7 @@ def test_external_pip_delay_physical_output_port_returns_default(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     phys = DummyHdlnx()
-    phys.output_ports = {"NN2BEG[3]"}
+    phys.output_ports = ["NN2BEG[3]"]
     bare_model.hdlnx_tm_phys = phys
 
     assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
@@ -1404,14 +1423,19 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
     class Phys(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.input_ports = {"NN2BEG[3]"}
-            self.output_ports = {"OUT0"}
+            self.input_ports = ["NN2BEG[3]"]
+            self.output_ports = ["OUT0"]
 
         def path_to_nearest_target_sentinel(
-            self, src: object, targets: object
-        ) -> tuple[list[str], object | None]:
-            assert src == "NN2BEG[3]"
-            assert targets == {"OUT0"}
+            self,
+            source: str,
+            targets: list[str],
+            weight: str | None = None,
+            sentinel_prefix: str = "_sentinel_",
+            reverse: bool = False,
+        ) -> tuple[list[str] | None, str | None]:
+            assert source == "NN2BEG[3]"
+            assert targets == ["OUT0"]
             return [], None
 
     bare_model.hdlnx_tm_phys = Phys()
@@ -1425,15 +1449,20 @@ def test_external_pip_delay_physical_input_port_uses_single_delay(
     class Phys(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.input_ports = {"NN2BEG[3]"}
-            self.output_ports = {"OUT0"}
+            self.input_ports = ["NN2BEG[3]"]
+            self.output_ports = ["OUT0"]
 
         def path_to_nearest_target_sentinel(
-            self, _src: object, _targets: object
-        ) -> tuple[list[str], object | None]:
+            self,
+            source: str,
+            targets: list[str],
+            weight: str | None = None,
+            sentinel_prefix: str = "_sentinel_",
+            reverse: bool = False,
+        ) -> tuple[list[str] | None, str | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.333
 
     bare_model.hdlnx_tm_phys = Phys()
@@ -1445,8 +1474,8 @@ def test_external_pip_delay_physical_swm_to_swm_without_cache_returns_default(
     bare_model: FABulousTileTimingModel,
 ) -> None:
     phys = DummyHdlnx()
-    phys.input_ports = {"IN0"}
-    phys.output_ports = {"OUT0"}
+    phys.input_ports = ["IN0"]
+    phys.output_ports = ["OUT0"]
     bare_model.hdlnx_tm_phys = phys
     bare_model.internal_pip_cache = {}
 
@@ -1464,9 +1493,9 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, src: object, dst: object) -> float:
-            assert src == "PHYS_OUT_PIN"
-            assert dst == "NEXT_PHYS_INPUT"
+        def single_delay(self, source: str, target: str) -> float:
+            assert source == "PHYS_OUT_PIN"
+            assert target == "NEXT_PHYS_INPUT"
             return 0.555
 
     bare_model.hdlnx_tm_phys = Phys()
@@ -1495,7 +1524,7 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
+        def single_delay(self, source: str, target: str) -> float:
             return 0.0
 
     bare_model.hdlnx_tm_phys = Phys()

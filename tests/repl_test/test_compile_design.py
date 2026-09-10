@@ -1,5 +1,6 @@
 """Tests for the FABulous REPL compile_design command."""
 
+import inspect
 from pathlib import Path
 
 import pytest
@@ -293,7 +294,7 @@ def test_compile_design_no_taskfile(
     # instead of being swallowed by the REPL's onecmd handler.
     command_set = compile_cli.find_commandsets(UserDesignCommandSet)[0]
     with pytest.raises(FileNotFoundError, match="Taskfile.yml"):
-        UserDesignCommandSet.do_compile_design.__wrapped__(
+        inspect.unwrap(UserDesignCommandSet.do_compile_design)(
             command_set, files=[design_file]
         )
 

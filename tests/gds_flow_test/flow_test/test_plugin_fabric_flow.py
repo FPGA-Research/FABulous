@@ -124,7 +124,7 @@ class TestBuildMacros:
 
         assert set(macros) == {"LUT4AB"}
         macro = macros["LUT4AB"]
-        assert [p.name for p in macro.gds] == ["LUT4AB.gds"]
+        assert [Path(p).name for p in macro.gds] == ["LUT4AB.gds"]
         assert macro.lef == [str(macro_dir / "lef" / "LUT4AB.lef")]
         assert macro.vh == [str(macro_dir / "vh" / "LUT4AB.vh")]
         assert macro.nl == [str(macro_dir / "nl" / "LUT4AB.nl.v")]

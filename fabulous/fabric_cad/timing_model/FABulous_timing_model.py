@@ -11,6 +11,7 @@ approaches.
 
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 from loguru import logger
 
@@ -27,6 +28,21 @@ from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
 from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
+
+
+class CadTools(NamedTuple):
+    """The synthesis and STA tool pair used to build a timing model.
+
+    Attributes
+    ----------
+    synth : SynthTool
+        The synthesis tool selected from the configuration.
+    sta : StaTool
+        The static timing analysis tool selected from the configuration.
+    """
+
+    synth: SynthTool
+    sta: StaTool
 
 
 class FABulousTileTimingModel:
@@ -54,15 +70,15 @@ class FABulousTileTimingModel:
         Configuration object for the timing model.
     fabric : Fabric
         The FABulous fabric object.
-    tile_name : str | None
+    tile_name : str
         The name of the tile for which the timing model is being created.
     """
 
     def __init__(
-        self, config: TimingModelConfig, fabric: Fabric, tile_name: str | None = None
+        self, config: TimingModelConfig, fabric: Fabric, tile_name: str
     ) -> None:
         self.fabric: Fabric = fabric
-        self.tile_name: str | None = tile_name
+        self.tile_name: str = tile_name
 
         # Validate and parse the configuration using the
         # TimingModelConfig dataclass.
@@ -78,19 +94,17 @@ class FABulousTileTimingModel:
 
         # Verilog files for the tile.
 
-        self.verilog_files: list[Path] = None
+        self.verilog_files: list[Path]
 
-        # Init:
-
-        self.hdlnx_tm_synth: HdlnxTimingModel | None = None
+        self.hdlnx_tm_synth: HdlnxTimingModel
         self.hdlnx_tm_phys: HdlnxTimingModel | None = None
         self._initialize_timing_models()
 
         # Extract switch matrix information
         # Check super_tile_type in config to filter the correct switch matrix
 
-        self.switch_matrix_hier_path: list[str] | None = None
-        self.switch_matrix_module_name: list[str] | None = None
+        self.switch_matrix_hier_path: str | None = None
+        self.switch_matrix_module_name: str | None = None
         self.internal_pips_grouped_by_inst: dict[str, list[str]] | None = None
         self.internal_pips: list[str] | None = None
         self._extract_switch_matrix_info()
@@ -107,7 +121,7 @@ class FABulousTileTimingModel:
         instead.
         """
         exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
-        self.verilog_files: list[Path] = self._find_matching_files(
+        self.verilog_files = self._find_matching_files(
             self.tm_config.project_dir, r".*\.v$", exclude_dir_patterns
         )
 
@@ -160,7 +174,7 @@ class FABulousTileTimingModel:
                         self.unique_tile_name = unique_tiles.name
                         break
 
-    def _cad_tools(self) -> dict[str, SynthTool | StaTool]:
+    def _cad_tools(self) -> CadTools:
         """Set up the synthesis and STA tools based on the configuration.
 
         This method can be used to initialize the tools before creating
@@ -170,8 +184,8 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        dict[str, SynthTool | StaTool]
-            A dictionary containing the synthesis and STA tools.
+        CadTools
+            The synthesis and STA tools.
 
         Raises
         ------
@@ -179,8 +193,8 @@ class FABulousTileTimingModel:
             If the synthesis or STA tool specified in the
             configuration is not supported.
         """
-        synth_tool: SynthTool | None = None
-        sta_tool: StaTool | None = None
+        synth_tool: SynthTool
+        sta_tool: StaTool
 
         # Use match-case to select the synthesis and STA tools based on the
         # configuration.
@@ -217,10 +231,7 @@ class FABulousTileTimingModel:
             case _:
                 raise ValueError(f"Unsupported STA tool: {self.tm_config.sta_program}")
 
-        # Return the initialized tools in a dictionary for use in the timing
-        # model initialization.
-
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+        return CadTools(synth=synth_tool, sta=sta_tool)
 
     def _initialize_timing_models(self) -> None:
         """Initialize the synthesis and physical timing models using HdlnxTimingModel.
@@ -249,9 +260,7 @@ class FABulousTileTimingModel:
         self._get_project_rtl_files()
 
         # Initialize the synthesis and STA tools based on the configuration.
-        cad_tool = self._cad_tools()
-        synth_tool: SynthTool = cad_tool["synth_tool"]
-        sta_tool: StaTool = cad_tool["sta_tool"]
+        synth_tool, sta_tool = self._cad_tools()
 
         # Initialize the synthesis-level timing model.
         self.hdlnx_tm_synth = HdlnxTimingModel(
@@ -409,18 +418,15 @@ class FABulousTileTimingModel:
         """
         logger.info("Extracting switch matrix information...")
 
-        self.switch_matrix_hier_path = self.hdlnx_tm_synth.find_instance_paths_by_regex(
+        hier_path_candidates = self.hdlnx_tm_synth.find_instance_paths_by_regex(
             r".*_switch_matrix$"
         )
 
-        self.switch_matrix_module_name = self.hdlnx_tm_synth.find_verilog_modules_regex(
+        module_name_candidates = self.hdlnx_tm_synth.find_verilog_modules_regex(
             r"^[^/]*_switch_matrix$"
         )
 
-        if (
-            len(self.switch_matrix_hier_path) == 0
-            or len(self.switch_matrix_module_name) == 0
-        ):
+        if len(hier_path_candidates) == 0 or len(module_name_candidates) == 0:
             logger.warning(
                 f"No switch matrix instance or module found. "
                 f"All PIPs for {self.tile_name} will be considered external."
@@ -428,17 +434,14 @@ class FABulousTileTimingModel:
             return
 
         if self.is_in_which_super_tile is None:
-            if (
-                len(self.switch_matrix_hier_path) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
+            if len(hier_path_candidates) > 1 or len(module_name_candidates) > 1:
                 raise ValueError(
                     "Multiple switch matrix instances or modules found "
                     "for a non-SuperTile."
                 )
 
-            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
+            self.switch_matrix_hier_path = hier_path_candidates[0]
+            self.switch_matrix_module_name = module_name_candidates[0]
 
             logger.info(
                 f"Using switch matrix instance: {self.switch_matrix_hier_path}, "
@@ -446,34 +449,28 @@ class FABulousTileTimingModel:
             )
 
         else:
-            self.switch_matrix_hier_path = [
-                p for p in self.switch_matrix_hier_path if self.tile_name in p
+            hier_path_candidates = [
+                p for p in hier_path_candidates if self.tile_name in p
             ]
 
-            self.switch_matrix_module_name = [
-                m for m in self.switch_matrix_module_name if self.tile_name in m
+            module_name_candidates = [
+                m for m in module_name_candidates if self.tile_name in m
             ]
 
-            if (
-                len(self.switch_matrix_hier_path) == 0
-                or len(self.switch_matrix_module_name) == 0
-            ):
+            if len(hier_path_candidates) == 0 or len(module_name_candidates) == 0:
                 raise ValueError(
                     f"No switch matrix instance or module found for SuperTile "
                     f"{self.unique_tile_name}"
                 )
 
-            if (
-                len(self.switch_matrix_hier_path) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
+            if len(hier_path_candidates) > 1 or len(module_name_candidates) > 1:
                 raise ValueError(
                     f"Multiple switch matrix instances or modules found Tile "
                     f"{self.tile_name} in SuperTile {self.unique_tile_name}."
                 )
 
-            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
+            self.switch_matrix_hier_path = hier_path_candidates[0]
+            self.switch_matrix_module_name = module_name_candidates[0]
 
             logger.info(
                 f"Tile {self.tile_name} is part of super tile {self.unique_tile_name}."
@@ -535,6 +532,12 @@ class FABulousTileTimingModel:
         -------
         float
             Delay in nanoseconds between the two PIPs.
+
+        Raises
+        ------
+        ValueError
+            If the tile has no switch matrix, or if the cached entry for the
+            PIP was written by the physical delay path.
         """
         logger.info(
             f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
@@ -542,7 +545,13 @@ class FABulousTileTimingModel:
 
         synth_model = self.hdlnx_tm_synth
 
-        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_dst, None)
+        if self.switch_matrix_module_name is None:
+            raise ValueError(
+                f"No switch matrix found for tile {self.tile_name}; "
+                f"{pip_src} -> {pip_dst} is not an internal PIP."
+            )
+
+        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_dst)
 
         if pip_cache is not None:
             logger.info(
@@ -575,11 +584,17 @@ class FABulousTileTimingModel:
         logger.info(f"  Found switch matrix mux instance: {swm_mux_for_pips[0]}")
 
         # Get the resolved pins for the switch matrix mux instance.
-        swm_mux_resolved = (
-            synth_model.net_to_pin_paths_for_instance_resolved(swm_mux_for_pips[0])
-            if pip_cache is None
-            else pip_cache.swm_mux_resolved
-        )
+        if pip_cache is None:
+            swm_mux_resolved = synth_model.net_to_pin_paths_for_instance_resolved(
+                swm_mux_for_pips[0]
+            )
+        elif pip_cache.swm_mux_resolved is None:
+            raise ValueError(
+                f"Cached entry for PIP {pip_dst!r} carries no resolved switch matrix "
+                f"mux pins; structural and physical delays must not share a cache."
+            )
+        else:
+            swm_mux_resolved = pip_cache.swm_mux_resolved
 
         logger.info("Switch matrix mux resolved pins for src and dst:")
         logger.info(f"  {pip_src}: {swm_mux_resolved[pip_src]}")
@@ -651,17 +666,36 @@ class FABulousTileTimingModel:
         -------
         float
             Delay in nanoseconds between the two PIPs.
+
+        Raises
+        ------
+        ValueError
+            If the physical-level timing model is not initialized, if the tile
+            has no switch matrix, or if the cached entry for the PIP was
+            written by the structural delay path.
         """
         logger.info(
             f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
         )
 
-        synth_model: HdlnxTimingModel = self.hdlnx_tm_synth
-        phys_model: HdlnxTimingModel = self.hdlnx_tm_phys
-        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_dst, None)
+        synth_model = self.hdlnx_tm_synth
+        if self.hdlnx_tm_phys is None:
+            raise ValueError(
+                "Physical-level timing model is not initialized; physical PIP "
+                "delays are unavailable in STRUCTURAL mode."
+            )
+        phys_model = self.hdlnx_tm_phys
+
+        if self.switch_matrix_module_name is None:
+            raise ValueError(
+                f"No switch matrix found for tile {self.tile_name}; "
+                f"{pip_src} -> {pip_dst} is not an internal PIP."
+            )
+
+        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_dst)
 
         # Reference output ports for convergence checks.
-        ref_output_port: str = None
+        ref_output_port: str | None = None
         swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None = None
 
         # Skip algorithms if we have a cache hit for the internal PIP, which means
@@ -707,13 +741,17 @@ class FABulousTileTimingModel:
         # Algorithm_2: Find the nearest top level ports connected to all the nets
         # of the swm mux input pins. We reverse the timing graph to find the
         # input ports (towards inputs). Good default value is 4. Fastest is 1.
-        swm_nearest_ports_in = (
-            synth_model.nearest_ports_from_instance_pin_nets(
+        if pip_cache is None:
+            swm_nearest_ports_in = synth_model.nearest_ports_from_instance_pin_nets(
                 swm_mux_for_pips[0], reverse=True, num_ports=1
             )
-            if pip_cache is None
-            else pip_cache.swm_nearest_ports_in
-        )
+        elif pip_cache.swm_nearest_ports_in is None:
+            raise ValueError(
+                f"Cached entry for PIP {pip_dst!r} carries no physical-level nearest "
+                f"input ports; structural and physical delays must not share a cache."
+            )
+        else:
+            swm_nearest_ports_in = pip_cache.swm_nearest_ports_in
 
         swm_nearest_in_ports_for_each_swm_wire = swm_nearest_ports_in[0]
         swm_nearest_in_ports_all = swm_nearest_ports_in[1]
@@ -723,15 +761,22 @@ class FABulousTileTimingModel:
         # the sw mux. So we will use the output port as a sentinel to find the
         # convergence node.
         if swm_in_buf:
-            swm_nearest_ports_out = (
-                synth_model.nearest_ports_from_instance_pin_nets(
-                    swm_mux_for_pips[0], reverse=False, num_ports=1
+            if pip_cache is None:
+                swm_nearest_ports_out = (
+                    synth_model.nearest_ports_from_instance_pin_nets(
+                        swm_mux_for_pips[0], reverse=False, num_ports=1
+                    )
                 )
-                if pip_cache is None
-                else pip_cache.swm_nearest_ports_out
-            )
+            elif pip_cache.swm_nearest_ports_out is None:
+                raise ValueError(
+                    f"Cached entry for PIP {pip_dst!r} carries no physical-level "
+                    f"nearest output ports; structural and physical delays must not "
+                    f"share a cache."
+                )
+            else:
+                swm_nearest_ports_out = pip_cache.swm_nearest_ports_out
 
-            ref_output_port: str = swm_nearest_ports_out[0][f"{pip_dst}"][0]
+            ref_output_port = swm_nearest_ports_out[0][f"{pip_dst}"][0]
             logger.info("Single input Switch Matrix Mux detected.")
 
         # ---------------------------#
@@ -741,17 +786,22 @@ class FABulousTileTimingModel:
         logger.info("Starting physical extraction of the switch matrix mux for pips")
 
         # Algorithm_4: Find the converging node (the output pin of the swm mux)
-        best_nodes, best_cost, dists = (
-            phys_model.earliest_common_nodes(
+        if pip_cache is None:
+            best_nodes, best_cost, dists = phys_model.earliest_common_nodes(
                 sources=swm_nearest_in_ports_all,
                 mode="max",
                 sentinel=ref_output_port,
                 prefer_sentinel_for_single_source=True,
                 follow_steps_to_sentinel=3,
             )
-            if pip_cache is None
-            else pip_cache.swm_output_pin
-        )
+        elif pip_cache.swm_output_pin is None:
+            raise ValueError(
+                f"Cached entry for PIP {pip_dst!r} carries no physical-level switch "
+                f"matrix output pin; structural and physical delays must not share "
+                f"a cache."
+            )
+        else:
+            best_nodes, best_cost, dists = pip_cache.swm_output_pin
 
         swm_phys_output: str = best_nodes[0]
 
@@ -800,6 +850,12 @@ class FABulousTileTimingModel:
         -------
         float
             Estimated delay in nanoseconds for the external PIP.
+
+        Raises
+        ------
+        ValueError
+            If the cached entry for the PIP was written by the physical delay
+            path.
         """
         logger.info(
             f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
@@ -850,7 +906,7 @@ class FABulousTileTimingModel:
             return delay
 
         # SWM output to the next SWM input
-        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_src, None)
+        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_src)
 
         if pip_cache is None:
             logger.info(
@@ -858,6 +914,12 @@ class FABulousTileTimingModel:
                 f"connected delay: {default_delay} ns"
             )
             return default_delay
+
+        if pip_cache.swm_mux_resolved is None:
+            raise ValueError(
+                f"Cached entry for PIP {pip_src!r} carries no resolved switch matrix "
+                f"mux pins; structural and physical delays must not share a cache."
+            )
 
         # We just follow the wire to next swm input pin, also to maybe catch
         # a buffer in between.
@@ -895,6 +957,12 @@ class FABulousTileTimingModel:
         -------
         float
             Estimated delay in nanoseconds for the external PIP.
+
+        Raises
+        ------
+        ValueError
+            If the physical-level timing model is not initialized, or if the
+            cached entry for the PIP was written by the structural delay path.
         """
         logger.info(
             f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
@@ -904,6 +972,11 @@ class FABulousTileTimingModel:
             f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}"
         )
 
+        if self.hdlnx_tm_phys is None:
+            raise ValueError(
+                "Physical-level timing model is not initialized; physical PIP "
+                "delays are unavailable in STRUCTURAL mode."
+            )
         phys_model = self.hdlnx_tm_phys
 
         default_delay: float = 0.001
@@ -944,7 +1017,7 @@ class FABulousTileTimingModel:
             return delay
 
         # SWM output to the next SWM input
-        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_src, None)
+        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_src)
 
         if pip_cache is None:
             logger.info(
@@ -952,6 +1025,13 @@ class FABulousTileTimingModel:
                 f"connected delay: {default_delay} ns"
             )
             return default_delay
+
+        if pip_cache.swm_output_pin is None:
+            raise ValueError(
+                f"Cached entry for PIP {pip_src!r} carries no physical-level switch "
+                f"matrix output pin; structural and physical delays must not share "
+                f"a cache."
+            )
 
         # We just follow the wire to next swm input pin, also to maybe catch
         # a buffer in between.

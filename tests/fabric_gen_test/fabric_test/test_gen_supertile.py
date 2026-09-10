@@ -25,6 +25,7 @@ skip cleanly when it is absent.
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -42,7 +43,7 @@ from tests.fabric_definition.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
 
 
-def grid(rows: int, cols: int) -> list[list[Tile]]:
+def grid(rows: int, cols: int) -> list[list[Tile | None]]:
     """Build a fully-populated `rows` x `cols` tile grid."""
     return [[make_empty_tile(f"T_X{x}Y{y}") for x in range(cols)] for y in range(rows)]
 
@@ -132,7 +133,9 @@ def supertile_grid(
     }
 
     def instance_name(x: int, y: int) -> str:
-        return f"Tile_X{x}Y{y}_{tileMap[y][x].name}"
+        tile = tileMap[y][x]
+        assert tile is not None
+        return f"Tile_X{x}Y{y}_{tile.name}"
 
     return GridConnectivity(
         netlist,
@@ -154,7 +157,8 @@ def supertile_netlist(
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
-        generateSuperTile(writer, st, **kwargs)
+        gen_kwargs: dict[str, Any] = dict(kwargs)
+        generateSuperTile(writer, st, **gen_kwargs)
         text = out.read_text()
         for tile in {t.name: t for t in tiles}.values():
             text += _tile_stub(tile)

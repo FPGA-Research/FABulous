@@ -377,6 +377,11 @@ class FABulousSettings(BaseSettings):
         Path | str
             The resolved path to the tool if found, tool name otherwise.
 
+        Raises
+        ------
+        ValueError
+            If the validator runs for a field with no known tool command.
+
         Notes
         -----
         This method logs a warning if a tool is not found in `PATH`, as some
@@ -396,7 +401,9 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name)
+        if info.field_name is None or info.field_name not in tool_map:
+            raise ValueError(f"No tool command is known for field {info.field_name!r}.")
+        tool = tool_map[info.field_name]
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
@@ -406,7 +413,7 @@ class FABulousSettings(BaseSettings):
             f"{tool} not found in PATH during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return tool_map[info.field_name]
+        return tool
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:

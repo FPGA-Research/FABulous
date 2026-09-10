@@ -2,8 +2,12 @@
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.define import IO, Direction, Side
+
+if TYPE_CHECKING:
+    from _csv import Writer
 
 
 class PortType(Enum):
@@ -24,95 +28,52 @@ class PortType(Enum):
 class PortGeometry:
     """A data structure representing the geometry of a Port.
 
-    Sets all attributes to default values: None for names and directions,
-    zero for numeric values, and appropriate defaults for enumerated types.
-
     Attributes
     ----------
-    name : str | None, optional
+    name : str
         Name of the port
-    source_name : str | None, optional
+    source_name : str
         Name of the port source
-    destName : str | None, optional
+    destName : str
         Name of the port destination
-    type : PortType | None, optional
+    type : PortType
         Type of the port
     io_direction : IO
         IO direction of the port.
-    side_of_tile : Side
-        Side of the tile the port's wire is on.
-    offset : int
-        Offset to the connected port.
-    wire_direction : Direction | None, optional
-        Direction of the ports wire
-    groupId : int
-        ID of the port group.
-    groupWires : int
-        Number of wires in the port group.
     relX : int
         X coordinate of the port, relative to its parent (bel, switch matrix).
     relY : int
         Y coordinate of the port, relative to its parent (bel, switch matrix).
+    side_of_tile : Side
+        Side of the tile the port's wire is on.
+    offset : int
+        Offset to the connected port.
+    wire_direction : Direction
+        Direction of the ports wire; `Direction.JUMP` for ports that have no
+        cardinal direction, matching `TilePort.wire_direction`.
+    groupId : int
+        ID of the port group.
+    groupWires : int
+        Number of wires in the port group.
     nextId : int
         ID of the next port in the group.
     """
 
-    name: str | None = None
-    source_name: str | None = None
-    destName: str | None = None
-    type: PortType | None = None
-    io_direction: IO = IO.NULL
+    name: str
+    source_name: str
+    destName: str
+    type: PortType
+    io_direction: IO
+    relX: int
+    relY: int
     side_of_tile: Side = Side.ANY
     offset: int = 0
-    wire_direction: Direction | None = None
+    wire_direction: Direction = Direction.JUMP
     groupId: int = 0
     groupWires: int = 0
-    relX: int = 0
-    relY: int = 0
     nextId: int = 1
 
-    def generateGeometry(
-        self,
-        name: str,
-        source_name: str,
-        destName: str,
-        portType: PortType,
-        io_direction: IO,
-        relX: int,
-        relY: int,
-    ) -> None:
-        """Generate the geometry for a port.
-
-        Sets the basic geometric and connection properties of the port,
-        including its name, source/destination connections, type, I/O direction,
-        and relative position within its parent component.
-
-        Parameters
-        ----------
-        name : str
-            Name of the port
-        source_name : str
-            Name of the port source
-        destName : str
-            Name of the port destination
-        portType : PortType
-            Type of the port (SWITCH_MATRIX, JUMP, or BEL)
-        io_direction : IO
-            I/O direction of the port (INPUT, OUTPUT, or INOUT)
-        relX : int
-            X coordinate relative to the parent component
-        relY : int
-            Y coordinate relative to the parent component
-        """
-        self.name = name
-        self.source_name = source_name
-        self.destName = destName
-        self.type = portType
-        self.io_direction = io_direction
-        self.relX = relX
-        self.relY = relY
-
-    def saveToCSV(self, writer: object) -> None:
+    def saveToCSV(self, writer: "Writer") -> None:
         """Save port geometry data to CSV format.
 
         Writes the port geometry information including type, name,
@@ -121,7 +82,7 @@ class PortGeometry:
 
         Parameters
         ----------
-        writer : object
+        writer : Writer
             The CSV `writer` object to use for output
         """
         writer.writerows(

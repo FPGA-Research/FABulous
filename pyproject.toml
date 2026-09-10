@@ -124,6 +124,7 @@ dev = [
   "ruff>=0.12.7",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
+  "ty>=0.0.73",
 ]
 
 [tool.coverage.run]
@@ -171,6 +172,23 @@ DEP002 = ["go-task-bin", "FABulous-bit-gen"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
+
+[tool.ty.src]
+# `gds_generator/script` runs inside OpenROAD's embedded interpreter, where
+# `odb`/`utl` are injected builtins that do not exist in the project venv.
+# Same exclusion deptry and interrogate already apply.
+exclude = [
+  "fabulous/fabric_generator/gds_generator/script",
+  "docs",
+  "build_hooks.py",
+]
+
+[tool.ty.rules]
+# LibreLane's `Flow.factory.register()` and `Step.factory.register()` are
+# annotated as returning a bare `Callable`, so every class registered through
+# them loses its type and subclassing one is `unsupported-base`. Nothing on
+# this side can restore it; the fix has to happen upstream.
+unsupported-base = "ignore"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }

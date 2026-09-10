@@ -12,16 +12,17 @@ from librelane.steps.common_variables import (
 from librelane.steps.odb import OdbpyStep
 from librelane.steps.step import (
     MetricsUpdate,
-    Step,
     ViewsUpdate,
 )
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
 def _migrate_unmatched_io(x: object) -> str:
     return "unmatched_design" if x else "none"
 
 
-@Step.factory.register()
+@register_step
 class FABulousTileIOPlacement(OdbpyStep):
     """Place I/O pins using a custom script.
 

@@ -40,8 +40,8 @@ def vg() -> VerilogGateLevelTimingGraph:
     obj.verilog_netlist_content = TEST_NETLIST
     obj.graph = nx.DiGraph()
     obj.reverse_graph = nx.DiGraph()
-    obj.input_ports = {"IN1", "IN2"}
-    obj.output_ports = {"OUT1", "OUT2"}
+    obj.input_ports = ["IN1", "IN2"]
+    obj.output_ports = ["OUT1", "OUT2"]
     return obj
 
 
@@ -289,7 +289,7 @@ def test_nearest_port_from_pin_multiple_forward(
             ("N2", "OUT2"),
         ]
     )
-    vg.output_ports = {"OUT1", "OUT2"}
+    vg.output_ports = ["OUT1", "OUT2"]
     assert vg.nearest_port_from_pin("PIN", reverse=False, num_ports=2) == [
         "OUT1",
         "OUT2",
@@ -307,7 +307,7 @@ def test_nearest_port_from_pin_multiple_reverse(
             ("N2", "IN2"),
         ]
     )
-    vg.input_ports = {"IN1", "IN2"}
+    vg.input_ports = ["IN1", "IN2"]
     assert vg.nearest_port_from_pin("PIN", reverse=True, num_ports=2) == ["IN1", "IN2"]
 
 
@@ -315,7 +315,7 @@ def test_nearest_port_from_pin_multiple_no_ports(
     vg: VerilogGateLevelTimingGraph,
 ) -> None:
     vg.graph.add_edge("PIN", "N1")
-    vg.output_ports = {"OUT1", "OUT2"}
+    vg.output_ports = ["OUT1", "OUT2"]
     assert vg.nearest_port_from_pin("PIN", reverse=False, num_ports=2) == []
 
 

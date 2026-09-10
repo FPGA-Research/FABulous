@@ -29,12 +29,17 @@ class VerilogCodeGenerator(CodeGenerator):
         else:
             self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
-    def addHeader(self, name: str, _package: str = "", indentLevel: int = 0) -> None:
+    def addHeader(
+        self,
+        name: str,
+        package: str = "",  # noqa: ARG002
+        indentLevel: int = 0,
+    ) -> None:
         """Add the Verilog module header.
 
         Args:
             name: Module name
-            _package: Package parameter (unused in Verilog)
+            package: Package parameter (unused in Verilog)
             indentLevel: The indentation level
         """
         self._add(f"module {name}", indentLevel)
@@ -71,14 +76,14 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(")", indentLevel)
 
     def addParameter(
-        self, name: str, storageType: str, value: str, indentLevel: int = 0
+        self, name: str, storageType: str, value: int | str, indentLevel: int = 0
     ) -> None:
         """Add a parameter declaration.
 
         Args:
             name: Parameter name
             storageType: Parameter type or width specification
-            value: Default value
+            value: Default value, a bare integer or a sized literal
             indentLevel: The indentation level
         """
         if storageType.startswith("["):
@@ -209,8 +214,8 @@ class VerilogCodeGenerator(CodeGenerator):
     def addConnectionVector(
         self,
         name: str,
-        startIndex: int,
-        endIndex: int = 0,
+        startIndex: str | int,
+        endIndex: str | int = 0,
         reg: bool = False,
         indentLevel: int = 0,
     ) -> None:
@@ -418,7 +423,7 @@ end
     def addAssignScalar(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
         delay: int = 0,  # noqa: ARG002
         indentLevel: int = 0,
         inverted: bool = False,

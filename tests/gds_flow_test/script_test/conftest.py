@@ -257,16 +257,16 @@ class MockITermPower:
 
     def __init__(self, mterm: MockMTermPower) -> None:
         self._mterm = mterm
-        self._net: object | None = None
+        self._net: MockNet | None = None
 
     def getMTerm(self) -> MockMTermPower:  # noqa: D401
         return self._mterm
 
-    def connect(self, net: object) -> None:
+    def connect(self, net: MockNet) -> None:
         self._net = net
 
 
-class MockInst:
+class MockInstPower:
     """Mock instance with location and terminals."""
 
     def __init__(
@@ -294,14 +294,14 @@ class MockInst:
 class MockBlockPower:
     """Mock ODB block for power geometry tests."""
 
-    def __init__(self, instances: list[MockInst]) -> None:
+    def __init__(self, instances: list[MockInstPower]) -> None:
         self._nets: dict[str, MockNet] = {}
         self._instances = instances
 
     def findNet(self, name: str) -> MockNet | None:  # noqa: D401
         return self._nets.get(name)
 
-    def getInsts(self) -> list[MockInst]:  # noqa: D401
+    def getInsts(self) -> list[MockInstPower]:  # noqa: D401
         return self._instances
 
     def addNet(self, net: MockNet) -> None:
@@ -311,7 +311,7 @@ class MockBlockPower:
 class MockReaderPower:
     """Mock ODB reader for power geometry tests."""
 
-    def __init__(self, instances: list[MockInst]) -> None:
+    def __init__(self, instances: list[MockInstPower]) -> None:
         self.block = MockBlockPower(instances)
         self.db = MockDb(MockTech())
 
@@ -347,7 +347,8 @@ def make_mock_odb_power(recorder: GeometryRecorder) -> SimpleNamespace:
     def dbBox_create(
         bpin: MockBPin, _layer: object, x1: int, y1: int, x2: int, y2: int
     ) -> None:
-        bterm_name = bpin._bterm.getName() if bpin._bterm else "unknown"  # noqa: SLF001
+        bterm = bpin._bterm  # noqa: SLF001
+        bterm_name = (bterm.getName() if bterm else None) or "unknown"
         recorder.bboxes.append((bterm_name, x1, y1, x2, y2))
 
     return SimpleNamespace(
@@ -398,6 +399,8 @@ def run_power_function(
 
     vpwr_net = reader.block.findNet("VPWR")
     vgnd_net = reader.block.findNet("VGND")
+    assert vpwr_net is not None
+    assert vgnd_net is not None
 
     # Create wires
     vpwr_wire = odb.dbSWire.create(vpwr_net, "ROUTED")
@@ -748,11 +751,13 @@ class MockBTermIoPlace:
 class MockTechIoPlace:
     """Mock ODB technology for IO place tests."""
 
-    def __init__(self, h_layer: MockLayer, v_layer: MockLayer) -> None:
+    def __init__(
+        self, h_layer: MockLayer | None = None, v_layer: MockLayer | None = None
+    ) -> None:
         self._hl = h_layer
         self._vl = v_layer
 
-    def findLayer(self, name: str) -> MockLayer:  # noqa: D401
+    def findLayer(self, name: str) -> MockLayer | None:  # noqa: D401
         return self._hl if name == "H" else self._vl
 
 
@@ -819,7 +824,7 @@ def mock_odb_io_place(
         # Record for box_recorder (infrastructure tests)
         box_recorder(bpin, layer, x1, y1, x2, y2)
         # Record for pin_placement_recorder (behavior tests)
-        layer_name = layer.getName() if hasattr(layer, "getName") else str(layer)
+        layer_name = layer.getName() if isinstance(layer, MockLayer) else str(layer)
         if isinstance(bpin, MockBPinIoPlace) and bpin.bterm_name:
             pin_placement_recorder.placements.append(
                 (bpin.bterm_name, layer_name, x1, y1, x2, y2)

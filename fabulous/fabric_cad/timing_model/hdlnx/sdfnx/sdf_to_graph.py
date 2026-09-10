@@ -288,7 +288,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         weight: str | None = None,
         sentinel_prefix: str = "_sentinel_",
         reverse: bool = False,
-    ) -> tuple[list[str], str]:
+    ) -> tuple[list[str] | None, str | None]:
         """Shortest path to nearest target using sentinel-node trick.
 
         Find the shortest path from `source` to the nearest node in `targets`
@@ -312,10 +312,10 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         Returns
         -------
-        path : list[str]
+        path : list[str] | None
             List of nodes from `source` to the closest target (no sentinel),
             or None if no target is reachable.
-        closest_target : str
+        closest_target : str | None
             The closest target node, or None if no target is reachable.
 
         Raises

@@ -71,11 +71,12 @@ class OpenStaTool(StaTool):
         """
         self._check_errors()
 
+        lib_files = self.sta_liberty_files
         sta_tcl_script: str = ""
-        if isinstance(self.lib_files, Path):
-            sta_tcl_script += f"read_liberty {self.lib_files}\n"
+        if isinstance(lib_files, Path):
+            sta_tcl_script += f"read_liberty {lib_files}\n"
         else:
-            for lib in self.lib_files:
+            for lib in lib_files:
                 sta_tcl_script += f"read_liberty {lib}\n"
         sta_tcl_script += f"read_verilog {self.verilog_netlist}\n"
         sta_tcl_script += f"link_design {self.top_name}\n"
@@ -137,7 +138,14 @@ class OpenStaTool(StaTool):
         -------
         Path
             The path to the netlist file used for STA analysis.
+
+        Raises
+        ------
+        RuntimeError
+            If no netlist file has been set.
         """
+        if self.verilog_netlist is None:
+            raise RuntimeError("No netlist file has been set on the STA tool.")
         return self.verilog_netlist
 
     @sta_netlist_file.setter
@@ -149,6 +157,8 @@ class OpenStaTool(StaTool):
         netl : Path
             The path to the netlist file.
         """
+        if self.verilog_netlist is not None:
+            logger.debug(f"Replacing STA netlist {self.verilog_netlist} with {netl}.")
         self.verilog_netlist = netl
 
     @property
@@ -159,7 +169,14 @@ class OpenStaTool(StaTool):
         -------
         str
             The name of the design being analyzed.
+
+        Raises
+        ------
+        RuntimeError
+            If no design name has been set.
         """
+        if self.top_name is None:
+            raise RuntimeError("No design name has been set on the STA tool.")
         return self.top_name
 
     @sta_design_name.setter
@@ -171,28 +188,39 @@ class OpenStaTool(StaTool):
         name : str
             The name of the design being analyzed.
         """
+        if self.top_name is not None:
+            logger.debug(f"Replacing STA design name {self.top_name} with {name}.")
         self.top_name = name
 
     @property
-    def sta_liberty_files(self) -> list[Path] | Path | None:
+    def sta_liberty_files(self) -> list[Path] | Path:
         """Return the list of Liberty files used for STA analysis.
 
         Returns
         -------
-        list[Path] | Path | None
+        list[Path] | Path
             The list of Liberty files used for STA analysis.
+
+        Raises
+        ------
+        RuntimeError
+            If no Liberty files have been set.
         """
+        if self.lib_files is None:
+            raise RuntimeError("No Liberty files have been set on the STA tool.")
         return self.lib_files
 
     @sta_liberty_files.setter
-    def sta_liberty_files(self, files: list[Path] | Path | None) -> None:
+    def sta_liberty_files(self, files: list[Path] | Path) -> None:
         """Set the list of Liberty files used for STA analysis.
 
         Parameters
         ----------
-        files : list[Path] | Path | None
+        files : list[Path] | Path
             The list of Liberty files used for STA analysis.
         """
+        if self.lib_files is not None:
+            logger.debug(f"Replacing STA Liberty files {self.lib_files} with {files}.")
         self.lib_files = files
 
     @property
@@ -229,7 +257,7 @@ class OpenStaTool(StaTool):
 
     def _call_external(
         self,
-        executable: str,
+        executable: Path | str,
         args: list[str] | None = None,
         stdin_data: str = "",
         debug: bool = False,
@@ -240,7 +268,7 @@ class OpenStaTool(StaTool):
 
         Parameters
         ----------
-        executable : str
+        executable : Path | str
             The path to the executable to run.
         args : list[str] | None
             List of arguments to pass to the executable.
@@ -261,19 +289,20 @@ class OpenStaTool(StaTool):
         """
         if args is None:
             args = []
+        command = [str(executable), *args]
 
         if debug:
             logger.debug("Debug mode enabled for external command.")
-            logger.debug(f"Calling external command: {executable} {' '.join(args)}")
+            logger.debug(f"Calling external command: {' '.join(command)}")
             logger.debug(f"With stdin data:\n{stdin_data}")
             result = subprocess.run(
-                [executable, *args],
+                command,
                 input=stdin_data,
                 text=True,
             )
         else:
             result = subprocess.run(
-                [executable, *args],
+                command,
                 input=stdin_data,
                 text=True,
                 capture_output=True,
@@ -282,8 +311,7 @@ class OpenStaTool(StaTool):
 
         if result.returncode != 0:
             raise RuntimeError(
-                f"Command '{' '.join([executable, *args])}' "
-                f"failed with error: {result.stderr}"
+                f"Command '{' '.join(command)}' failed with error: {result.stderr}"
             )
         return result
 

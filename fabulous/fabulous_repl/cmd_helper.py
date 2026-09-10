@@ -9,7 +9,7 @@ import pprint
 from pathlib import Path
 from typing import Annotated
 
-from cmd2 import Cmd, with_annotated
+from cmd2 import Choices, Cmd, CompletionItem, with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -37,9 +37,12 @@ class HelperCommandSet(ReplCommandSet):
             str,
             Argument(
                 help_text="A Bel",
-                completer=lambda self: [
-                    bel.name for bel in self._cmd.fabulousAPI.getBels()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(bel.name)
+                        for bel in self._cmd.fabulousAPI.getBels()
+                    ]
+                ),
             ),
         ],
     ) -> None:
@@ -61,9 +64,12 @@ class HelperCommandSet(ReplCommandSet):
             str,
             Argument(
                 help_text="A tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
     ) -> None:

@@ -18,7 +18,9 @@ from librelane.config.variable import Variable
 from librelane.logging.logger import warn
 from librelane.state.state import State
 from librelane.steps import openroad as OpenROAD
-from librelane.steps.step import MetricsUpdate, Step, StepError, ViewsUpdate
+from librelane.steps.step import MetricsUpdate, StepError, ViewsUpdate
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
 class DRTTimedOutError(StepError):
@@ -42,7 +44,7 @@ class _GroupLeaderPopen(subprocess.Popen):
         return "dead"
 
 
-@Step.factory.register()
+@register_step
 class FABulousDetailedRoutingTimed(OpenROAD.DetailedRouting):
     """`OpenROAD.DetailedRouting` with a hard wall-clock timeout."""
 

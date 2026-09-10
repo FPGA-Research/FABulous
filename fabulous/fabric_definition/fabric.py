@@ -31,7 +31,7 @@ class Fabric:
     ----------
     fabric_dir : Path
         The path to the fabric config file
-    tile : list[list[Tile]]
+    tile : list[list[Tile | None]]
         The tile map of the fabric
     name : str
         The name of the fabric
@@ -91,7 +91,7 @@ class Fabric:
     """
 
     fabric_dir: Path
-    tile: list[list[Tile]] = field(default_factory=list)
+    tile: list[list[Tile | None]] = field(default_factory=list)
 
     name: str = "eFPGA"
     numberOfRows: int = 15
@@ -356,6 +356,8 @@ class Fabric:
                     fy = base_fy + ly
                     fx = base_fx + lx
                     grid_tile = self.tile[fy][fx]
+                    if grid_tile is None:
+                        continue
 
                     for p in grid_tile.get_sjump_ports():
                         if not p.is_output:
@@ -396,6 +398,8 @@ class Fabric:
 
         for fx, fy in touched:
             tile = self.tile[fy][fx]
+            if tile is None:
+                continue
             tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def iter_super_tile_placements(
@@ -455,10 +459,11 @@ class Fabric:
         fabric = ""
         for i in range(self.numberOfRows):
             for j in range(self.numberOfColumns):
-                if self.tile[i][j] is None:
+                grid_tile = self.tile[i][j]
+                if grid_tile is None:
                     fabric += "Null".ljust(15) + "\t"
                 else:
-                    fabric += f"{str(self.tile[i][j].name).ljust(15)}\t"
+                    fabric += f"{str(grid_tile.name).ljust(15)}\t"
             fabric += "\n"
 
         fabric += "\n"
@@ -490,35 +495,39 @@ class Fabric:
             for x, tile in enumerate(row):
                 yield (x, y), tile
 
-    def getTileByName(self, name: str) -> Tile | SuperTile:
-        """Get a tile by its name from the fabric.
+    def get_tile_by_name(self, name: str) -> Tile | SuperTile:
+        """Get a tile or supertile by its name from the fabric.
 
-        Search for the tile first in the used tiles dictionary, then in the unused tiles
-        dictionary then in the supertiles if not found.
+        Searches the used tiles, then the unused tiles, then the supertiles.
+        Callers that can only handle an ordinary tile must narrow the result.
 
         Parameters
         ----------
         name : str
-            The name of the tile to retrieve.
+            The name of the tile or supertile to retrieve.
 
         Returns
         -------
         Tile | SuperTile
-            The tile or supertile object if found.
+            The tile or supertile object.
 
         Raises
         ------
         KeyError
-            If the tile name is not found in either used or unused tiles.
+            If `name` is neither a tile nor a supertile.
         """
         ret = self.tileDic.get(name)
         if ret is None:
             ret = self.unusedTileDic.get(name)
-        if ret is None:
-            ret = self.getSuperTileByName(name)  # Check if it's a supertile
-        if ret is None:
-            raise KeyError(f"Tile {name} not found in fabric.")
-        return ret
+        if ret is not None:
+            return ret
+
+        # `getSuperTileByName` reports a missing supertile, which is the wrong
+        # name for what the caller asked about.
+        try:
+            return self.getSuperTileByName(name)
+        except KeyError:
+            raise KeyError(f"Tile {name} not found in fabric.") from None
 
     def getSuperTileByName(self, name: str) -> SuperTile:
         """Get a supertile by its name from the fabric.
@@ -589,10 +598,11 @@ class Fabric:
                 f"Invalid tile coordinates: ({x},{y}) max (0,0) - ({self.numberOfRows},"
                 f"{self.numberOfColumns})"
             )
-        if self.tile[y][x] is None:
+        grid_tile = self.tile[y][x]
+        if grid_tile is None:
             return []
 
-        return self.tile[y][x].bels
+        return grid_tile.bels
 
     def find_tile_positions(
         self, tile: Tile | SuperTile

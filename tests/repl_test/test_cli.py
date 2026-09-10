@@ -7,6 +7,7 @@ generation, bitstream creation, simulation execution, and GUI commands.
 import os
 from decimal import Decimal
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
@@ -573,7 +574,7 @@ class TestResolveDirectionalFix:
 class TestGenTileMacroFlags:
     """End-to-end CLI wiring for the explicit size flags."""
 
-    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
+    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MagicMock:
         mocker.patch(
             "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
@@ -640,7 +641,7 @@ class TestGenTileMacroFlags:
 class TestRunEFPGAMacroForwarding:
     """End-to-end CLI wiring: flags forwarded to the API entrypoint."""
 
-    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
+    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MagicMock:
         mocker.patch(
             "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
@@ -813,7 +814,10 @@ def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
     """A non-existent RTL file is rejected before anything is written."""
     before = custom_prims_file(cli)
 
+    add_prim = cli.get_command_func("add_as_custom_prim")
+    assert add_prim is not None
+
     with pytest.raises(CommandError, match="does_not_exist.v"):
-        cli.get_command_func("add_as_custom_prim")("does_not_exist.v")
+        add_prim("does_not_exist.v")
 
     assert custom_prims_file(cli) == before

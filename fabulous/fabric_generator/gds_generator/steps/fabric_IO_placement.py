@@ -6,12 +6,13 @@ from librelane.state.state import State
 from librelane.steps.odb import OdbpyStep
 from librelane.steps.step import (
     MetricsUpdate,
-    Step,
     ViewsUpdate,
 )
 
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
-@Step.factory.register()
+
+@register_step
 class FABulousFabricIOPlacement(OdbpyStep):
     """Stamp fabric-level signal BPins onto their driving/sinking macro pins."""
 

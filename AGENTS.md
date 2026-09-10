@@ -15,6 +15,7 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 - **EDA toolchain: Nix.** `flake.nix` pins Yosys, nextpnr, OpenROAD, GHDL, Librelane, etc. The **GDS / ASIC flow** (anything under `gds_flow_test`, `librelane_plugin_fabulous`, or `fabulous/fabric_generator/gds_generator`) requires the Nix shell — `nix develop` first, when inside the shell you will not need `uv`. Don't try to substitute system installs of these tools; CI uses Nix and version drift will burn you.
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`.
+- **Type checking: `ty`.** The whole project is fully typed and at a clean state. If anything fail, fix the type annotation.
 
 ## Coding Taste
 

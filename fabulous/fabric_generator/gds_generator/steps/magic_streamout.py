@@ -14,10 +14,12 @@ from typing import Any
 
 from librelane.state.state import State
 from librelane.steps.magic import StreamOut
-from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
+from librelane.steps.step import MetricsUpdate, ViewsUpdate
+
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
-@Step.factory.register()
+@register_step
 class FABulousMagicStreamOut(StreamOut):
     """Magic.StreamOut variant that pulls DIE_AREA from `design__die__bbox`."""
 

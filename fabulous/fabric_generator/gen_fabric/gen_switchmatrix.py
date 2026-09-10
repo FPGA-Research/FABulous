@@ -23,7 +23,7 @@ from fabulous.fabric_definition.define import (
     Direction,
     MultiplexerStyle,
 )
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -32,17 +32,17 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 )
 
 
-def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
+def _unconnected_port_diagnostic(ports: list[TilePort], port_name: str) -> str:
     """Explain an unconnected switch matrix port caused by NULL-wire expansion.
 
     A NULL-terminated spanning wire expands to `wires x distance` nested
-    wires (see `Port.expand_port_info_by_name`). When the switch matrix leaves some
+    wires (see `TilePort.expand_port_info_by_name`). When the switch matrix leaves some
     of those nested wires unconnected, the bare wire name is unhelpful, so this
     traces the wire back to its originating port and explains the expansion.
 
     Parameters
     ----------
-    ports : list[Port]
+    ports : list[TilePort]
         The ports of the tile whose switch matrix is being generated.
     port_name : str
         The expanded wire name that has no connections.
@@ -328,9 +328,9 @@ def _gen_switch_matrix_body(
             )
         elif muxSize == 1:
             if connections[portName][0] == "0":
-                writer.addAssignScalar(portName, 0)
+                writer.addAssignScalar(portName, "0")
             elif connections[portName][0] == "1":
-                writer.addAssignScalar(portName, 1)
+                writer.addAssignScalar(portName, "1")
             else:
                 writer.addAssignScalar(
                     portName,
@@ -472,7 +472,7 @@ def gen_super_tile_switch_matrix(
     if all_sjump_ports:
         writer.addComment("SJUMP inputs from child tiles", onNewLine=True)
         for lx, ly, p in all_sjump_ports:
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 writer.addPortScalar(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
 
@@ -495,7 +495,7 @@ def gen_super_tile_switch_matrix(
     if all_input_sjump:
         writer.addComment("Reverse SJUMP outputs (SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_at(lx, ly).name
             for k in range(p.wire_count):
                 writer.addPortScalar(
                     f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2

@@ -22,11 +22,11 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from fabulous.fabric_definition.bel import Bel
-    from fabulous.fabric_definition.port import Port
+    from fabulous.fabric_definition.port import TilePort
 
 
 def switch_matrix_signal_order(
-    ports: list[Port], bels: list[Bel]
+    ports: list[TilePort], bels: list[Bel]
 ) -> tuple[list[str], list[str]]:
     """Return the canonical `(sources, dests)` signal order for a switch matrix.
 
@@ -38,7 +38,7 @@ def switch_matrix_signal_order(
 
     Parameters
     ----------
-    ports : list[Port]
+    ports : list[TilePort]
         The tile's ports (`tile.portsInfo`).
     bels : list[Bel]
         The tile's BELs (`tile.bels`).
@@ -117,7 +117,7 @@ class SwitchMatrix:
         cls,
         path: Path,
         tile_name: str,
-        ports: list[Port] | None = None,
+        ports: list[TilePort] | None = None,
         bels: list[Bel] | None = None,
         preserve_list_order: bool = False,
     ) -> SwitchMatrix:
@@ -141,7 +141,7 @@ class SwitchMatrix:
             `.list`, `.v`, `.sv`, `.vhdl`, `.vhd`.
         tile_name : str
             Tile name, used only in the hand-written-HDL warning message.
-        ports : list[Port] | None, optional
+        ports : list[TilePort] | None, optional
             Tile ports, required to canonicalise a `.list` matrix.
         bels : list[Bel] | None, optional
             Tile BELs, used to canonicalise a `.list` matrix.
@@ -218,7 +218,7 @@ class SwitchMatrix:
     def _canonical_list_connections(
         cls,
         path: Path,
-        ports: list[Port],
+        ports: list[TilePort],
         bels: list[Bel],
         preserve_list_order: bool,
     ) -> dict[str, list[str]]:
@@ -233,7 +233,7 @@ class SwitchMatrix:
         ----------
         path : Path
             The `.list` file.
-        ports : list[Port]
+        ports : list[TilePort]
             Tile ports, for the canonical signal order.
         bels : list[Bel]
             Tile BELs, for the canonical signal order.

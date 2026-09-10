@@ -17,9 +17,11 @@ from fabulous.tools.yosys import YosysTool
 Type alias for Yosys bit vectors containing integers or logic values.
 
 BitVector represents signal values in Yosys netlists as lists containing
-integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
+integers (for signal IDs) or logic state strings ("0", "1", "x", "z"). `Bit`
+is one entry of such a vector.
 """
-BitVector = list[int | Literal["0", "1", "x", "z"]]
+Bit = int | Literal["0", "1", "x", "z"]
+BitVector = list[Bit]
 KeyValue = dict[str, str | int]
 
 
@@ -155,14 +157,14 @@ class YosysModule:
         Module attributes dictionary.
     parameter_default_values : KeyValue
         Parameter defaults dictionary.
-    ports : dict[str, YosysPortDetails]
-        Ports dictionary (will be converted to YosysPortDetails objects).
-    cells : dict[str, YosysCellDetails]
-        Cells dictionary (will be converted to YosysCellDetails objects).
-    memories : dict[str, YosysMemoryDetails]
-        Memories dictionary (will be converted to YosysMemoryDetails objects).
-    netnames : dict[str, YosysNetDetails]
-        Netnames dictionary (will be converted to YosysNetDetails objects).
+    ports : dict[str, dict[str, Any]]
+        Raw port entries, converted to `YosysPortDetails` objects.
+    cells : dict[str, dict[str, Any]]
+        Raw cell entries, converted to `YosysCellDetails` objects.
+    memories : dict[str, dict[str, Any]]
+        Raw memory entries, converted to `YosysMemoryDetails` objects.
+    netnames : dict[str, dict[str, Any]]
+        Raw net entries, converted to `YosysNetDetails` objects.
 
     Attributes
     ----------
@@ -192,10 +194,10 @@ class YosysModule:
         *,
         attributes: KeyValue,
         parameter_default_values: KeyValue,
-        ports: dict[str, YosysPortDetails],
-        cells: dict[str, YosysCellDetails],
-        memories: dict[str, YosysMemoryDetails],
-        netnames: dict[str, YosysNetDetails],
+        ports: dict[str, dict[str, Any]],
+        cells: dict[str, dict[str, Any]],
+        memories: dict[str, dict[str, Any]],
+        netnames: dict[str, dict[str, Any]],
     ) -> None:
         self.attributes = attributes
         self.parameter_default_values = parameter_default_values
@@ -261,9 +263,13 @@ class YosysJson:
         # VHDL is elaborated to Verilog by GHDL first; Verilog/SystemVerilog is
         # read by Yosys directly.
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
-            verilog = GhdlTool.synthesize_to_verilog(
-                self.srcPath, get_context().models_pack
-            )
+            models_pack = get_context().models_pack
+            if models_pack is None:
+                raise ValueError(
+                    f"Cannot elaborate {self.srcPath}: the project has no models "
+                    f"package, which GHDL needs on its analysis path."
+                )
+            verilog = GhdlTool.synthesize_to_verilog(self.srcPath, models_pack)
             yosys_src = self.srcPath.with_suffix(".v")
             yosys_src.write_text(verilog)
         else:

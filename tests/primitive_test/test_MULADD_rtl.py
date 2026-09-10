@@ -225,7 +225,7 @@ async def cocotb_test_muladd_configbit0_a_register(dut: MULADDProtocol) -> None:
     # Change A input to verify register is being used
     model.A = 3
     dut.A.value = 3
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
+    await Timer(Decimal(2), unit="ps")  # Allow combinational logic to settle
     # The output should use the registered value (7), not the new input (3)
     assert dut.A_reg_data.value == model.A_reg_data, (
         f"Registered A mode failed: Expected Q = {model.Q}, got {dut.Q.value}"
@@ -261,7 +261,7 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     # Change B input to verify register is being used
     model.B = 2
     dut.B.value = 2
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
+    await Timer(Decimal(2), unit="ps")  # Allow combinational logic to settle
     # The output should use the registered value (9), not the new input (2)
     assert dut.B_reg_data.value == model.B_reg_data, (
         f"Registered B mode failed: Expected B_reg = {model.B_reg_data}, "
@@ -284,7 +284,7 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     dut.C.value = 15
     await RisingEdge(dut.UserCLK)  # Clock to load C_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
+    await Timer(Decimal(2), unit="ps")  # Allow combinational logic to settle
     # Verify C_reg updates regardless of ConfigBits[2]
     assert dut.C_reg_data.value == model.C_reg_data
 
@@ -299,7 +299,7 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     # Change C input to verify register is being used
     model.C = 5
     dut.C.value = 5
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
+    await Timer(Decimal(2), unit="ps")  # Allow combinational logic to settle
     # The output should use the registered value (20), not the new input (5)
     assert dut.C_reg_data.value == model.C_reg_data
 
@@ -534,7 +534,7 @@ async def cocotb_test_muladd_configbit5_output_select(dut: MULADDProtocol) -> No
     dut.ConfigBits.value = BIT_3 | BIT_5
 
     # Allow combinational logic to settle (no clock edge needed for output mux)
-    await Timer(Decimal(10), units="ps")
+    await Timer(Decimal(10), unit="ps")
 
     acc_output = int(dut.Q.value)
     assert dut.Q.value == model.Q, (

@@ -46,7 +46,7 @@ def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
     Fabric
         A real Fabric whose tiles report the requested config-bit counts.
     """
-    tile_grid: list[list[object]] = [
+    tile_grid: list[list[Tile | None]] = [
         [
             None if bits is None else make_empty_tile(f"T{y}_{x}", config_bits=bits)
             for x, bits in enumerate(row)
@@ -87,7 +87,7 @@ def test_border_rows_have_config_bits_empty_fabric() -> None:
 
 def test_border_rows_have_config_bits_interior_ignored() -> None:
     """Config bits confined to interior rows never flip the flag on."""
-    grid = [[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]]
+    grid: list[list[int | None]] = [[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]]
     fabric = _fabric_from_bits(grid)
     assert border_rows_have_config_bits(fabric) is False
 

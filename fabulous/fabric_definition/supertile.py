@@ -30,7 +30,7 @@ class SuperTile:
         Path to the tile directory.
     tiles : list[Tile]
         The list of tiles that make up the super tile.
-    tileMap : list[list[Tile]]
+    tileMap : list[list[Tile | None]]
         The map of the tiles that make up the super tile
     bels : list[Bel]
         The list of bels of that the super tile contains
@@ -49,11 +49,40 @@ class SuperTile:
     name: str
     tileDir: Path
     tiles: list[Tile]
-    tileMap: list[list[Tile]]
+    tileMap: list[list[Tile | None]]
     bels: list[Bel] = field(default_factory=list)
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+
+    def tile_at(self, x: int, y: int) -> Tile:
+        """Return the sub-tile at local `(x, y)`, which must be occupied.
+
+        `tileMap` has holes for non-rectangular supertiles. Use this where the
+        coordinates come from the supertile itself and an empty cell would mean
+        the map is inconsistent.
+
+        Parameters
+        ----------
+        x : int
+            Column within the supertile.
+        y : int
+            Row within the supertile.
+
+        Returns
+        -------
+        Tile
+            The sub-tile at that position.
+
+        Raises
+        ------
+        ValueError
+            If the position holds no tile.
+        """
+        tile = self.tileMap[y][x]
+        if tile is None:
+            raise ValueError(f"SuperTile {self.name} has no tile at ({x}, {y}).")
+        return tile
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
@@ -71,7 +100,7 @@ class SuperTile:
         ports = {}
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if self.tileMap[y][x] is None:
+                if tile is None:
                     continue
                 ports[f"{x},{y}"] = []
                 if y - 1 < 0 or self.tileMap[y - 1][x] is None:

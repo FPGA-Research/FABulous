@@ -40,7 +40,7 @@ class TestFABulousTileVerilogMacroFlowInit:
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
         opt_mode: OptMode | None = OptMode.FIND_MIN_WIDTH,
-        **kwargs: dict,
+        **kwargs: object,
     ) -> FABulousTileVerilogMacroFlow:
         """Create a flow with shared defaults used across tests."""
         flow_kwargs: dict[str, Any] = {

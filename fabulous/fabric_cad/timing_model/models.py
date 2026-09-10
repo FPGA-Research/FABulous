@@ -89,7 +89,7 @@ class Component:
         IOPATH delay: pin to pin delay within a cell.
         Is a single delay over fast, slow (min, max)
         by using a cost function to combine them.
-    delay_paths : dict
+    delay_paths : dict | None
         Dictionary containing detailed delay paths information.
     is_one_cell_instance : bool
         True if from_cell_instance and to_cell_instance are the same.
@@ -103,11 +103,11 @@ class Component:
         True if the delay is incremental.
     is_cond : bool
         True if the delay is conditional.
-    cond_equation : str
-        Condition equation if is_cond is True.
-    from_pin_edge : str
+    cond_equation : str | None
+        Condition equation, or None when `is_cond` is False.
+    from_pin_edge : str | None
         Edge type for the from pin, e.g., "posedge" or "negedge".
-    to_pin_edge : str
+    to_pin_edge : str | None
         Edge type for the to pin, e.g., "posedge" or "negedge".
     """
 
@@ -119,16 +119,16 @@ class Component:
     from_cell_pin: str
     to_cell_pin: str
     delay: float
-    delay_paths: dict
+    delay_paths: dict | None
     is_one_cell_instance: bool
     is_timing_check: bool
     is_timing_env: bool
     is_absolute: bool
     is_incremental: bool
     is_cond: bool
-    cond_equation: str
-    from_pin_edge: str
-    to_pin_edge: str
+    cond_equation: str | None
+    from_pin_edge: str | None
+    to_pin_edge: str | None
 
 
 @dataclass(slots=True, kw_only=True)
@@ -322,9 +322,8 @@ class TimingModelConfig(BaseModel):
     pdk_name : str | None
         The name of the PDK being used, It's just for informational
         purposes.
-    techmap_files : list[Path] | Path | None
-        The list of technology mapping files or a single techmap file path
-        or None if not applicable.
+    techmap_files : list[Path] | None
+        The list of technology mapping files, or None if not applicable.
     tiehi_cell_and_port : str | None
         The cell and port used for tie-high connections
         "cell_name port_name", or None if not applicable.
@@ -367,7 +366,7 @@ class TimingModelConfig(BaseModel):
     synth_executable: Path | str
     sta_executable: Path | str
     pdk_name: str | None = None
-    techmap_files: list[Path] | Path | None = None
+    techmap_files: list[Path] | None = None
     tiehi_cell_and_port: str | None = None
     tielo_cell_and_port: str | None = None
     custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None

@@ -2,12 +2,12 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Self
+from typing import Self, cast
 
-from librelane.common import GenericDict
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow, FlowException
+from librelane.flows.flow import FlowException
 from librelane.flows.sequential import SequentialFlow
 from librelane.logging.logger import err, info
 
@@ -27,6 +27,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 
@@ -65,12 +66,12 @@ class FABulousTileMacroFlow(SequentialFlow):
 
     def __new__(
         cls,
-        *_args: tuple,
+        *_args: object,
         models_pack_path: Path | None = None,  # noqa: ARG004
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,  # noqa: ARG004
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> Self:
         """Apply layered `meta.substituting_steps` before construction.
 
@@ -85,7 +86,7 @@ class FABulousTileMacroFlow(SequentialFlow):
             [base_config_path, override_config_path, custom_config_overrides]
         )
         target_cls = cls.Substitute(substitutions) if substitutions else cls
-        return super().__new__(target_cls)  # type: ignore[arg-type]
+        return cast("Self", super().__new__(target_cls))
 
     def __init__(
         self,
@@ -98,7 +99,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> None:
         # Build the HDL source list. `models_pack` lives under Fabric/ (outside the
         # tile glob); for VHDL it must be analysed before the tile sources, so it is
@@ -221,12 +222,12 @@ class FABulousTileMacroFlow(SequentialFlow):
             )
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousTileVerilogMacroFlow(FABulousTileMacroFlow):
     """Tile macro flow for FABulous fabric generation from Verilog."""
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
     """Tile macro flow for FABulous fabric generation from VHDL.
 
@@ -250,10 +251,10 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
 
 
 def _apply_tile_die_area_config(
-    config: GenericDict[str, object],
+    config: Config,
     tile_type: Tile | SuperTile,
     opt_mode: OptMode | None = None,
-) -> GenericDict[str, object]:
+) -> Config:
     """Populate and validate tile `DIE_AREA` using the routing pitch."""
     x_pitch, y_pitch = get_pitch(config)
     min_x, min_y = tile_type.get_min_die_area(

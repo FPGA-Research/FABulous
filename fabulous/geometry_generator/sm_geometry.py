@@ -1,6 +1,7 @@
 """Switch matrix geometry definitions."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -11,13 +12,15 @@ from fabulous.geometry_generator.bel_geometry import BelGeometry
 from fabulous.geometry_generator.geometry_obj import Border, oppositeIO
 from fabulous.geometry_generator.port_geometry import PortGeometry, PortType
 
+if TYPE_CHECKING:
+    from _csv import Writer
+
 
 class SmGeometry:
     """A data structure representing the geometry of a Switch Matrix.
 
-    Sets all attributes to default values: None for names and paths,
-    zero for dimensions and coordinates, and empty lists for ports
-    and port geometries.
+    Dimensions, coordinates and port lists start empty; `generateGeometry`
+    fills in the name, the source paths and the layout.
 
     Attributes
     ----------
@@ -82,9 +85,6 @@ class SmGeometry:
     westPortsRightX: int
 
     def __init__(self) -> None:
-        self.name = None
-        self.src = None
-        self.csv = None
         self.width = 0
         self.height = 0
         self.relX = 0
@@ -370,15 +370,14 @@ class SmGeometry:
         jumpPortY = 0
         for port in self.jumpPorts:
             for i in range(port.wire_count):
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    f"{port.name}{i}",
-                    f"{port.source_name}{i}",
-                    f"{port.destination_name}{i}",
-                    PortType.JUMP,
-                    port.io_direction,
-                    jumpPortX,
-                    jumpPortY,
+                portGeom = PortGeometry(
+                    name=f"{port.name}{i}",
+                    source_name=f"{port.source_name}{i}",
+                    destName=f"{port.destination_name}{i}",
+                    type=PortType.JUMP,
+                    io_direction=port.io_direction,
+                    relX=jumpPortX,
+                    relY=jumpPortY,
                 )
                 self.portGeoms.append(portGeom)
                 jumpPortX += 1
@@ -387,21 +386,20 @@ class SmGeometry:
         northPortY = padding
         for port in self.northPorts:
             for i in range(port.wire_count):
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    f"{port.name}{i}",
-                    f"{port.source_name}{i}",
-                    f"{port.destination_name}{i}",
-                    PortType.SWITCH_MATRIX,
-                    port.io_direction,
-                    northPortX,
-                    northPortY,
+                portGeom = PortGeometry(
+                    name=f"{port.name}{i}",
+                    source_name=f"{port.source_name}{i}",
+                    destName=f"{port.destination_name}{i}",
+                    type=PortType.SWITCH_MATRIX,
+                    io_direction=port.io_direction,
+                    relX=northPortX,
+                    relY=northPortY,
+                    side_of_tile=port.side_of_tile,
+                    offset=port.y_offset,
+                    wire_direction=port.wire_direction,
+                    groupId=PortGeometry.nextId,
+                    groupWires=port.wire_count,
                 )
-                portGeom.side_of_tile = port.side_of_tile
-                portGeom.offset = port.y_offset
-                portGeom.wire_direction = port.wire_direction
-                portGeom.groupId = PortGeometry.nextId
-                portGeom.groupWires = port.wire_count
 
                 self.portGeoms.append(portGeom)
                 northPortY += 1
@@ -411,21 +409,20 @@ class SmGeometry:
         southPortY = self.height - padding
         for port in self.southPorts:
             for i in range(port.wire_count):
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    f"{port.name}{i}",
-                    f"{port.source_name}{i}",
-                    f"{port.destination_name}{i}",
-                    PortType.SWITCH_MATRIX,
-                    port.io_direction,
-                    southPortX,
-                    southPortY,
+                portGeom = PortGeometry(
+                    name=f"{port.name}{i}",
+                    source_name=f"{port.source_name}{i}",
+                    destName=f"{port.destination_name}{i}",
+                    type=PortType.SWITCH_MATRIX,
+                    io_direction=port.io_direction,
+                    relX=southPortX,
+                    relY=southPortY,
+                    side_of_tile=port.side_of_tile,
+                    offset=port.y_offset,
+                    wire_direction=port.wire_direction,
+                    groupId=PortGeometry.nextId,
+                    groupWires=port.wire_count,
                 )
-                portGeom.side_of_tile = port.side_of_tile
-                portGeom.offset = port.y_offset
-                portGeom.wire_direction = port.wire_direction
-                portGeom.groupId = PortGeometry.nextId
-                portGeom.groupWires = port.wire_count
 
                 self.portGeoms.append(portGeom)
                 southPortY -= 1
@@ -435,21 +432,20 @@ class SmGeometry:
         eastPortY = self.height
         for port in self.eastPorts:
             for i in range(port.wire_count):
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    f"{port.name}{i}",
-                    f"{port.source_name}{i}",
-                    f"{port.destination_name}{i}",
-                    PortType.SWITCH_MATRIX,
-                    port.io_direction,
-                    eastPortX,
-                    eastPortY,
+                portGeom = PortGeometry(
+                    name=f"{port.name}{i}",
+                    source_name=f"{port.source_name}{i}",
+                    destName=f"{port.destination_name}{i}",
+                    type=PortType.SWITCH_MATRIX,
+                    io_direction=port.io_direction,
+                    relX=eastPortX,
+                    relY=eastPortY,
+                    side_of_tile=port.side_of_tile,
+                    offset=port.x_offset,
+                    wire_direction=port.wire_direction,
+                    groupId=PortGeometry.nextId,
+                    groupWires=port.wire_count,
                 )
-                portGeom.side_of_tile = port.side_of_tile
-                portGeom.offset = port.x_offset
-                portGeom.wire_direction = port.wire_direction
-                portGeom.groupId = PortGeometry.nextId
-                portGeom.groupWires = port.wire_count
 
                 self.portGeoms.append(portGeom)
                 eastPortX -= 1
@@ -459,21 +455,20 @@ class SmGeometry:
         westPortY = self.height
         for port in self.westPorts:
             for i in range(port.wire_count):
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    f"{port.name}{i}",
-                    f"{port.source_name}{i}",
-                    f"{port.destination_name}{i}",
-                    PortType.SWITCH_MATRIX,
-                    port.io_direction,
-                    westPortX,
-                    westPortY,
+                portGeom = PortGeometry(
+                    name=f"{port.name}{i}",
+                    source_name=f"{port.source_name}{i}",
+                    destName=f"{port.destination_name}{i}",
+                    type=PortType.SWITCH_MATRIX,
+                    io_direction=port.io_direction,
+                    relX=westPortX,
+                    relY=westPortY,
+                    side_of_tile=port.side_of_tile,
+                    offset=port.x_offset,
+                    wire_direction=port.wire_direction,
+                    groupId=PortGeometry.nextId,
+                    groupWires=port.wire_count,
                 )
-                portGeom.side_of_tile = port.side_of_tile
-                portGeom.offset = port.x_offset
-                portGeom.wire_direction = port.wire_direction
-                portGeom.groupId = PortGeometry.nextId
-                portGeom.groupWires = port.wire_count
 
                 self.portGeoms.append(portGeom)
                 westPortX += 1
@@ -496,19 +491,18 @@ class SmGeometry:
                 portX = self.width
                 portY = belGeom.relY - self.relY + belPortGeom.relY
 
-                portGeom = PortGeometry()
-                portGeom.generateGeometry(
-                    belPortGeom.name,
-                    belPortGeom.source_name,
-                    belPortGeom.destName,
-                    PortType.SWITCH_MATRIX,
-                    oppositeIO(belPortGeom.io_direction),
-                    portX,
-                    portY,
+                portGeom = PortGeometry(
+                    name=belPortGeom.name,
+                    source_name=belPortGeom.source_name,
+                    destName=belPortGeom.destName,
+                    type=PortType.SWITCH_MATRIX,
+                    io_direction=oppositeIO(belPortGeom.io_direction),
+                    relX=portX,
+                    relY=portY,
                 )
                 self.portGeoms.append(portGeom)
 
-    def saveToCSV(self, writer: object) -> None:
+    def saveToCSV(self, writer: "Writer") -> None:
         """Save switch matrix geometry data to CSV format.
 
         Writes the switch matrix geometry information including name, source
@@ -517,7 +511,7 @@ class SmGeometry:
 
         Parameters
         ----------
-        writer : object
+        writer : Writer
             The CSV `writer` object to use for output
         """
         writer.writerows(

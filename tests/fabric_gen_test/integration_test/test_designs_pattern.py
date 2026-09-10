@@ -10,6 +10,7 @@ from pathlib import Path
 import cocotb
 import pytest
 from cocotb.clock import Clock
+from cocotb.handle import LogicObject
 from cocotb.triggers import ClockCycles, Timer
 from cocotb.types import Logic, LogicArray
 
@@ -48,7 +49,9 @@ async def cocotb_test_demo_bitstream_smoke(dut: FabricConfigDUT) -> None:
     fabric_outputs = 0
     for element in dut:
         element_name: str = element._name  # noqa: SLF001
-        if _FABRIC_OUTPUT_RE.match(element_name) is None:
+        if _FABRIC_OUTPUT_RE.match(element_name) is None or not isinstance(
+            element, LogicObject
+        ):
             continue
         fabric_outputs += 1
         value = str(element.value)
