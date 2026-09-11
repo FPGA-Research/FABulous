@@ -168,6 +168,9 @@ extend_exclude = [
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["go-task-bin", "FABulous-bit-gen"]
+# Shared with the Sphinx extension it sits beside, and imported off sys.path rather
+# than installed, because `docs` is excluded from this scan.
+DEP001 = ["drawio_render"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"

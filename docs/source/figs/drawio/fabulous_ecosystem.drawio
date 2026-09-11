@@ -1,0 +1,166 @@
+<mxfile host="65bd71144e">
+    <diagram id="fabulous-ecosystem" name="FABulous ecosystem">
+        <mxGraphModel dx="1956" dy="860" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="S1" value="&lt;b&gt;Fabric definition&lt;/b&gt;&lt;br&gt;fabric.csv · per-tile CSV · BEL / primitive HDL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="160" width="360" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="S2" value="&lt;b&gt;FABulous&lt;/b&gt;&lt;br&gt;fabric generator — run_fab" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="160" width="360" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="C1" value="User design flow — compile_design" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9E9E9E;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=14;spacingTop=4;fontSize=15;fontStyle=1;fontColor=#616161;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="320" width="360" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="C2" value="Verification" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9E9E9E;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=14;spacingTop=4;fontSize=15;fontStyle=1;fontColor=#616161;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="320" width="360" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="C3" value="ASIC flow — GDSII" style="rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9E9E9E;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=14;spacingTop=4;fontSize=15;fontStyle=1;fontColor=#616161;" parent="1" vertex="1">
+                    <mxGeometry x="960" y="320" width="360" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1a" value="&lt;b&gt;user design&lt;/b&gt; — Verilog / VHDL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="360" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1b" value="&lt;b&gt;Yosys&lt;/b&gt;&lt;br&gt;synthesis onto the fabric primitives" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="460" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c1c" value="&lt;b&gt;nextpnr&lt;/b&gt;&lt;br&gt;place &amp;amp; route" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="560" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2a" value="&lt;b&gt;RTL simulation&lt;/b&gt;&lt;br&gt;Icarus Verilog / NVC / GHDL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="360" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2b" value="&lt;b&gt;gate-level simulation&lt;/b&gt;&lt;br&gt;against the PDK standard cells" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="510" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c2c" value="&lt;b&gt;FPGA emulation&lt;/b&gt;&lt;br&gt;fabric hosted on a commercial board" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="540" y="660" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3a" value="&lt;b&gt;PDK&lt;/b&gt; — IHP SG13G2 · SKY130A · GF180MCU" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="980" y="360" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3b" value="&lt;b&gt;LibreLane&lt;/b&gt;&lt;br&gt;Yosys · OpenROAD · KLayout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="980" y="460" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="c3d" value="&lt;b&gt;silicon&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=13;" parent="1" vertex="1">
+                    <mxGeometry x="980" y="660" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="lg" value="Legend" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#616161;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="780" width="80" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="lg1" value="user input" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="800" width="120" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lg2" value="FABulous" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE6CC;strokeColor=#D79B00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="800" width="120" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lg4" value="external tool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="800" width="120" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="lg5" value="silicon / hardware" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="640" y="800" width="120" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" value="parse" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#616161;fontSize=12;fontColor=#444444;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="S1" target="S2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" value="emit" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#616161;fontSize=12;fontColor=#444444;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="S2" target="3" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="940" y="215" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="Ea" value="chip database · bitstream spec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#6C8EBF;fontSize=12;fontColor=#3A5A80;labelBackgroundColor=#FFFFFF;exitX=0.21;exitY=1;entryX=0.5;entryY=0;exitDx=5;exitDy=0;exitPerimeter=0;entryDx=0;entryDy=0;curved=0;" parent="1" source="3" target="C1" edge="1">
+                    <mxGeometry x="0.0007" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1041" y="270"/>
+                            <mxPoint x="260" y="270"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                        <mxPoint x="1040" y="240" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="Eb" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#6C8EBF;fontSize=12;fontColor=#3A5A80;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitDx=0;exitDy=0;exitPerimeter=0;curved=0;" parent="1" source="3" target="c2a" edge="1">
+                    <mxGeometry x="0.6101" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1140" y="290"/>
+                            <mxPoint x="700" y="290"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                        <mxPoint x="1040" y="240" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="Ec" value="fabric RTL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#6C8EBF;fontSize=12;fontColor=#3A5A80;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;exitPerimeter=0;" parent="1" source="3" target="C3" edge="1">
+                    <mxGeometry x="0.25" relative="1" as="geometry">
+                        <mxPoint x="1150" y="270" as="sourcePoint"/>
+                        <Array as="points">
+                            <mxPoint x="1140" y="280"/>
+                            <mxPoint x="1140" y="280"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="d1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="c1a" target="c1b" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="d2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="c1b" target="c1c" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="d3" value="bit_gen" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;fontSize=11;fontColor=#444444;labelBackgroundColor=#FAFAFA;exitX=0.5;exitY=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="c1c" target="4" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="h1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="c3a" target="c3b" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="h2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;exitX=0.5;exitY=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="c3b" target="5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="h3" value="tape-out" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#616161;fontSize=11;fontColor=#444444;labelBackgroundColor=#FAFAFA;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitDx=0;exitDy=0;exitPerimeter=0;" parent="1" source="5" target="c3d" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="X1" value="user bitstream" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#6C8EBF;fontSize=11;fontColor=#3A5A80;labelBackgroundColor=#FFFFFF;entryX=0;entryY=0.5;exitX=0;exitY=0;exitDx=320;exitDy=45;exitPerimeter=0;" parent="1" source="4" target="c2a" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="480" y="705"/>
+                            <mxPoint x="480" y="390"/>
+                        </Array>
+                        <mxPoint x="440" y="700" as="sourcePoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="X2" value="hardened netlists" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=blockThin;endFill=1;strokeWidth=1.8;strokeColor=#6C8EBF;fontSize=11;fontColor=#3A5A80;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;entryX=1;entryY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;" parent="1" source="5" target="c2b" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="F1" value="architecture optimisation — utilisation and timing" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#2E7D32;fontSize=12;fontStyle=1;fontColor=#2E7D32;labelBackgroundColor=#FFFFFF;horizontal=0;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" parent="1" source="c1c" target="S1" edge="1">
+                    <mxGeometry x="0.0233" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="40" y="590"/>
+                            <mxPoint x="40" y="200"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="F2" value="physical optimisation — area, timing and power of the hardened tiles" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;dashed=1;dashPattern=6 4;endArrow=blockThin;endFill=1;strokeWidth=2;strokeColor=#1565C0;fontSize=12;fontStyle=1;fontColor=#1565C0;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0;entryX=0.5;entryY=0;exitDx=320;exitDy=45;exitPerimeter=0;" parent="1" source="5" target="S1" edge="1">
+                    <mxGeometry x="0.35" relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1360" y="605"/>
+                            <mxPoint x="1360" y="120"/>
+                            <mxPoint x="260" y="120"/>
+                        </Array>
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="3" value="&lt;b style=&quot;scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 14px; color: rgb(63, 63, 63);&quot;&gt;Generated fabric&lt;/b&gt;&lt;br style=&quot;scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 14px; color: rgb(63, 63, 63);&quot;&gt;&lt;span style=&quot;scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 14px; color: rgb(0, 0, 0);&quot;&gt;RTL · nextpnr chip database&lt;/span&gt;&lt;br style=&quot;scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 14px; color: rgb(63, 63, 63);&quot;&gt;&lt;span style=&quot;scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 14px; color: rgb(0, 0, 0);&quot;&gt;bitstream spec · geometry&lt;/span&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;points=[[0,0,0,0,0],[0,0,0,165,0],[0,0,0,330,0],[0,0,0,345,15],[0,0,0,360,30],[0,0,0,360,55],[0,0.5,0,0,0],[0,1,0,0,0],[0.21,1,0,5,0],[0.5,0,0,0,0],[0.5,1,0,0,0],[1,1,0,0,0]];" parent="1" vertex="1">
+                    <mxGeometry x="960" y="160" width="360" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 13px;&quot;&gt;user bitstream&lt;/b&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="100" y="660" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="&lt;b style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 13px;&quot;&gt;hardened macros&lt;/b&gt;&lt;br style=&quot;color: rgb(63, 63, 63); scrollbar-color: rgb(226, 226, 226) rgb(251, 251, 251); font-size: 13px;&quot;&gt;&lt;span style=&quot;color: rgb(0, 0, 0); font-size: 13px;&quot;&gt;tiles, then the stitched fabric&lt;/span&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
+                    <mxGeometry x="980" y="560" width="320" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="&lt;span style=&quot;color: rgb(0, 0, 0); font-size: 11px;&quot;&gt;generated artifact&lt;/span&gt;" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;size=12;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="800" width="120" height="40" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
