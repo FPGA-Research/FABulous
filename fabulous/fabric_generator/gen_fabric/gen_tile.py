@@ -180,10 +180,9 @@ def generateTile(
         )
 
     elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-        writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True, indentLevel=1)
 
@@ -275,12 +274,13 @@ def generateTile(
         writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
         writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
-    writer.addNewLine()
-    writer.addComment("Connection for outgoing wires", onNewLine=True)
-    writer.addConnectionVector("FrameData_i", "FrameBitsPerRow-1", 0)
-    writer.addConnectionVector("FrameData_O_i", "FrameBitsPerRow-1", 0)
-    writer.addConnectionVector("FrameStrobe_i", "MaxFramesPerCol-1", 0)
-    writer.addConnectionVector("FrameStrobe_O_i", "MaxFramesPerCol-1", 0)
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        writer.addNewLine()
+        writer.addComment("Connection for outgoing wires", onNewLine=True)
+        writer.addConnectionVector("FrameData_i", "FrameBitsPerRow-1", 0)
+        writer.addConnectionVector("FrameData_O_i", "FrameBitsPerRow-1", 0)
+        writer.addConnectionVector("FrameStrobe_i", "MaxFramesPerCol-1", 0)
+        writer.addConnectionVector("FrameStrobe_O_i", "MaxFramesPerCol-1", 0)
 
     added = set()
     for port in tile.portsInfo:
@@ -298,44 +298,51 @@ def generateTile(
     writer.addNewLine()
     writer.addLogicStart()
 
-    # buffer FrameData signals
-    writer.addAssignScalar("FrameData_O_i", "FrameData_i")
-    writer.addNewLine()
-    for i in range(frame_bits_per_row):
-        writer.addInstantiation(
-            "my_buf",
-            f"data_inbuf_{i}",
-            portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
-        )
-    for i in range(frame_bits_per_row):
-        writer.addInstantiation(
-            "my_buf",
-            f"data_outbuf_{i}",
-            portsPairs=[
-                ("A", f"FrameData_O_i[{i}]"),
-                ("X", f"FrameData_O[{i}]"),
-            ],
-        )
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        # buffer FrameData signals
+        writer.addAssignScalar("FrameData_O_i", "FrameData_i")
+        writer.addNewLine()
+        for i in range(frame_bits_per_row):
+            writer.addInstantiation(
+                "my_buf",
+                f"data_inbuf_{i}",
+                portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
+            )
+        for i in range(frame_bits_per_row):
+            writer.addInstantiation(
+                "my_buf",
+                f"data_outbuf_{i}",
+                portsPairs=[
+                    ("A", f"FrameData_O_i[{i}]"),
+                    ("X", f"FrameData_O[{i}]"),
+                ],
+            )
 
-    # strobe is always added even when config bits are 0
-    writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
-    writer.addNewLine()
-    for i in range(max_frame_per_col):
-        writer.addInstantiation(
-            "my_buf",
-            f"strobe_inbuf_{i}",
-            portsPairs=[("A", f"FrameStrobe[{i}]"), ("X", f"FrameStrobe_i[{i}]")],
-        )
+        # strobe is always added even when config bits are 0
+        writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
+        writer.addNewLine()
+        for i in range(max_frame_per_col):
+            writer.addInstantiation(
+                "my_buf",
+                f"strobe_inbuf_{i}",
+                portsPairs=[("A", f"FrameStrobe[{i}]"), ("X", f"FrameStrobe_i[{i}]")],
+            )
 
-    for i in range(max_frame_per_col):
-        writer.addInstantiation(
-            "my_buf",
-            f"strobe_outbuf_{i}",
-            portsPairs=[
-                ("A", f"FrameStrobe_O_i[{i}]"),
-                ("X", f"FrameStrobe_O[{i}]"),
-            ],
+        for i in range(max_frame_per_col):
+            writer.addInstantiation(
+                "my_buf",
+                f"strobe_outbuf_{i}",
+                portsPairs=[
+                    ("A", f"FrameStrobe_O_i[{i}]"),
+                    ("X", f"FrameStrobe_O[{i}]"),
+                ],
+            )
+
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits == 0:
+        writer.addComment(
+            "Passthrough scan chain for unconfigured tile", onNewLine=True
         )
+        writer.addAssignScalar("CONFout", "CONFin")
 
     added = set()
     for port in tile.portsInfo:
@@ -381,13 +388,6 @@ def generateTile(
         )
 
     writer.addNewLine()
-    # top configuration data daisy chaining
-    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        writer.addComment("top configuration data daisy chaining", onNewLine=True)
-        writer.addAssignScalar("conf_data(conf_data'low)", "CONFin")
-        writer.addComment("conf_data'low=0 and CONFin is from tile entity")
-        writer.addAssignScalar("conf_data(conf_data'high)", "CONFout")
-        writer.addComment("CONFout is from tile entity")
 
     if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
@@ -403,12 +403,26 @@ def generateTile(
             emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
         )
 
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN and tile.globalConfigBits > 0:
+        writer.addComment("configuration storage FlipFlop", onNewLine=True)
+        writer.addInstantiation(
+            compName=f"{tile.name}_ConfigMem",
+            compInsName=f"Inst_{tile.name}_ConfigMem",
+            portsPairs=[
+                ("CONFin", "CONFin"),
+                ("CONFout", "CONFout"),
+                ("CONF_CLK", "CONF_CLK"),
+                ("ConfigBits", "ConfigBits"),
+                ("ConfigBits_N", "ConfigBits_N"),
+            ],
+            emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
+        )
+
     # BEL component instantiations
     if tile.bels:
         writer.addNewLine()
         writer.addComment("BEL component instantiations", onNewLine=True)
 
-    belCounter = 0
     belConfigBitsCounter = 0
     for bel in tile.bels:
         port_dict = defaultdict(list)
@@ -456,20 +470,14 @@ def generateTile(
         if userclk_pair is not None:
             ports_pairs.append(userclk_pair)
 
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            if bel.configBit > 0:
-                ports_pairs.append(
-                    (
-                        "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
-                        f"{belConfigBitsCounter}]",
-                    )
+        if bel.configBit > 0:
+            ports_pairs.append(
+                (
+                    "ConfigBits",
+                    f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
+                    f"{belConfigBitsCounter}]",
                 )
-        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            ports_pairs.append(("MODE", "Mode"))
-            ports_pairs.append(("CONFin", f"conf_data({belCounter})"))
-            ports_pairs.append(("CONFout", f"conf_data({belCounter + 1})"))
-            ports_pairs.append(("CLK", "CLK"))
+            )
 
         writer.addInstantiation(
             compName=bel.name,
@@ -477,13 +485,7 @@ def generateTile(
             portsPairs=ports_pairs,
         )
 
-        # FIXME: Why is the belCounter increased here by 2 and afterwards by 1?
-        belCounter += 2
         belConfigBitsCounter += bel.configBit
-
-        # for the next BEL (if any) for cascading configuration chain
-        # (this information is also needed for chaining the switch matrix)
-        belCounter += 1
 
     ports_pairs = []
     # normal input wire (excludes JUMP and SJUMP, which are handled separately;
@@ -558,13 +560,7 @@ def generateTile(
 
     ports_pairs += list(zip(port, signal, strict=True))
 
-    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        ports_pairs.append(("MODE", "Mode"))
-        ports_pairs.append(("CONFin", f"conf_data({belCounter})"))
-        ports_pairs.append(("CONFout", f"conf_data({belCounter + 1})"))
-        ports_pairs.append(("CLK", "CLK"))
-
-    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+    if tile.switch_matrix.no_config_bits > 0:
         ports_pairs.append(
             (
                 "ConfigBits",
@@ -741,6 +737,15 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
+
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
+        writer.addComment("CONFIG_PORT", onNewLine=False)
+        writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
+        writer.addComment("CONFIG_PORT", onNewLine=False)
+        writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
+        writer.addComment("CONFIG_PORT", onNewLine=False)
+
     if not disable_user_clk:
         for y, row in enumerate(superTile.tileMap):
             for x, tile in enumerate(row):
@@ -786,7 +791,7 @@ def generateSuperTile(
                     "Need to run matrix generation first"
                 )
             writer.addComponentDeclarationForFile(str(sm_file))
-        if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
+        if st_config_bits > 0:
             cm_file = basePath / f"{superTile.name}_ConfigMem.vhdl"
             if not cm_file.exists():
                 raise FileNotFoundError(
@@ -852,22 +857,29 @@ def generateSuperTile(
                 0 <= y - 1 < len(superTile.tileMap)
                 and superTile.tileMap[y - 1][x] is not None
             ):
-                writer.addConnectionVector(
-                    f"Tile_X{x}Y{y}_FrameStrobe_O",
-                    "MaxFramesPerCol-1",
-                    indentLevel=1,
-                )
+                if config_bit_mode == ConfigBitMode.FRAME_BASED:
+                    writer.addConnectionVector(
+                        f"Tile_X{x}Y{y}_FrameStrobe_O",
+                        "MaxFramesPerCol-1",
+                        indentLevel=1,
+                    )
                 if not disable_user_clk:
                     writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
                 0 <= x + 1 < len(superTile.tileMap[y])
                 and superTile.tileMap[y][x + 1] is not None
+                and config_bit_mode == ConfigBitMode.FRAME_BASED
             ):
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameData_O", "FrameBitsPerRow-1", indentLevel=1
                 )
 
-    if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
+            if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+                writer.addNewLine()
+                writer.addComment("Internal FlipFLop Chain connections", onNewLine=True)
+                writer.addConnectionScalar(f"Tile_X{x}Y{y}_CONFout", indentLevel=1)
+
+    if st_config_bits > 0:
         writer.addConnectionVector(
             "ST_ConfigBits", f"{st_config_bits}-1", indentLevel=1
         )
@@ -878,6 +890,8 @@ def generateSuperTile(
     writer.addNewLine()
 
     writer.addLogicStart()
+
+    last_confout_wire = "CONFin"
 
     # pair up the connection for tile instantiation
     for y, row in enumerate(superTile.tileMap):
@@ -1000,6 +1014,17 @@ def generateSuperTile(
 
                 ports_pairs.append(("FrameStrobe_O", f"Tile_X{x}Y{y}_FrameStrobe_O"))
 
+            elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+                # add connection for CONF_CLK, CONFin and CONFout
+                ports_pairs.append(("CONF_CLK", "CONF_CLK"))
+
+                ports_pairs.append(("CONFin", last_confout_wire))
+
+                current_confout = f"Tile_X{x}Y{y}_CONFout"
+                ports_pairs.append(("CONFout", current_confout))
+
+                last_confout_wire = current_confout
+
             emulateParamPairs = [
                 ("Emulate_Bitstream", f"Tile_X{x}Y{y}_Emulate_Bitstream")
             ]
@@ -1012,38 +1037,57 @@ def generateSuperTile(
             )
 
     # Instantiate supertile ConfigMem (shares free slots in master tile's frame space)
-    if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
-        mx, my = superTile.get_master_tile_coords()
-        if (
-            0 <= mx - 1 < len(superTile.tileMap[0])
-            and superTile.tileMap[my][mx - 1] is not None
-        ):
-            cm_frame_data = f"Tile_X{mx - 1}Y{my}_FrameData_O"
-        else:
-            cm_frame_data = f"Tile_X{mx}Y{my}_FrameData"
-        if (
-            0 <= my + 1 < len(superTile.tileMap)
-            and superTile.tileMap[my + 1][mx] is not None
-        ):
-            cm_frame_strobe = f"Tile_X{mx}Y{my + 1}_FrameStrobe_O"
-        else:
-            cm_frame_strobe = f"Tile_X{mx}Y{my}_FrameStrobe"
-        writer.addInstantiation(
-            compName=f"{superTile.name}_ConfigMem",
-            compInsName=f"Inst_{superTile.name}_ConfigMem",
-            portsPairs=[
-                ("FrameData", cm_frame_data),
-                ("FrameStrobe", cm_frame_strobe),
-                ("ConfigBits", f"ST_ConfigBits[{st_config_bits}-1:0]"),
-                ("ConfigBits_N", f"ST_ConfigBits_N[{st_config_bits}-1:0]"),
-            ],
-            # The supertile config bits live in free slots of the master tile's
-            # frame space, so in emulation they are preloaded from the master
-            # tile's bitstream parameter (not its own frame shift register).
-            emulateParamPairs=[
-                ("Emulate_Bitstream", f"Tile_X{mx}Y{my}_Emulate_Bitstream")
-            ],
-        )
+    if st_config_bits > 0:
+        if config_bit_mode == ConfigBitMode.FRAME_BASED:
+            mx, my = superTile.get_master_tile_coords()
+            if (
+                0 <= mx - 1 < len(superTile.tileMap[0])
+                and superTile.tileMap[my][mx - 1] is not None
+            ):
+                cm_frame_data = f"Tile_X{mx - 1}Y{my}_FrameData_O"
+            else:
+                cm_frame_data = f"Tile_X{mx}Y{my}_FrameData"
+            if (
+                0 <= my + 1 < len(superTile.tileMap)
+                and superTile.tileMap[my + 1][mx] is not None
+            ):
+                cm_frame_strobe = f"Tile_X{mx}Y{my + 1}_FrameStrobe_O"
+            else:
+                cm_frame_strobe = f"Tile_X{mx}Y{my}_FrameStrobe"
+            writer.addInstantiation(
+                compName=f"{superTile.name}_ConfigMem",
+                compInsName=f"Inst_{superTile.name}_ConfigMem",
+                portsPairs=[
+                    ("FrameData", cm_frame_data),
+                    ("FrameStrobe", cm_frame_strobe),
+                    ("ConfigBits", f"ST_ConfigBits[{st_config_bits}-1:0]"),
+                    ("ConfigBits_N", f"ST_ConfigBits_N[{st_config_bits}-1:0]"),
+                ],
+                # The supertile config bits live in free slots of the master tile's
+                # frame space, so in emulation they are preloaded from the master
+                # tile's bitstream parameter (not its own frame shift register).
+                emulateParamPairs=[
+                    ("Emulate_Bitstream", f"Tile_X{mx}Y{my}_Emulate_Bitstream")
+                ],
+            )
+
+        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+            st_confout = f"{superTile.name}_CONFout"
+            writer.addConnectionScalar(st_confout, indentLevel=1)
+
+            writer.addInstantiation(
+                compName=f"{superTile.name}_ConfigMem",
+                compInsName=f"Inst_{superTile.name}_ConfigMem",
+                portsPairs=[
+                    ("CONFin", last_confout_wire),
+                    ("CONFout", st_confout),
+                    ("CONF_CLK", "CONF_CLK"),
+                    ("ConfigBits", f"ST_ConfigBits[{st_config_bits}-1:0]"),
+                    ("ConfigBits_N", f"ST_ConfigBits_N[{st_config_bits}-1:0]"),
+                ],
+            )
+
+            last_confout_wire = st_confout
 
     # Instantiate supertile switch matrix (if a matrix file was found)
     if superTile.supertile_matrix_dir is not None:
@@ -1075,10 +1119,7 @@ def generateSuperTile(
                             sm_ports_pairs.append(
                                 (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
                             )
-        if (
-            superTile.supertile_matrix_config_bits > 0
-            and config_bit_mode == ConfigBitMode.FRAME_BASED
-        ):
+        if superTile.supertile_matrix_config_bits > 0:
             sm_ports_pairs.append(
                 (
                     "ConfigBits",
@@ -1138,7 +1179,7 @@ def generateSuperTile(
             else:
                 bel_user_clk = f"Tile_X{mx}Y{my}_UserCLK"
             bel_ports_pairs.append(("UserCLK", bel_user_clk))
-        if bel.configBit > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
+        if bel.configBit > 0:
             bel_ports_pairs.append(
                 (
                     "ConfigBits",
@@ -1152,6 +1193,10 @@ def generateSuperTile(
             compInsName=f"Inst_ST_{bel.prefix}{bel.name}",
             portsPairs=bel_ports_pairs,
         )
+
+    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addAssignScalar("CONFout", last_confout_wire)
+        writer.addNewLine()
 
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
