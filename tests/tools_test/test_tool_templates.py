@@ -5,6 +5,8 @@ text) and the `analyze` wrapper that normalizes its inputs and feeds the rendere
 script to the tool.
 """
 
+import re
+import sys
 import tempfile
 from pathlib import Path
 
@@ -170,3 +172,94 @@ def test_tool_cannot_be_instantiated(tool_cls: type[Tool]) -> None:
     """Tool wrappers are classmethod-only singletons and reject instantiation."""
     with pytest.raises(TypeError, match="cannot be instantiated"):
         tool_cls()
+
+
+def test_synthesize_renders_script_and_returns_netlist(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    run = mocker.patch.object(YosysTool, "run")
+    lib = tmp_path / "x.lib"
+    lib.write_text("lib")
+    rtl = tmp_path / "r.v"
+    rtl.write_text("module r(); endmodule")
+
+    netlist = Path(tempfile.gettempdir()) / "synth_NORM_tmp.v"
+    netlist.unlink(missing_ok=True)
+
+    # run is mocked, so produce the netlist synthesize reads back.
+    run.side_effect = lambda *_a, **_k: netlist.write_text("module NORM(); endmodule")
+
+    try:
+        result = YosysTool.synthesize_to_netlist(
+            rtl, lib, "NORM", min_buf_cell_and_ports="BUF A Y"
+        )
+
+        assert result == netlist
+        assert run.call_args.kwargs["stdin_data"] == YosysTool.render_template(
+            "yosys_synth.j2",
+            liberty_files=[lib],
+            verilog_files=[rtl],
+            techmap_files=None,
+            top_name="NORM",
+            flat=False,
+            tiehi_cell_and_port=None,
+            tielo_cell_and_port=None,
+            min_buf_cell_and_ports="BUF A Y",
+            netlist_path=netlist,
+        )
+    finally:
+        netlist.unlink(missing_ok=True)
+
+
+def test_synthesize_passes_tcl_flag(mocker: MockerFixture, tmp_path: Path) -> None:
+    """The rendered script is Tcl (`yosys -import`), so yosys needs `-C`."""
+    run = mocker.patch.object(YosysTool, "run")
+    netlist = Path(tempfile.gettempdir()) / "synth_TCL_tmp.v"
+    netlist.unlink(missing_ok=True)
+    run.side_effect = lambda *_a, **_k: netlist.write_text("module TCL(); endmodule")
+
+    try:
+        YosysTool.synthesize_to_netlist(tmp_path / "r.v", tmp_path / "x.lib", "TCL")
+        assert run.call_args.kwargs["args"] == ["-C"]
+    finally:
+        netlist.unlink(missing_ok=True)
+
+
+def test_synthesize_strips_single_bit_vector_notation(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """OpenSTA cannot back-annotate SDF onto `[0:0]` single-bit vectors."""
+    run = mocker.patch.object(YosysTool, "run")
+    netlist = Path(tempfile.gettempdir()) / "synth_VEC_tmp.v"
+    netlist.unlink(missing_ok=True)
+    run.side_effect = lambda *_a, **_k: netlist.write_text("wire [0:0] w;")
+
+    try:
+        result = YosysTool.synthesize_to_netlist(
+            tmp_path / "r.v", tmp_path / "x.lib", "VEC"
+        )
+        assert result.read_text() == "wire   w;"
+    finally:
+        netlist.unlink(missing_ok=True)
+
+
+def test_synthesize_empty_netlist_raises(mocker: MockerFixture, tmp_path: Path) -> None:
+    mocker.patch.object(YosysTool, "run")
+    netlist = Path(tempfile.gettempdir()) / "synth_EMPTY_tmp.v"
+    netlist.write_text("")
+
+    with pytest.raises(RuntimeError, match="No content in netlist file"):
+        YosysTool.synthesize_to_netlist(tmp_path / "r.v", tmp_path / "x.lib", "EMPTY")
+    assert not netlist.exists()
+
+
+def test_run_reports_failing_command_for_path_executable() -> None:
+    """A Path executable must reach the message, not break `str.join` building it."""
+
+    class PythonTool(Tool):
+        @classmethod
+        def executable(cls) -> Path:
+            return Path(sys.executable)
+
+    with pytest.raises(RuntimeError, match=re.escape(sys.executable)):
+        PythonTool.run(args=["-c", "raise SystemExit(1)"])

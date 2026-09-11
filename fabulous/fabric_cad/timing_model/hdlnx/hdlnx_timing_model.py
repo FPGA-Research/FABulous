@@ -1,16 +1,12 @@
 """Convertes verilog RTL into a verilog gate-level netlist.
 
-Will use an external synthesis tool.
-
-In this context a sysnthesis tool can be anything that can convert RTL verilog into
-gate-level verilog, that means also tools that can do backend design steps like
-technology mapping and place&route.
-
-It then uses the VerilogGateLevelTimingGraph class to generate a timing graph from the
-gate-level netlist.
+Yosys synthesizes the RTL, then VerilogGateLevelTimingGraph turns the resulting
+netlist into a timing graph. The netlist is a temporary this class owns, so it is
+deleted once the graph is built; a caller that already has a netlist skips this
+class and constructs VerilogGateLevelTimingGraph directly.
 """
 
-from loguru import logger
+from pathlib import Path
 
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
     VerilogGateLevelTimingGraph,
@@ -18,72 +14,75 @@ from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
 from fabulous.fabric_cad.timing_model.models import (
     DelayType,
 )
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
+from fabulous.tools.yosys import YosysTool
 
 
 class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     """Class to generate a timing graph from Verilog RTL.
 
-    It does this by first synthesizing the RTL into a
-    gate-level netlist using an external synthesis tool, and then using the
-    VerilogGateLevelTimingGraph class to generate the timing graph.
-
-    Initializes the HdlnxTimingModel with the given synthesis and STA tools,
-    and generates the timing graph.
+    It does this by first synthesizing the RTL into a gate-level netlist with
+    Yosys, and then using the VerilogGateLevelTimingGraph class to generate the
+    timing graph.
 
     Parameters
     ----------
-    sta_tool : StaTool
-        The static timing analysis tool to use for generating the timing graph.
-    synth_tool : SynthTool
-        The synthesis tool to use for converting RTL to gate-level netlist.
-    delay_type_str : DelayType, optional
-        The type of delay to use for the timing graph (default is DelayType.MAX_ALL).
-    debug : bool, optional
-        If True, print debug warnings about overwriting STA tool
-        configurations (default is False).
+    top_name : str
+        The top-level module to synthesize and analyze.
+    verilog_files : list[Path] | Path
+        The RTL source file(s) to synthesize.
+    liberty_files : list[Path] | Path
+        The Liberty file(s) for the target technology.
+    techmap_files : list[Path] | None
+        Techmap files applied after `synth`, or None to skip techmapping.
+    tiehi_cell_and_port : str | None
+        The "cell port" pair for `hilomap -hicell`, or None to skip hilomap.
+    tielo_cell_and_port : str | None
+        The "cell port" pair for `hilomap -locell`, or None to skip hilomap.
+    min_buf_cell_and_ports : str | None
+        The "cell in out" triple for `insbuf`, or None to skip buffer insertion.
+    flat : bool
+        Whether to flatten the hierarchy during synthesis. Defaults to False.
+    spef_files : list[Path] | Path | None
+        Parasitics to back-annotate for wire delay, or None to ignore wire delay.
+    delay_type_str : DelayType
+        The type of delay to use for the timing graph. Defaults to
+        DelayType.MAX_ALL.
+    debug : bool
+        Flag to enable debug mode. Defaults to False.
     """
 
     def __init__(
         self,
-        sta_tool: StaTool,
-        synth_tool: SynthTool,
+        top_name: str,
+        verilog_files: list[Path] | Path,
+        liberty_files: list[Path] | Path,
+        techmap_files: list[Path] | None = None,
+        tiehi_cell_and_port: str | None = None,
+        tielo_cell_and_port: str | None = None,
+        min_buf_cell_and_ports: str | None = None,
+        flat: bool = False,
+        spef_files: list[Path] | Path | None = None,
         delay_type_str: DelayType = DelayType.MAX_ALL,
         debug: bool = False,
     ) -> None:
-        self.synth_tool: SynthTool = synth_tool
-        self.synth_tool.synth_synthesize()
-
-        _sta_tool: StaTool = sta_tool
-
-        if _sta_tool.sta_netlist_file is not None and debug:
-            logger.warning(
-                "STA tool already has a netlist file. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if _sta_tool.sta_design_name is not None and debug:
-            logger.warning(
-                "STA tool already has a design name. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if _sta_tool.sta_liberty_files is not None and debug:
-            logger.warning(
-                "STA tool already has liberty files. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        _sta_tool.sta_netlist_file = self.synth_tool.synth_netlist_file
-        _sta_tool.sta_design_name = self.synth_tool.synth_design_name
-        _sta_tool.sta_liberty_files = self.synth_tool.synth_liberty_files
-
-        super().__init__(
-            top_name=self.synth_tool.synth_design_name,
-            sta_tool=_sta_tool,
-            delay_type_str=delay_type_str,
-            debug=debug,
+        netlist_file: Path = YosysTool.synthesize_to_netlist(
+            verilog_files=verilog_files,
+            liberty_files=liberty_files,
+            top_name=top_name,
+            techmap_files=techmap_files,
+            tiehi_cell_and_port=tiehi_cell_and_port,
+            tielo_cell_and_port=tielo_cell_and_port,
+            min_buf_cell_and_ports=min_buf_cell_and_ports,
+            flat=flat,
         )
-
-        self.verilog_netlist_content: str = synth_tool.synth_netlist_file.read_text()
-        synth_tool.synth_clean_up()
+        try:
+            super().__init__(
+                top_name=top_name,
+                netlist_file=netlist_file,
+                liberty_files=liberty_files,
+                spef_files=spef_files,
+                delay_type_str=delay_type_str,
+                debug=debug,
+            )
+        finally:
+            YosysTool.clean_up(netlist_file)

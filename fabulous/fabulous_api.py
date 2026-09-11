@@ -21,8 +21,6 @@ from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 
 # Importing Modules from FABulous Framework.
@@ -889,10 +887,6 @@ class FABulous_API:
                 techmap_files=techmap_files,
                 pdk_name=pdk,
                 min_buf_cell_and_ports=min_buf_cell_and_ports,
-                synth_executable=get_context().yosys_path,
-                synth_program=TimingModelSynthTools.YOSYS,
-                sta_executable=get_context().opensta_path,
-                sta_program=TimingModelStaTools.OPENSTA,
                 mode=TimingModelMode(mode),
                 debug=debug,
             )
