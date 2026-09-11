@@ -56,9 +56,8 @@ def test_plugin_version_falls_back_to_distribution_name(
 def test_plugin_version_falls_back_to_top_level_distribution(
     core_manager: PluginManager, mocker: MockerFixture
 ) -> None:
-    module = types.ModuleType("registration_name")
-    module.__name__ = "some_module.submodule"
-    core_manager.pm.register(module, name="registration_name")
+    module = types.ModuleType("some_module.submodule")
+    core_manager.pm.register(module, name="some_module.submodule")
 
     def fake_version(name: str) -> str:
         if name == "real-dist-name":
@@ -71,7 +70,7 @@ def test_plugin_version_falls_back_to_top_level_distribution(
         "packages_distributions",
         return_value={"some_module": ["real-dist-name"]},
     )
-    assert "version: 4.5.6" in core_manager.get_plugin_info_str("registration_name")
+    assert "version: 4.5.6" in core_manager.get_plugin_info_str("some_module.submodule")
 
 
 def test_plugin_version_unknown_when_unresolvable(
