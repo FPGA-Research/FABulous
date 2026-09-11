@@ -30,6 +30,7 @@ from fabulous.custom_exception import (
     EnvironmentNotSet,
     PipelineCommandError,
     ProjectUpgradeError,
+    PluginError,
 )
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
@@ -429,10 +430,29 @@ def write_pnr_model(artifacts: dict[str, str | bytes], out_dir: Path) -> None:
         File names, relative to `out_dir`, mapped to their content.
     out_dir : Path
         Directory the files are written to. Created if it does not exist.
+
+    Raises
+    ------
+    PluginError
+        If an artifact name resolves outside `out_dir`.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    root = out_dir.resolve()
+    # Backend names are plugin-supplied, so all are validated before any file
+    # is written. A rejected name then leaves no partial output.
+    paths: dict[str, Path] = {}
+    for name in artifacts:
+        path = (root / name).resolve()
+        if Path(name).is_absolute() or not path.is_relative_to(root):
+            raise PluginError(
+                f"Place-and-route backend returned the artifact name '{name}', "
+                f"which resolves outside the output directory '{out_dir}'. "
+                "Artifact names must be relative paths within it."
+            )
+        paths[name] = path
+
     for name, content in artifacts.items():
-        path = out_dir / name
+        path = paths[name]
         path.parent.mkdir(parents=True, exist_ok=True)
         logger.info(f"output file: {path}")
         if isinstance(content, bytes):
