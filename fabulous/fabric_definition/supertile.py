@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.define import Origin, Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -44,6 +44,9 @@ class SuperTile:
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
+    origin : Origin
+        Which corner of `tileMap` is (0, 0). `Origin.TOP_LEFT` is deprecated
+        and removed in 3.0.
     """
 
     name: str
@@ -54,6 +57,17 @@ class SuperTile:
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+    origin: Origin = Origin.TOP_LEFT
+
+    @property
+    def north_step(self) -> int:
+        """Return the `tileMap` y increment that moves one sub-tile north.
+
+        Mirrors `Fabric.north_step` for the supertile's own grid, which the
+        parser stores in whichever order `origin` names. Removing
+        `Origin.TOP_LEFT` in 3.0 reduces this to the constant 1.
+        """
+        return 1 if self.origin is Origin.BOTTOM_LEFT else -1
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
@@ -61,7 +75,8 @@ class SuperTile:
         The dictionary key is the location of where the tile is located in the
         supertile map with the format of "X{x}Y{y}",
         where x is the x coordinate of the tile and y is the y coordinate of the tile.
-        The top left tile will have key "00".
+        The tile at `tileMap[0][0]` has key "0,0"; which corner of the
+        supertile that is follows `origin`.
 
         Returns
         -------
@@ -74,11 +89,16 @@ class SuperTile:
                 if self.tileMap[y][x] is None:
                     continue
                 ports[f"{x},{y}"] = []
-                if y - 1 < 0 or self.tileMap[y - 1][x] is None:
+                north, south = y + self.north_step, y - self.north_step
+                if not (0 <= north < len(self.tileMap)) or (
+                    self.tileMap[north][x] is None
+                ):
                     ports[f"{x},{y}"].append(tile.getNorthSidePorts())
                 if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] is None:
                     ports[f"{x},{y}"].append(tile.getEastSidePorts())
-                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] is None:
+                if not (0 <= south < len(self.tileMap)) or (
+                    self.tileMap[south][x] is None
+                ):
                     ports[f"{x},{y}"].append(tile.getSouthSidePorts())
                 if x - 1 < 0 or self.tileMap[y][x - 1] is None:
                     ports[f"{x},{y}"].append(tile.getWestSidePorts())
@@ -105,9 +125,10 @@ class SuperTile:
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
+                north, south = y + self.north_step, y - self.north_step
                 if (
-                    0 <= y - 1 < len(self.tileMap)
-                    and self.tileMap[y - 1][x] is not None
+                    0 <= north < len(self.tileMap)
+                    and self.tileMap[north][x] is not None
                 ):
                     internalConnections.append((tile.getNorthSidePorts(), x, y))
                 if (
@@ -116,8 +137,8 @@ class SuperTile:
                 ):
                     internalConnections.append((tile.getEastSidePorts(), x, y))
                 if (
-                    0 <= y + 1 < len(self.tileMap)
-                    and self.tileMap[y + 1][x] is not None
+                    0 <= south < len(self.tileMap)
+                    and self.tileMap[south][x] is not None
                 ):
                     internalConnections.append((tile.getSouthSidePorts(), x, y))
                 if (
@@ -126,6 +147,34 @@ class SuperTile:
                 ):
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
+
+    def get_anchor_tile_coords(self) -> tuple[int, int]:
+        """Return the (x, y) coordinates of the anchor tile in local space.
+
+        The anchor is the first non-None tile in row-major order over
+        `tileMap`. `gen_fabric` instantiates the supertile wrapper at the
+        matching fabric cell, so this is what names the wrapper instance and
+        what the GDS macro flow must name its macro after. It is a structural
+        position, unrelated to the config chain that `get_master_tile_coords`
+        anchors.
+
+        Returns
+        -------
+        tuple[int, int]
+            `(x, y)` in local supertile coordinates.
+
+        Raises
+        ------
+        ValueError
+            If the supertile contains no tiles.
+        """
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    return x, y
+        raise ValueError(
+            f"SuperTile '{self.name}' has no tiles; cannot determine anchor tile"
+        )
 
     def get_master_tile_coords(self) -> tuple[int, int]:
         """Return the (x, y) coordinates of the master tile in local space.
@@ -138,9 +187,8 @@ class SuperTile:
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural *anchor* tile (the top-left tile, where `gen_fabric` places
-        the wrapper instance); the master and the anchor are usually different
-        tiles (e.g. DSP master = `DSP_bot`, anchor = `DSP_top`).
+        structural anchor tile, `get_anchor_tile_coords`; the two coincide only
+        when the master happens to be the first tile in row-major order.
 
         Returns
         -------

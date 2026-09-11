@@ -2,27 +2,37 @@
 
 import pytest
 
-from fabulous.custom_exception import InvalidPortType
-from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.custom_exception import InvalidPortType, InvalidSwitchMatrixDefinition
+from fabulous.fabric_definition.define import IO, Direction, Origin, Side
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 
-# (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
+# (kind, OUTPUT/start side, INPUT/end side, unit x_offset, unit y_offset) with a
+# canonical bottom-left unit offset for the direction (north is +y, east is +x).
 DIRECTIONAL_CASES = [
-    ("NORTH", Side.NORTH, Side.SOUTH),
-    ("SOUTH", Side.SOUTH, Side.NORTH),
-    ("EAST", Side.EAST, Side.WEST),
-    ("WEST", Side.WEST, Side.EAST),
+    ("NORTH", Side.NORTH, Side.SOUTH, 0, 1),
+    ("SOUTH", Side.SOUTH, Side.NORTH, 0, -1),
+    ("EAST", Side.EAST, Side.WEST, 1, 0),
+    ("WEST", Side.WEST, Side.EAST, -1, 0),
+]
+
+# Every case again per origin, with the y offset negated for the top-left one.
+ORIGIN_OFFSET_CASES = [
+    (origin, kind, x_off, y_off * (1 if origin is Origin.BOTTOM_LEFT else -1))
+    for origin in Origin
+    for kind, _, _, x_off, y_off in DIRECTIONAL_CASES
 ]
 
 
 class TestDirectionalPorts:
     """NORTH/SOUTH/EAST/WEST lines produce an OUTPUT/INPUT port pair."""
 
-    @pytest.mark.parametrize(("kind", "startSide", "endSide"), DIRECTIONAL_CASES)
+    @pytest.mark.parametrize(
+        ("kind", "startSide", "endSide", "x_off", "y_off"), DIRECTIONAL_CASES
+    )
     def test_two_ports_with_expected_io_and_sides(
-        self, kind: str, startSide: Side, endSide: Side
+        self, kind: str, startSide: Side, endSide: Side, x_off: int, y_off: int
     ) -> None:
-        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,0,-1,N1END,4")
+        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,{x_off},{y_off},N1END,4")
 
         assert len(ports) == 2
         output, input_ = ports
@@ -37,17 +47,47 @@ class TestDirectionalPorts:
 
         assert commonWirePair == ("N1BEG", "N1END")
 
-    @pytest.mark.parametrize("kind", [c[0] for c in DIRECTIONAL_CASES])
-    def test_shared_attributes_carry_through(self, kind: str) -> None:
-        ports, _ = parse_port_line(f"{kind},N2BEG,0,-2,N2END,8")
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
+    def test_shared_attributes_carry_through(
+        self, origin: Origin, kind: str, x_off: int, y_off: int
+    ) -> None:
+        ports, _ = parse_port_line(
+            f"{kind},N2BEG,{x_off * 2},{y_off * 2},N2END,8", origin
+        )
 
         for port in ports:
             assert port.wire_direction is Direction[kind]
             assert port.source_name == "N2BEG"
             assert port.destination_name == "N2END"
-            assert port.x_offset == 0
-            assert port.y_offset == -2
+            assert port.x_offset == x_off * 2
+            assert port.y_offset == y_off * 2
             assert port.wire_count == 8
+
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
+    def test_authored_offset_sign_is_ignored(
+        self, origin: Origin, kind: str, x_off: int, y_off: int
+    ) -> None:
+        """The direction token, not the authored sign, fixes the offset.
+
+        A fabric may write either sign for a NORTH or SOUTH wire. The sign is
+        derived from the direction token and the origin, so the authored one is
+        ignored and existing projects stay readable under either convention.
+        """
+        # Feed the sign-flipped offset; expect the canonical one back.
+        ports, _ = parse_port_line(f"{kind},N1BEG,{-x_off},{-y_off},N1END,4", origin)
+
+        for port in ports:
+            assert port.x_offset == x_off
+            assert port.y_offset == y_off
+
+    @pytest.mark.parametrize(
+        "bad_line",
+        ["NORTH,N1BEG,1,1,N1END,4", "EAST,E1BEG,1,1,E1END,4"],
+    )
+    def test_diagonal_cardinal_wire_rejected(self, bad_line: str) -> None:
+        """A cardinal wire with a non-zero orthogonal offset is rejected."""
+        with pytest.raises(InvalidSwitchMatrixDefinition):
+            parse_port_line(bad_line)
 
     def test_null_destination_keeps_name_and_pairs(self) -> None:
         ports, commonWirePair = parse_port_line("SOUTH,S4BEG,0,4,NULL,4")

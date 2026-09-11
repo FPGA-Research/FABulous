@@ -91,6 +91,36 @@ configs = (
 )
 
 
+def _index_super_tile_placements(
+    fabric: Fabric,
+) -> tuple[dict[tuple[int, int], str], set[tuple[int, int]]]:
+    """Index every supertile placement in the fabric grid by position.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose grid is scanned.
+
+    Returns
+    -------
+    tuple[dict[tuple[int, int], str], set[tuple[int, int]]]
+        The lowest-index corner of each placement's bounding box mapped to the
+        supertile name, and every grid cell occupied by a placement. The corner
+        need not be occupied, because a supertile with a hole there matches a
+        NULL grid cell, so it is absent from the second element.
+    """
+    bases: dict[tuple[int, int], str] = {}
+    covered: set[tuple[int, int]] = set()
+    for name, supertile in fabric.superTileDic.items():
+        for base_fx, base_fy, _ in fabric.iter_super_tile_placements(supertile):
+            bases[(base_fx, base_fy)] = name
+            for ly, row in enumerate(supertile.tileMap):
+                for lx, sub_tile in enumerate(row):
+                    if sub_tile is not None:
+                        covered.add((base_fx + lx, base_fy + ly))
+    return bases, covered
+
+
 @Flow.factory.register()
 class FABulousFabricMacroFlow(Classic):
     """Flow for stitching together individual tile macros into a complete fabric.
@@ -200,7 +230,8 @@ class FABulousFabricMacroFlow(Classic):
         """Compute row heights and column widths in a single pass.
 
         Considers both regular tiles and supertiles when computing dimensions.
-        Also builds back-references from non-anchor subtiles to their anchor.
+        A supertile contributes its size to every row and column its bounding
+        box spans, divided evenly across them.
 
         Parameters
         ----------
@@ -225,32 +256,20 @@ class FABulousFabricMacroFlow(Classic):
         row_heights_map: dict[int, Decimal] = {}
         col_widths_map: dict[int, Decimal] = {}
 
-        # Build supertile anchor map for quick lookup and back-references
-        supertile_anchors: dict[str, str] = {}
-        subtile_to_anchor: dict[str, str] = {}
-        for supertile_name, supertile in fabric.superTileDic.items():
-            anchor = supertile.tileMap[-1][0]
-            supertile_anchors[anchor.name] = supertile_name
-            # Create back-references from all subtiles to their anchor
-            for tile in supertile.tiles:
-                subtile_to_anchor[tile.name] = anchor.name
+        # Locate supertiles by grid position rather than by tile name: a
+        # subtile name can also occur outside any placement, and the lowest
+        # corner of the bounding box may itself be a hole.
+        placement_bases, covered = _index_super_tile_placements(fabric)
 
         # Single pass through the grid; capture the first non-null in each row/col
         for (x, y), tile in fabric:
-            if tile is None:
-                continue
-
-            # Check if this tile is a supertile anchor
-            tile_key = tile.name
-            if tile_key in supertile_anchors:
-                supertile_name = supertile_anchors[tile_key]
+            if (x, y) in placement_bases:
+                supertile_name = placement_bases[(x, y)]
                 supertile = fabric.superTileDic[supertile_name]
                 width, height = tile_sizes[supertile_name]
                 num_rows_spanned = len(supertile.tileMap)
-                num_cols_spanned = len(supertile.tileMap[0]) if supertile.tileMap else 1
-            elif tile_key in subtile_to_anchor:
-                # This is a non-anchor subtile, skip it but process only
-                # when we hit the anchor
+                num_cols_spanned = len(supertile.tileMap[0])
+            elif tile is None or (x, y) in covered:
                 continue
             else:
                 width, height = tile_sizes[tile.name]
@@ -274,7 +293,7 @@ class FABulousFabricMacroFlow(Classic):
 
             # Record row heights for all rows spanned by this tile/supertile
             for row_offset in range(num_rows_spanned):
-                row_idx = y - row_offset
+                row_idx = y + row_offset
                 if row_idx not in row_heights_map:
                     row_heights_map[row_idx] = height / num_rows_spanned
                 else:
@@ -608,47 +627,59 @@ class FABulousFabricMacroFlow(Classic):
         tile_spacing_x = round_up_decimal(tile_spacing_x, pitch_x)
         tile_spacing_y = round_up_decimal(tile_spacing_y, pitch_y)
 
-        # Place macros
+        placement_bases, covered = _index_super_tile_placements(self.fabric)
+
+        # A supertile macro spans its whole bounding box, so it is placed from
+        # the box's physical bottom left: the highest fabric row of the box
+        # under the deprecated top-left origin, the lowest under bottom-left.
+        # Its instance name comes from the anchor cell instead, because that is
+        # where `generateFabric` instantiates the wrapper.
+        macro_cells: dict[tuple[int, int], tuple[str, str]] = {}
+        for (base_fx, base_fy), name in placement_bases.items():
+            supertile = self.fabric.superTileDic[name]
+            span = len(supertile.tileMap)
+            south_fy = base_fy if self.fabric.north_step == 1 else base_fy + span - 1
+            anchor_lx, anchor_ly = supertile.get_anchor_tile_coords()
+            macro_cells[(base_fx, south_fy)] = (
+                name,
+                f"Tile_X{base_fx + anchor_lx}Y{base_fy + anchor_ly}_{name}",
+            )
+
+        # Macros are placed bottom-up, so visit the grid south row first. `y`
+        # stays the fabric index under either origin, which is what names the
+        # macro and indexes row_heights.
+        rows = list(enumerate(self.fabric.tile))
+        if self.fabric.north_step == -1:
+            rows.reverse()
         cur_y = 0
-        for y, row in enumerate(reversed(self.fabric.tile)):
+        for y, row in rows:
             cur_x = 0
-            flipped_y = self.fabric.numberOfRows - 1 - y
 
             for x, tile in enumerate(row):
-                tile_name = tile.name if tile is not None else None
-                prefix = f"Tile_X{x}Y{flipped_y}_"
-
-                for supertile_name, supertile in self.fabric.superTileDic.items():
-                    subtiles = [tile.name for tile in supertile.tiles]
-
-                    # Get the anchor of the supertile (bottom left)
-                    anchor = supertile.tileMap[-1][0]
-
-                    if tile_name in subtiles:
-                        if tile_name == anchor.name:
-                            tile_name = supertile_name
-
-                            # While the physical anchor is at the bottom left,
-                            # the anchor in FABulous is at the top left
-                            prefix = (
-                                f"Tile_X{x}Y{flipped_y - (len(supertile.tileMap) - 1)}_"
-                            )
-                        else:
-                            tile_name = None
-
-                if tile_name is None:
-                    info(f"Skipping Null tile at X{x}Y{flipped_y}")
+                placement: tuple[str, str] | None
+                if (x, y) in macro_cells:
+                    placement = macro_cells[(x, y)]
+                elif (x, y) in covered:
+                    info(f"Tile at X{x}Y{y} is covered by a supertile macro")
+                    placement = None
+                elif tile is None:
+                    info(f"Skipping Null tile at X{x}Y{y}")
+                    placement = None
                 else:
-                    if tile_name not in self.macros:
+                    placement = (tile.name, f"Tile_X{x}Y{y}_{tile.name}")
+
+                if placement is not None:
+                    macro_name, instance_name = placement
+                    if macro_name not in self.macros:
                         raise FlowException(
-                            f"No hardened macro available for tile {tile_name!r}. "
+                            f"No hardened macro available for tile {macro_name!r}. "
                             f"Provide it via FABULOUS_TILE_MACROS or ensure a "
                             f"RUN_*/final directory exists for it under "
                             f"FABULOUS_TILE_LIBRARY. Available macros: "
                             f"{sorted(self.macros)}."
                         )
 
-                    self.macros[tile_name].instances[f"{prefix}{tile_name}"] = Instance(
+                    self.macros[macro_name].instances[instance_name] = Instance(
                         location=(
                             halo_left + cur_x,
                             halo_bottom + cur_y,
@@ -660,7 +691,7 @@ class FABulousFabricMacroFlow(Classic):
                 cur_x += column_widths[x] + tile_spacing_x
 
             # Add row height only (spacing is included in DIE_AREA calculation)
-            cur_y += row_heights[flipped_y] + tile_spacing_y
+            cur_y += row_heights[y] + tile_spacing_y
 
         # Validate that no macros overlap before proceeding
         info("Validating macro placements for overlaps...")

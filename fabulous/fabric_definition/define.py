@@ -90,6 +90,20 @@ class Side(StrEnum):
                 return Side.ANY
 
 
+class Origin(StrEnum):
+    """Which corner of the fabric grid holds coordinate (0, 0).
+
+    `BOTTOM_LEFT` is the convention FABulous 3.0 will use exclusively: row 0 is
+    the south row and north is increasing y. `TOP_LEFT` is the pre-3.0
+    convention, kept only so fabrics authored against it keep generating the
+    output they did before, and is removed in 3.0 along with every branch that
+    reads it.
+    """
+
+    TOP_LEFT = "top_left"
+    BOTTOM_LEFT = "bottom_left"
+
+
 class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.
 

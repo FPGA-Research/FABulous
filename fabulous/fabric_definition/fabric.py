@@ -14,6 +14,7 @@ from fabulous.fabric_definition.define import (
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
+    Origin,
     Side,
 )
 from fabulous.fabric_definition.supertile import SuperTile
@@ -72,6 +73,9 @@ class Fabric:
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.
+    origin : Origin
+        Which corner of the tile grid is (0, 0). `Origin.TOP_LEFT` is
+        deprecated and removed in 3.0.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
         the value is the tile.
@@ -110,12 +114,31 @@ class Fabric:
     disableUserCLK: bool = False
     multiClkDomains: bool = False
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
+    origin: Origin = Origin.TOP_LEFT
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
     unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
+
+    @property
+    def north_step(self) -> int:
+        """Return the y increment that moves one tile north.
+
+        Bottom-left origin counts north upwards, so the step is 1. The
+        deprecated top-left origin counts it downwards, so the step is -1;
+        consumers write `y + fabric.north_step` and work under either. Removing
+        `Origin.TOP_LEFT` in 3.0 reduces this to the constant 1.
+        """
+        return 1 if self.origin is Origin.BOTTOM_LEFT else -1
+
+    @property
+    def rows_north_first(self) -> range:
+        """Return the row indices ordered north to south, as fabric.csv writes them."""
+        if self.origin is Origin.BOTTOM_LEFT:
+            return range(self.numberOfRows - 1, -1, -1)
+        return range(self.numberOfRows)
 
     def __post_init__(self) -> None:
         """Generate and get all the wire pairs in the fabric.
@@ -404,7 +427,7 @@ class Fabric:
         """Yield `(base_fx, base_fy, superTile)` for every supertile placement.
 
         Each supertile type's `tileMap` pattern is matched against the fabric
-        grid; `(base_fx, base_fy)` is the top-left corner of a match. Shared by
+        grid; `(base_fx, base_fy)` is the lowest-index corner of a match. Shared by
         the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
         locate supertile instances identically.
 
@@ -417,7 +440,7 @@ class Fabric:
         Yields
         ------
         tuple[int, int, SuperTile]
-            The placement's top-left grid coordinates and the supertile there.
+            The placement's lowest-index grid coordinates and the supertile there.
         """
         candidates = (
             [superTile] if superTile is not None else list(self.superTileDic.values())
@@ -453,7 +476,7 @@ class Fabric:
             A formatted string showing the fabric layout and key parameters.
         """
         fabric = ""
-        for i in range(self.numberOfRows):
+        for i in self.rows_north_first:
             for j in range(self.numberOfColumns):
                 if self.tile[i][j] is None:
                     fabric += "Null".ljust(15) + "\t"
@@ -650,9 +673,15 @@ class Fabric:
             The border side (NORTH, SOUTH, EAST, or WEST) if the position is on
             a border, None otherwise. If on a corner, returns the vertical side
             (NORTH or SOUTH) as priority.
+
+        Notes
+        -----
+        Which y is the north row follows `origin`, so this answers correctly
+        under either convention.
         """
-        is_north = y == 0
-        is_south = y == self.numberOfRows - 1
+        north_row = self.numberOfRows - 1 if self.origin is Origin.BOTTOM_LEFT else 0
+        is_north = y == north_row
+        is_south = y == self.numberOfRows - 1 - north_row
         is_east = x == self.numberOfColumns - 1
         is_west = x == 0
 

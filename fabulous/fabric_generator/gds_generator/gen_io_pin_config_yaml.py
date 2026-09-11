@@ -149,11 +149,12 @@ def _serialize_supertile_ports(
         # the supertile layout instead of relying on the routing-port list.
         all_perimeter_sides: set[Side] = set()
         tm = super_tile.tileMap
-        if y_int == 0 or tm[y_int - 1][x_int] is None:
+        north, south = y_int + super_tile.north_step, y_int - super_tile.north_step
+        if not 0 <= north < len(tm) or tm[north][x_int] is None:
             all_perimeter_sides.add(Side.NORTH)
         if x_int + 1 >= len(tm[y_int]) or tm[y_int][x_int + 1] is None:
             all_perimeter_sides.add(Side.EAST)
-        if y_int + 1 >= len(tm) or tm[y_int + 1][x_int] is None:
+        if not 0 <= south < len(tm) or tm[south][x_int] is None:
             all_perimeter_sides.add(Side.SOUTH)
         if x_int == 0 or tm[y_int][x_int - 1] is None:
             all_perimeter_sides.add(Side.WEST)
