@@ -1,5 +1,3 @@
-`default_nettype none
-
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+`default_nettype none
+
 (* FABulous, BelMap,
     A_reg=0,
     B_reg=1,
@@ -25,18 +25,18 @@
 module MULADD #(parameter integer NoConfigBits = 6) (
     // ConfigBits has to be adjusted manually
     // (we don't use an arithmetic parser for the value)
-    input  [ 7:0] A  , // operand A
-    input  [ 7:0] B  , // operand B
-    input  [19:0] C  , // operand C
-    output [19:0] Q  , // result
-    input         clr,
+    input  wire [ 7:0] A  , // operand A
+    input  wire [ 7:0] B  , // operand B
+    input  wire [19:0] C  , // operand C
+    output wire [19:0] Q  , // result
+    input  wire        clr,
     //The "EXTERNAL" keyword will send this signal all the way to top
     //The "SHARED" keyword allows multiple BELs using the same port
     // (e.g. for exporting a clock to the top)
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
+    (* FABulous, EXTERNAL, SHARED_PORT *) input wire UserCLK,
     // All primitive pins that are connected to the switch matrix have
     // to go before the "GLOBAL" label
-    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
+    (* FABulous, GLOBAL *) input wire [NoConfigBits-1:0] ConfigBits
 );
     reg  [ 7:0] A_reg_data      ; // port A read data register
     reg  [ 7:0] B_reg_data      ; // port B read data register
@@ -87,4 +87,4 @@ module MULADD #(parameter integer NoConfigBits = 6) (
         end
 
 endmodule
-`default_nettype wire
+`resetall

@@ -122,11 +122,15 @@ The available variables are:
 | `WAVEFORM_TYPE` | `fst` | Waveform output format (`fst` or `vcd`) |
 | `BUILD_DIR` | `build` | Build output directory |
 | `FAB_PROJ_ROOT` | `..` | Path to the project root |
-| `SIMULATOR` | `auto` | Simulator selection (`auto`, `nvc`, or `ghdl`). `auto` uses NVC if available, falls back to GHDL |
+| `SIMULATOR` | `iverilog` (Verilog), `auto` (VHDL) | Simulator backend. Verilog: `iverilog` or `xvlog`. VHDL: `nvc`, `ghdl`, `xvhdl`, or `auto`, where `auto` uses NVC if available and GHDL otherwise |
 | `BITSTREAM_BIN` | `build/<DESIGN>.bin` | Path to the `.bin` bitstream file |
 | `EXTRA_IVERILOG_FLAGS` | *(empty)* | Extra flags passed to iverilog (Verilog only) |
 | `EXTRA_NVC_FLAGS` | *(empty)* | Extra flags passed to NVC (VHDL only) |
 | `EXTRA_GHDL_FLAGS` | *(empty)* | Extra flags passed to GHDL (VHDL only) |
+| `EXTRA_XVLOG_FLAGS` | *(empty)* | Extra flags passed to xvlog (Verilog, xsim only) |
+| `EXTRA_XVHDL_FLAGS` | *(empty)* | Extra flags passed to xvhdl (VHDL, xsim only) |
+| `EXTRA_XELAB_FLAGS` | *(empty)* | Extra flags passed to xelab (xsim only) |
+| `XSIM_SNAPSHOT` | `<DESIGN>_xsim` | xelab snapshot name; also names the xsim log and waveform (xsim only) |
 | `MAX_BITBYTES` | `16384` | Maximum bitstream size in bytes |
 
 Variables can also be set via environment variables or the project's
@@ -152,9 +156,10 @@ FABulous> run_simulation fst path/to/design.bin --extra-iverilog-flag="-DDEBUG"
 FABulous> run_simulation fst path/to/design.bin --extra-nvc-flag="--ieee-warnings=error"
 FABulous> run_simulation fst path/to/design.bin --extra-ghdl-flag="--warn-error"
 
-# Force a specific VHDL simulator
+# Force a specific simulator backend
 FABulous> run_simulation fst path/to/design.bin --simulator=nvc
 FABulous> run_simulation fst path/to/design.bin --simulator=ghdl
+FABulous> run_simulation fst path/to/design.bin --simulator=xvhdl
 
 # Combine options
 FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRACE"
@@ -163,7 +168,7 @@ FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRAC
 | Flag | Short | Description |
 |---|---|---|
 | `--design` | `-d` | Override the design name (default: inferred from bitstream filename) |
-| `--simulator` | `-s` | VHDL simulator: `nvc`, `ghdl`, or `auto` (default: auto-detect) |
+| `--simulator` | `-s` | Simulator backend: `iverilog` or `xvlog` (Verilog), `nvc`, `ghdl`, `xvhdl`, or `auto` (VHDL). Unset leaves the choice to the Taskfile |
 | `--extra-iverilog-flag` | `-if` | Extra flags for iverilog (Verilog projects) |
 | `--extra-nvc-flag` | `-nf` | Extra flags for NVC (VHDL projects) |
 | `--extra-ghdl-flag` | `-gf` | Extra flags for GHDL (VHDL projects) |
@@ -180,6 +185,16 @@ toolchain.
   compiles packages (`models_pack`) first, then tile files, then fabric
   infrastructure, and finally the user design and testbench.
   You can force a specific simulator by setting `SIMULATOR=nvc` or `SIMULATOR=ghdl`.
+
+AMD Vivado's xsim runs both languages, selected by `SIMULATOR=xvlog` in a
+Verilog project and `SIMULATOR=xvhdl` in a VHDL one. Either needs that analyser,
+`xelab` and `xsim` on `PATH` from a Vivado installation. xsim exits 0 after a
+testbench failure, so the task fails the run by grepping the simulator log; see
+the `Test/README.md` of each template for the rest.
+
+The same value drives the repository-level smoke test, where it also picks the
+project language, so `task smoke-test SIMULATOR=xvhdl` creates a VHDL demo
+project and runs it under xsim.
 
 :::{note}
 The `Taskfile.yml` is a regular YAML file that you can freely edit to add
