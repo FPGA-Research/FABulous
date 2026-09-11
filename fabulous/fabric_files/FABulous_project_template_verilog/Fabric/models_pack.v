@@ -19,8 +19,8 @@ module config_latch (
 endmodule
 
 module config_dff (
-    input D,
-    input CLK,
+    input wire D,
+    input wire CLK,
     output reg Q,
     output QN
 );
