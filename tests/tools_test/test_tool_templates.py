@@ -1,20 +1,51 @@
 """Tests for the Jinja-rendered tool scripts and their Python-side wiring.
 
 Covers the Yosys synthesis and OpenSTA SDF templates directly (exact rendered
-text) and the `analyze` wrapper that normalizes its inputs and feeds the rendered
-script to the tool.
+text), the `analyze` wrapper that normalizes its inputs and feeds the rendered
+script to the tool, and the GHDL version gate that keeps a too-old GHDL from
+silently stripping the VHDL attributes a BEL definition is carried in.
 """
 
+import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
+from packaging.version import Version
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import UnsupportedToolVersion
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.opensta import OpenStaTool
-from fabulous.tools.tool import Tool
+from fabulous.tools.tool import Tool, _check_version_once
 from fabulous.tools.yosys import YosysTool
+
+
+def _reporting(
+    mocker: MockerFixture, tool_cls: type[Tool], version_output: str
+) -> None:
+    """Make `tool_cls` report `version_output` as its version banner.
+
+    Patches the subprocess call rather than `run`, so that `run` and the
+    version check hanging off it stay under test.
+
+    Parameters
+    ----------
+    mocker : MockerFixture
+        The pytest-mock fixture used to patch the tool.
+    tool_cls : type[Tool]
+        The tool wrapper being faked.
+    version_output : str
+        The stdout the tool is pretended to write for its version arguments.
+    """
+    mocker.patch.object(tool_cls, "executable", return_value=Path("/tool"))
+    mocker.patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=version_output, stderr=""
+        ),
+    )
+    _check_version_once.cache_clear()
 
 
 def test_yosys_template_minimal() -> None:
@@ -170,3 +201,109 @@ def test_tool_cannot_be_instantiated(tool_cls: type[Tool]) -> None:
     """Tool wrappers are classmethod-only singletons and reject instantiation."""
     with pytest.raises(TypeError, match="cannot be instantiated"):
         tool_cls()
+
+
+@pytest.mark.parametrize(
+    ("tool_cls", "version_output", "expected"),
+    [
+        (
+            GhdlTool,
+            "GHDL 6.0.0 (6.0.0.r0.ge589c698c) [Dunoon edition]\n",
+            Version("6.0.0"),
+        ),
+        (
+            GhdlTool,
+            "GHDL 5.1.1 (4.1.0.r775.g91725e47f) [Dunoon edition]\n",
+            Version("5.1.1"),
+        ),
+        (
+            YosysTool,
+            "Yosys 0.62 (git sha1 7326bb7d, clang++ 21.1.2 -fPIC -O3)\n",
+            Version("0.62"),
+        ),
+        (OpenStaTool, "2.7.0\n", Version("2.7.0")),
+    ],
+)
+def test_version_parsed(
+    mocker: MockerFixture,
+    tool_cls: type[Tool],
+    version_output: str,
+    expected: Version,
+) -> None:
+    """Every tool's real banner puts its version first on the first line."""
+    _reporting(mocker, tool_cls, version_output)
+    assert tool_cls.version() == expected
+
+
+@pytest.mark.parametrize(
+    "version_output",
+    [
+        "",
+        "GHDL nightly\n",
+        # The GNAT version on the second line is not GHDL's.
+        "GHDL (built from a working tree)\n Compiled with GNAT Version: 13.3.0\n",
+    ],
+)
+def test_unreadable_version_is_not_fatal(
+    mocker: MockerFixture, version_output: str
+) -> None:
+    """A build with no version number in its banner is used, not rejected."""
+    _reporting(mocker, GhdlTool, version_output)
+    assert GhdlTool.version() is None
+    GhdlTool.check_version()
+
+
+@pytest.mark.parametrize(
+    ("tool_cls", "version_output"),
+    [
+        (GhdlTool, "GHDL 6.0.0 (6.0.0.r0.ge589c698c) [Dunoon edition]\n"),
+        (GhdlTool, "GHDL 7.1.0\n"),
+        (YosysTool, "Yosys 0.62 (git sha1 7326bb7d)\n"),
+        (YosysTool, "Yosys 0.66 (git sha1 7326bb7d)\n"),
+        # oss-cad-suite builds Yosys from master, so a build of the ceiling
+        # release carries the commits since its tag as a local segment.
+        (YosysTool, "Yosys 0.66+42 (git sha1 7326bb7d)\n"),
+        (OpenStaTool, "2.7.0\n"),
+    ],
+)
+def test_supported_version_accepted(
+    mocker: MockerFixture, tool_cls: type[Tool], version_output: str
+) -> None:
+    _reporting(mocker, tool_cls, version_output)
+    tool_cls.check_version()
+
+
+@pytest.mark.parametrize(
+    ("tool_cls", "version_output", "expected_message"),
+    [
+        (GhdlTool, "GHDL 5.1.1 (4.1.0.r775.g91725e47f)\n", "6.0.0 or newer"),
+        (YosysTool, "Yosys 0.67 (git sha1 7326bb7d)\n", "0.66 or older"),
+        (YosysTool, "Yosys 0.67+3 (git sha1 7326bb7d)\n", "0.66 or older"),
+        # A pre-release keeps its ordering: it comes before the release the
+        # floor asks for, so it cannot carry what that release added.
+        (GhdlTool, "GHDL 6.0.0-dev (6.0.0.r0)\n", "6.0.0 or newer"),
+    ],
+)
+def test_unsupported_version_rejected(
+    mocker: MockerFixture,
+    tool_cls: type[Tool],
+    version_output: str,
+    expected_message: str,
+) -> None:
+    _reporting(mocker, tool_cls, version_output)
+    with pytest.raises(UnsupportedToolVersion, match=expected_message):
+        tool_cls.check_version()
+
+
+def test_run_checks_version_once(mocker: MockerFixture) -> None:
+    """The gate hangs off `run`, so no caller has to ask for it."""
+    _reporting(mocker, GhdlTool, "GHDL 5.1.1 (4.1.0.r775.g91725e47f)\n")
+    with pytest.raises(UnsupportedToolVersion, match="6.0.0 or newer"):
+        GhdlTool.synthesize_to_verilog(Path("/bel.vhdl"), Path("/models_pack.vhdl"))
+
+
+def test_opensta_is_asked_with_the_flag_it_has(mocker: MockerFixture) -> None:
+    """`--version` is not an OpenSTA flag: it prints usage and exits 1."""
+    _reporting(mocker, OpenStaTool, "2.7.0\n")
+    assert OpenStaTool.version() == Version("2.7.0")
+    assert subprocess.run.call_args.args[0] == ["/tool", "-version"]

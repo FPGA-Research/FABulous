@@ -21,6 +21,10 @@ class OpenStaTool(Tool):
     singleton: call the classmethods directly, never instantiate.
     """
 
+    # OpenSTA takes single-dash flags; `--version` reaches it as a file to source,
+    # so it prints its usage and exits 1.
+    VERSION_ARGS = ["-version"]
+
     @classmethod
     def executable(cls) -> Path | str:
         """Return the OpenSTA executable from the FABulous context.

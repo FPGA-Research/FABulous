@@ -11,6 +11,7 @@ import pytest_mock
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.yosys_obj import YosysJson
+from fabulous.tools.tool import _check_version_once
 
 
 def setup_mocks(
@@ -59,28 +60,29 @@ def setup_mocks(
     ),
     [
         (
+            # Two extra calls: GHDL and Yosys are each asked for a version.
             ".vhdl",
             {"FAB_PROJ_LANG": "VHDL"},
             '{"modules": {"test": {}}}',
             "entity test is end entity;",
-            2,
-            [(0, "ghdl"), (1, "yosys")],
+            4,
+            [(0, "ghdl"), (1, "--synth"), (2, "yosys"), (3, "read_verilog")],
         ),
         (
             ".sv",
             {},
             "{}",
             None,
-            1,
-            [(None, "read_verilog -sv")],
+            2,
+            [(0, "--version"), (1, "read_verilog -sv")],
         ),
         (
             ".v",
             {},
             "{}",
             None,
-            1,
-            [(None, "read_verilog")],
+            2,
+            [(0, "--version"), (1, "read_verilog")],
         ),
     ],
 )
@@ -97,6 +99,8 @@ def test_yosys_json_initialization_parametric(
 ) -> None:
     """Parametrized test for YosysJson initialization across HDL types."""
     # Mock external dependencies
+    # No version is readable out of this stdout, so no version gate fires.
+    _check_version_once.cache_clear()
     m = mocker.patch(
         "subprocess.run",
         return_value=type(
