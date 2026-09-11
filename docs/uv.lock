@@ -636,6 +636,7 @@ dependencies = [
     { name = "requests" },
     { name = "sdf-timing" },
     { name = "typer" },
+    { name = "typing-extensions" },
 ]
 
 [package.metadata]
@@ -661,6 +662,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.0.0" },
     { name = "sdf-timing", git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" },
     { name = "typer", specifier = ">=0.20.0" },
+    { name = "typing-extensions", specifier = ">=4.5" },
 ]
 
 [package.metadata.requires-dev]
