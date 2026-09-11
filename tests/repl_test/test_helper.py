@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.custom_exception import EnvironmentNotSet
+from fabulous.custom_exception import EnvironmentNotSet, PluginError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import (
@@ -15,6 +15,7 @@ from fabulous.fabulous_repl.helper import (
     register_tile_in_fabric_csv,
     run_task,
     update_project_version,
+    write_pnr_model,
 )
 from tests.conftest import normalize_and_check_for_errors, run_cmd
 
@@ -400,3 +401,43 @@ def test_clone_tile_no_register_skips_fabric_csv(
     csv_after = cli.csvFile.read_text(encoding="utf-8")
     assert csv_after == csv_before
     assert "MY_TILE" not in csv_after
+
+
+def test_write_pnr_model_writes_nested_artifacts(tmp_path: Path) -> None:
+    """A backend may name a subdirectory; it is created under the output dir."""
+    write_pnr_model({"models/arch.xml": "<arch/>", "bits.bin": b"\x01"}, tmp_path)
+
+    assert (tmp_path / "models" / "arch.xml").read_text(encoding="utf-8") == "<arch/>"
+    assert (tmp_path / "bits.bin").read_bytes() == b"\x01"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param("/etc/passwd", id="absolute"),
+        pytest.param("../escaped.txt", id="parent-relative"),
+        pytest.param("models/../../escaped.txt", id="parent-relative-nested"),
+    ],
+)
+def test_write_pnr_model_rejects_names_outside_out_dir(
+    tmp_path: Path, name: str
+) -> None:
+    """An artifact name is a relative path inside the output directory."""
+    out_dir = tmp_path / "out"
+
+    with pytest.raises(PluginError, match="outside the output directory"):
+        write_pnr_model({name: "x"}, out_dir)
+
+    assert list(out_dir.iterdir()) == []
+
+
+def test_write_pnr_model_writes_nothing_when_one_name_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """Validation precedes writing, so a bad name leaves no partial output."""
+    out_dir = tmp_path / "out"
+
+    with pytest.raises(PluginError):
+        write_pnr_model({"good.txt": "x", "../bad.txt": "y"}, out_dir)
+
+    assert list(out_dir.iterdir()) == []

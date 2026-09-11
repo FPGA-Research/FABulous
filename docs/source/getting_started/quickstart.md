@@ -2,7 +2,7 @@
 
 # Quick start
 
-This guide walks you through installing FABulous, generating a fabric, and producing a bitstream in under five minutes. For detailed installation options see the [Installation section](#install).
+This guide walks you through installing FABulous, generating a fabric, and producing a bitstream in under five minutes. For detailed installation options see the [Installation section](#installation-method).
 
 ## 1. Install FABulous
 
@@ -25,7 +25,7 @@ FABulous --version
 ```
 
 :::{tip}
-See the [Installation section](#install) for alternative methods (venv, Docker, Nix) and platform-specific instructions.
+See the [Installation section](#installation-method) for alternative methods (venv, Docker, Nix) and platform-specific instructions.
 :::
 
 ## 2. Install CAD tools

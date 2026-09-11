@@ -1,4 +1,4 @@
-(install)=
+(installation-method)=
 
 # Installation Method
 
