@@ -569,7 +569,6 @@ def generate_super_tile_config_mem(
 
     output_csv = superTile.tileDir.parent / f"{superTile.name}_ConfigMem.csv"
 
-    # Only build the master-derived CSV layout when in FRAME_BASED mode
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
         build_super_tile_config_mem_csv(
             master_config_mem_csv,
