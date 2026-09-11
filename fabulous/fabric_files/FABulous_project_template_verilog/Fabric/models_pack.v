@@ -31,8 +31,6 @@ module config_dff (
     assign QN = ~Q;
 endmodule
 
-`default_nettype wire
-
 module my_buf (
     input  A,
     output X
