@@ -26,6 +26,24 @@ jobs:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
+      # A merge group formed by a `GITHUB_TOKEN` enqueue dispatches no workflow
+      # run, so the required `all-clean` check never reports and the entry is
+      # evicted after the queue's four-hour check timeout. An app installation
+      # token is a different identity and does dispatch. Dependabot runs read
+      # the Dependabot secret store, so `RP_APP_PK` must exist there as well as
+      # in the Actions store that `release_please.yml` uses.
+      - name: Mint an app token
+        id: app-token
+        if: |
+          steps.meta.outputs.dependency-group != 'major' &&
+          steps.meta.outputs.update-type != 'version-update:semver-major'
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.RP_APP_ID }}
+          private-key: ${{ secrets.RP_APP_PK }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: Enable auto-merge for non-major updates
         if: |
           steps.meta.outputs.dependency-group != 'major' &&
@@ -33,4 +51,4 @@ jobs:
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
