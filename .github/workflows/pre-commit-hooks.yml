@@ -18,7 +18,7 @@ jobs:
     - name: Install the project
       run: |
         echo "UV_SYSTEM_PYTHON=1" >> $GITHUB_ENV
-        uv sync --locked --all-extras --dev
+        uv sync --locked
 
     - name: run pre-commit
       run: |

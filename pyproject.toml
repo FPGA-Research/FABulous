@@ -26,7 +26,7 @@ dependencies = [
   'loguru>=0.7.0',
   'requests>=2.0.0',
   'cmd2>=4.1.2',
-  'bitarray>=3.3.0',
+  'bitarray>=3.10.0',
   "pydantic>=2.12.1",
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
@@ -64,7 +64,7 @@ local_scheme = "node-and-date"
 # Version stamped into git-less builds (Nix, sdist) where setuptools_scm cannot
 # read a git tag. release-please bumps this to the release version inside the
 # release PR via the toml extra-files updater in release-please-config.json.
-fallback_version = "2.1.0"
+fallback_version = "2.2.0"
 
 [tool.setuptools.packages.find]
 include = ["fabulous*", "fabulous_nix*", "librelane_plugin_fabulous*"]
@@ -116,7 +116,7 @@ exclude = [
 dev = [
   "cocotb>=2.0.0",
   "deptry>=0.20.0",
-  "pre-commit>=4.2.0",
+  "pre-commit>=4.6.1",
   "pytest>=8.4.1",
   "pytest-cov>=6.2.1",
   "pytest-mock>=3.14.1",

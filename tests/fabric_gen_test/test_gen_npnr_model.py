@@ -36,6 +36,11 @@ def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
     # here directly, same as every other BEL-internal constant.
     assert "ClkToOut,Q,CLK,1.0,FF=1" in belv3
 
+    # Clock arrival time is per flop in v3; v2 keeps the bare command.
+    assert "GlobalClk,1.0" in belv3
+    assert "GlobalClk\n" in belv2
+    assert "GlobalClk," not in belv2
+
     # v2 must not contain any timing lines.
     for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
         assert keyword not in belv2
@@ -71,6 +76,7 @@ def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
     assert "delayEpsilon=0.25" in text
     assert "ripupPenalty=0.5" in text
     assert "carryPredictDelay=0.5" in text
+    assert "pipDelayScale=0.05" in text
 
     # One estimate block per timed BEL type.
     for bel_type in (

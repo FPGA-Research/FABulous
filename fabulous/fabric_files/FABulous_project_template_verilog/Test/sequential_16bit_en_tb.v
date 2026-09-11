@@ -123,4 +123,4 @@ module sequential_16bit_en_tb ();
 
 endmodule
 `endif
-`default_nettype wire
+`resetall

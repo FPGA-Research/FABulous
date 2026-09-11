@@ -21,7 +21,7 @@ from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
 )
-from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV, parsePortLine
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
@@ -336,7 +336,7 @@ class TestSuperTileSwitchMatrixConstants:
         create_switchmatrix_list(mat, connections)
         bot = make_empty_tile(
             "DSP_bot",
-            [sjump_port("x", IO.OUTPUT, wireCount=1)],
+            [sjump_port("x", IO.OUTPUT, wire_count=1)],
             tileDir=tmp_path,
             matrixDir=tmp_path / "DSP_bot_switch_matrix.list",
             pinOrderConfig={},
@@ -396,7 +396,7 @@ class TestUnconnectedPortDiagnostic:
     """
 
     def test_null_terminated_spanning_wire_explains_expansion(self) -> None:
-        ports, _ = parsePortLine("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
+        ports, _ = parse_port_line("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
 
         hint = _unconnected_port_diagnostic(ports, "X1_Y1_2_X1_Y4_port16")
 
@@ -407,16 +407,16 @@ class TestUnconnectedPortDiagnostic:
         assert "both ends" in hint
 
     def test_both_ends_named_wire_gives_no_hint(self) -> None:
-        ports, _ = parsePortLine("NORTH,N4BEG,0,-4,N4END,4")
+        ports, _ = parse_port_line("NORTH,N4BEG,0,-4,N4END,4")
 
         assert _unconnected_port_diagnostic(ports, "N4BEG0") == ""
 
     def test_null_terminated_single_distance_gives_no_hint(self) -> None:
-        ports, _ = parsePortLine("NORTH,NULL,0,-1,N1END,4")
+        ports, _ = parse_port_line("NORTH,NULL,0,-1,N1END,4")
 
         assert _unconnected_port_diagnostic(ports, "N1END0") == ""
 
     def test_unknown_port_name_gives_no_hint(self) -> None:
-        ports, _ = parsePortLine("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
+        ports, _ = parse_port_line("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
 
         assert _unconnected_port_diagnostic(ports, "not_a_real_wire0") == ""

@@ -344,6 +344,41 @@ clock port name for Yosys.
 This marks it as the external-facing pin of an I/O pad for Yosys and keeps it from trying
 to place an IO cell to the pin.
 
+(add-as-custom-prim)=
+
+##### Adding primitives without generating a tile
+
+If you only want to make Yosys aware of a BEL, without generating a whole tile
+configuration, use the `add_as_custom_prim` command. It parses the given RTL files and
+appends their blackbox descriptions to `user_design/custom_prims.v`, creating the file
+if it does not exist:
+
+```console
+FABulous> add_as_custom_prim Tile/CRC5/crc5.v
+```
+
+Multiple files can be passed at once. Primitives that are already present in
+`custom_prims.v` are not added a second time, so the command is safe to re-run.
+
+If you changed the ports of your BEL, use `--overwrite` (`-f`) to replace the existing
+definition with the regenerated one:
+
+```console
+FABulous> add_as_custom_prim --overwrite Tile/CRC5/crc5.v
+```
+
+This removes every definition of the given modules, including hand-written ones, so
+your own implementation or techmap description of that module is lost. Definitions of
+other modules are kept.
+
+With `--support-vectors` (`-v`), vector ports are emitted as vectors instead of being
+unrolled into individual scalar ports. Only use this if your CAD flow can handle it,
+the FABulous nextpnr integration currently cannot:
+
+```console
+FABulous> add_as_custom_prim --support-vectors Tile/CRC5/crc5.v
+```
+
 If you are planning to make more advanced custom tiles and also want Yosys optimize your flow,
 you should provide the implementation details about your BEL in the primitives file
 and provide a custom techmap for your BEL.

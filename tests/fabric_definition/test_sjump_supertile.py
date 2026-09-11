@@ -15,14 +15,14 @@ from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 
 
-def _tile(name: str, ports: list[Port]) -> Tile:
+def _tile(name: str, ports: list[TilePort]) -> Tile:
     """Build a minimal real Tile (`pinOrderConfig={}` skips the GDS import).
 
     These tests never read the tile's files, so the dir/matrix paths are left at
@@ -32,9 +32,9 @@ def _tile(name: str, ports: list[Port]) -> Tile:
 
 
 def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
-    """Return (source, destination, xOffset, yOffset) for the tile's SJUMP wires."""
+    """Return (source, destination, x_offset, y_offset) for the tile's SJUMP wires."""
     return {
-        (w.source, w.destination, w.xOffset, w.yOffset)
+        (w.source, w.destination, w.x_offset, w.y_offset)
         for w in tile.wireList
         if w.direction == Direction.SJUMP
     }
@@ -43,25 +43,25 @@ def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
 class TestPortSJumpExpansion:
     """SJUMP ports keep their declared width instead of collapsing to zero.
 
-    SJUMP ports have `(xOffset, yOffset) == (0, 0)`, so the Manhattan-distance
+    SJUMP ports have `(x_offset, y_offset) == (0, 0)`, so the Manhattan-distance
     width formula used for NULL-terminated wires would otherwise zero them out.
     """
 
     def test_expand_by_name_uses_wire_count(self) -> None:
-        port = sjump_port("A", IO.OUTPUT, wireCount=4)
-        assert port.expandPortInfoByName() == ["A0", "A1", "A2", "A3"]
+        port = sjump_port("A", IO.OUTPUT, wire_count=4)
+        assert port.expand_port_info_by_name() == ["A0", "A1", "A2", "A3"]
 
     def test_expand_by_name_indexed(self) -> None:
-        port = sjump_port("A", IO.OUTPUT, wireCount=3)
-        assert port.expandPortInfoByName(indexed=True) == ["A[0]", "A[1]", "A[2]"]
+        port = sjump_port("A", IO.OUTPUT, wire_count=3)
+        assert port.expand_port_info_by_name(indexed=True) == ["A[0]", "A[1]", "A[2]"]
 
     def test_expand_input_port_uses_wire_count(self) -> None:
-        port = sjump_port("Q", IO.INPUT, wireCount=10)
-        assert port.expandPortInfoByName() == [f"Q{i}" for i in range(10)]
+        port = sjump_port("Q", IO.INPUT, wire_count=10)
+        assert port.expand_port_info_by_name() == [f"Q{i}" for i in range(10)]
 
     def test_expand_by_name_top_uses_wire_count(self) -> None:
-        port = sjump_port("A", IO.OUTPUT, wireCount=4)
-        assert port.expandPortInfoByNameTop() == ["A0", "A1", "A2", "A3"]
+        port = sjump_port("A", IO.OUTPUT, wire_count=4)
+        assert port.expand_port_info_by_name_top() == ["A0", "A1", "A2", "A3"]
 
 
 class TestTileGetSJumpPorts:
@@ -70,27 +70,29 @@ class TestTileGetSJumpPorts:
     def test_returns_only_sjump_ports(self) -> None:
         sjump_out = sjump_port("A", IO.OUTPUT)
         sjump_in = sjump_port("Q", IO.INPUT)
-        jump = Port(
-            wireDirection=Direction.JUMP,
-            sourceName="J",
-            xOffset=0,
-            yOffset=0,
-            destinationName="J",
-            wireCount=1,
+        jump = TilePort(
             name="J",
-            inOut=IO.OUTPUT,
-            sideOfTile=Side.NORTH,
+            io_direction=IO.OUTPUT,
+            width=1,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.JUMP,
+            source_name="J",
+            x_offset=0,
+            y_offset=0,
+            destination_name="J",
+            wire_count=1,
         )
-        normal = Port(
-            wireDirection=Direction.NORTH,
-            sourceName="N1BEG",
-            xOffset=0,
-            yOffset=-1,
-            destinationName="N1END",
-            wireCount=4,
+        normal = TilePort(
             name="N1BEG",
-            inOut=IO.OUTPUT,
-            sideOfTile=Side.NORTH,
+            io_direction=IO.OUTPUT,
+            width=4,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.NORTH,
+            source_name="N1BEG",
+            x_offset=0,
+            y_offset=-1,
+            destination_name="N1END",
+            wire_count=4,
         )
         null_sjump = sjump_port("NULL", IO.OUTPUT)
 
@@ -261,8 +263,8 @@ class TestGenNpnrModelSupertile:
         bot = make_empty_tile(
             "DSP_bot",
             [
-                sjump_port("A", IO.OUTPUT, wireCount=1),
-                sjump_port("Q", IO.INPUT, wireCount=1),
+                sjump_port("A", IO.OUTPUT, wire_count=1),
+                sjump_port("Q", IO.INPUT, wire_count=1),
             ],
             tileDir=tmp_path,
             matrixDir=bot_mat,
@@ -373,7 +375,7 @@ class TestGenBitstreamSpecSupertileMux:
         configmem.write_text("\n".join(rows) + "\n")
 
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
-        bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT, wireCount=1)])
+        bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT, wire_count=1)])
         top.switch_matrix = SwitchMatrix.from_file(top_mat, "DSP_top")
         bot.switch_matrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
         supertile = SuperTile(

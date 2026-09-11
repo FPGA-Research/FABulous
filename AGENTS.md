@@ -47,7 +47,8 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - Prefer real in-memory fabric fixtures over heavy mocks.
 - `cocotb` is available for RTL-level verification, not for Python logic.
 - Try to reuse fixture as much as possible.
-- Try to parameterize the test if possible
+- Try to parameterize the test if possible.
+- You can run `task test -- -p8` to run the test in parallel with 8 thread.
 
 ## House Rules
 

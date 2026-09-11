@@ -156,4 +156,4 @@ module top_wrapper;
     );
 
 endmodule
-`default_nettype wire
+`resetall

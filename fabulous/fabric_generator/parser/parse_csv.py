@@ -26,7 +26,7 @@ from fabulous.fabric_definition.define import (
 )
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.gen_io import Gen_IO
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
 
 
-def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
 
     Parameters
@@ -57,47 +57,122 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
 
     Returns
     -------
-    tuple[list[Port], tuple[str, str] | None]
+    tuple[list[TilePort], tuple[str, str] | None]
         A tuple containing a list of parsed ports and an optional common wire pair.
     """
-    kind, start, x, y, end, count = line.split(",")[:6]
-    x, y, count = int(x), int(y), int(count)
+    fields: list[str] = line.split(",")
+    port_type = fields[0]
 
-    # The trailing digits are read back as that index. A name that ends in a digit is
-    # ambiguous once expanded.
-    for wireName in (start, end):
-        if wireName != "NULL" and wireName[-1:].isdigit():
+    try:
+        wire_direction = Direction[port_type]
+    except KeyError:
+        raise InvalidPortType(f"Unknown port type: {port_type}") from None
+
+    if len(fields) < 6:
+        raise InvalidPortType(
+            f"Invalid port definition line {line!r}: port type {port_type!r} "
+            "requires 6 comma-separated fields (DIRECTION, source_name, "
+            "x_offset, y_offset, destination_name, wire_count), "
+            f"got {len(fields)}."
+        )
+
+    source_name = fields[1]
+    x_offset = int(fields[2])
+    y_offset = int(fields[3])
+    destination_name = fields[4]
+    wire_count = int(fields[5])
+
+    # The trailing digits are read back as that index. A name that ends in a
+    # digit is ambiguous once expanded.
+    for wire_name in (source_name, destination_name):
+        if wire_name != NULL_PORT_NAME and wire_name[-1:].isdigit():
             raise InvalidPortType(
-                f"Wire name '{wireName}' ends in a digit, which is ambiguous: "
+                f"Wire name '{wire_name}' ends in a digit, which is ambiguous: "
                 "wire expansion appends the index as a trailing digit, so a name "
                 "ending in a digit cannot be distinguished from an indexed wire. "
                 "Rename the wire so it does not end in a digit."
             )
 
-    if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
-        # Directional wire: OUTPUT port at start side, INPUT port at opposite side
-        direction = Direction[kind]
-        side = Side[kind]
-        opposite_side = side.opposite
-        ports = [
-            Port(direction, start, x, y, end, count, start, IO.OUTPUT, side),
-            Port(direction, start, x, y, end, count, end, IO.INPUT, opposite_side),
-        ]
-        return ports, (start, end)
+    ports: list[TilePort] = []
+    common_wire_pair: tuple[str, str] | None
 
-    if kind == "JUMP":
-        # Jump wire: connects within the same tile, no directional side
-        ports = [
-            Port(Direction.JUMP, start, x, y, end, count, start, IO.OUTPUT, Side.ANY),
-            Port(Direction.JUMP, start, x, y, end, count, end, IO.INPUT, Side.ANY),
-        ]
-        return ports, None
+    if wire_direction in (
+        Direction.NORTH,
+        Direction.EAST,
+        Direction.SOUTH,
+        Direction.WEST,
+    ):
+        # Output port (source side)
+        ports.append(
+            TilePort(
+                name=source_name,
+                io_direction=IO.OUTPUT,
+                width=wire_count,
+                side_of_tile=Side[port_type],
+                wire_direction=wire_direction,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
 
-    if kind == "SJUMP":
+        # Input port (destination side)
+        ports.append(
+            TilePort(
+                name=destination_name,
+                io_direction=IO.INPUT,
+                width=wire_count,
+                side_of_tile=Side[port_type].opposite,
+                wire_direction=wire_direction,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        common_wire_pair = (f"{source_name}", f"{destination_name}")
+
+    elif wire_direction is Direction.JUMP:
+        # Output port
+        ports.append(
+            TilePort(
+                name=source_name,
+                io_direction=IO.OUTPUT,
+                width=wire_count,
+                side_of_tile=Side.ANY,
+                wire_direction=Direction.JUMP,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        # Input port
+        ports.append(
+            TilePort(
+                name=destination_name,
+                io_direction=IO.INPUT,
+                width=wire_count,
+                side_of_tile=Side.ANY,
+                wire_direction=Direction.JUMP,
+                source_name=source_name,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                destination_name=destination_name,
+                wire_count=wire_count,
+            )
+        )
+        common_wire_pair = None
+
+    elif wire_direction is Direction.SJUMP:
         # SJUMP,source,0,0,NULL,n  -> OUTPUT: signal exits tile toward supertile SM
         # SJUMP,NULL,0,0,dest,n    -> INPUT: signal enters tile from supertile SM
         # An SJUMP line is one-way: exactly one of source/destination must be NULL.
-        if (start == "NULL") == (end == "NULL"):
+        if (source_name == NULL_PORT_NAME) == (destination_name == NULL_PORT_NAME):
             raise InvalidPortType(
                 f"Invalid SJUMP line '{line.strip()}': exactly one of source and "
                 "destination must be NULL (use 'SJUMP,src,0,0,NULL,n' for an output "
@@ -105,33 +180,47 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
             )
         # SJUMP wires terminate at the supertile switch matrix and carry no
         # spatial offset; a nonzero offset is a definition error, not silently 0.
-        if x != 0 or y != 0:
+        if x_offset != 0 or y_offset != 0:
             raise InvalidPortType(
                 f"Invalid SJUMP line '{line.strip()}': X/Y offset must be 0,0 "
-                f"(got {x},{y})."
+                f"(got {x_offset},{y_offset})."
             )
-        ports = []
-        if start != "NULL":
+
+        if source_name != NULL_PORT_NAME:
             ports.append(
-                Port(
-                    Direction.SJUMP,
-                    start,
-                    0,
-                    0,
-                    "NULL",
-                    count,
-                    start,
-                    IO.OUTPUT,
-                    Side.ANY,
+                TilePort(
+                    name=source_name,
+                    io_direction=IO.OUTPUT,
+                    width=wire_count,
+                    side_of_tile=Side.ANY,
+                    wire_direction=Direction.SJUMP,
+                    source_name=source_name,
+                    x_offset=0,
+                    y_offset=0,
+                    destination_name=NULL_PORT_NAME,
+                    wire_count=wire_count,
                 )
             )
-        if end != "NULL":
+        if destination_name != NULL_PORT_NAME:
             ports.append(
-                Port(Direction.SJUMP, "NULL", 0, 0, end, count, end, IO.INPUT, Side.ANY)
+                TilePort(
+                    name=destination_name,
+                    io_direction=IO.INPUT,
+                    width=wire_count,
+                    side_of_tile=Side.ANY,
+                    wire_direction=Direction.SJUMP,
+                    source_name=NULL_PORT_NAME,
+                    x_offset=0,
+                    y_offset=0,
+                    destination_name=destination_name,
+                    wire_count=wire_count,
+                )
             )
-        return ports, None
+        common_wire_pair = None
 
-    raise InvalidPortType(f"Unknown port type: {kind}")
+    else:
+        raise InvalidPortType(f"Unknown port type: {port_type}")
+    return (ports, common_wire_pair)
 
 
 def parseTilesCSV(
@@ -182,7 +271,7 @@ def parseTilesCSV(
     tilesData = re.findall(r"TILE(.*?)EndTILE", file, re.MULTILINE | re.DOTALL)
 
     new_tiles = []
-    commonWirePairs = []
+    common_wire_pairs = []
     proj_dir = get_context().proj_dir
 
     # Parse each tile config
@@ -194,22 +283,22 @@ def parseTilesCSV(
                 f"Tile name '{tileName}' does not match folder name "
                 f"'{filePathParent.name}' in {fileName}."
             )
-        ports: list[Port] = []
+        ports: list[TilePort] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None
         gen_ios: list[Gen_IO] = []
         withUserCLK = False
         genMatrixList = False
         tileCarry: dict[str, dict[IO, str]] = {}
-        localSharedPorts: dict[str, list[Port]] = {}
+        localSharedPorts: dict[str, list[TilePort]] = {}
 
         for item in t:
             temp: list[str] = item.split(",")
             temp = [i.strip() for i in temp]
             if not temp or temp[0] == "":
                 continue
-            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST", "JUMP", "SJUMP"]:
-                port, commonWirePair = parsePortLine(item)
+            if temp[0] in Direction:
+                port, common_wire_pair = parse_port_line(item)
                 if "CARRY" in temp[6]:
                     # For prefix after carry
                     carryPrefix = re.search(r'CARRY="([^"]+)"', temp[6])
@@ -259,8 +348,8 @@ def parseTilesCSV(
                         )
 
                 ports.extend(port)
-                if commonWirePair:
-                    commonWirePairs.append(commonWirePair)
+                if common_wire_pair:
+                    common_wire_pairs.append(common_wire_pair)
 
             elif temp[0] == "BEL":
                 belFilePath = filePathParent.joinpath(temp[1])
@@ -406,15 +495,15 @@ def parseTilesCSV(
                     if not lineItem[0]:
                         continue
 
-                    port, commonWirePair = parsePortLine(line)
+                    port, common_wire_pair = parse_port_line(line)
                     ports.extend(port)
-                    if commonWirePair:
-                        commonWirePairs.append(commonWirePair)
+                    if common_wire_pair:
+                        common_wire_pairs.append(common_wire_pair)
 
             else:
                 raise InvalidTileDefinition(
                     f"Unknown tile description {temp[0]} in tile {tileName}. "
-                    "Valid descriptions are NORTH, SOUTH, EAST, WEST, JUMP, SJUMP, "
+                    f"Valid descriptions are {', '.join(d.value for d in Direction)}, "
                     "BEL, GEN_IO, MATRIX, and INCLUDE."
                 )
 
@@ -449,7 +538,7 @@ def parseTilesCSV(
             )
         )
 
-    return (new_tiles, commonWirePairs)
+    return (new_tiles, common_wire_pairs)
 
 
 def validate_super_tile_matrix(
@@ -777,7 +866,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     # Lists for tiles
     tileTypes = []
     tileDefs = []
-    commonWirePair: list[tuple[str, str]] = []
+    common_wire_pair: list[tuple[str, str]] = []
     fabricTiles = []
     tileDic = {}
     unusedTileDic = {}
@@ -799,10 +888,10 @@ def parseFabricCSV(fileName: str) -> Fabric:
             preserveListOrder = fields[1] == "TRUE"
 
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_commonWirePair = parseTilesCSV(fName, preserveListOrder)
+    new_tiles, new_common_wire_pair = parseTilesCSV(fName, preserveListOrder)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
-    commonWirePair += new_commonWirePair
+    common_wire_pair += new_common_wire_pair
     tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
     new_supertiles = parseSupertilesCSV(fName, tileDic)
@@ -838,12 +927,12 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 # we generate the tile right before we parse everything
                 i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
 
-            new_tiles, new_commonWirePair = parseTilesCSV(
+            new_tiles, new_common_wire_pair = parseTilesCSV(
                 filePath.joinpath(i[1]), preserveListOrder
             )
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
-            commonWirePair += new_commonWirePair
+            common_wire_pair += new_common_wire_pair
             tileDic = dict(zip(tileTypes, tileDefs, strict=False))
         elif i[0].startswith("Supertile"):
             new_supertiles = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
@@ -931,9 +1020,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
     height = len(fabricTiles)
     width = len(fabricTiles[0])
 
-    commonWirePair = list(dict.fromkeys(commonWirePair))
-    commonWirePair = [
-        (i, j) for (i, j) in commonWirePair if "NULL" not in i and "NULL" not in j
+    common_wire_pair = list(dict.fromkeys(common_wire_pair))
+    common_wire_pair = [
+        (i, j) for (i, j) in common_wire_pair if "NULL" not in i and "NULL" not in j
     ]
 
     return Fabric(
@@ -955,5 +1044,5 @@ def parseFabricCSV(fileName: str) -> Fabric:
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,
         unusedSuperTileDic=unusedSuperTileDic,
-        commonWirePair=commonWirePair,
+        commonWirePair=common_wire_pair,
     )

@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Self
 
 from librelane.common import GenericDict
 from librelane.config.variable import Variable
@@ -23,6 +24,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
+    merge_layered_substitutions,
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
@@ -32,8 +34,8 @@ configs = Classic.config_vars + [
     Variable(
         "FABULOUS_IGNORE_DEFAULT_DIE_AREA",
         bool,
-        "When is true will ignore the provided die area and "
-        "use the default one instead.",
+        "When true, discards the provided DIE_AREA and sizes the tile from "
+        "scratch instead of using it as the optimisation starting area.",
         default=False,
     ),
 ]
@@ -60,6 +62,30 @@ class FABulousTileMacroFlow(SequentialFlow):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _models_pack_first: bool = False
     _extra_synth_config: dict[str, object] = {}
+
+    def __new__(
+        cls,
+        *_args: tuple,
+        models_pack_path: Path | None = None,  # noqa: ARG004
+        base_config_path: Path | None = None,
+        override_config_path: Path | None = None,
+        design_dir: Path | None = None,  # noqa: ARG004
+        **custom_config_overrides: dict,
+    ) -> Self:
+        """Apply layered `meta.substituting_steps` before construction.
+
+        `Config.load()` overwrites its `meta` per config source instead of
+        merging (see `merge_layered_substitutions`), so `substituting_steps`
+        from `base_config_path`/`override_config_path` never reaches
+        `self.config.meta` by the time `__init__` runs. Resolve substitutions
+        from the same layered sources here and apply them by constructing an
+        instance of a `.Substitute()`-derived subclass instead.
+        """
+        substitutions = merge_layered_substitutions(
+            [base_config_path, override_config_path, custom_config_overrides]
+        )
+        target_cls = cls.Substitute(substitutions) if substitutions else cls
+        return super().__new__(target_cls)  # type: ignore[arg-type]
 
     def __init__(
         self,
@@ -163,20 +189,23 @@ class FABulousTileMacroFlow(SequentialFlow):
                 OptMode.FIND_MIN_WIDTH,
                 OptMode.FIND_MIN_HEIGHT,
             )
-            # Directional modes minimise one axis. When the user supplies a
-            # DIE_AREA they are fixing the other axis, so keep that value instead
-            # of forcing the computed minimum. BALANCE/LARGE have no fixed axis,
-            # so they always fall back to full-auto sizing.
+            # A user DIE_AREA is the starting area for every optimisation mode:
+            # directional modes lock the non-minimised axis to it, BALANCE/LARGE
+            # grow both axes from it.
             honour_user_die_area = (
-                directional
-                and self.config.get("DIE_AREA") is not None
+                self.config.get("DIE_AREA") is not None
                 and not self.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"]
             )
-            if honour_user_die_area:
+            if honour_user_die_area and directional:
                 info(
                     f"FABulous optimisation is set to {final_opt_mode}, honouring "
                     "the user DIE_AREA: the fixed axis is locked and the other "
                     "axis is minimised."
+                )
+            elif honour_user_die_area:
+                info(
+                    f"FABulous optimisation is set to {final_opt_mode}, honouring "
+                    "the user DIE_AREA as the starting area."
                 )
             else:
                 info(

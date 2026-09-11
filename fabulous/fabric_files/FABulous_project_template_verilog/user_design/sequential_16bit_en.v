@@ -19,4 +19,4 @@ module sequential_16bit_en (
     assign io_out = {12'b0, ctr};
     assign io_oeb = 28'b0000000000000000000000000001;
 endmodule
-`default_nettype wire
+`resetall

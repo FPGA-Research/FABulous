@@ -11,7 +11,7 @@ nextpnr can find all model files.
 
 | File               | Purpose                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------ |
-| `bel.txt`          | Legacy (1.0) BEL list, one line per BEL. Used for projects without a `.FABulous` dir |
+| `bel.txt`          | Legacy (1.0) BEL list, one line per BEL. No longer read by nextpnr                    |
 | `bel.v2.txt`       | Block-structured BEL description used by current (2.0) projects                       |
 | `bel.v3.txt`       | `bel.v2.txt` plus per-BEL timing arcs (see [](#belv3txt-bel-timing))                  |
 | `pips.txt`         | Routing resources (programmable interconnect points) and their delays                |
@@ -23,12 +23,15 @@ nextpnr selects the BEL file as follows:
 - if `.FABulous/bel.v3.txt` exists, it is used and the design is timing-aware for
   BELs as well as pips;
 - otherwise `.FABulous/bel.v2.txt` is used (BEL timing falls back to built-in
-  defaults baked into the viaduct);
-- legacy projects with no `.FABulous` directory use `npnroutput/bel.txt`.
+  defaults baked into the viaduct).
+
+The 1.0 format (a project with no `.FABulous` directory, read from
+`npnroutput/`) is no longer supported and nextpnr exits with an error. Either
+regenerate the fabric with a current FABulous, or stay on nextpnr 0.11.1.
 
 All of these files are produced together by the `gen_model_npnr` CLI command.
 
-## `bel.txt` (legacy)
+## `bel.txt` (legacy, unused)
 
 `bel.txt` is the primitive description file, in order of tiles. Each line is one
 BEL: tile, X, Y, Z (a letter), primitive type, then its ports.
@@ -123,6 +126,28 @@ instead of relying on constants compiled into nextpnr.
 
 All delays are in nanoseconds.
 
+### Clock arrival time
+
+`GlobalClk,<ns>` attaches the BEL to the fabric's clock network and gives the
+time the clock edge reaches *this* flop:
+
+```{code-block} text
+GlobalClk,1.37
+```
+
+nextpnr applies it to the pseudo-pip feeding the BEL's `CLK` pin, so it lands in
+the routed clock delay the timing analyser uses for launch and capture. The
+delay field is `bel.v3.txt` only: `bel.v2.txt` writes a bare `GlobalClk`, for
+which nextpnr uses its built-in default of `1.0`.
+
+:::{important}
+Only *differences* between flops produce clock skew. A uniform value, which is
+what FABulous writes by default if no timing model is generated,
+is common mode: it is added to both the launch and
+the capture side of every register-to-register path and cancels exactly, leaving
+skew at zero.
+:::
+
 ### Conditions
 
 The optional trailing `<cond>` field gates an arc on how the design actually
@@ -181,7 +206,7 @@ A `FABULOUS_LC` block with timing:
     SetupHold,I3,CLK,2.5,0.1,FF=1
     SetupHold,Ci,CLK,2.5,0.1,FF=1&I0MUX=1
     ClkToOut,Q,CLK,1.0,FF=1
-    GlobalClk
+    GlobalClk,1.0
     BelEnd
 ```
 
@@ -231,6 +256,10 @@ in which case it is replaced by a characterised per-pip delay; see
 [Timing Characterization](../../building_doc/timing_characterization.md) for how
 those delays are generated.
 
+The column is unitless: nextpnr multiplies it by `pipDelayScale` from
+[`placement_estimate.txt`](#placement-estimate) (default `0.05`) to get
+nanoseconds, so the placeholder `8` is `0.4` ns.
+
 (placement-estimate)=
 
 ## `placement_estimate.txt`
@@ -245,6 +274,7 @@ delayOffset=3.0
 delayEpsilon=0.25
 ripupPenalty=0.5
 carryPredictDelay=0.5
+pipDelayScale=0.05
 ```
 
 | Key                 | nextpnr target             | Default | Meaning                                                    |
@@ -254,6 +284,7 @@ carryPredictDelay=0.5
 | `carryPredictDelay` | `predictDelay` `Co`->`Ci`   | 0.5     | Carry-chain placement estimate (dedicated interconnect)    |
 | `delayEpsilon`      | `ctx->delay_epsilon`       | 0.25    | Smallest delay difference the timing analysis resolves     |
 | `ripupPenalty`      | `ctx->ripup_penalty`       | 0.5     | Router cost for ripping up an existing route               |
+| `pipDelayScale`     | `pips.txt` delay column    | 0.05    | Nanoseconds per unit of the `pips.txt` integer delay       |
 
 nextpnr's placer decides where every BEL goes *before* anything is routed, so
 it can't yet know a connection's real pip delay (`pips.txt`), only the two
@@ -276,9 +307,28 @@ It is a flat `0.5` (nextpnr's original hardcoded value),
 independent of `delayScale`. `delayEpsilon` and `ripupPenalty`
 are plain nextpnr placer/router knobs FABulous simply echoes at their defaults.
 
+`pipDelayScale` is the exception: it is not an estimate but the unit of the
+`pips.txt` delay column, which is a plain integer. nextpnr multiplies it by
+`pipDelayScale` to get nanoseconds, so this key *does* move the numbers in the
+final routed timing report. The default `0.05` reproduces nextpnr's historical
+hardcoded factor, matching the placeholder delay column (`8` -> `0.4` ns). A
+timing model that characterises pips directly in nanoseconds should write
+`pipDelayScale=1.0`; see
+[Timing Characterization](../../building_doc/timing_characterization.md).
+
+:::{warning}
+`pipDelayScale` must stay consistent with `delayScale`/`delayOffset`. The
+placer's `predictDelay` estimate and the router's cost model are compared
+against real pip delays, so raising `pipDelayScale` alone (e.g. to `1.0` while
+leaving `delayScale=3.0`) makes every routed pip look far more expensive than
+the estimate predicted and routing can fail outright. Rescale the estimate keys
+by the same factor.
+:::
+
 :::{note}
-None of these keys scale `bel.v3.txt`'s BEL-internal arcs (LUT/FF/carry
-timing), they only steer placement and routing.
+Apart from `pipDelayScale`, none of these keys scale `bel.v3.txt`'s
+BEL-internal arcs (LUT/FF/carry timing) or the routed report, they only steer
+placement and routing.
 Any key (or the whole file, for legacy or
 unregenerated projects) that is missing falls back to the default in the table,
 matching nextpnr's original hard-coded values. By default, FABulous writes
