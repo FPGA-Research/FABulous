@@ -125,11 +125,11 @@
         "nix-eda": "nix-eda"
       },
       "locked": {
-        "lastModified": 1786828051,
-        "narHash": "sha256-c+/LsMorKe1gQqOu1p9Zcq2pwj8ROhTTgCl7hSMhfgI=",
+        "lastModified": 1787598789,
+        "narHash": "sha256-ef2+YcQdL6Nk1qc34oYjVJOCP7HKYyc9UgHQuJVUldA=",
         "owner": "librelane",
         "repo": "librelane",
-        "rev": "d623fa1fb7946d91800839b2c8d97c3313bd3755",
+        "rev": "33ab64861c5570d65de69295da9a46f5bad32ee3",
         "type": "github"
       },
       "original": {
@@ -141,11 +141,11 @@
     "nextpnr-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1785693751,
-        "narHash": "sha256-tMBMAmhYegiz5R2rkfkRnWfnwlQBX2kUUdee4jpS8/E=",
+        "lastModified": 1788182991,
+        "narHash": "sha256-DfnzgiQfnoco++6omIBhWkhUPuRCX2xA4Sbl6EWAFpQ=",
         "owner": "YosysHQ",
         "repo": "nextpnr",
-        "rev": "8945407874c3031f13a5453598e9923268259698",
+        "rev": "8dbcee5c3c4415770b6fd06d5ccb2db89545b8ec",
         "type": "github"
       },
       "original": {
@@ -268,11 +268,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786615403,
-        "narHash": "sha256-U++y7nM/6xiEcWI7q4fQoPZjPvRaTwkSqzBOVoEBjUE=",
+        "lastModified": 1788001239,
+        "narHash": "sha256-AELmsXPI546MhbC/ZXC7WRUkCz7d4rqKTHUmliIgPpI=",
         "owner": "pyproject-nix",
         "repo": "uv2nix",
-        "rev": "4b59abb2ae1896d2a0e1abfc47fbc9bf985ea730",
+        "rev": "7f9c6b613d2e749e54854b1d60ab6a2192db889e",
         "type": "github"
       },
       "original": {

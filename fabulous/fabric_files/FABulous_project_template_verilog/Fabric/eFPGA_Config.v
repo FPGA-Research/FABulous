@@ -10,27 +10,30 @@ module eFPGA_Config #(
     parameter integer spi_enable = 1,
     parameter integer parallel_enable = 1
 ) (
-    input CLK,
-    input resetn,
+    input wire CLK,
+    input wire resetn,
     // UART configuration port
-    input Rx,
-    output ComActive,
-    output ReceiveLED,
+    input wire Rx,
+    output wire ComActive,
+    output wire ReceiveLED,
     // BitBang configuration port
-    input s_clk,
-    input s_data,
+    input wire s_clk,
+    input wire s_data,
     // SPI configuration port
-    input sck,
-    input mosi,
-    input ss_n,
+    input wire sck,
+    input wire mosi,
+    input wire ss_n,
+    input wire s_clk,
+    input wire s_data,
+
     // Parallel configuration port
-    input [31:0] SelfWriteData,
-    input SelfWriteStrobe,
-    output [31:0] ConfigWriteData,
-    output ConfigWriteStrobe,
-    output [FrameBitsPerRow-1:0] FrameAddressRegister,
-    output LongFrameStrobe,
-    output [RowSelectWidth-1:0] RowSelect
+    input wire [31:0] SelfWriteData,
+    input wire SelfWriteStrobe,
+    output wire [31:0] ConfigWriteData,
+    output wire ConfigWriteStrobe,
+    output wire [FrameBitsPerRow-1:0] FrameAddressRegister,
+    output wire LongFrameStrobe,
+    output wire [RowSelectWidth-1:0] RowSelect
 );
 
     wire [7:0] Command;
@@ -154,4 +157,4 @@ module eFPGA_Config #(
     );
 
 endmodule
-`default_nettype wire
+`resetall

@@ -332,7 +332,7 @@ def test_run_simulation_with_simulator_flag(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation passes --simulator to Taskfile as SIMULATOR."""
-    for sim in ("nvc", "ghdl", "auto"):
+    for sim in ("iverilog", "xvlog", "nvc", "ghdl", "xvhdl", "auto"):
         run_cmd(cli, f"{SIM_CMD} --simulator={sim}")
         log = normalize_and_check_for_errors(caplog.text)
         assert "Simulation finished" in log[-1]
