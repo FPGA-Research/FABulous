@@ -15,7 +15,9 @@ from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
+    generate_config_mem,
+)
 
 # Use parseConfigMem function to get accurate bit mapping
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
@@ -159,13 +161,14 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     csv_path = tmp_path / f"{tile_config.name}_configMem.csv"
 
     # Generate the ConfigMem RTL
-    generateConfigMem(
+    generate_config_mem(
         writer,
         tile_config.name,
         tile_config.globalConfigBits,
         csv_path,
         frame_bits_per_row=fabric_config.frameBitsPerRow,
         max_frame_per_col=fabric_config.maxFramesPerCol,
+        config_bit_mode=fabric_config.configBitMode,
     )
 
     # Check if RTL file was created - skip if no config bits were generated
@@ -260,13 +263,14 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     mock_parse.return_value = configmem_list_data
 
     # Generate the ConfigMem RTL
-    generateConfigMem(
+    generate_config_mem(
         writer,
         default_tile.name,
         default_tile.globalConfigBits,
         csv_path,
         frame_bits_per_row=default_fabric.frameBitsPerRow,
         max_frame_per_col=default_fabric.maxFramesPerCol,
+        config_bit_mode=default_fabric.configBitMode,
     )
 
     bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index

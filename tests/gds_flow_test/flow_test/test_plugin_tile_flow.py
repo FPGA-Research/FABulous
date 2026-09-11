@@ -141,7 +141,7 @@ class TestEmitTileVerilog:
         gen_sm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
         )
-        gen_cm = mocker.patch.object(plugin_tile_flow, "generateConfigMem")
+        gen_cm = mocker.patch.object(plugin_tile_flow, "generate_config_mem")
         gen_cm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
         )
@@ -179,6 +179,7 @@ class TestEmitTileVerilog:
             mock_tile.name,
             mock_tile.globalConfigBits,
             tile_dir / "LUT4AB_ConfigMem.csv",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         )
         gen_tile.assert_called_once()
 
