@@ -102,6 +102,8 @@ def test_broken_lifecycle_hook_skipped_when_lenient(
 @pytest.mark.parametrize(
     ("returned", "expected_types"),
     [
+        # A bare class is not a routine, so pluggy would not see it as a
+        # hookimpl; the lambda is what makes this a registrable hook.
         pytest.param(lambda: _OneCommands(), [_OneCommands], id="single"),
         pytest.param(
             lambda: [_OneCommands(), _TwoCommands()],

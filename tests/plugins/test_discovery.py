@@ -167,18 +167,38 @@ def test_package_plugin_resolves_relative_import(
     assert manager.make_parser(Path("fabric.m")) is not None
 
 
-def test_failed_load_leaves_no_sys_modules_entry(
-    tmp_path: Path, mocker: MockerFixture
+@pytest.mark.parametrize(
+    ("name", "source", "skip_broken"),
+    [
+        pytest.param("halfdead", "raise ImportError('boom')", True, id="failed-load"),
+        pytest.param(
+            "livedead",
+            PLUGIN_SRC.format(suffix=".d", name="d"),
+            False,
+            id="loaded",
+        ),
+    ],
+)
+def test_path_plugin_never_occupies_a_top_level_module_name(
+    tmp_path: Path, mocker: MockerFixture, name: str, source: str, skip_broken: bool
 ) -> None:
-    """A half-executed plugin must not shadow a real module of the same name."""
-    pkg = tmp_path / "halfdead"
-    pkg.mkdir()
-    (pkg / "__init__.py").write_text("raise ImportError('boom')")
-    _patch_context(mocker, tmp_path, skip_broken=True)
+    """A plugin directory must not shadow a real module that shares its name.
 
+    Loading enters the module in `sys.modules` so its own relative imports
+    resolve, so the entry is prefixed: an unprefixed one would replace a real
+    module of that name for the rest of the process, and a failed load would
+    then delete the real one on the way out.
+    """
+    pkg = tmp_path / name
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text(source)
+    _patch_context(mocker, tmp_path, skip_broken=skip_broken)
+
+    # Strict mode for the loading case, so a plugin that stops loading fails
+    # here rather than leaving the assertion true for the wrong reason.
     PluginManager.create()
 
-    assert "halfdead" not in sys.modules
+    assert name not in sys.modules
 
 
 def test_broken_hook_keeps_builtin_providers(

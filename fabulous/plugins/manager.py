@@ -42,6 +42,14 @@ from fabulous.plugins.types import (
 
 PLUGIN_ENTRY_POINT_GROUP = "fabulous.plugins"
 
+_PATH_PLUGIN_PREFIX = "_fabulous_plugin_"
+"""Prefix under which a path-loaded plugin is entered into `sys.modules`.
+
+A tier-2/4 plugin is named by its directory, which is not a namespace FABulous
+controls, so entering it unprefixed would let a plugin directory called `yaml`
+replace the real `yaml` for the rest of the process.
+"""
+
 
 class BuiltinPlugin(StrEnum):
     """Dotted module paths of the essential built-in provider plugins.
@@ -95,8 +103,11 @@ class PluginManager:
         entry-point plugins are versioned with their distribution. Tier-2/4
         plugins are loaded from bare paths, but the path may still belong to
         an installed package, so this falls back to the module's own
-        `__version__` attribute, then to `importlib.metadata` by
-        registration name or by the module's top-level distribution.
+        `__version__` attribute, then to `importlib.metadata` by registration
+        name, then by the distribution owning that name's top-level package.
+        The registration name is used rather than the module's `__name__`
+        because a path-loaded plugin is entered into `sys.modules` under
+        `_PATH_PLUGIN_PREFIX`, which no distribution owns.
 
         Parameters
         ----------
@@ -127,8 +138,7 @@ class PluginManager:
         except importlib_metadata.PackageNotFoundError:
             pass
 
-        module_name = getattr(plugin, "__name__", None)
-        top_level = module_name.partition(".")[0] if module_name else None
+        top_level = name.partition(".")[0]
         if self._top_level_distributions is None:
             self._top_level_distributions = importlib_metadata.packages_distributions()
         for dist_name in self._top_level_distributions.get(top_level, ()):
@@ -590,7 +600,8 @@ class PluginManager:
         Parameters
         ----------
         name : str
-            The module name to import under.
+            The plugin's registration name. The module is entered into
+            `sys.modules` under this name prefixed with `_PATH_PLUGIN_PREFIX`.
         init : Path
             Path to the `__init__.py` or module file to load.
 
@@ -614,17 +625,20 @@ class PluginManager:
                     f"No '__init__.py' found in plugin directory '{init.parent}'"
                 )
             raise PluginError(f"No plugin module found at '{init}'")
-        spec = importlib.util.spec_from_file_location(name, init)
+        module_name = f"{_PATH_PLUGIN_PREFIX}{name}"
+        spec = importlib.util.spec_from_file_location(module_name, init)
         if spec is None or spec.loader is None:
             raise PluginError(f"'{init}' is not an importable Python module")
         module = importlib.util.module_from_spec(spec)
         # A package plugin's own `from .sub import x` resolves its parent
         # through sys.modules, so the entry has to exist before execution.
-        sys.modules[name] = module
+        # Prefixing keeps that entry out of the top-level namespace, so the
+        # entry deleted below is always one this loader put there.
+        sys.modules[module_name] = module
         try:
             spec.loader.exec_module(module)
         except BaseException:
-            del sys.modules[name]
+            del sys.modules[module_name]
             raise
         return module
 
