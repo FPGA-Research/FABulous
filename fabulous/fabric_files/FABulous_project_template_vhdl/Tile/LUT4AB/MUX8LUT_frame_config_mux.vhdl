@@ -188,6 +188,15 @@ begin
       X  => M_AD
     );
 
+    -- EH_GH <= GH when (CB_C0 = '0') else EH;
+  cus_mux21_eh_gh : component cus_mux21
+    port map (
+      A0 => GH,
+      A1 => EH,
+      S  => CB_C0,
+      X  => EH_GH
+    );
+
   -- M_AH <= EH_GH when (CB_C1 = '0') else AH;
   cus_mux21_m_ah : component cus_mux21
     port map (
