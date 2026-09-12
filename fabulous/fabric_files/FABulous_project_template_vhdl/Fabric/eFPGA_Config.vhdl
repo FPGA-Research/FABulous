@@ -19,7 +19,7 @@ entity eFPGA_Config is
     desync_flag     : integer := 20;
     bitbang_enable  : integer := 1;
     uart_enable     : integer := 1;
-    spi_enable      : integer := 1;
+    spi_enable      : integer := 0;
     parallel_enable : integer := 1
   );
   port (
@@ -60,7 +60,7 @@ architecture from_verilog of eFPGA_Config is
 
   -- BitBang signals
   signal BitBangActive      : std_logic;
-  signal BitBangWriteData   : std_logic_vector(31 downto 0);
+  signal BitBangWriteData   : unsigned(31 downto 0);
   signal BitBangWriteStrobe : std_logic;
 
   -- SPI signals (NEW)
@@ -83,27 +83,21 @@ architecture from_verilog of eFPGA_Config is
   signal FSM_Reset : std_logic;
 
   component ConfigFSM is
-    generic (
-      FrameBitsPerRow : integer := FrameBitsPerRow;
-      NumberOfRows    : integer := NumberOfRows;
-      RowSelectWidth  : integer := RowSelectWidth;
-      desync_flag     : integer := desync_flag
-    );
     port (
-      CLK                  : in    std_logic;
-      FSM_Reset            : in    std_logic;
-      FrameAddressRegister : out   std_logic_vector(31 downto 0);
-      LongFrameStrobe      : out   std_logic;
-      RowSelect            : out   std_logic_vector(4 downto 0);
-      WriteData            : in    std_logic_vector(31 downto 0);
-      WriteStrobe          : in    std_logic;
-      resetn               : in    std_logic
+      CLK                    : in    std_logic;
+      fsm_reset              : in    std_logic;
+      frame_address_register : out   unsigned(31 downto 0);
+      long_frame_strobe      : out   std_logic;
+      row_select             : out   unsigned(4 downto 0);
+      write_data             : in    unsigned(31 downto 0);
+      write_strobe           : in    std_logic;
+      reset_n                : in    std_logic
     );
   end component ConfigFSM;
 
-  signal FrameAddressRegister_Readable : std_logic_vector(31 downto 0); -- Needed to connect outputs
+  signal FrameAddressRegister_Readable : unsigned(31 downto 0); -- Needed to connect outputs
   signal LongFrameStrobe_Readable      : std_logic;                     -- Needed to connect outputs
-  signal RowSelect_Readable            : std_logic_vector(4 downto 0);  -- Needed to connect outputs
+  signal RowSelect_Readable            : unsigned(4 downto 0);  -- Needed to connect outputs
 
   component config_UART is
     port (
@@ -114,7 +108,7 @@ architecture from_verilog of eFPGA_Config is
       Rx          : in    std_logic;
       WriteData   : out   unsigned(31 downto 0);
       WriteStrobe : out   std_logic;
-      resetn      : in    std_logic
+      reset_n     : in    std_logic
     );
   end component config_UART;
 
@@ -122,8 +116,8 @@ architecture from_verilog of eFPGA_Config is
     port (
       active : out   std_logic;
       clk    : in    std_logic;
-      data   : out   std_logic_vector(31 downto 0);
-      resetn : in    std_logic;
+      data   : out   unsigned(31 downto 0);
+      reset_n: in    std_logic;
       s_clk  : in    std_logic;
       s_data : in    std_logic;
       strobe : out   std_logic
@@ -136,7 +130,7 @@ architecture from_verilog of eFPGA_Config is
       clk    : in    std_logic;
       data   : out   std_logic_vector(31 downto 0);
       mosi   : in    std_logic;
-      resetn : in    std_logic;
+      reset_n: in    std_logic;
       sck    : in    std_logic;
       ss_n   : in    std_logic;
       strobe : out   std_logic
@@ -154,7 +148,7 @@ begin
   FSM_Reset              <= UART_ComActive or BitBangActive or spi_active;
   ComActive              <= UART_ComActive;
   ReceiveLED             <= UART_LED xor BitBangWriteStrobe;
-  BitBangWriteData_Mux   <= BitBangWriteData when BitBangActive = '1' else
+  BitBangWriteData_Mux   <= std_logic_vector(BitBangWriteData) when BitBangActive = '1' else
                             SelfWriteData;
   BitBangWriteStrobe_Mux <= BitBangWriteStrobe when BitBangActive = '1' else
                             SelfWriteStrobe;
@@ -166,21 +160,21 @@ begin
                             spi_write_data_mux;
   UART_WriteStrobe_Mux   <= UART_WriteStrobe when UART_ComActive = '1' else
                             spi_strobe_mux;
-  FrameAddressRegister   <= FrameAddressRegister_Readable;
+  FrameAddressRegister   <= std_logic_vector(FrameAddressRegister_Readable);
   LongFrameStrobe        <= LongFrameStrobe_Readable;
-  RowSelect              <= RowSelect_Readable;
+  RowSelect              <= std_logic_vector(RowSelect_Readable);
 
   -- Generated from instantiation at eFPGA_Config.v:90
   configfsm_inst : component ConfigFSM
     port map (
-      CLK                  => CLK,
-      FSM_Reset            => FSM_Reset,
-      FrameAddressRegister => FrameAddressRegister_Readable,
-      LongFrameStrobe      => LongFrameStrobe_Readable,
-      RowSelect            => RowSelect_Readable,
-      WriteData            => UART_WriteData_Mux,
-      WriteStrobe          => UART_WriteStrobe_Mux,
-      resetn               => resetn
+      CLK                    => CLK,
+      fsm_reset              => FSM_Reset,
+      frame_address_register => FrameAddressRegister_Readable,
+      long_frame_strobe      => LongFrameStrobe_Readable,
+      row_select             => RowSelect_Readable,
+      write_data             => unsigned(UART_WriteData_Mux),
+      write_strobe           => UART_WriteStrobe_Mux,
+      reset_n                => resetn
     );
 
   -- Generated from instantiation at eFPGA_Config.v:42
@@ -196,7 +190,7 @@ begin
         Rx          => Rx,
         WriteData   => UART_WriteData,
         WriteStrobe => UART_WriteStrobe,
-        resetn      => resetn
+        reset_n      => resetn
       );
 
   end generate gen_uart_enabled;
@@ -220,7 +214,7 @@ begin
         active => BitBangActive,
         clk    => CLK,
         data   => BitBangWriteData,
-        resetn => resetn,
+        reset_n=> resetn,
         s_clk  => s_clk,
         s_data => s_data,
         strobe => BitBangWriteStrobe
@@ -244,7 +238,7 @@ begin
         clk    => CLK,
         data   => spi_write_data,
         mosi   => mosi,
-        resetn => resetn,
+        reset_n=> resetn,
         sck    => sck,
         ss_n   => ss_n,
         strobe => spi_strobe
