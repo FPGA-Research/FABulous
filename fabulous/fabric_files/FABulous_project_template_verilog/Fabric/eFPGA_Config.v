@@ -7,7 +7,7 @@ module eFPGA_Config #(
     parameter integer desync_flag = 20,
     parameter integer bitbang_enable = 1,
     parameter integer uart_enable = 1,
-    parameter integer spi_enable = 1,
+    parameter integer spi_enable = 0,
     parameter integer parallel_enable = 1
 ) (
     input wire CLK,
@@ -23,9 +23,6 @@ module eFPGA_Config #(
     input wire sck,
     input wire mosi,
     input wire ss_n,
-    input wire s_clk,
-    input wire s_data,
-
     // Parallel configuration port
     input wire [31:0] SelfWriteData,
     input wire SelfWriteStrobe,

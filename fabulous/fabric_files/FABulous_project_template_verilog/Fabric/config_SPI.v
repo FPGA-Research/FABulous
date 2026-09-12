@@ -28,7 +28,7 @@ module config_SPI (
         if (!reset_n) begin
             sck_sample <= 4'b0;
             mosi_sample <= 4'b0;
-            ss_n_sample <= 4'b0;
+            ss_n_sample <= 4'b1111;
         end else begin
             sck_sample <= {sck_sample[2:0], sck};
             mosi_sample <= {mosi_sample[2:0], mosi};
@@ -40,6 +40,7 @@ module config_SPI (
         if (!reset_n) begin
             serial_data <= 32'b0;
             bit_counter <= 6'b0;
+            word_complete <= 1'b0;
         end else begin
             word_complete <= 1'b0;
             if ( (sck_sample[3]==1'b0) && (sck_sample[2]==1'b1) && ss_n_sample[3]==1'b0) begin
