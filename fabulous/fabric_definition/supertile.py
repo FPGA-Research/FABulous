@@ -40,10 +40,10 @@ class SuperTile:
         The supertile switch matrix (source file, connectivity, config bits), or
         None if the supertile has no switch matrix.
     master_tile_coords : tuple[int, int] | None
-        Local (x, y) of the master tile. Explicitly set via the `MASTER` token
-        in the supertile CSV, or computed as the last non-None tile in row-major
-        order if no MASTER is present.  All supertile config bits and BELs are
-        anchored to this tile.
+        Local (x, y) of the master tile, set from the `MASTER` token in the
+        supertile CSV. None means no token was given and
+        `get_master_tile_coords` derives the master instead. All supertile
+        config bits and BELs are anchored to this tile.
     origin : Origin
         Which corner of `tileMap` is (0, 0). `Origin.TOP_LEFT` is deprecated
         and removed in 3.0.
@@ -182,13 +182,19 @@ class SuperTile:
         The master tile is either:
         - The tile explicitly marked with `MASTER` in the supertile CSV
           (stored in `master_tile_coords`), or
-        - The last non-None tile in row-major order if no MASTER was specified.
+        - The easternmost tile of the southernmost occupied row.
+
+        The implicit rule is stated in compass terms rather than as an index
+        order because the master selects a physical child: `origin` decides
+        which end of `tileMap` is south, so a row-major scan would name
+        different children for the same supertile definition under the two
+        origins, and the coordinate it returns would be identical either way.
 
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural anchor tile, `get_anchor_tile_coords`; the two coincide only
-        when the master happens to be the first tile in row-major order.
+        structural anchor tile, `get_anchor_tile_coords`, which is index-based
+        because it must match the order `generateFabric` scans the grid in.
 
         Returns
         -------
@@ -202,18 +208,20 @@ class SuperTile:
         """
         if self.master_tile_coords is not None:
             return self.master_tile_coords
-        mx, my = 0, 0
-        found = False
-        for y, row in enumerate(self.tileMap):
-            for x, tile in enumerate(row):
-                if tile is not None:
-                    mx, my = x, y
-                    found = True
-        if not found:
-            raise ValueError(
-                f"SuperTile '{self.name}' has no tiles; cannot determine master tile"
-            )
-        return mx, my
+
+        south_to_north = (
+            range(len(self.tileMap))
+            if self.north_step == 1
+            else range(len(self.tileMap) - 1, -1, -1)
+        )
+        for y in south_to_north:
+            occupied = [x for x, tile in enumerate(self.tileMap[y]) if tile is not None]
+            if occupied:
+                return max(occupied), y
+
+        raise ValueError(
+            f"SuperTile '{self.name}' has no tiles; cannot determine master tile"
+        )
 
     def get_all_sjump_ports(self) -> list[tuple[int, int, TilePort]]:
         """Return all SJUMP OUTPUT ports across every child tile.

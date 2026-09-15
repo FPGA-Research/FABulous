@@ -175,21 +175,29 @@ class TestPortNameTrailingDigit:
 
 
 class TestSupertileMasterRow:
-    """The `MASTER` token names the same child tile under either origin."""
+    """The master names the same child tile under either origin.
 
-    SUPERTILE_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot,MASTER\nEndSuperTILE\n"
+    The CSV is authored north-first, so `DSP_bot` is the south row in both
+    cases below. An explicit `MASTER` records a row index against the authored
+    order, which bottom-left origin then reverses; the implicit rule picks the
+    southernmost occupied row, which is the opposite end of `tileMap` under the
+    two origins. Both selections land on the same physical child, and both sit
+    at local (0, 1), so comparing coordinates across origins would not catch a
+    regression here.
+    """
+
+    EXPLICIT_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot,MASTER\nEndSuperTILE\n"
+    IMPLICIT_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot\nEndSuperTILE\n"
 
     @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
-    def test_master_follows_its_row_through_the_reversal(
-        self, origin: Origin, tmp_path: Path
+    @pytest.mark.parametrize(
+        "csv_body", [EXPLICIT_CSV, IMPLICIT_CSV], ids=["explicit", "implicit"]
+    )
+    def test_master_names_the_south_child(
+        self, origin: Origin, csv_body: str, tmp_path: Path
     ) -> None:
-        """The CSV is authored north-first, so DSP_bot is the south row.
-
-        Bottom-left origin reverses `tileMap` after the MASTER row index was
-        recorded, so the index has to move with the row it names.
-        """
         csv_path = tmp_path / "DSP.csv"
-        csv_path.write_text(self.SUPERTILE_CSV)
+        csv_path.write_text(csv_body)
         tile_dic = {
             name: make_empty_tile(name, pinOrderConfig={})
             for name in ("DSP_top", "DSP_bot")
