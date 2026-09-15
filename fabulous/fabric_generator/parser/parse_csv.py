@@ -812,7 +812,10 @@ def parseSupertilesCSV(
 
 
 def parse_tile_from_dir(
-    tile_dir: Path, tile_name: str, is_supertile: bool
+    tile_dir: Path,
+    tile_name: str,
+    is_supertile: bool,
+    origin: Origin = Origin.TOP_LEFT,
 ) -> Tile | SuperTile:
     """Parse a single tile or supertile from its own directory.
 
@@ -830,6 +833,12 @@ def parse_tile_from_dir(
         Name of the tile or supertile to return. Also the CSV file stem.
     is_supertile : bool
         Whether the target is a supertile.
+    origin : Origin
+        Which corner of the fabric is (0, 0). There is no surrounding fabric to
+        read `TopLeftOrigin` from, so the caller must pass the parent fabric's
+        origin; a mismatch gives the tile's artifacts the opposite y axis and
+        row order from the fabric that instantiates it. Defaults to the
+        deprecated `Origin.TOP_LEFT`, matching an absent `TopLeftOrigin`.
 
     Raises
     ------
@@ -850,7 +859,7 @@ def parse_tile_from_dir(
         raise FileNotFoundError(f"Tile CSV {tile_csv} does not exist")
 
     if not is_supertile:
-        tiles, _ = parseTilesCSV(tile_csv)
+        tiles, _ = parseTilesCSV(tile_csv, origin=origin)
         for tile in tiles:
             if tile.name == tile_name:
                 return tile
@@ -882,10 +891,10 @@ def parse_tile_from_dir(
     tile_dic: dict[str, Tile] = {}
     for subtile_name in subtile_names:
         subtile_csv = tile_dir / subtile_name / f"{subtile_name}.csv"
-        tiles, _ = parseTilesCSV(subtile_csv)
+        tiles, _ = parseTilesCSV(subtile_csv, origin=origin)
         tile_dic.update({tile.name: tile for tile in tiles})
 
-    supertiles = parseSupertilesCSV(tile_csv, tile_dic)
+    supertiles = parseSupertilesCSV(tile_csv, tile_dic, origin)
     for supertile in supertiles:
         if supertile.name == tile_name:
             return supertile
