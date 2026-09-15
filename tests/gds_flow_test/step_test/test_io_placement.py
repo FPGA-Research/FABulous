@@ -4,6 +4,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import Origin
 from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
@@ -31,6 +32,7 @@ class TestFABulousTileIOPlacement:
             IO_PIN_H_EXTENSION=0.1,
             IO_PIN_V_EXTENSION=0.2,
             ERRORS_ON_UNMATCHED_IO="both",
+            FABULOUS_ORIGIN=Origin.BOTTOM_LEFT,
             IO_PIN_V_LENGTH=5.0,
             IO_PIN_H_LENGTH=3.0,
         )
@@ -54,6 +56,12 @@ class TestFABulousTileIOPlacement:
         assert "--unmatched-error" in command
         unmatched_idx = command.index("--unmatched-error")
         assert command[unmatched_idx + 1] == "both"
+
+        # The placer reads the tile map the generator wrote, so it needs the
+        # same origin to tell north from south.
+        assert "--origin" in command
+        origin_idx = command.index("--origin")
+        assert command[origin_idx + 1] == Origin.BOTTOM_LEFT.value
 
         # Verify optional length arguments are present when set
         assert "--ver-length" in command
@@ -84,6 +92,7 @@ class TestFABulousTileIOPlacement:
             IO_PIN_V_LENGTH=None,
             IO_PIN_H_LENGTH=None,
             ERRORS_ON_UNMATCHED_IO="both",
+            FABULOUS_ORIGIN=Origin.BOTTOM_LEFT,
         )
 
         step = FABulousTileIOPlacement(config, mock_state)

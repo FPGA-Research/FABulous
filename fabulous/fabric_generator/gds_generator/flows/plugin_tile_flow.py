@@ -39,6 +39,9 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
+    FABULOUS_ORIGIN_VAR,
+)
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
@@ -95,16 +98,7 @@ class FABulousTile(SequentialFlow):
             "switch matrix. Must match the parent fabric.",
             default=MultiplexerStyle.CUSTOM,
         ),
-        Variable(
-            "FABULOUS_ORIGIN",
-            Origin,
-            "Which corner of the fabric grid is (0, 0), fixing the sign of every "
-            "wire y offset and a supertile's row order. Must match the parent "
-            "fabric's TopLeftOrigin; under a mismatch the hardened macro's pin "
-            "order and port assignment are mirrored against the fabric that "
-            "instantiates it.",
-            default=Origin.TOP_LEFT,
-        ),
+        FABULOUS_ORIGIN_VAR,
     ]
 
     gating_config_vars = FABulousTileVerilogMacroFlow.gating_config_vars
