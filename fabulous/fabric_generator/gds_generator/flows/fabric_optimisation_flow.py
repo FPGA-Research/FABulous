@@ -351,6 +351,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().models_pack,
                     get_context().proj_lang,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
+                    FABULOUS_ORIGIN=fabric.origin,
                 )
                 handlers.append((result, opt_mode, tile_type))
 
@@ -516,6 +517,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().proj_lang,
                     design_dir=optimised_design_dir,
                     DIE_AREA=die_area,
+                    FABULOUS_ORIGIN=fabric.origin,
                 )
                 handlers.append((result, tile_type))
 

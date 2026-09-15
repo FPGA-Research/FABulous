@@ -17,7 +17,7 @@ import yaml
 from librelane.logging.logger import debug, err, info, warn
 from librelane.scripts.odbpy.reader import click_odb
 
-from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_definition.define import Origin, PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
@@ -372,6 +372,7 @@ class PinPlacementPlan:
     """Collects processed segment definitions and related pin bookkeeping."""
 
     __slots__ = (
+        "north_step",
         "segments_by_side",
         "regex_by_bterm",
         "unmatched_config_patterns",
@@ -388,7 +389,10 @@ class PinPlacementPlan:
         config_data: dict,
         bterms: list,
         unmatched_error: str,
+        *,
+        north_step: int,
     ) -> None:
+        self.north_step = north_step
         self.segments_by_side: dict[Side, list[SegmentInfo]] = {
             side: [] for side in Side
         }
@@ -402,7 +406,7 @@ class PinPlacementPlan:
         self.fabric_dimensions: tuple[int, int] = (1, 1)  # (width, height)
 
         normalized_config, tile_counts, fabric_dims = self._normalize_config(
-            config_data
+            config_data, north_step=north_step
         )
         self.tile_counts_by_side = tile_counts
         self.fabric_dimensions = fabric_dims
@@ -448,6 +452,8 @@ class PinPlacementPlan:
     @staticmethod
     def _normalize_config(
         config_data: dict,
+        *,
+        north_step: int,
     ) -> tuple[dict[Side, list[RawSegmentData]], dict[Side, int], tuple[int, int]]:
         """Return side-indexed segment list, tile counts, and fabric dimensions.
 
@@ -455,6 +461,9 @@ class PinPlacementPlan:
         ----------
         config_data : dict
             Raw configuration data loaded from YAML.
+        north_step : int
+            The `tileMap` row increment that moves one sub-tile north, 1 for
+            the bottom-left origin and -1 for the deprecated top-left one.
 
         Returns
         -------
@@ -506,9 +515,11 @@ class PinPlacementPlan:
         fabric_width = max_x + 1
         fabric_height = max_y + 1
 
+        # The generator resolves a sub-tile's sides through the same step, so
+        # north is toward smaller Y only under the deprecated top-left origin.
         neighbor_offsets = {
-            Side.NORTH: (0, -1),  # NORTH is toward smaller Y (top)
-            Side.SOUTH: (0, 1),  # SOUTH is toward larger Y (bottom)
+            Side.NORTH: (0, north_step),
+            Side.SOUTH: (0, -north_step),
             Side.EAST: (1, 0),
             Side.WEST: (-1, 0),
         }
@@ -656,7 +667,12 @@ class PinPlacementPlan:
             tile_x, tile_y, tile_segments = segments_by_tile[tile_idx]
 
             division_index = self._get_division_index(
-                side, tile_x, tile_y, tile_idx, num_divisions
+                side,
+                tile_x,
+                tile_y,
+                tile_idx,
+                num_divisions,
+                north_step=self.north_step,
             )
 
             # tile_origin = origin + division_size * division_index.
@@ -713,6 +729,8 @@ class PinPlacementPlan:
         tile_y: int | None,
         tile_idx: int,
         num_divisions: int,
+        *,
+        north_step: int,
     ) -> int:
         """Determine which division (tile position) a tile belongs to.
 
@@ -720,17 +738,19 @@ class PinPlacementPlan:
         tile_idx if coordinates are unavailable. Clamps to valid range [0,
         num_divisions).
 
-        For E/W sides, Y=0 is at top but physical origin is at bottom, so we invert the
-        Y coordinate.
+        Division indices count from the physical bottom. For E/W sides the Y
+        coordinate is inverted under the deprecated top-left origin, where
+        Y=0 is the top row.
         """
         # Select coordinate based on side orientation
         if side in (Side.NORTH, Side.SOUTH):
             position_coord = tile_x
-        else:  # EAST or WEST
-            # Invert Y: Y=0 (top) should map to highest division index
-            position_coord = (
-                (num_divisions - 1 - tile_y) if tile_y is not None else None
-            )
+        elif tile_y is None:
+            position_coord = None
+        elif north_step == 1:
+            position_coord = tile_y
+        else:  # EAST or WEST under the top-left origin
+            position_coord = num_divisions - 1 - tile_y
 
         division_index = position_coord if position_coord is not None else tile_idx
 
@@ -940,6 +960,13 @@ class PinPlacementPlan:
     "--hor-width-mult", default=2, type=float, help="Multiplier for horizontal pins."
 )
 @click.option(
+    "--origin",
+    "origin_value",
+    required=True,
+    type=click.Choice([o.value for o in Origin]),
+    help="Which corner of the tile map is (0, 0), matching the fabric.",
+)
+@click.option(
     "--verbose/--no-verbose",
     default=False,
     help="Enable verbose (DEBUG) logging output.",
@@ -957,6 +984,7 @@ def io_place(
     hor_extension: float,
     ver_extension: float,
     unmatched_error: str,
+    origin_value: str,
     verbose: bool,
 ) -> None:
     """Places the IOs in an input def with a config file using tile-based format.
@@ -1052,7 +1080,8 @@ def io_place(
 
     die_height = BLOCK_UR_Y - BLOCK_LL_Y
 
-    plan = PinPlacementPlan(config_data, bterms, unmatched_error)
+    north_step = 1 if Origin(origin_value) is Origin.BOTTOM_LEFT else -1
+    plan = PinPlacementPlan(config_data, bterms, unmatched_error, north_step=north_step)
     debug("Segment plan: %s", plan.segments_by_side)
     min_by_side = {
         Side.NORTH: (v_width + v_layer.getSpacing()) / reader.dbunits,

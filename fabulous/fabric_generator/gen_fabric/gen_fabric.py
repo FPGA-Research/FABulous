@@ -26,13 +26,37 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 
 # (side port getter, neighbour dx, dy) for the four fabric edges. Each side's
 # local INPUT ports pair with the same-side OUTPUT ports of the neighbour at the
-# given offset; dy grows downward (south).
+# given offset. dy counts north steps, so multiply it by `fabric.north_step` to
+# get a grid index under either origin.
 _SIDE_INPUT_CONNECTIONS = (
-    (Tile.getNorthPorts, 0, 1),  # north input <- south neighbour
+    (Tile.getNorthPorts, 0, -1),  # north input <- south neighbour
     (Tile.getEastPorts, -1, 0),  # east input  <- west neighbour
-    (Tile.getSouthPorts, 0, -1),  # south input <- north neighbour
+    (Tile.getSouthPorts, 0, 1),  # south input <- north neighbour
     (Tile.getWestPorts, 1, 0),  # west input  <- east neighbour
 )
+
+
+def _towards_south(fabric: Fabric, y: int) -> range:
+    """Return the row indices from `y` to the south edge, nearest first.
+
+    Which end of the grid is south follows the fabric's origin, so callers walk
+    a config chain southwards without knowing the convention.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose origin fixes the direction of travel.
+    y : int
+        The row to start south of.
+
+    Returns
+    -------
+    range
+        Row indices, excluding `y`, ordered from nearest to furthest south.
+    """
+    if fabric.north_step == 1:
+        return range(y - 1, -1, -1)
+    return range(y + 1, fabric.numberOfRows)
 
 
 def iter_super_tile_anchors(
@@ -40,8 +64,8 @@ def iter_super_tile_anchors(
 ) -> Generator[tuple[int, int, SuperTile], None, None]:
     """Yield `(anchor_x, anchor_y, superTile)` for every supertile placement.
 
-    The anchor is the first non-NULL child tile in row-major order for each
-    placement -- the same position at which `generateFabric` instantiates the
+    The anchor is `SuperTile.get_anchor_tile_coords` offset by the placement
+    base, the same position at which `generateFabric` instantiates the
     supertile wrapper.
 
     Parameters
@@ -55,14 +79,8 @@ def iter_super_tile_anchors(
         The anchor `(x, y)` and the `SuperTile` placed there.
     """
     for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        for ly, row in enumerate(superTile.tileMap):
-            for lx, tile in enumerate(row):
-                if tile is not None:
-                    yield base_fx + lx, base_fy + ly, superTile
-                    break
-            else:
-                continue
-            break
+        lx, ly = superTile.get_anchor_tile_coords()
+        yield base_fx + lx, base_fy + ly, superTile
 
 
 def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
@@ -306,7 +324,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
                 for get_side_ports, dx, dy in _SIDE_INPUT_CONNECTIONS:
-                    neighbor_x, neighbor_y = x + i + dx, y + j + dy
+                    neighbor_x = x + i + dx
+                    neighbor_y = y + j + dy * fabric.north_step
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
                     localPorts = _local_names(get_side_ports(here, IO.INPUT))
@@ -377,12 +396,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             if not fabric.disableUserCLK:
                 if not superTile:
-                    # for userCLK
+                    # The clock chain runs south to north, so a tile takes its
+                    # clock from the tile to its south.
+                    clk_src = y - fabric.north_step
                     if (
-                        y + 1 < fabric.numberOfRows
-                        and fabric.tile[y + 1][x] is not None
+                        0 <= clk_src < fabric.numberOfRows
+                        and fabric.tile[clk_src][x] is not None
                     ):
-                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{clk_src}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
 
@@ -393,10 +414,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         # prefix for super tile port
                         pre = f"Tile_X{i}Y{j}_"
 
-                        # UserCLK signal
-                        next_row = y + j + 1
+                        # UserCLK signal, sourced from the tile to the south.
+                        next_row = y + j - fabric.north_step
                         if (
-                            next_row >= fabric.numberOfRows
+                            not 0 <= next_row < fabric.numberOfRows
                             or fabric.tile[next_row][x + i] is None
                         ):
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
@@ -406,8 +427,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                 (f"{pre}UserCLK", f"Tile_X{x + i}Y{next_row}_UserCLKo")
                             )
 
-                        # UserCLKo signal
-                        if (x + i, y + j - 1) not in superTileLoc:
+                        # UserCLKo signal, whose sink is the tile to the north.
+                        if (x + i, y + j + fabric.north_step) not in superTileLoc:
                             portsPairs.append(
                                 (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
                             )
@@ -482,10 +503,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                     done = False
 
-                    # Get all y-positions to the south of this tile
-                    # Note: the FrameStrobe signals come from the bottom of the
-                    #       fabric, therefore count upwards
-                    for search_y in range(supertile_y + 1, fabric.numberOfRows):
+                    # Get all y-positions to the south of this tile. The
+                    # FrameStrobe signals come from the south edge, so walk from
+                    # this tile towards it, whichever index that is.
+                    for search_y in _towards_south(fabric, supertile_y):
                         # Previous tile is part of the same supertile.
                         # FrameStrobe signals are connected internally.
                         # Stop the search and be done.
@@ -523,7 +544,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     # (to the north of it)
                     # in the column is part of the supertile
                     # (already connected internally).
-                    if (supertile_x, supertile_y - 1) not in superTileLoc:
+                    if (supertile_x, supertile_y + fabric.north_step) not in (
+                        superTileLoc
+                    ):
                         portsPairs.append(
                             (
                                 f"{pre}FrameStrobe_O",

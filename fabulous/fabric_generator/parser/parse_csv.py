@@ -22,6 +22,7 @@ from fabulous.fabric_definition.define import (
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
+    Origin,
     Side,
 )
 from fabulous.fabric_definition.fabric import Fabric
@@ -42,13 +43,71 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
 
 
-def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
+def _canonical_offset(
+    direction: Direction, raw_x: int, raw_y: int, line: str, origin: Origin
+) -> tuple[int, int]:
+    """Derive a wire's canonical bottom-left offset from its direction and reach.
+
+    A cardinal wire's orientation is fixed by its direction token, so only the
+    reach magnitude of the authored offsets is meaningful; the sign is derived
+    here. The reach lies on the direction's own axis, and the orthogonal offset
+    must be zero.
+
+    Parameters
+    ----------
+    direction : Direction
+        The wire's cardinal direction (NORTH, SOUTH, EAST or WEST).
+    raw_x : int
+        The authored x offset.
+    raw_y : int
+        The authored y offset.
+    line : str
+        The originating CSV line, used in the error message.
+    origin : Origin
+        Which corner is (0, 0). Under the deprecated `Origin.TOP_LEFT` the y
+        axis counts the other way, so the derived y offset is negated.
+
+    Raises
+    ------
+    InvalidSwitchMatrixDefinition
+        If the offset orthogonal to the direction is non-zero, i.e. the wire is
+        diagonal and has no unambiguous cardinal reach.
+
+    Returns
+    -------
+    tuple[int, int]
+        The canonical `(x_offset, y_offset)` for `origin`.
+    """
+    match direction:
+        case Direction.NORTH:
+            off_axis, x, y = raw_x, 0, abs(raw_y)
+        case Direction.SOUTH:
+            off_axis, x, y = raw_x, 0, -abs(raw_y)
+        case Direction.EAST:
+            off_axis, x, y = raw_y, abs(raw_x), 0
+        case Direction.WEST:
+            off_axis, x, y = raw_y, -abs(raw_x), 0
+    if off_axis != 0:
+        raise InvalidSwitchMatrixDefinition(
+            f"Invalid port definition line {line!r}: a {direction.value} wire "
+            f"must have a zero offset on the orthogonal axis, got ({raw_x}, "
+            f"{raw_y})."
+        )
+    return x, y * (1 if origin is Origin.BOTTOM_LEFT else -1)
+
+
+def parse_port_line(
+    line: str, origin: Origin = Origin.TOP_LEFT
+) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
 
     Parameters
     ----------
     line : str
         CSV line containing port configuration data.
+    origin : Origin
+        Which corner of the fabric is (0, 0), fixing the sign of a cardinal
+        wire's y offset. Defaults to the deprecated `Origin.TOP_LEFT`.
 
     Raises
     ------
@@ -102,6 +161,15 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
         Direction.SOUTH,
         Direction.WEST,
     ):
+        # The direction token is authoritative for the wire's orientation and
+        # sign; the offsets contribute only reach (magnitude). Deriving the sign
+        # here rather than trusting the authored one lets both the top-first
+        # (pre-bottom-left origin) and the current bottom-left CSV conventions
+        # parse to the same model, so existing fabric definitions keep working.
+        x_offset, y_offset = _canonical_offset(
+            wire_direction, x_offset, y_offset, line, origin
+        )
+
         # Output port (source side)
         ports.append(
             TilePort(
@@ -224,7 +292,9 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
 
 
 def parseTilesCSV(
-    fileName: Path, preserve_list_order: bool = False
+    fileName: Path,
+    preserve_list_order: bool = False,
+    origin: Origin = Origin.TOP_LEFT,
 ) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parse a CSV tile configuration file and returns all tile objects.
 
@@ -235,6 +305,9 @@ def parseTilesCSV(
     preserve_list_order : bool, optional
         Passed to each tile's switch matrix so a `.list` keeps its file order
         (MSB-first) instead of the canonical dest-column order. Defaults to False.
+    origin : Origin
+        Which corner of the fabric is (0, 0). Defaults to the deprecated
+        `Origin.TOP_LEFT`.
 
     Returns
     -------
@@ -298,7 +371,7 @@ def parseTilesCSV(
             if not temp or temp[0] == "":
                 continue
             if temp[0] in Direction:
-                port, common_wire_pair = parse_port_line(item)
+                port, common_wire_pair = parse_port_line(item, origin)
                 if "CARRY" in temp[6]:
                     # For prefix after carry
                     carryPrefix = re.search(r'CARRY="([^"]+)"', temp[6])
@@ -495,7 +568,7 @@ def parseTilesCSV(
                     if not lineItem[0]:
                         continue
 
-                    port, common_wire_pair = parse_port_line(line)
+                    port, common_wire_pair = parse_port_line(line, origin)
                     ports.extend(port)
                     if common_wire_pair:
                         common_wire_pairs.append(common_wire_pair)
@@ -586,7 +659,9 @@ def validate_super_tile_matrix(
         )
 
 
-def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
+def parseSupertilesCSV(
+    fileName: Path, tileDic: dict[str, Tile], origin: Origin = Origin.TOP_LEFT
+) -> list[SuperTile]:
     """Parse a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
@@ -595,6 +670,9 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         The path to the CSV file.
     tileDic : dict[str, Tile]
         Dict of tiles.
+    origin : Origin
+        Which corner of the fabric is (0, 0), fixing the row order of the
+        supertile's `tileMap`. Defaults to the deprecated `Origin.TOP_LEFT`.
 
     Raises
     ------
@@ -695,6 +773,15 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 master_set = True
             tileMap.append(row)
 
+        # The CSV lists a supertile's rows north-first. Bottom-left origin
+        # stores them the other way round, so row 0 is the south row. The
+        # MASTER row index was recorded against the authored order, so it moves
+        # with the row it names.
+        if origin is Origin.BOTTOM_LEFT:
+            tileMap.reverse()
+            if master_coords is not None:
+                master_coords = (master_coords[0], len(tileMap) - 1 - master_coords[1])
+
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
         # consumers use `tileDir.parent` for the supertile's directory.
@@ -702,6 +789,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )
         super_tile.master_tile_coords = master_coords
+        super_tile.origin = origin
 
         # The supertile switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
@@ -724,7 +812,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
 
 def parse_tile_from_dir(
-    tile_dir: Path, tile_name: str, is_supertile: bool
+    tile_dir: Path,
+    tile_name: str,
+    is_supertile: bool,
+    origin: Origin = Origin.TOP_LEFT,
 ) -> Tile | SuperTile:
     """Parse a single tile or supertile from its own directory.
 
@@ -742,6 +833,12 @@ def parse_tile_from_dir(
         Name of the tile or supertile to return. Also the CSV file stem.
     is_supertile : bool
         Whether the target is a supertile.
+    origin : Origin
+        Which corner of the fabric is (0, 0). There is no surrounding fabric to
+        read `TopLeftOrigin` from, so the caller must pass the parent fabric's
+        origin; a mismatch gives the tile's artifacts the opposite y axis and
+        row order from the fabric that instantiates it. Defaults to the
+        deprecated `Origin.TOP_LEFT`, matching an absent `TopLeftOrigin`.
 
     Raises
     ------
@@ -762,7 +859,7 @@ def parse_tile_from_dir(
         raise FileNotFoundError(f"Tile CSV {tile_csv} does not exist")
 
     if not is_supertile:
-        tiles, _ = parseTilesCSV(tile_csv)
+        tiles, _ = parseTilesCSV(tile_csv, origin=origin)
         for tile in tiles:
             if tile.name == tile_name:
                 return tile
@@ -794,10 +891,10 @@ def parse_tile_from_dir(
     tile_dic: dict[str, Tile] = {}
     for subtile_name in subtile_names:
         subtile_csv = tile_dir / subtile_name / f"{subtile_name}.csv"
-        tiles, _ = parseTilesCSV(subtile_csv)
+        tiles, _ = parseTilesCSV(subtile_csv, origin=origin)
         tile_dic.update({tile.name: tile for tile in tiles})
 
-    supertiles = parseSupertilesCSV(tile_csv, tile_dic)
+    supertiles = parseSupertilesCSV(tile_csv, tile_dic, origin)
     for supertile in supertiles:
         if supertile.name == tile_name:
             return supertile
@@ -887,14 +984,34 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 )
             preserveListOrder = fields[1] == "TRUE"
 
+    # TopLeftOrigin fixes the sign of every y offset, so like PreserveListOrder
+    # it must be known before the first tile is parsed. Absent means TRUE, which
+    # is what every pre-3.0 fabric was authored against.
+    origin = Origin.TOP_LEFT
+    for line in parameters:
+        fields = [f.strip() for f in line.split(",") if f.strip()]
+        if fields and fields[0].startswith("TopLeftOrigin"):
+            if len(fields) < 2 or fields[1] not in ("TRUE", "FALSE"):
+                raise InvalidFabricParameter(
+                    "TopLeftOrigin requires a value of TRUE or FALSE"
+                )
+            origin = Origin.TOP_LEFT if fields[1] == "TRUE" else Origin.BOTTOM_LEFT
+    if origin is Origin.TOP_LEFT:
+        logger.warning(
+            f"Deprecation warning: {fName} uses the top-left coordinate origin. "
+            "FABulous 3.0 places the origin at the bottom left for every fabric "
+            "and drops this option. Set TopLeftOrigin,FALSE and re-author the "
+            "fabric's row order to migrate."
+        )
+
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_common_wire_pair = parseTilesCSV(fName, preserveListOrder)
+    new_tiles, new_common_wire_pair = parseTilesCSV(fName, preserveListOrder, origin)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     common_wire_pair += new_common_wire_pair
     tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
-    new_supertiles = parseSupertilesCSV(fName, tileDic)
+    new_supertiles = parseSupertilesCSV(fName, tileDic, origin)
     for new_supertile in new_supertiles:
         superTileDic[new_supertile.name] = new_supertile
 
@@ -928,14 +1045,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
 
             new_tiles, new_common_wire_pair = parseTilesCSV(
-                filePath.joinpath(i[1]), preserveListOrder
+                filePath.joinpath(i[1]), preserveListOrder, origin
             )
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
             common_wire_pair += new_common_wire_pair
             tileDic = dict(zip(tileTypes, tileDefs, strict=False))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
+            new_supertiles = parseSupertilesCSV(
+                filePath.joinpath(i[1]), tileDic, origin
+            )
             for new_supertile in new_supertiles:
                 superTileDic[new_supertile.name] = new_supertile
         elif i[0].startswith("ConfigBitMode"):
@@ -972,9 +1091,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
             disableUserCLK = i[1] == "TRUE"
         elif i[0].startswith("MultiClkDomains"):
             multiClkDomains = i[1] == "TRUE"
-        elif i[0].startswith("PreserveListOrder"):
-            # Consumed and validated by the pre-scan above (it must be known
-            # before any tile is parsed); accepted here so it is not rejected.
+        elif i[0].startswith(("PreserveListOrder", "TopLeftOrigin")):
+            # Consumed and validated by the pre-scans above (both must be known
+            # before any tile is parsed); accepted here so they are not rejected.
             pass
         else:
             raise InvalidFabricParameter(f"The following parameter is not valid: {i}")
@@ -1017,6 +1136,11 @@ def parseFabricCSV(fileName: str) -> Fabric:
             unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]
 
+    # fabric.csv writes the grid north-first. Bottom-left origin stores it the
+    # other way round, so fabricTiles[0] is the south row (y=0).
+    if origin is Origin.BOTTOM_LEFT:
+        fabricTiles.reverse()
+
     height = len(fabricTiles)
     width = len(fabricTiles[0])
 
@@ -1040,6 +1164,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
         multiClkDomains=multiClkDomains,
+        origin=origin,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

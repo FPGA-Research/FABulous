@@ -11,8 +11,9 @@ signals. The directions:
 - _FrameData_ flows West to East: tile `(x, y)` consumes the `FrameData_O`
   of tile `(x-1, y)`; the first column reads a boundary input port and the
   last column drives a boundary output port.
-- _FrameStrobe_ / _UserCLK_ flow vertically: tile `(x, y)` consumes the
-  `FrameStrobe_O` / `UserCLKo` of tile `(x, y+1)`.
+- _FrameStrobe_ and _UserCLK_ both climb from the south edge. Tile `(x, y)`
+  consumes the `FrameStrobe_O` and the `UserCLKo` of the tile to its south,
+  which is `(x, y - north_step)`. Every test here runs under both origins.
 
 A tile's output is wired to a neighbour when that neighbour exists inside the
 grid, otherwise to the matching supertile boundary port. Issue #875 was a
@@ -29,7 +30,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    ConfigBitMode,
+    Direction,
+    Origin,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -115,6 +122,17 @@ def _tile_stub(tile: Tile) -> str:
     )
 
 
+def _bel_stub(bel: Bel) -> str:
+    """Emit a body-less module matching a supertile BEL's wrapper-facing pins.
+
+    Only the pins `generateSuperTile` connects are declared, which for a BEL
+    with no vector ports is just the shared clock.
+    """
+    decls = ["    input UserCLK"] if bel.withUserCLK else []
+    body = ",\n".join(decls)
+    return f"\nmodule {bel.module_name} (\n{body}\n);\nendmodule\n"
+
+
 def supertile_grid(
     netlist: Netlist, tileMap: list[list[Tile | None]]
 ) -> GridConnectivity:
@@ -142,15 +160,40 @@ def supertile_grid(
     )
 
 
+@pytest.fixture(params=list(Origin), ids=lambda o: o.value)
+def origin(request: pytest.FixtureRequest) -> Origin:
+    """Run every connectivity test under both coordinate origins."""
+    return request.param
+
+
+@pytest.fixture
+def north_step(origin: Origin) -> int:
+    """Return the tileMap y increment that moves one sub-tile north."""
+    return 1 if origin is Origin.BOTTOM_LEFT else -1
+
+
 @pytest.fixture
 def supertile_netlist(
-    elaborate: Callable[..., Netlist], tmp_path: Path
+    elaborate: Callable[..., Netlist], tmp_path: Path, origin: Origin
 ) -> Callable[..., GridConnectivity]:
     """Render a supertile (plus stub sub-tiles) and elaborate it with Yosys."""
 
-    def _build(tileMap: list[list[Tile | None]], **kwargs: object) -> GridConnectivity:
+    def _build(
+        tileMap: list[list[Tile | None]],
+        bels: list[Bel] | None = None,
+        master_coords: tuple[int, int] | None = None,
+        **kwargs: object,
+    ) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
-        st = SuperTile(name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap)
+        st = SuperTile(
+            name="ST",
+            tileDir=Path(),
+            tiles=tiles,
+            tileMap=tileMap,
+            bels=bels or [],
+            master_tile_coords=master_coords,
+            origin=origin,
+        )
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
@@ -158,6 +201,8 @@ def supertile_netlist(
         text = out.read_text()
         for tile in {t.name: t for t in tiles}.values():
             text += _tile_stub(tile)
+        for bel in {b.module_name: b for b in bels or []}.values():
+            text += _bel_stub(bel)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build
@@ -173,7 +218,12 @@ GRIDS = [(1, 1), (1, 2), (2, 2), (5, 2), (3, 3)]
 class TestConfigChainConnectivity:
     """Each tile's config/clock terminals tie to the correct neighbour or port."""
 
-    def _check(self, net: GridConnectivity, tileMap: list[list[Tile | None]]) -> None:
+    def _check(
+        self,
+        net: GridConnectivity,
+        tileMap: list[list[Tile | None]],
+        north_step: int,
+    ) -> None:
         for y in range(len(tileMap)):
             for x in range(len(tileMap[y])):
                 if not net.exists(x, y):
@@ -192,29 +242,32 @@ class TestConfigChainConnectivity:
                 else:
                     assert fd_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameData_O")
 
-                # FrameStrobe flows vertically (consumer at y-1).
+                # FrameStrobe climbs from the south edge, so a tile's producer
+                # is its south neighbour under either origin.
+                south, north = y - north_step, y + north_step
                 fs_in = net.cell_net(x, y, "FrameStrobe")
-                if net.exists(x, y + 1):
-                    assert fs_in == net.cell_net(x, y + 1, "FrameStrobe_O")
+                if net.exists(x, south):
+                    assert fs_in == net.cell_net(x, south, "FrameStrobe_O")
                 else:
                     assert fs_in == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe")
 
                 fs_out = net.cell_net(x, y, "FrameStrobe_O")
-                if net.exists(x, y - 1):
-                    assert fs_out == net.cell_net(x, y - 1, "FrameStrobe")
+                if net.exists(x, north):
+                    assert fs_out == net.cell_net(x, north, "FrameStrobe")
                 else:
                     assert fs_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe_O")
 
-                # UserCLK is buffered vertically (consumer at y-1).
+                # UserCLK climbs from the south edge too, so a tile's clock
+                # producer is its south neighbour and its sink the north one.
                 clk_in = net.cell_net(x, y, "UserCLK")
-                if net.exists(x, y + 1):
-                    assert clk_in == net.cell_net(x, y + 1, "UserCLKo")
+                if net.exists(x, south):
+                    assert clk_in == net.cell_net(x, south, "UserCLKo")
                 else:
                     assert clk_in == net.top_port_net(f"Tile_X{x}Y{y}_UserCLK")
 
                 clk_out = net.cell_net(x, y, "UserCLKo")
-                if net.exists(x, y - 1):
-                    assert clk_out == net.cell_net(x, y - 1, "UserCLK")
+                if net.exists(x, north):
+                    assert clk_out == net.cell_net(x, north, "UserCLK")
                 else:
                     assert clk_out == net.top_port_net(f"Tile_X{x}Y{y}_UserCLKo")
 
@@ -224,16 +277,20 @@ class TestConfigChainConnectivity:
         supertile_netlist: Callable[..., GridConnectivity],
         rows: int,
         cols: int,
+        north_step: int,
     ) -> None:
         tileMap = grid(rows, cols)
-        self._check(supertile_netlist(tileMap), tileMap)
+        self._check(supertile_netlist(tileMap), tileMap, north_step)
 
     @pytest.mark.parametrize("name", sorted(SHAPES))
     def test_irregular_shapes(
-        self, supertile_netlist: Callable[..., GridConnectivity], name: str
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+        north_step: int,
     ) -> None:
         tileMap = shape(SHAPES[name])
-        self._check(supertile_netlist(tileMap), tileMap)
+        self._check(supertile_netlist(tileMap), tileMap, north_step)
 
 
 class TestCrossBoundaryDriverSinks:
@@ -254,15 +311,20 @@ class TestCrossBoundaryDriverSinks:
             assert ("Tile_X1Y0_T_X1Y0", "FrameData") in net.sinks(bit)
 
     def test_cross_row_framestrobe_net(
-        self, supertile_netlist: Callable[..., GridConnectivity]
+        self, supertile_netlist: Callable[..., GridConnectivity], north_step: int
     ) -> None:
+        """The strobe climbs from the south row to the north one."""
         net = supertile_netlist(grid(2, 1))
-        fs_out = net.cell_net(0, 1, "FrameStrobe_O")
+        south, north = (0, 1) if north_step == 1 else (1, 0)
+        fs_out = net.cell_net(0, south, "FrameStrobe_O")
         assert len(fs_out) == 20
 
         for bit in fs_out:
-            assert net.driver(bit) == ("Tile_X0Y1_T_X0Y1", "FrameStrobe_O")
-            assert ("Tile_X0Y0_T_X0Y0", "FrameStrobe") in net.sinks(bit)
+            assert net.driver(bit) == (
+                f"Tile_X0Y{south}_T_X0Y{south}",
+                "FrameStrobe_O",
+            )
+            assert (f"Tile_X0Y{north}_T_X0Y{north}", "FrameStrobe") in net.sinks(bit)
 
 
 class TestNoPhantomCells:
@@ -302,6 +364,55 @@ class TestConfigBitMode:
         )
         assert not any("FrameData" in p for p in net.top_port_names())
         assert not any("FrameStrobe" in p for p in net.top_port_names())
+
+
+class TestSupertileBelClock:
+    """A supertile BEL shares the master tile's clock net under either origin."""
+
+    def _clock_bel(self) -> Bel:
+        return Bel(
+            src=Path("ClkBel.v"),
+            prefix="",
+            module_name="ClkBel",
+            internal=[],
+            external=[],
+            configPort=[],
+            sharedPort=[],
+            configBit=0,
+            belMap={},
+            userCLK=True,
+            ports_vectors={},
+            carry={},
+            localShared={},
+        )
+
+    @pytest.mark.parametrize("master_row", [0, 1])
+    def test_bel_clock_matches_the_master_tile(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        north_step: int,
+        master_row: int,
+    ) -> None:
+        """The BEL takes the same clock net the master tile itself takes.
+
+        The master tile's source is its south neighbour's `UserCLKo`, or its own
+        boundary `UserCLK` when it sits on the south edge. Picking the north
+        neighbour instead would hand the BEL a clock one hop further down the
+        chain.
+        """
+        tileMap = grid(2, 1)
+        net = supertile_netlist(
+            tileMap, bels=[self._clock_bel()], master_coords=(0, master_row)
+        )
+
+        bel_clk = net.netlist.cell_net("Inst_ST_ClkBel", "UserCLK")
+        assert bel_clk == net.cell_net(0, master_row, "UserCLK")
+
+        south = master_row - north_step
+        if net.exists(0, south):
+            assert bel_clk == net.cell_net(0, south, "UserCLKo")
+        else:
+            assert bel_clk == net.top_port_net(f"Tile_X0Y{master_row}_UserCLK")
 
 
 class TestBelExternalPorts:

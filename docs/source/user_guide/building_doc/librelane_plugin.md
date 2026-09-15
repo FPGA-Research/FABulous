@@ -67,6 +67,7 @@ Plugin configuration variables:
 | `FABULOUS_SUPERTILE` | `bool` | If true, `FABULOUS_TILE_DIR` refers to a supertile and a supertile wrapper is generated. Defaults to `false`. |
 | `FABULOUS_CONFIG_BIT_MODE` | `ConfigBitMode` | Config-bit storage mode used when regenerating the tile switch matrix and config memory. Must match the parent fabric. Defaults to `FRAME_BASED`. |
 | `FABULOUS_MULTIPLEXER_STYLE` | `MultiplexerStyle` | Multiplexer implementation style used when regenerating the tile switch matrix. Must match the parent fabric. Defaults to `CUSTOM`. |
+| `FABULOUS_ORIGIN` | `Origin` | Which corner of the fabric grid is (0, 0), fixing the sign of every wire y offset and a supertile's row order. Must match the parent fabric's `TopLeftOrigin`; under a mismatch the hardened macro's pin order and port assignment are mirrored against the fabric that instantiates it. Defaults to `TOP_LEFT`, matching an absent `TopLeftOrigin`. |
 
 Set `DESIGN_NAME` to the tile name (for example `LUT4x8_ha`) and `CLOCK_PORT` to the tile's clock port. Add the models and cells the tile depends on to `VERILOG_FILES`. Any other LibreLane variable, such as `DIE_AREA`, `CLOCK_PERIOD`, or `SYNTH_STRATEGY`, is set as usual.
 

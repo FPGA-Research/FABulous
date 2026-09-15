@@ -43,7 +43,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         -------
         tuple[tuple[int, int], tuple[int, ...], str]
             A tuple containing:
-            - (y, x): Tile coordinates (y is negated for reverse sorting)
+            - (y, x): Tile coordinates, y signed so the key counts from the
+              physical south row under either origin
             - indices: Tuple of numeric indices extracted from port name
             - basename: Base port name without coordinates and indices
 
@@ -54,7 +55,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
 
         Examples
         --------
-        >>> split_port("Tile_X9Y6_RAM2FAB_D1_I0")
+        >>> split_port("Tile_X9Y6_RAM2FAB_D1_I0")  # top-left origin
         ((-6, 9), (1, 0), "RAM2FAB_D_I")
         """
         if m := re.match(r"Tile_X(\d+)Y(\d+)_(.*)", p):
@@ -91,8 +92,10 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             indices.append(-(ord(basename[0]) - ord("A")))
             basename = basename[2:]
 
-        # Y is in reverse order
-        return ((-y, x), tuple(indices), basename)
+        # Vector bit 0 is the physical south row, so the key counts northwards
+        # from it. Under the deprecated top-left origin y already grows
+        # southwards, which makes this the -y the legacy output was built on.
+        return ((y * fabric.north_step, x), tuple(indices), basename)
 
     # determine external ports so we can group them
     externalPorts = []

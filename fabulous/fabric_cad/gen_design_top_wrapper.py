@@ -81,9 +81,10 @@ def generateUserDesignTopWrapper(
 
     # generate component instantioations
     for x in range(fabric.numberOfColumns):
-        # we walk backwards through the Y list, since there is something mixed up with
-        # the coordinate system
-        for y in range(fabric.numberOfRows - 1, -1, -1):
+        # Vector indices count from the physical south row, matching the order
+        # `generateTopWrapper` assigns bits in, so the two wrappers agree on
+        # which BEL each index names.
+        for y in fabric.rows_south_first:
             bels = fabric.getBelsByTileXY(x, y) + super_tile_bels.get((x, y), [])
             if not bels:
                 continue

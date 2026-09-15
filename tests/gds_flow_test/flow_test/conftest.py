@@ -15,7 +15,7 @@ from librelane.config.config import Config
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Origin
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
@@ -121,6 +121,7 @@ def mock_config_load(
             "FABULOUS_TILE_LOGICAL_HEIGHT": 1,
             "FABULOUS_CONFIG_BIT_MODE": ConfigBitMode.FRAME_BASED,
             "FABULOUS_MULTIPLEXER_STYLE": MultiplexerStyle.CUSTOM,
+            "FABULOUS_ORIGIN": Origin.TOP_LEFT,
         }
 
         for key, value in defaults.items():
