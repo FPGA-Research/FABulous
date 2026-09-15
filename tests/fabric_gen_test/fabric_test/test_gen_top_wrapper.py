@@ -67,7 +67,8 @@ def test_vector_bit_zero_stays_on_the_physical_south_row(
 
     The origin switch relabels coordinates without moving any tile, so the
     same physical row must keep the same bit. Ordering on the stored `y`
-    alone mirrors the vector when the origin flips.
+    alone mirrors the vector when the origin flips. `south_y` is the last
+    stored row under the top-left origin and row 0 under the bottom-left one.
     """
     out = tmp_path / "top.v"
     writer = VerilogCodeGenerator()

@@ -614,7 +614,12 @@ class TestPinPlacementPlanPrivateMethods:
         ("north_step", "expected"), [(-1, 2), (1, 1)], ids=["top-left", "bottom-left"]
     )
     def test_get_division_index_east_west(self, north_step: int, expected: int) -> None:
-        """East/West divisions count from the physical bottom under either origin."""
+        """East/West divisions count from the physical bottom under either origin.
+
+        Under the top-left origin stored row 1 of 4 is the third from the
+        bottom, so the index is `4 - 1 - 1`; under the bottom-left origin the
+        stored row already counts from the bottom, so it is `1`.
+        """
         index = PinPlacementPlan._get_division_index(
             Side.EAST,
             tile_x=0,
