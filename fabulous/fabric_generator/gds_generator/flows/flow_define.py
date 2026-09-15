@@ -11,6 +11,9 @@ from librelane.steps import pyosys as pyYosys
 from librelane.steps import verilator as Verilator
 from librelane.steps.step import Step
 
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import (
+    TileAreaOptimisation,
+)
 from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
@@ -22,9 +25,6 @@ from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
 )
 from fabulous.fabric_generator.gds_generator.steps.magic_streamout import (
     FABulousMagicStreamOut,
-)
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
-    TileAreaOptimisation,
 )
 from fabulous.fabric_generator.gds_generator.steps.vhdl_json_header import (
     FABulousVHDLJsonHeader,

@@ -17,10 +17,13 @@ from fabulous.fabric_definition.define import (
     Side,
 )
 from fabulous.fabric_definition.gen_io import Gen_IO
-from fabulous.fabric_definition.port import (
-    TilePort,
-)
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile_interface import (
+    FRAME_CHAIN_PAIRS,
+    Axis,
+    BusPair,
+)
 
 if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -188,6 +191,14 @@ class Tile:
     def ports_on(self, side: Side, io: IO | None = None) -> list[TilePort]:
         """Return the pins the tile presents on one border.
 
+        A pin carries both a border and a wire direction, and the parser
+        derives the first from the second: the output end of a wire row sits on
+        the border its wire travels towards and the input end on the opposite
+        border. `ports_on` and `ports_along` therefore read the same ports on
+        two axes, and are not interchangeable: a border belongs to one tile and
+        is what a layout works in, a direction belongs to the wire and is what
+        joins two tiles.
+
         Parameters
         ----------
         side : Side
@@ -252,6 +263,43 @@ class Tile:
             and p.wire_direction != Direction.JUMP
             and p.is_output
         ]
+
+    @property
+    def routing_pairs(self) -> list[BusPair]:
+        """The pairs the tile's wires form, in port order."""
+        pairs: list[BusPair] = []
+        for port in self.ports_info:
+            if port.io_direction is not IO.OUTPUT or port.side_of_tile is Side.ANY:
+                continue
+            if NULL_PORT_NAME in (port.source_name, port.destination_name):
+                continue
+            match port.side_of_tile:
+                case Side.NORTH:
+                    pairs.append(
+                        BusPair(Axis.VERTICAL, port.source_name, port.destination_name)
+                    )
+                case Side.SOUTH:
+                    pairs.append(
+                        BusPair(Axis.VERTICAL, port.destination_name, port.source_name)
+                    )
+                case Side.EAST:
+                    pairs.append(
+                        BusPair(
+                            Axis.HORIZONTAL, port.source_name, port.destination_name
+                        )
+                    )
+                case Side.WEST:
+                    pairs.append(
+                        BusPair(
+                            Axis.HORIZONTAL, port.destination_name, port.source_name
+                        )
+                    )
+        return pairs
+
+    @property
+    def pairs(self) -> list[BusPair]:
+        """Every pair of the tile, the routing pairs first, then the chains."""
+        return self.routing_pairs + list(FRAME_CHAIN_PAIRS)
 
     @property
     def total_config_bits(self) -> int:

@@ -26,7 +26,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 
 configs = Classic.config_vars + [

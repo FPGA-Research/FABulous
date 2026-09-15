@@ -21,7 +21,7 @@ from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 class NLPTileProblem(ElementwiseProblem):

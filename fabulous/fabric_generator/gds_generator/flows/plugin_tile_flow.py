@@ -32,7 +32,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile

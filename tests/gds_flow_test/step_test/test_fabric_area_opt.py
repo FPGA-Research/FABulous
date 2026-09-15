@@ -18,11 +18,11 @@ import pytest
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_generator.gds_generator.steps.fabric_area_opt import (
+from fabulous.fabric_generator.gds_generator.opt.fabric_area_opt import (
     FabricAreaOptimisation,
     NLPTileProblem,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 
 
 class TestParetoFrontier:

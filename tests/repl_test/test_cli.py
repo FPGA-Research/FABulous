@@ -12,7 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -552,13 +552,13 @@ class TestResolveDirectionalFix:
 
     def test_fix_height_conflicts_with_find_min_height(self) -> None:
         with pytest.raises(
-            ValueError, match="only valid with --optimise find_min_width"
+            ValueError, match="only valid with --opt-die-area find_min_width"
         ):
             _resolve_directional_fix(OptMode.FIND_MIN_HEIGHT, None, Decimal(245))
 
     def test_fix_width_conflicts_with_balance(self) -> None:
         with pytest.raises(
-            ValueError, match="only valid with --optimise find_min_height"
+            ValueError, match="only valid with --opt-die-area find_min_height"
         ):
             _resolve_directional_fix(OptMode.BALANCE, Decimal(246), None)
 
@@ -618,11 +618,11 @@ class TestGenTileMacroFlags:
 
         run_cmd(
             cli,
-            f"gen_tile_macro {TILE} --optimise find_min_height --fix-height 245",
+            f"gen_tile_macro {TILE} --opt-die-area find_min_height --fix-height 245",
         )
 
         gen_macro.assert_not_called()
-        assert "only valid with --optimise find_min_width" in caplog.text
+        assert "only valid with --opt-die-area find_min_width" in caplog.text
 
     def test_override_merges_custom_yaml(
         self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path

@@ -12,7 +12,7 @@ from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     ReplCommandSet,
@@ -31,7 +31,7 @@ def _require_directional_mode(
     Parameters
     ----------
     opt_mode : OptMode
-        The mode requested via ``--optimise`` (``NO_OPT`` when unset).
+        The mode requested via `--opt-die-area` (`NO_OPT` when unset).
     implied : OptMode
         The directional mode the fix flag requires.
     flag : str
@@ -50,7 +50,8 @@ def _require_directional_mode(
     if opt_mode in (OptMode.NO_OPT, implied):
         return implied
     raise ValueError(
-        f"{flag} is only valid with --optimise {implied.value}, not {opt_mode.value}."
+        f"{flag} is only valid with --opt-die-area {implied.value}, "
+        f"not {opt_mode.value}."
     )
 
 
@@ -59,7 +60,7 @@ def _resolve_directional_fix(
     fix_width: Decimal | None,
     fix_height: Decimal | None,
 ) -> tuple[OptMode, list[int | Decimal] | None]:
-    """Resolve ``--optimise`` plus ``--fix-*`` into a mode and DIE_AREA override.
+    """Resolve `--opt-die-area` plus `--fix-*` into a mode and DIE_AREA override.
 
     A fixed axis pins one side and minimises the other: ``--fix-width`` pairs with
     ``find_min_height`` and ``--fix-height`` with ``find_min_width``. The minimised
@@ -69,7 +70,7 @@ def _resolve_directional_fix(
     Parameters
     ----------
     opt_mode : OptMode
-        The mode requested via ``--optimise``.
+        The mode requested via `--opt-die-area`.
     fix_width : Decimal | None
         Locked tile width, if ``--fix-width`` was given.
     fix_height : Decimal | None
@@ -84,7 +85,7 @@ def _resolve_directional_fix(
     Raises
     ------
     ValueError
-        If both fix flags are given, or a fix flag contradicts ``--optimise``.
+        If both fix flags are given, or a fix flag contradicts `--opt-die-area`.
     """
     if fix_width is not None and fix_height is not None:
         raise ValueError("Specify only one of --fix-width / --fix-height.")
@@ -121,8 +122,7 @@ class MacroFlowCommandSet(ReplCommandSet):
         optimise: Annotated[
             OptMode,
             Option(
-                "--optimise",
-                "-opt",
+                "--opt-die-area",
                 nargs="?",
                 const=OptMode.BALANCE,
                 help_text=(
@@ -144,7 +144,7 @@ class MacroFlowCommandSet(ReplCommandSet):
                 metavar="WIDTH",
                 help_text=(
                     "Lock the tile width to WIDTH and minimise the height "
-                    "(implies --optimise find_min_height)."
+                    "(implies --opt-die-area find_min_height)."
                 ),
             ),
         ] = None,
@@ -155,7 +155,7 @@ class MacroFlowCommandSet(ReplCommandSet):
                 metavar="HEIGHT",
                 help_text=(
                     "Lock the tile height to HEIGHT and minimise the width "
-                    "(implies --optimise find_min_width)."
+                    "(implies --opt-die-area find_min_width)."
                 ),
             ),
         ] = None,
@@ -237,8 +237,7 @@ class MacroFlowCommandSet(ReplCommandSet):
         optimise: Annotated[
             OptMode | None,
             Option(
-                "--optimise",
-                "-opt",
+                "--opt-die-area",
                 nargs="?",
                 const=OptMode.BALANCE,
                 help_text=(
@@ -253,7 +252,7 @@ class MacroFlowCommandSet(ReplCommandSet):
         commands = CommandPipeline(self._cmd)
         for i in sorted(repl.all_tile):
             if optimise:
-                commands.add_step(f"gen_tile_macro {i} --optimise {optimise.value}")
+                commands.add_step(f"gen_tile_macro {i} --opt-die-area {optimise.value}")
             else:
                 commands.add_step(f"gen_tile_macro {i}")
         if not parallel:

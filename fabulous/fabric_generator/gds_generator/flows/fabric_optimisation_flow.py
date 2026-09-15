@@ -42,13 +42,13 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.opt.fabric_area_opt import (
+    FabricAreaOptimisation,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
-from fabulous.fabric_generator.gds_generator.steps.fabric_area_opt import (
-    FabricAreaOptimisation,
-)
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 from fabulous.processpool import DillProcessPoolExecutor
 

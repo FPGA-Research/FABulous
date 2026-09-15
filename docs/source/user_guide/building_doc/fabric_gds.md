@@ -84,17 +84,17 @@ This will generate the tile GDS for you under the tile macro folder (`<project>/
 The `gen_tile_macro` command supports an optimisation flag:
 
 ```bash
-fabulous> gen_tile_macro <tile_name> --optimise [mode]
+fabulous> gen_tile_macro <tile_name> --opt-die-area [mode]
 ```
 
-Where `[mode]` is one of the optimisation modes described in the [Tile Size optimisation](#tile-size-optimisation) section. If `--optimise` is provided without a mode, `balance` is used by default.
+Where `[mode]` is one of the optimisation modes described in the [Tile Size optimisation](#tile-size-optimisation) section. If `--opt-die-area` is provided without a mode, `balance` is used by default.
 
 To generate all tiles at once:
 
 ```bash
 fabulous> gen_all_tile_macros
 fabulous> gen_all_tile_macros --parallel      # Run in parallel for faster compilation
-fabulous> gen_all_tile_macros --optimise      # With optimisation (balance mode)
+fabulous> gen_all_tile_macros --opt-die-area      # With optimisation (balance mode)
 ```
 
 ### Tile Config
@@ -236,7 +236,7 @@ The automated flow is designed for **fast bring-up of a custom fabric with custo
 
 If you instead need **fine control**, for example you are iterating on a single tile, or some tiles are already hardened, the manual per-tile flow gives more predictable, repeatable results. A good greedy recipe that gets close to the automated result is:
 
-1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_tile_macro <tile> --optimise balance`.
+1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_tile_macro <tile> --opt-die-area balance`.
 2. For the **other tiles in the same row**, fix their height to the majority tile's height and optimise width only (`find_min_width`).
 3. For **tiles at the edge** of a row or column, fix the width and optimise height only (`find_min_height`).
 
