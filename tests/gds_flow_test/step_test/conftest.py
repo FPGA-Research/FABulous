@@ -31,6 +31,7 @@ def mock_config() -> Config:  # type: ignore[name-defined]
             "FABULOUS_RUN_TILE_OPTIMISATION": False,
             "FABULOUS_OPT_CONFIG_MAPPING": False,
             "FABULOUS_OPT_TILE_INTERFACE": False,
+            "FABULOUS_TILE_INTERFACE_ORDER": None,
             "FABULOUS_IGNORE_ERROR": False,
             "FABULOUS_IGNORE_ERRORS": False,
             "IGNORE_ANTENNA_VIOLATIONS": False,

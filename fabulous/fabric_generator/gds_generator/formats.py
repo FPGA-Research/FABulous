@@ -12,3 +12,10 @@ PLACEMENT_FORMAT = DesignFormat(
     full_name="FABulous placement geometry",
 )
 PLACEMENT_FORMAT.register()
+
+TILE_INTERFACE_ORDER_FORMAT = DesignFormat(
+    id="fabulous_tile_interface_order",
+    extension="interface_order.yaml",
+    full_name="FABulous tile interface order",
+)
+TILE_INTERFACE_ORDER_FORMAT.register()

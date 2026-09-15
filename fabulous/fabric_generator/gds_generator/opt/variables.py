@@ -7,6 +7,7 @@ Either one makes the flow read the placement back, which is why the dump reads
 both.
 """
 
+from librelane.common.types import Path as LibrelanePath
 from librelane.config.variable import Variable
 
 CONFIG_MAPPING_VARIABLE = Variable(
@@ -27,4 +28,32 @@ TILE_INTERFACE_VARIABLE = Variable(
     "already listed in `FABULOUS_TILE_INTERFACE_ORDER` keep their rank, so a "
     "border shared with an already hardened tile keeps abutting it.",
     default=False,
+)
+
+TILE_INTERFACE_ORDER_VARIABLE = Variable(
+    "FABULOUS_TILE_INTERFACE_ORDER",
+    LibrelanePath | None,
+    "A tile interface order, a single-tile pin YAML naming pins exactly, that "
+    "the border pins follow. Listed pins lead each border in the listed order "
+    "and unlisted pins keep the default layout. Every tile sharing a border "
+    "must be hardened with the same order.",
+    default=None,
+)
+
+TILE_INTERFACE_FIXED_ORDER_VARIABLE = Variable(
+    "FABULOUS_TILE_INTERFACE_FIXED_ORDER",
+    LibrelanePath | None,
+    "The interface order whose pairs the proposals keep in place, which the "
+    "loop sets from `FABULOUS_TILE_INTERFACE_ORDER` before it rewrites that "
+    "variable per iteration.",
+    default=None,
+)
+
+TILE_INTERFACE_PAIRS_VARIABLE = Variable(
+    "FABULOUS_TILE_INTERFACE_PAIRS",
+    LibrelanePath | None,
+    "YAML listing the bus pairs of the tile, one entry per fabric wire and "
+    "per frame or clock chain with `axis`, `first`, `second`, `kind` and "
+    "`scalar`. Left unset for supertiles, whose borders are not reordered.",
+    default=None,
 )

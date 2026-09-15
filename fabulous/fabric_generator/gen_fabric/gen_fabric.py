@@ -18,20 +18,10 @@ from collections.abc import Generator
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.tile_interface import SIDE_INPUT_CONNECTIONS
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
-)
-
-# (wire direction, neighbour dx, dy) for the four fabric edges. A tile's INPUT
-# ports of one direction pair with the OUTPUT ports of the same direction on the
-# neighbour at the given offset, the two ends of one wire. Bottom-left origin:
-# dy grows upward (north).
-_SIDE_INPUT_CONNECTIONS = (
-    (Direction.NORTH, 0, -1),  # north input <- south neighbour
-    (Direction.EAST, -1, 0),  # east input  <- west neighbour
-    (Direction.SOUTH, 0, 1),  # south input <- north neighbour
-    (Direction.WEST, 1, 0),  # west input  <- east neighbour
 )
 
 
@@ -370,7 +360,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
-                for direction, dx, dy in _SIDE_INPUT_CONNECTIONS:
+                for direction, dx, dy in SIDE_INPUT_CONNECTIONS:
                     neighbor_x, neighbor_y = x + i + dx, y + j + dy
                     if (neighbor_x, neighbor_y) in composite_cells:
                         continue

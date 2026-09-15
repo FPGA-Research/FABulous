@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.define import Direction, Side
 
 FRAME_DATA = "FrameData"
 FRAME_DATA_OUT = "FrameData_O"
@@ -97,3 +97,19 @@ FRAME_CHAIN_PAIRS = (
     BusPair(Axis.HORIZONTAL, FRAME_DATA_OUT, FRAME_DATA, BusKind.FRAME_DATA),
 )
 """The chains every tile carries across its borders, in the order they are laid out."""
+
+SIDE_INPUT_CONNECTIONS = (
+    (Direction.NORTH, 0, -1),  # north input <- south neighbour
+    (Direction.EAST, -1, 0),  # east input  <- west neighbour
+    (Direction.SOUTH, 0, 1),  # south input <- north neighbour
+    (Direction.WEST, 1, 0),  # west input  <- east neighbour
+)
+"""Where a tile's inputs of each wire direction come from, as a grid offset.
+
+A tile's INPUT ports along one direction are the far ends of the neighbour's
+OUTPUT ports along that same direction, paired off in declaration order, so
+this table is what says which pin of one tile meets which pin of the next.
+The correspondence is not a name rule: a wire that lands mid-span leaves
+`E2BEG` on one tile and arrives as `E2MID` on the other. Offsets are on the
+bottom-left origin grid, where `dy` grows north.
+"""
