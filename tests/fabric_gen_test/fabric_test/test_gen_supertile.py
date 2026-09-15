@@ -122,6 +122,17 @@ def _tile_stub(tile: Tile) -> str:
     )
 
 
+def _bel_stub(bel: Bel) -> str:
+    """Emit a body-less module matching a supertile BEL's wrapper-facing pins.
+
+    Only the pins `generateSuperTile` connects are declared, which for a BEL
+    with no vector ports is just the shared clock.
+    """
+    decls = ["    input UserCLK"] if bel.withUserCLK else []
+    body = ",\n".join(decls)
+    return f"\nmodule {bel.module_name} (\n{body}\n);\nendmodule\n"
+
+
 def supertile_grid(
     netlist: Netlist, tileMap: list[list[Tile | None]]
 ) -> GridConnectivity:
@@ -167,10 +178,21 @@ def supertile_netlist(
 ) -> Callable[..., GridConnectivity]:
     """Render a supertile (plus stub sub-tiles) and elaborate it with Yosys."""
 
-    def _build(tileMap: list[list[Tile | None]], **kwargs: object) -> GridConnectivity:
+    def _build(
+        tileMap: list[list[Tile | None]],
+        bels: list[Bel] | None = None,
+        master_coords: tuple[int, int] | None = None,
+        **kwargs: object,
+    ) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
         st = SuperTile(
-            name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap, origin=origin
+            name="ST",
+            tileDir=Path(),
+            tiles=tiles,
+            tileMap=tileMap,
+            bels=bels or [],
+            master_tile_coords=master_coords,
+            origin=origin,
         )
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
@@ -179,6 +201,8 @@ def supertile_netlist(
         text = out.read_text()
         for tile in {t.name: t for t in tiles}.values():
             text += _tile_stub(tile)
+        for bel in {b.module_name: b for b in bels or []}.values():
+            text += _bel_stub(bel)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build
@@ -340,6 +364,55 @@ class TestConfigBitMode:
         )
         assert not any("FrameData" in p for p in net.top_port_names())
         assert not any("FrameStrobe" in p for p in net.top_port_names())
+
+
+class TestSupertileBelClock:
+    """A supertile BEL shares the master tile's clock net under either origin."""
+
+    def _clock_bel(self) -> Bel:
+        return Bel(
+            src=Path("ClkBel.v"),
+            prefix="",
+            module_name="ClkBel",
+            internal=[],
+            external=[],
+            configPort=[],
+            sharedPort=[],
+            configBit=0,
+            belMap={},
+            userCLK=True,
+            ports_vectors={},
+            carry={},
+            localShared={},
+        )
+
+    @pytest.mark.parametrize("master_row", [0, 1])
+    def test_bel_clock_matches_the_master_tile(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        north_step: int,
+        master_row: int,
+    ) -> None:
+        """The BEL takes the same clock net the master tile itself takes.
+
+        The master tile's source is its south neighbour's `UserCLKo`, or its own
+        boundary `UserCLK` when it sits on the south edge. Picking the north
+        neighbour instead would hand the BEL a clock one hop further down the
+        chain.
+        """
+        tileMap = grid(2, 1)
+        net = supertile_netlist(
+            tileMap, bels=[self._clock_bel()], master_coords=(0, master_row)
+        )
+
+        bel_clk = net.netlist.cell_net("Inst_ST_ClkBel", "UserCLK")
+        assert bel_clk == net.cell_net(0, master_row, "UserCLK")
+
+        south = master_row - north_step
+        if net.exists(0, south):
+            assert bel_clk == net.cell_net(0, south, "UserCLKo")
+        else:
+            assert bel_clk == net.top_port_net(f"Tile_X0Y{master_row}_UserCLK")
 
 
 class TestBelExternalPorts:

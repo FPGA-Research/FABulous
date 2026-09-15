@@ -1156,13 +1156,15 @@ def generateSuperTile(
         if not disable_user_clk and bel.withUserCLK:
             # The supertile wrapper has no bare "UserCLK"; the BEL shares the
             # master tile's clock net (same selection the master tile uses: the
-            # chained UserCLKo from the tile below, or its own UserCLK input).
+            # chained UserCLKo from the tile to its south, or its own UserCLK
+            # input).
             mx, my = superTile.get_master_tile_coords()
+            clk_src = my - step
             if (
-                0 <= my + 1 < len(superTile.tileMap)
-                and superTile.tileMap[my + 1][mx] is not None
+                0 <= clk_src < len(superTile.tileMap)
+                and superTile.tileMap[clk_src][mx] is not None
             ):
-                bel_user_clk = f"Tile_X{mx}Y{my + 1}_UserCLKo"
+                bel_user_clk = f"Tile_X{mx}Y{clk_src}_UserCLKo"
             else:
                 bel_user_clk = f"Tile_X{mx}Y{my}_UserCLK"
             bel_ports_pairs.append(("UserCLK", bel_user_clk))
