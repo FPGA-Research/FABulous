@@ -113,7 +113,7 @@ Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, syn
 
 ### Pin Config
 
-During the generation process there will be an extra file generated under the `macro` folder, which is the `io_pin_order.yaml`. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
+Each tile keeps its pin layout in `Tile/<name>/<name>_io_pin_order.yaml`, which decides where every IO pin sits along the tile border. `gen_io_pin_config <tile>` writes it from the fabric structure, so that a tile's pins align with the adjacent tiles. `gen_tile_macro` writes one only for a tile that has none, so an edited layout survives a re-harden, and [Placement-driven optimisations](#placement-opt) is how a layout is searched from a placement rather than written by hand. The following is an example of the IO config file:
 
 ```yaml
 X0Y0:
@@ -252,7 +252,66 @@ This pre-hardened-macro path through the automated flow has not been tested yet.
 
 In the manual flow, harden the macro tile with fixed dimensions (`FABULOUS_OPT_MODE: no_opt` and an explicit `DIE_AREA`), then size the remaining tiles around it. Because tiles in a row must share a height (and tiles in a column a width) for seamless stitching, match the macro height to the majority tile height. As there are usually more logic tiles than macro tiles, matching the macro to the logic tile (rather than the reverse) wastes the least area. If a single tile height cannot fit the macro, model it as a [supertile](#stitching-the-tiles) spanning two or more tile heights and adjust the width accordingly.  For the general mechanism of integrating macros into a LibreLane run, see the [LibreLane macro guide](https://librelane.readthedocs.io/en/latest/usage/using_macros.html).
 
-The `io_pin_order.yaml` for each tile is generated during `gen_tile_macro` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+The `io_pin_order.yaml` for each tile comes from `gen_io_pin_config` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, and `gen_tile_macro` writes one for a tile that has none, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+
+(placement-opt)=
+
+### Placement-driven optimisations
+
+A hardened tile carries two choices that the placer never sees but that decide how congested it is. The `<tile>_ConfigMem.csv` decides which configuration bit sits on which frame data and frame strobe crosspoint, and the pin YAML decides where each border pin sits. Both can be rewritten from the placement a tile flow produced, which is the method of Chung et al {cite}`10.1145/3490422.3502371`. Each choice belongs to the command that generates its file, so `gen_config_mem --opt-config-mapping` maps the configuration and `gen_io_pin_config --opt-tile-interface` orders the border, and a tile whose border is already fixed by a hardened neighbour can still have its configuration mapped.
+
+The search is a flow of its own, not part of hardening. Either flag runs synthesis once and then `FABulous.PlacementDrivenTileOptimisation`, the area optimisation with four extra steps in its loop body, and stops there. What it produces are inputs rather than a macro, so the GDS the search wrote is a by-product and the tile is hardened afterwards by an ordinary `gen_tile_macro` run that implements those inputs.
+
+```console
+fabulous> gen_io_pin_config <tile_name> --opt-tile-interface
+fabulous> gen_config_mem <tile_name> --opt-config-mapping
+fabulous> gen_bitStream_spec
+fabulous> gen_tile_macro <tile_name> --opt-die-area balance
+```
+
+Order the border before mapping the configuration when both are wanted. The two
+depend on each other, since a pair's target is the median of the logic on its
+nets and the mapping moves that logic, while the mapping ranks its virtual
+crosspoints by the border pins the ordering moves, so which runs first decides
+the fixed point they settle on. Ordering first is the one that pays: a frame
+net's trunk only spans the tile if the border spreads the frame pairs along it,
+which is the geometry the mapping assumes, and measured on LUT4AB the mapping
+starts from a frame net stub length of 5375.8 um after the ordering against
+15239.0 um before it. Ordering first gives 17.85% off the routed wirelength and
+mapping first 15.48%, against 3.84% and 9.35% for the two on their own.
+
+Run the pair once. Repeating it is one step of a block coordinate descent and
+looks like it should keep going down, but measured on LUT4AB a second cycle
+buys 0.51 points and a third and fourth give it back, ending below what one
+cycle reaches. The border offset falls on every cycle while the routed
+wirelength turns around after the second, so past one cycle the ordering fits
+the border to a placement the next cycle invalidates.
+
+Inside the loop, `FABulous.DumpPlacement` writes the placed cells, ports and nets as a JSON view after clock tree synthesis and before routing, so no proposal has ever read a routed design. `FABulous.ProposeConfigMapping` finds each configuration latch as the cell reached from both a `FrameData` and a `FrameStrobe` port through buffers, then assigns bits to crosspoints so that the stubs joining the latches to their frame trunks come out as short as possible, and writes the result as a `ConfigMem.csv` view together with the reconnections that implement it, next to the metrics `fabulous__config_mapping__stub_before` and `_after`. A frame net reaches from one border pin to the one opposite whatever the mapping does, so its trunk length is fixed and only the stubs are worth minimising. For trunks held still the assignment is exact, solved by `scipy.optimize.linear_sum_assignment`, and the trunk that costs a group least is its median, so the two alternate until the assignment repeats. The crosspoints are virtual, dividing the die evenly and taking only their order from the border pins, since a default pin order bunches a whole bus into one corner where a pin intersection says nothing about which latches belong on the same net. `FABulous.ProposeTileInterfaceOrder` orders the border pairs, a source pin and its destination pin on the opposite border, by the median position of the logic on their nets, spreads the frame pairs uniformly, since a frame line is a pure feed-through whose latches the configuration mapping moves onto it and a target read off the current placement would put every frame line at the tile centre, and writes the order as an `interface_order.yaml` view. None of them touches the tile directory.
+
+Each iteration implements the previous iteration's proposals: `FABulous.ApplyConfigMapping` rewires the floorplanned netlist so the latches implement the proposed `ConfigMem.csv`, and `FABulousTileIOPlacement` applies `FABULOUS_TILE_INTERFACE_ORDER` to the pin YAML before placing the pins. Synthesis runs once, since editing the ODB after the floorplan is what lets an iteration implement a proposal without synthesising again. The proposals are read before routing, so an iteration stops at them: the search places the tile once per iteration and routes it none. It holds the die its config gives and refuses a `FABULOUS_OPT_MODE` other than `no_opt`, because an iteration that stops before routing leaves the die rule no clean or failed verdict to size on. The `gen_tile_macro` run that implements the exported mapping is what searches the die. `FABULOUS_OPT_ROUTE_EVERY_ITERATION` routes every iteration to produce routed numbers to read, and does not change what is proposed. The loop ends when an iteration proposes the inputs it was given, or after `FABULOUS_OPT_PLACEMENT_ITERATIONS` (default 10) placements, which `--iterations` sets for one run of either command. Its winner is the iteration whose own inputs cost the least, the sum of `fabulous__config_mapping__stub_before` and `fabulous__tile_interface__offset_before`, since the cost of a proposal is only known once a placement has been made from it.
+
+The winner's inputs become the files the generation commands own. `gen_config_mem --opt-config-mapping` writes the winning mapping to the tile's `<tile>_ConfigMem.csv` and then generates the configuration memory HDL from it, so the flag changes where the mapping comes from rather than adding a stage. `gen_io_pin_config --opt-tile-interface` does the same for `Tile/<name>/<name>_io_pin_order.yaml`, which is the file `gen_tile_macro` hardens from. The bitstream specification is fabric-wide and is not regenerated by either, so run `gen_bitStream_spec` before hardening the tile again; a bitstream built against the old specification will not match a fabric hardened from the new mapping.
+
+#### Sweep order decides how much freedom a tile has
+
+A `PinPair` is one wire crossing the tile, so ordering one border orders the one opposite, and abutment carries that on to the next tile. A horizontal order therefore belongs to a whole row of the fabric and a vertical order to a whole column. Nothing is shared between a row and a column that do not meet, so a column carrying no LUT4AB has a vertical order of its own.
+
+That makes the order the tiles are searched in the thing that decides how much each one may move. Search the majority tile first with both axes free, then each remaining tile against what is already settled:
+
+```console
+fabulous> gen_io_pin_config LUT4AB --opt-tile-interface
+fabulous> gen_io_pin_config RegFile --opt-tile-interface --reference LUT4AB
+fabulous> gen_io_pin_config N_term_single --reference LUT4AB
+```
+
+`--reference` takes a tile this one abuts, whose order is translated into this tile's own pin names, or the path of a pin YAML already written in them. It is repeatable, and `--obey-neighbours` takes every abutting tile whose pin YAML already ranks their shared border. A reference fixes the axis of the border it shares and leaves the other to be searched; references that between them fix both axes leave nothing to search, which is reported rather than run for two minutes to no effect. Without `--opt-tile-interface` the references are simply applied, which is how an order reaches a tile that is never searched, such as a termination tile.
+
+The border correspondence is not a name match. A wire that lands mid-span leaves one tile as `E2BEG` and arrives at the next as `E2MID`, so the two facing borders carry different names for the same wire. The translation goes through `SIDE_INPUT_CONNECTIONS`, the same wire and neighbour table the fabric stitch uses, and stops with a `GDSFlowError` when the two tiles carry a different number or width of wires across the border, since a fabric could not then abut them.
+
+After an order changes, re-harden every tile that shares a border with it.
+
+The configuration mapping runs on frame-based fabrics only, since only frames form the crosspoint grid it assigns bits on. Neither optimisation runs on super tiles, whose configuration memory borrows free crosspoints of the master tile. The ordering places pins by rank rather than exact track position, so a border whose logic bunches up is spread evenly along it. The rewire expects every latch pin directly on a frame port net, which the Verilog synthesis flow produces; any other structure stops the flow with `GDSFlowError` rather than being rewired. A tile whose wires terminate inside it, a termination tile, has border pins with no partner opposite; a reference still orders the shared border of one, but a search of it stops on the unpaired pin rather than ranking the two borders out of step.
 
 (tile-size-optimisation)=
 

@@ -1,16 +1,28 @@
-"""LibreLane variables of the placement-driven optimisations.
+"""LibreLane variables shared by the placement-driven optimisation steps.
 
-Two switches select them. `FABULOUS_OPT_CONFIG_MAPPING` reassigns configuration
-bits to the frame crosspoints nearest their latches and
+Two switches select the optimisations. `FABULOUS_OPT_CONFIG_MAPPING` reassigns
+configuration bits to the frame crosspoints nearest their latches and
 `FABULOUS_OPT_TILE_INTERFACE` orders the border pins by the logic they feed.
-Either one makes the flow read the placement back, which is why the dump reads
-both.
+Either one makes `TileAreaOptimisation` carry proposals from one iteration into
+the next, at the die size it is given, since the search only places. The
+remaining variables are how the loop hands an iteration its inputs; a flow sets
+them once, the loop rewrites them per iteration.
 """
 
 from librelane.common.types import Path as LibrelanePath
 from librelane.config.variable import Variable
 
 from fabulous.fabric_definition.define import ConfigBitMode
+
+CONFIG_BIT_MODE_VARIABLE = Variable(
+    "FABULOUS_CONFIG_BIT_MODE",
+    ConfigBitMode,
+    "Config-bit storage mode of the fabric the tile belongs to, which the "
+    "generated switch matrix and configuration memory follow. The "
+    "configuration mapping needs the frame grid, so it runs under "
+    "FRAME_BASED only.",
+    default=ConfigBitMode.FRAME_BASED,
+)
 
 CONFIG_MAPPING_VARIABLE = Variable(
     "FABULOUS_OPT_CONFIG_MAPPING",
@@ -30,6 +42,49 @@ TILE_INTERFACE_VARIABLE = Variable(
     "already listed in `FABULOUS_TILE_INTERFACE_ORDER` keep their rank, so a "
     "border shared with an already hardened tile keeps abutting it.",
     default=False,
+)
+
+PLACEMENT_ITERATIONS_VARIABLE = Variable(
+    "FABULOUS_OPT_PLACEMENT_ITERATIONS",
+    int,
+    "How many placements the search may make before it gives up on the "
+    "proposals settling. It stops earlier when an iteration proposes the "
+    "inputs it was given, and exports the best-scoring iteration either way.",
+    default=10,
+)
+
+ROUTE_EVERY_ITERATION_VARIABLE = Variable(
+    "FABULOUS_OPT_ROUTE_EVERY_ITERATION",
+    bool,
+    "Route every iteration, which reports routed numbers for the search to be "
+    "read by rather than steering it. Off, each iteration stops at its "
+    "proposals, which are read before routing and so cannot depend on it.",
+    default=False,
+)
+
+CONFIG_MEM_CSV_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MEM_CSV",
+    LibrelanePath | None,
+    "The current `<tile>_ConfigMem.csv` of the tile being hardened. Left unset "
+    "for supertiles, whose configuration memories are not mapped on their own.",
+    default=None,
+)
+
+CONFIG_MAPPING_TARGET_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MAPPING_TARGET",
+    LibrelanePath | None,
+    "The mapping the placed netlist implements when it differs from "
+    "`FABULOUS_CONFIG_MEM_CSV`, which the loop sets per iteration.",
+    default=None,
+)
+
+CONFIG_MAPPING_RECONNECT_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MAPPING_RECONNECT",
+    LibrelanePath | None,
+    "Reconnection list a previous iteration proposed; each listed latch pin is "
+    "moved to the named frame port net. Unset, the netlist is implemented as "
+    "synthesised.",
+    default=None,
 )
 
 TILE_INTERFACE_ORDER_VARIABLE = Variable(
@@ -57,40 +112,5 @@ TILE_INTERFACE_PAIRS_VARIABLE = Variable(
     "YAML listing the bus pairs of the tile, one entry per fabric wire and "
     "per frame or clock chain with `axis`, `first`, `second`, `kind` and "
     "`scalar`. Left unset for supertiles, whose borders are not reordered.",
-    default=None,
-)
-
-CONFIG_BIT_MODE_VARIABLE = Variable(
-    "FABULOUS_CONFIG_BIT_MODE",
-    ConfigBitMode,
-    "Config-bit storage mode of the fabric the tile belongs to, which the "
-    "generated switch matrix and configuration memory follow. The "
-    "configuration mapping needs the frame grid, so it runs under "
-    "FRAME_BASED only.",
-    default=ConfigBitMode.FRAME_BASED,
-)
-
-CONFIG_MEM_CSV_VARIABLE = Variable(
-    "FABULOUS_CONFIG_MEM_CSV",
-    LibrelanePath | None,
-    "The current `<tile>_ConfigMem.csv` of the tile being hardened. Left unset "
-    "for supertiles, whose configuration memories are not mapped on their own.",
-    default=None,
-)
-
-CONFIG_MAPPING_TARGET_VARIABLE = Variable(
-    "FABULOUS_CONFIG_MAPPING_TARGET",
-    LibrelanePath | None,
-    "The mapping the placed netlist implements when it differs from "
-    "`FABULOUS_CONFIG_MEM_CSV`, which the loop sets per iteration.",
-    default=None,
-)
-
-CONFIG_MAPPING_RECONNECT_VARIABLE = Variable(
-    "FABULOUS_CONFIG_MAPPING_RECONNECT",
-    LibrelanePath | None,
-    "Reconnection list a previous iteration proposed; each listed latch pin is "
-    "moved to the named frame port net. Unset, the netlist is implemented as "
-    "synthesised.",
     default=None,
 )

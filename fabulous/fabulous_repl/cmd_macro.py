@@ -13,6 +13,9 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    write_ordered_pin_yaml,
+)
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     ReplCommandSet,
@@ -206,14 +209,18 @@ class MacroFlowCommandSet(ReplCommandSet):
             logger.error(f"Tile directory {tile_dir} does not exist")
             return
 
-        if not io_pin_config:
-            tile_obj = repl.fabulousAPI.getTile(tile)
-            if tile_obj is None:
+        if io_pin_config:
+            pin_order_file = io_pin_config.resolve()
+        elif not pin_order_file.is_file():
+            # The pin YAML is what `gen_io_pin_config` writes an order into, so
+            # it is only generated here when the tile has none at all.
+            tile_type = repl.fabulousAPI.getTile(tile)
+            if tile_type is None:
                 logger.error(f"Tile {tile} not found in fabric definition")
                 return
-            repl.fabulousAPI.gen_io_pin_order_config(tile_obj, pin_order_file)
-        else:
-            pin_order_file = io_pin_config.resolve()
+            write_ordered_pin_yaml(
+                tile_type, pin_order_file, None, fabric=repl.fabulousAPI.fabric
+            )
 
         repl.fabulousAPI.genTileMacro(
             tile_dir,

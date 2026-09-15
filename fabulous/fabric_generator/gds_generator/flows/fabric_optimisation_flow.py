@@ -46,6 +46,9 @@ from fabulous.fabric_generator.gds_generator.opt.fabric_area_opt import (
     FabricAreaOptimisation,
 )
 from fabulous.fabric_generator.gds_generator.opt.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    tile_pin_yaml,
+)
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
@@ -331,8 +334,11 @@ class FABulousFabricOptimisationFlow(Flow):
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
             ):
-                io_config_path: Path = tile_type.tile_dir.parent / "io_pin_order.yaml"
-                generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
+                io_config_path = tile_pin_yaml(proj_dir / "Tile", tile_type.name)
+                if not io_config_path.is_file():
+                    generate_IO_pin_order_config(
+                        tile_type, io_config_path, fabric=fabric
+                    )
                 base_config_path: Path = (
                     proj_dir / "Tile" / "include" / "gds_config.yaml"
                 )
@@ -481,15 +487,15 @@ class FABulousFabricOptimisationFlow(Flow):
         # Ensure IO pin order configs exist (they may be missing when Step 1
         # was skipped via --tile-opt-info).
         for tile_type in fabric.get_all_unique_tiles():
-            io_config_path: Path = tile_type.tile_dir.parent / "io_pin_order.yaml"
-            if not io_config_path.exists():
+            io_config_path = tile_pin_yaml(proj_dir / "Tile", tile_type.name)
+            if not io_config_path.is_file():
                 generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
 
         # Compile tiles with optimal dimensions in parallel
         handlers: list[tuple[Future[WorkerResult], Tile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for tile_type in fabric.get_all_unique_tiles():
-                io_config_path = tile_type.tile_dir.parent / "io_pin_order.yaml"
+                io_config_path = tile_pin_yaml(proj_dir / "Tile", tile_type.name)
                 base_config_path: Path = (
                     proj_dir / "Tile" / "include" / "gds_config.yaml"
                 )

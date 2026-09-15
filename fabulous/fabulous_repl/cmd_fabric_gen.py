@@ -5,6 +5,7 @@ Generate config memory, switch matrices, tiles, IO, and the fabric.
 
 import csv
 import pickle
+import shutil
 from pathlib import Path
 from typing import Annotated
 
@@ -12,8 +13,23 @@ from cmd2 import with_annotated, with_category
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
-from fabulous.custom_exception import CommandError
+from fabulous.custom_exception import CommandError, GDSFlowError
 from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.tile_interface import Axis
+from fabulous.fabric_generator.gds_generator.opt.placement_search import (
+    search_tile_from_placement,
+    won_config_mapping,
+    won_interface_order,
+)
+from fabulous.fabric_generator.gds_generator.opt.tile_interface import (
+    InterfaceOrder,
+    fixed_order_from_references,
+    ordered_neighbours,
+    read_interface_order,
+    tile_pin_yaml,
+    write_ordered_pin_yaml,
+)
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
@@ -21,7 +37,7 @@ from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_composite_config_mem,
     generate_tile_config_mem,
 )
-from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
+from fabulous.fabric_generator.parser.parse_csv import config_mem_csv_of, parseTilesCSV
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     CMD_TOOLS,
@@ -50,10 +66,41 @@ class FabricGenCommandSet(ReplCommandSet):
                 ],
             ),
         ],
+        opt_config_mapping: Annotated[
+            bool,
+            Option(
+                "--opt-config-mapping",
+                help_text=(
+                    "Map each configuration bit to the frame crosspoint nearest "
+                    "its placed latch, rather than taking the mapping the tile's "
+                    "ConfigMem.csv already holds. Searches the tile through the "
+                    "LibreLane flow, so it needs a PDK, a DIE_AREA on the tile "
+                    "and a frame-based fabric."
+                ),
+            ),
+        ] = False,
+        iterations: Annotated[
+            int | None,
+            Option(
+                "--iterations",
+                help_text="Placements to spend on the search. Defaults to 10.",
+            ),
+        ] = None,
+        override: Annotated[
+            Path | None,
+            Option(
+                "--override", help_text="Override config with a custom YAML config file"
+            ),
+        ] = None,
     ) -> None:
         """Generate configuration memory of the given tile.
 
         Parsing input arguments and calling `generate_tile_config_mem`.
+
+        With `--opt-config-mapping` the mapping is searched from the tile's own
+        placement before the module is generated, so the flag changes where the
+        mapping comes from rather than adding a stage. Each tile is searched in
+        turn, which costs a LibreLane run apiece.
 
         Logs generation processes for each specified tile.
         """
@@ -66,13 +113,73 @@ class FabricGenCommandSet(ReplCommandSet):
             if tile is None:
                 logger.error(f"Tile {i} not found in the fabric definition")
                 return
+            if opt_config_mapping and not self._map_config_from_placement(
+                tile, iterations=iterations, override=override
+            ):
+                return
             generate_tile_config_mem(
                 repl.fabulousAPI.writer,
                 tile,
                 frame_bits_per_row=fabric.frameBitsPerRow,
                 max_frames_per_col=fabric.maxFramesPerCol,
             )
+        if opt_config_mapping:
+            logger.info("Run next: gen_bitStream_spec")
         logger.info("ConfigMem generation complete")
+
+    def _map_config_from_placement(
+        self,
+        tile: Tile,
+        *,
+        iterations: int | None,
+        override: Path | None,
+    ) -> bool:
+        """Search the tile's placement for its mapping and write it as the tile's CSV.
+
+        `generate_tile_config_mem` reads that CSV back, so writing it here is
+        what makes the search the generation method.
+
+        Parameters
+        ----------
+        tile : Tile
+            The tile to search.
+        iterations : int | None
+            Placements to spend on the search.
+        override : Path | None
+            A YAML of further config for the flow.
+
+        Returns
+        -------
+        bool
+            True when a mapping was written, False when the search refused or
+            no iteration reached a proposal.
+        """
+        repl = self._cmd
+        try:
+            state = search_tile_from_placement(
+                tile,
+                project_dir=repl.projectDir,
+                fabric=repl.fabulousAPI.fabric,
+                config_mapping=True,
+                tile_interface=False,
+                iterations=iterations,
+                override=override,
+            )
+        except GDSFlowError as error:
+            logger.error(str(error))
+            return False
+        won = won_config_mapping(state)
+        if won is None:
+            logger.error(
+                f"No iteration of the {tile.name} search implemented a mapping, "
+                "so there is nothing to generate from; raise --iterations"
+            )
+            return False
+        destination = config_mem_csv_of(tile)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(won, destination)
+        logger.info(f"Mapped {tile.name} from its placement into {destination}")
+        return True
 
     @with_annotated
     def do_gen_switch_matrix(
@@ -444,8 +551,64 @@ class FabricGenCommandSet(ReplCommandSet):
             Path | None,
             Argument(help_text="Output path for the generated IO pin config YAML"),
         ] = None,
+        opt_tile_interface: Annotated[
+            bool,
+            Option(
+                "--opt-tile-interface",
+                help_text=(
+                    "Order the border pins by the placed logic they feed, rather "
+                    "than taking the layout the tile's ports enumerate. Searches "
+                    "the tile through the LibreLane flow, so it needs a PDK and a "
+                    "DIE_AREA on the tile."
+                ),
+            ),
+        ] = False,
+        reference: Annotated[
+            list[str] | None,
+            Option(
+                "--reference",
+                action="append",
+                help_text=(
+                    "A tile this one abuts, or a pin YAML in this tile's names, "
+                    "whose order it keeps. A border belongs to a whole row or "
+                    "column, so a reference settles that axis and leaves the "
+                    "other to be searched. Repeatable."
+                ),
+            ),
+        ] = None,
+        obey_neighbours: Annotated[
+            bool,
+            Option(
+                "--obey-neighbours",
+                help_text=(
+                    "Take every tile abutting this one whose pin YAML already "
+                    "ranks their shared border as a reference."
+                ),
+            ),
+        ] = False,
+        iterations: Annotated[
+            int | None,
+            Option(
+                "--iterations",
+                help_text="Placements to spend on the search. Defaults to 10.",
+            ),
+        ] = None,
+        override: Annotated[
+            Path | None,
+            Option(
+                "--override", help_text="Override config with a custom YAML config file"
+            ),
+        ] = None,
     ) -> None:
-        """Generate an IO pin configuration YAML file for a tile or supertile."""
+        """Generate an IO pin configuration YAML file for a tile or supertile.
+
+        With `--opt-tile-interface` the order is searched from the tile's own
+        placement before the YAML is written, so the flag changes where the
+        order comes from rather than adding a stage. References fix the borders
+        this tile shares with tiles already ordered, which is what keeps the two
+        abutting; without one every border is searched free, so order the
+        majority tile first and reference it from the rest.
+        """
         repl = self._cmd
         logger.info(f"Generating IO pin config for {tile}")
 
@@ -453,16 +616,109 @@ class FabricGenCommandSet(ReplCommandSet):
         if tile_obj is None:
             logger.error(f"Tile {tile} not found in fabric definition")
             return
+        if opt_tile_interface and output is not None:
+            logger.error(
+                "--opt-tile-interface writes the tile's own pin YAML, since that "
+                "is the file it is hardened from; drop the output argument"
+            )
+            return
 
-        output_path = output
-        if output_path is None:
-            output_path = repl.projectDir / "Tile" / tile / f"{tile}_io_pin_order.yaml"
+        fabric = repl.fabulousAPI.fabric
+        tile_root = repl.projectDir / "Tile"
+        names = list(reference or [])
+        try:
+            if obey_neighbours:
+                names += [
+                    neighbour.name
+                    for neighbour in ordered_neighbours(fabric, tile_obj, tile_root)
+                    if neighbour.name not in names
+                ]
+            order = fixed_order_from_references(fabric, tile_obj, tile_root, names)
+        except GDSFlowError as error:
+            logger.error(str(error))
+            return
+        if names:
+            logger.info(f"{tile} keeps the order of {', '.join(names)}")
 
+        if opt_tile_interface:
+            order = self._order_from_placement(
+                tile_obj, order, iterations=iterations, override=override
+            )
+            if order is None:
+                return
+
+        output_path = output or tile_pin_yaml(tile_root, tile)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        repl.fabulousAPI.gen_io_pin_order_config(tile_obj, output_path)
+        write_ordered_pin_yaml(tile_obj, output_path, order, fabric=fabric)
 
         logger.info(f"Generated IO pin config at {output_path}")
+        if opt_tile_interface:
+            logger.info(
+                f"Run next: gen_tile_macro {tile}; every tile sharing a border "
+                "with it needs ordering against it and hardening again"
+            )
         logger.info("IO pin config generation complete")
+
+    def _order_from_placement(
+        self,
+        tile: Tile,
+        fixed: InterfaceOrder | None,
+        *,
+        iterations: int | None,
+        override: Path | None,
+    ) -> InterfaceOrder | None:
+        """Search the tile's placement for the border order it prefers.
+
+        Parameters
+        ----------
+        tile : Tile
+            The tile to search.
+        fixed : InterfaceOrder | None
+            The ranks the references settled, which the search keeps.
+        iterations : int | None
+            Placements to spend on the search.
+        override : Path | None
+            A YAML of further config for the flow.
+
+        Returns
+        -------
+        InterfaceOrder | None
+            The order the winning iteration implemented, `fixed` itself when
+            the references leave no axis free, or None when the search refused
+            or reached no proposal.
+        """
+        repl = self._cmd
+        if fixed is not None and not [
+            axis for axis in Axis if not any(fixed.get(side) for side in axis.sides)
+        ]:
+            logger.info(
+                f"The references rank both axes of {tile.name}, so there is "
+                "nothing left to search"
+            )
+            return fixed
+        try:
+            state = search_tile_from_placement(
+                tile,
+                project_dir=repl.projectDir,
+                fabric=repl.fabulousAPI.fabric,
+                config_mapping=False,
+                tile_interface=True,
+                fixed_order=fixed,
+                iterations=iterations,
+                override=override,
+            )
+        except GDSFlowError as error:
+            logger.error(str(error))
+            return None
+        won = won_interface_order(state)
+        if won is None:
+            logger.error(
+                f"No iteration of the {tile.name} search implemented an order, "
+                "so there is nothing to generate from; raise --iterations"
+            )
+            return None
+        logger.info(f"Ordered {tile.name} from its own placement")
+        return read_interface_order(won)
 
     @with_category(CMD_TOOLS)
     @with_annotated

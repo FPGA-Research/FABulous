@@ -148,6 +148,7 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     mock.max_width = 1
     mock.max_height = 1
     mock.bels = []
+    mock.portsInfo = []
     mock.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
 
     return mock

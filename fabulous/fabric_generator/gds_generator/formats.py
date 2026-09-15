@@ -13,13 +13,6 @@ PLACEMENT_FORMAT = DesignFormat(
 )
 PLACEMENT_FORMAT.register()
 
-TILE_INTERFACE_ORDER_FORMAT = DesignFormat(
-    id="fabulous_tile_interface_order",
-    extension="interface_order.yaml",
-    full_name="FABulous tile interface order",
-)
-TILE_INTERFACE_ORDER_FORMAT.register()
-
 CONFIG_MEM_FORMAT = DesignFormat(
     id="fabulous_config_mem",
     extension="ConfigMem.csv",
@@ -33,3 +26,10 @@ RECONNECT_FORMAT = DesignFormat(
     full_name="FABulous configuration mapping reconnections",
 )
 RECONNECT_FORMAT.register()
+
+TILE_INTERFACE_ORDER_FORMAT = DesignFormat(
+    id="fabulous_tile_interface_order",
+    extension="interface_order.yaml",
+    full_name="FABulous tile interface order",
+)
+TILE_INTERFACE_ORDER_FORMAT.register()
