@@ -774,9 +774,13 @@ def parseSupertilesCSV(
             tileMap.append(row)
 
         # The CSV lists a supertile's rows north-first. Bottom-left origin
-        # stores them the other way round, so row 0 is the south row.
+        # stores them the other way round, so row 0 is the south row. The
+        # MASTER row index was recorded against the authored order, so it moves
+        # with the row it names.
         if origin is Origin.BOTTOM_LEFT:
             tileMap.reverse()
+            if master_coords is not None:
+                master_coords = (master_coords[0], len(tileMap) - 1 - master_coords[1])
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so

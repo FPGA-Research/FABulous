@@ -1,10 +1,16 @@
 """Tests for parsing tile port lines from CSV fabric definitions."""
 
+from pathlib import Path
+
 import pytest
 
 from fabulous.custom_exception import InvalidPortType, InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.define import IO, Direction, Origin, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parseSupertilesCSV,
+)
+from tests.conftest import make_empty_tile
 
 # (kind, OUTPUT/start side, INPUT/end side, unit x_offset, unit y_offset) with a
 # canonical bottom-left unit offset for the direction (north is +y, east is +x).
@@ -166,3 +172,30 @@ class TestPortNameTrailingDigit:
     def test_valid_names_do_not_raise(self, line: str) -> None:
         ports, _ = parse_port_line(line)
         assert ports
+
+
+class TestSupertileMasterRow:
+    """The `MASTER` token names the same child tile under either origin."""
+
+    SUPERTILE_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot,MASTER\nEndSuperTILE\n"
+
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    def test_master_follows_its_row_through_the_reversal(
+        self, origin: Origin, tmp_path: Path
+    ) -> None:
+        """The CSV is authored north-first, so DSP_bot is the south row.
+
+        Bottom-left origin reverses `tileMap` after the MASTER row index was
+        recorded, so the index has to move with the row it names.
+        """
+        csv_path = tmp_path / "DSP.csv"
+        csv_path.write_text(self.SUPERTILE_CSV)
+        tile_dic = {
+            name: make_empty_tile(name, pinOrderConfig={})
+            for name in ("DSP_top", "DSP_bot")
+        }
+
+        (supertile,) = parseSupertilesCSV(csv_path, tile_dic, origin)
+
+        mx, my = supertile.get_master_tile_coords()
+        assert supertile.tileMap[my][mx].name == "DSP_bot"
