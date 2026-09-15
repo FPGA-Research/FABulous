@@ -140,6 +140,17 @@ class Fabric:
             return range(self.numberOfRows - 1, -1, -1)
         return range(self.numberOfRows)
 
+    @property
+    def rows_south_first(self) -> range:
+        """Return the row indices ordered south to north.
+
+        This is the order external ports are vectorised in, so bit 0 names the
+        same physical tile whichever origin the fabric was written with.
+        """
+        if self.origin is Origin.BOTTOM_LEFT:
+            return range(self.numberOfRows)
+        return range(self.numberOfRows - 1, -1, -1)
+
     def __post_init__(self) -> None:
         """Generate and get all the wire pairs in the fabric.
 

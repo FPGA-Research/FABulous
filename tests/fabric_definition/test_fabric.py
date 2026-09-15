@@ -193,3 +193,35 @@ class TestFabricRepr:
         assert len(grid_lines) == 2
         assert grid_lines[0].startswith("NORTH_TILE")
         assert grid_lines[1].startswith("SOUTH_TILE")
+
+
+class TestRowTraversalOrder:
+    """External ports vectorise from the physical south row, whatever y it is."""
+
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    def test_south_first_starts_at_the_southern_tile(
+        self, make_fabric: Callable[..., Fabric], origin: Origin
+    ) -> None:
+        """The first index names the south tile under either origin.
+
+        Any generator that hardcodes one direction agrees with the other only
+        under the origin it was written for, which silently mirrors the
+        wrapper it has to match.
+        """
+        south = make_empty_tile("SOUTH_TILE", pinOrderConfig={})
+        north = make_empty_tile("NORTH_TILE", pinOrderConfig={})
+        rows = (
+            [[south], [north]] if origin is Origin.BOTTOM_LEFT else [[north], [south]]
+        )
+        fabric = make_fabric(
+            tile=rows,
+            numberOfRows=2,
+            numberOfColumns=1,
+            origin=origin,
+            tileDic={"SOUTH_TILE": south, "NORTH_TILE": north},
+        )
+
+        order = list(fabric.rows_south_first)
+        assert fabric.tile[order[0]][0].name == "SOUTH_TILE"
+        assert fabric.tile[order[-1]][0].name == "NORTH_TILE"
+        assert order == list(reversed(fabric.rows_north_first))
