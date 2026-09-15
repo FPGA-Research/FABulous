@@ -1347,18 +1347,20 @@ EndTILE
 A supertile has two independent reference tiles, and they are easy to confuse:
 
 - The **anchor tile** ({ref}`above <supertiles>`) is the first non-NULL tile in a
-  row-by-row scan of the stored grid, so the bottom-left tile. It fixes where the
-  supertile is _placed_ in the fabric and is purely structural.
+  row-by-row scan of the stored grid, so the bottom-left tile under the
+  bottom-left origin and the top-left tile under the deprecated top-left origin.
+  It fixes where the supertile is _placed_ in the fabric and is purely
+  structural.
 - The **master tile** is where a supertile BEL and its configuration bits _live_. By
-  default it is the **last** non-NULL tile in row-major order; an explicit `MASTER` token
-  in the supertile CSV overrides this.
+  default it is the **easternmost tile of the southernmost occupied row**; an explicit
+  `MASTER` token in the supertile CSV overrides this.
 
-These are usually **different** tiles, because the anchor follows the stored row
-order while the master does not. In the DSP example the master is `DSP_bot`
-(bottom), so the BEL, its ConfigMem, and the supertile switch matrix all live
-there, and the anchor is `DSP_bot` as well. A fabric still on the deprecated
-top-left origin stores the pair the other way up, which makes `DSP_top` the
-anchor.
+The anchor is defined by index order and the master by compass direction, so the
+origin moves one and not the other. In the DSP example the master is `DSP_bot`,
+so the BEL, its ConfigMem, and the supertile switch matrix all live there, and
+under the bottom-left origin the anchor is `DSP_bot` as well. A fabric still on
+the deprecated top-left origin stores the pair the other way up, which makes
+`DSP_top` the anchor while the master stays `DSP_bot`.
 ```
 
 A BEL declared on the supertile (such as the `MULADD` block above) lives in the supertile's **master tile**,
