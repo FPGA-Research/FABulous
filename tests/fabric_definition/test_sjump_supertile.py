@@ -128,10 +128,29 @@ class TestSuperTileHelpers:
         st = self._supertile(master_tile_coords=(0, 0))
         assert st.get_master_tile_coords() == (0, 0)
 
-    def test_master_raises_on_empty(self) -> None:
-        st = self._supertile(tiles=[], tileMap=[[None]])
+    @pytest.mark.parametrize(
+        ("hole", "expected"),
+        [(None, (0, 0)), ((0, 0), (0, 1))],
+        ids=["filled-lowest-corner", "hole-at-lowest-corner"],
+    )
+    def test_anchor_is_first_non_none_in_row_major_order(
+        self, hole: tuple[int, int] | None, expected: tuple[int, int]
+    ) -> None:
+        st = self._supertile()
+        if hole is not None:
+            st.tileMap[hole[1]][hole[0]] = None
+        assert st.get_anchor_tile_coords() == expected
+
+    @pytest.mark.parametrize(
+        "tileMap",
+        [[], [[None]], [[None, None], [None, None]]],
+        ids=["no-rows", "single-hole", "all-holes"],
+    )
+    def test_construction_rejects_a_map_with_no_tiles(
+        self, tileMap: list[list[Tile | None]]
+    ) -> None:
         with pytest.raises(ValueError, match="has no tiles"):
-            st.get_master_tile_coords()
+            self._supertile(tiles=[], tileMap=tileMap)
 
     def test_get_all_sjump_ports_only_outputs(self) -> None:
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
