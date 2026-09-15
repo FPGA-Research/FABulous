@@ -3,6 +3,7 @@
 `tile_area_opt` shrinks one tile's die around a clean implementation and
 `fabric_area_opt` sizes every tile of a fabric at once from their explored
 implementations. `placement` is the geometry a placed tile presents to the
-optimisations that read it, and `tile_interface` lays the border pins out by
-the logic they feed.
+optimisations that read it: `config_mapping` moves each configuration bit to
+the frame crosspoint nearest its latch and `tile_interface` lays the border
+pins out by the logic they feed.
 """

@@ -19,3 +19,17 @@ TILE_INTERFACE_ORDER_FORMAT = DesignFormat(
     full_name="FABulous tile interface order",
 )
 TILE_INTERFACE_ORDER_FORMAT.register()
+
+CONFIG_MEM_FORMAT = DesignFormat(
+    id="fabulous_config_mem",
+    extension="ConfigMem.csv",
+    full_name="FABulous configuration memory mapping",
+)
+CONFIG_MEM_FORMAT.register()
+
+RECONNECT_FORMAT = DesignFormat(
+    id="fabulous_config_mapping_reconnect",
+    extension="reconnect.json",
+    full_name="FABulous configuration mapping reconnections",
+)
+RECONNECT_FORMAT.register()

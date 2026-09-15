@@ -10,6 +10,8 @@ both.
 from librelane.common.types import Path as LibrelanePath
 from librelane.config.variable import Variable
 
+from fabulous.fabric_definition.define import ConfigBitMode
+
 CONFIG_MAPPING_VARIABLE = Variable(
     "FABULOUS_OPT_CONFIG_MAPPING",
     bool,
@@ -55,5 +57,40 @@ TILE_INTERFACE_PAIRS_VARIABLE = Variable(
     "YAML listing the bus pairs of the tile, one entry per fabric wire and "
     "per frame or clock chain with `axis`, `first`, `second`, `kind` and "
     "`scalar`. Left unset for supertiles, whose borders are not reordered.",
+    default=None,
+)
+
+CONFIG_BIT_MODE_VARIABLE = Variable(
+    "FABULOUS_CONFIG_BIT_MODE",
+    ConfigBitMode,
+    "Config-bit storage mode of the fabric the tile belongs to, which the "
+    "generated switch matrix and configuration memory follow. The "
+    "configuration mapping needs the frame grid, so it runs under "
+    "FRAME_BASED only.",
+    default=ConfigBitMode.FRAME_BASED,
+)
+
+CONFIG_MEM_CSV_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MEM_CSV",
+    LibrelanePath | None,
+    "The current `<tile>_ConfigMem.csv` of the tile being hardened. Left unset "
+    "for supertiles, whose configuration memories are not mapped on their own.",
+    default=None,
+)
+
+CONFIG_MAPPING_TARGET_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MAPPING_TARGET",
+    LibrelanePath | None,
+    "The mapping the placed netlist implements when it differs from "
+    "`FABULOUS_CONFIG_MEM_CSV`, which the loop sets per iteration.",
+    default=None,
+)
+
+CONFIG_MAPPING_RECONNECT_VARIABLE = Variable(
+    "FABULOUS_CONFIG_MAPPING_RECONNECT",
+    LibrelanePath | None,
+    "Reconnection list a previous iteration proposed; each listed latch pin is "
+    "moved to the named frame port net. Unset, the netlist is implemented as "
+    "synthesised.",
     default=None,
 )
