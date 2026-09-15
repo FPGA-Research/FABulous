@@ -268,7 +268,10 @@ class FABulousFabricMacroFlow(Classic):
                 supertile = fabric.superTileDic[supertile_name]
                 width, height = tile_sizes[supertile_name]
                 num_rows_spanned = len(supertile.tileMap)
-                num_cols_spanned = len(supertile.tileMap[0])
+                # A tileMap row is only as wide as its CSV line, so the
+                # bounding box is the widest row, which is what
+                # `iter_super_tile_placements` matches against the grid.
+                num_cols_spanned = supertile.max_width
                 # The cell at a placement base is a hole whenever the bounding
                 # box has one there, so the diagnostics below name the
                 # supertile rather than reading through `tile`.
