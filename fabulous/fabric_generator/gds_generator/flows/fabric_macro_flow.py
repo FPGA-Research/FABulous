@@ -269,12 +269,17 @@ class FABulousFabricMacroFlow(Classic):
                 width, height = tile_sizes[supertile_name]
                 num_rows_spanned = len(supertile.tileMap)
                 num_cols_spanned = len(supertile.tileMap[0])
+                # The cell at a placement base is a hole whenever the bounding
+                # box has one there, so the diagnostics below name the
+                # supertile rather than reading through `tile`.
+                label = supertile_name
             elif tile is None or (x, y) in covered:
                 continue
             else:
                 width, height = tile_sizes[tile.name]
                 num_rows_spanned = 1
                 num_cols_spanned = 1
+                label = tile.name
 
             # Record column widths for all columns spanned by this tile/supertile
             for col_offset in range(num_cols_spanned):
@@ -286,7 +291,7 @@ class FABulousFabricMacroFlow(Classic):
                     if col_widths_map[col_idx] != expected_width:
                         raise ValueError(
                             f"Non-uniform tile widths in column {col_idx} "
-                            f"for tile: {tile.name} "
+                            f"for tile: {label} "
                             f" expected {expected_width}, got "
                             f"{col_widths_map[col_idx]}"
                         )
@@ -301,7 +306,7 @@ class FABulousFabricMacroFlow(Classic):
                     if row_heights_map[row_idx] != expected_height:
                         raise ValueError(
                             f"Non-uniform tile heights in row {row_idx} "
-                            f"for tile: {tile.name} "
+                            f"for tile: {label} "
                             f"expected {expected_height}, got "
                             f"{row_heights_map[row_idx]}"
                         )

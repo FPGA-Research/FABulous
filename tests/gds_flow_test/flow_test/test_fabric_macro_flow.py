@@ -518,6 +518,40 @@ class TestComputeRowAndColumnSizes:
             flow._compute_row_and_column_sizes(flow, mock_fabric, tile_sizes)
 
     @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    def test_non_uniform_supertile_names_the_supertile(
+        self, flow: MagicMock, origin: Origin
+    ) -> None:
+        """A size clash at a placement base reports the supertile.
+
+        The cell at the base is NULL when the bounding box has a hole there, so
+        reading the name off the grid would raise `AttributeError` instead of
+        the `ValueError` the caller is told to expect.
+        """
+        plain = _make_tile("plain")
+        st_low, st_high = _make_tile("st_low"), _make_tile("st_high")
+        tile_map: list[list[Tile | None]] = [[None, st_low], [st_high, st_high]]
+
+        supertile = SuperTile(
+            name="super1",
+            tileDir=Path(),
+            tiles=[st_low, st_high],
+            tileMap=tile_map,
+            origin=origin,
+        )
+        # The plain tile is visited first, so column 0 is already claimed at a
+        # width the supertile contradicts.
+        fabric = _make_fabric([[plain, None], *[list(row) for row in tile_map]], origin)
+        fabric.superTileDic = {"super1": supertile}
+
+        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
+            "plain": (Decimal(150), Decimal(60)),
+            "super1": (Decimal(200), Decimal(120)),
+        }
+
+        with pytest.raises(ValueError, match="for tile: super1"):
+            flow._compute_row_and_column_sizes(flow, fabric, tile_sizes)
+
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
     @pytest.mark.parametrize(
         ("shape", "expected_rows", "expected_cols"),
         [
