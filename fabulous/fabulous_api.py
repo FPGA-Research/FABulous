@@ -767,7 +767,6 @@ class FABulous_API:
         logger.info(f"Output folder: {out_folder.resolve()}")
         config_args = {
             "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
-            "FABULOUS_FABRIC": self.fabric,
             "DESIGN_NAME": self.fabric.name,
             "FABULOUS_NLP_ONLY": nlp_only,
             "FABULOUS_NLP_AREA_MARGIN": nlp_area_margin,
@@ -786,6 +785,7 @@ class FABulous_API:
         ]
         flow = FABulousFabricOptimisationFlow(
             configs,
+            fabric=self.fabric,
             name=self.fabric.name,
             design_dir=str(out_folder.resolve()),
             pdk=pdk,

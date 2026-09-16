@@ -77,7 +77,9 @@ build_py = "build_hooks.BuildPyWithFabulousNix"
 fabulous = ["**/*"]
 
 [tool.interrogate]
-ignore-init-method = false
+# pydoclint (DOC301) rejects `__init__` docstrings, so requiring them here
+# would make the two hooks contradict each other.
+ignore-init-method = true
 ignore-init-module = false
 ignore-magic = false
 ignore-semiprivate = false

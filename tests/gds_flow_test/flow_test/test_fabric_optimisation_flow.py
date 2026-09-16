@@ -9,20 +9,26 @@ Tests focus on:
 
 # ruff: noqa: SLF001
 
+import json
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import HDLType
+from fabulous.fabric_definition.define import IO, HDLType, Side
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow import (
     FABulousFabricOptimisationFlow,
     WorkerResult,
     _run_tile_flow_worker,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabulous_api import FABulous_API
+from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
 # Shared fixtures
@@ -390,7 +396,6 @@ class TestRunNlpOnlyEarlyReturn:
         # Drive config lookups from a real dict so behaviour is explicit.
         # TILE_OPT_INFO present -> initial compilation is skipped.
         config_data: dict[str, object] = {
-            "FABULOUS_FABRIC": fabric,
             "FABULOUS_PROJ_DIR": str(tmp_path),
             "TILE_OPT_INFO": str(tmp_path / "summary.json"),
             "FABULOUS_NLP_ONLY": True,
@@ -400,6 +405,8 @@ class TestRunNlpOnlyEarlyReturn:
         config.get.side_effect = config_data.get
         config.copy.return_value = config
         flow.config = config
+        # The fabric reaches run() as a flow attribute, not through the config.
+        flow.fabric = fabric
 
         # progress_bar is an instance attribute on Flow, not a class attribute,
         # so the spec'd mock won't auto-create it.
@@ -412,7 +419,7 @@ class TestRunNlpOnlyEarlyReturn:
         flow._log_nlp_summary = mocker.MagicMock()
 
         # Patch the collaborators constructed inside run().
-        mocker.patch(
+        nlp_step = mocker.patch(
             "fabulous.fabric_generator.gds_generator.flows."
             "fabric_optimisation_flow.FabricAreaOptimisation"
         )
@@ -430,6 +437,7 @@ class TestRunNlpOnlyEarlyReturn:
             flow, initial_state
         )
 
+        assert nlp_step.call_args.kwargs["fabric"] is fabric
         # NLP-only contract: returns the NLP state with no executed steps.
         assert result_state is nlp_state
         assert result_steps == []
@@ -496,3 +504,107 @@ class TestFinaliseFabric:
         assert "100.00 x 200.00" in logged  # overall die area w x h
         assert "LUT 30.00 x 40.00" in logged  # per-macro tile size
         assert "DSP 50.00 x 60.00" in logged
+
+
+def _fabric_with_real_ports() -> Fabric:
+    """A real one-tile fabric whose tile carries a real `TilePort`.
+
+    `TilePort` is the model class librelane's JSON encoder cannot handle, so a
+    fabric without one would not reproduce the serialisation failure.
+    """
+    tile = make_empty_tile(
+        "LUT4AB",
+        ports=[
+            TilePort(
+                name="N1BEG",
+                io_direction=IO.OUTPUT,
+                width=1,
+                side_of_tile=Side.NORTH,
+            )
+        ],
+    )
+    return make_fabric_from_grid([[tile]])
+
+
+@pytest.mark.usefixtures("mock_config_load")
+class TestFabricStaysOutOfTheConfig:
+    """The fabric model reaches the flow as an argument, not a config variable.
+
+    librelane serialises every config value into `resolved.json` at the start of
+    `Flow.start`, and its encoder only understands dataclasses. A `Fabric` holds
+    `TilePort` objects, which are not dataclasses, so putting the model in the
+    config aborts the run before the first step.
+    """
+
+    def _flow(
+        self, fabric: Fabric, mock_pdk_root: dict[str, Any], tmp_path: Path
+    ) -> FABulousFabricOptimisationFlow:
+        return FABulousFabricOptimisationFlow(
+            [{"FABULOUS_PROJ_DIR": str(tmp_path), "DESIGN_NAME": fabric.name}],
+            fabric=fabric,
+            name=fabric.name,
+            design_dir=str(tmp_path / "macro"),
+            pdk=mock_pdk_root["pdk"],
+            pdk_root=str(mock_pdk_root["pdk_root"]),
+        )
+
+    def test_flow_holds_the_fabric_outside_its_config(
+        self, mock_pdk_root: dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The flow exposes the fabric it was given and keeps it out of the config."""
+        fabric: Fabric = _fabric_with_real_ports()
+
+        flow: FABulousFabricOptimisationFlow = self._flow(
+            fabric, mock_pdk_root, tmp_path
+        )
+
+        assert flow.fabric is fabric
+        assert "FABULOUS_FABRIC" not in flow.config
+
+    def test_config_survives_the_resolved_json_dump(
+        self, mock_pdk_root: dict[str, Any], tmp_path: Path
+    ) -> None:
+        """`Flow.start` dumps the config to JSON, so every value must serialise."""
+        flow: FABulousFabricOptimisationFlow = self._flow(
+            _fabric_with_real_ports(), mock_pdk_root, tmp_path
+        )
+
+        json.loads(flow.config.dumps())
+
+
+@pytest.mark.usefixtures("mock_config_load")
+class TestFullFabricAutomationConfig:
+    """The config `full_fabric_automation` composes is the one that must dump.
+
+    The flow-level tests pin the contract; this one covers the call site that
+    builds the config, where an unencodable value would be reintroduced.
+    """
+
+    def test_composed_config_survives_the_resolved_json_dump(
+        self, mocker: MockerFixture, mock_pdk_root: dict[str, Any], tmp_path: Path
+    ) -> None:
+        """The config the API hands the flow serialises when `start` dumps it."""
+        api: FABulous_API = FABulous_API(mocker.MagicMock())
+        api.fabric = _fabric_with_real_ports()
+
+        dumped: list[str] = []
+
+        def _dump_and_stop(flow: FABulousFabricOptimisationFlow) -> MagicMock:
+            dumped.append(flow.config.dumps())
+            return mocker.MagicMock()
+
+        mocker.patch.object(
+            FABulousFabricOptimisationFlow,
+            "start",
+            autospec=True,
+            side_effect=_dump_and_stop,
+        )
+
+        api.full_fabric_automation(
+            tmp_path,
+            tmp_path / "macro",
+            mock_pdk_root["pdk"],
+            mock_pdk_root["pdk_root"],
+        )
+
+        assert json.loads(dumped[0])
