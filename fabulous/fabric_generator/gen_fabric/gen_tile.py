@@ -16,7 +16,14 @@ Key features:
 from collections import defaultdict
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.define import (
+    IO,
+    USER_CLK_PREDECESSOR,
+    ConfigBitMode,
+    Direction,
+    Side,
+    grid_at,
+)
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -595,6 +602,7 @@ def generateSuperTile(
     max_frame_per_col: int = 20,
     disable_user_clk: bool = False,
     config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+    user_clk_side: Side = Side.SOUTH,
 ) -> None:
     """Generate a super tile wrapper for given super tile.
 
@@ -620,6 +628,9 @@ def generateSuperTile(
         If True, the UserCLK port will not be generated or connected
     config_bit_mode : ConfigBitMode
         The configuration bit mode to use (frame-based or FlipFlop chain)
+    user_clk_side : Side
+        Side on which UserCLK enters each subtile; the chain runs towards the
+        opposite side. Default SOUTH (S->N ladder).
 
     Raises
     ------
@@ -741,19 +752,19 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
+    dx, dy = USER_CLK_PREDECESSOR[user_clk_side]
     if not disable_user_clk:
+        # A subtile only exposes the clock ports whose partner lies outside
+        # the supertile: UserCLKo when no successor, UserCLK when no predecessor.
         for y, row in enumerate(superTile.tileMap):
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+                if grid_at(superTile.tileMap, x - dx, y - dy) is None:
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
                     )
-                if (
-                    y + 1 >= len(superTile.tileMap)
-                    or superTile.tileMap[y + 1][x] is None
-                ):
+                if grid_at(superTile.tileMap, x + dx, y + dy) is None:
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
                     )
@@ -857,8 +868,11 @@ def generateSuperTile(
                     "MaxFramesPerCol-1",
                     indentLevel=1,
                 )
-                if not disable_user_clk:
-                    writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
+            if (
+                not disable_user_clk
+                and grid_at(superTile.tileMap, x - dx, y - dy) is not None
+            ):
+                writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
                 0 <= x + 1 < len(superTile.tileMap[y])
                 and superTile.tileMap[y][x + 1] is not None
@@ -968,11 +982,8 @@ def generateSuperTile(
 
             # add clock to tile
             if not disable_user_clk:
-                if (
-                    0 <= y + 1 < len(superTile.tileMap)
-                    and superTile.tileMap[y + 1][x] is not None
-                ):
-                    ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                if grid_at(superTile.tileMap, x + dx, y + dy) is not None:
+                    ports_pairs.append(("UserCLK", f"Tile_X{x + dx}Y{y + dy}_UserCLKo"))
                 else:
                     ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
                 ports_pairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
@@ -1128,13 +1139,10 @@ def generateSuperTile(
         if not disable_user_clk and bel.withUserCLK:
             # The supertile wrapper has no bare "UserCLK"; the BEL shares the
             # master tile's clock net (same selection the master tile uses: the
-            # chained UserCLKo from the tile below, or its own UserCLK input).
+            # chained UserCLKo from its predecessor, or its own UserCLK input).
             mx, my = superTile.get_master_tile_coords()
-            if (
-                0 <= my + 1 < len(superTile.tileMap)
-                and superTile.tileMap[my + 1][mx] is not None
-            ):
-                bel_user_clk = f"Tile_X{mx}Y{my + 1}_UserCLKo"
+            if grid_at(superTile.tileMap, mx + dx, my + dy) is not None:
+                bel_user_clk = f"Tile_X{mx + dx}Y{my + dy}_UserCLKo"
             else:
                 bel_user_clk = f"Tile_X{mx}Y{my}_UserCLK"
             bel_ports_pairs.append(("UserCLK", bel_user_clk))

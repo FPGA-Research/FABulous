@@ -1,10 +1,13 @@
 """Tests for parsing tile port lines from CSV fabric definitions."""
 
+from pathlib import Path
+
 import pytest
 
-from fabulous.custom_exception import InvalidPortType
+from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
 from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
+from fabulous.fabulous_settings import init_context
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
 DIRECTIONAL_CASES = [
@@ -126,3 +129,42 @@ class TestPortNameTrailingDigit:
     def test_valid_names_do_not_raise(self, line: str) -> None:
         ports, _ = parse_port_line(line)
         assert ports
+
+
+class TestUserCLKDirection:
+    """`UserCLKDirection` in the Parameters block sets `Fabric.userCLKSide`."""
+
+    @staticmethod
+    def _set_direction(project: Path, value: str) -> Path:
+        csv = project / "fabric.csv"
+        csv.write_text(
+            csv.read_text().replace(
+                "ParametersBegin,", f"ParametersBegin,\nUserCLKDirection,{value},", 1
+            )
+        )
+        return csv
+
+    @pytest.mark.parametrize(
+        ("value", "side"),
+        [
+            ("S2N", Side.SOUTH),
+            ("N2S", Side.NORTH),
+            ("W2E", Side.WEST),
+            ("E2W", Side.EAST),
+        ],
+    )
+    def test_direction_maps_to_entry_side(
+        self, project: Path, value: str, side: Side
+    ) -> None:
+        init_context(project)
+        fabric = parseFabricCSV(str(self._set_direction(project, value)))
+        assert fabric.userCLKSide is side
+
+    def test_default_is_south(self, project: Path) -> None:
+        init_context(project)
+        assert parseFabricCSV(str(project / "fabric.csv")).userCLKSide is Side.SOUTH
+
+    def test_invalid_direction_raises(self, project: Path) -> None:
+        init_context(project)
+        with pytest.raises(InvalidFabricParameter, match="UP"):
+            parseFabricCSV(str(self._set_direction(project, "UP")))

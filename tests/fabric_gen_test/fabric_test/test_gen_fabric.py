@@ -4,9 +4,15 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode
+from fabulous.fabric_definition.define import (
+    IO,
+    USER_CLK_PREDECESSOR,
+    ConfigBitMode,
+    Side,
+)
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
@@ -186,3 +192,36 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
 
     # One placement; anchor is the top-left child at (0, 0), i.e. DSP_top.
     assert anchors == [(0, 0, supertile)]
+
+
+@pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
+def test_user_clk_chains_from_side(
+    side: Side,
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """`Fabric.userCLKSide` selects the neighbour that feeds each tile's UserCLK.
+
+    On a 3x3 grid the centre tile chains from its `side` neighbour and the
+    tile on the far edge in that direction takes the global clock.
+    """
+    tile = mk_tile("T")
+    fabric = Fabric(
+        fabric_dir=tile.tileDir,
+        tile=[[tile] * 3 for _ in range(3)],
+        numberOfRows=3,
+        numberOfColumns=3,
+        userCLKSide=side,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    dx, dy = USER_CLK_PREDECESSOR[side]
+    centre = rtl[rtl.index("Tile_X1Y1_T") :]
+    assert f".UserCLK(Tile_X{1 + dx}Y{1 + dy}_UserCLKo)" in centre
+    # The tile at the entry edge has no predecessor -> global UserCLK.
+    ex = 1 + dx
+    ey = 1 + dy
+    edge = rtl[rtl.index(f"Tile_X{ex}Y{ey}_T") :]
+    assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]

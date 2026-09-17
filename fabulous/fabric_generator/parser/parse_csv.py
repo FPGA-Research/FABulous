@@ -41,6 +41,14 @@ from fabulous.fabulous_settings import get_context
 if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
 
+# fabric.csv `UserCLKDirection` value -> side the clock enters each tile.
+USER_CLK_DIRECTIONS: dict[str, Side] = {
+    "S2N": Side.SOUTH,
+    "N2S": Side.NORTH,
+    "W2E": Side.WEST,
+    "E2W": Side.EAST,
+}
+
 
 def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
@@ -914,6 +922,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
     disableUserCLK = False
+    userCLKSide = Side.SOUTH
     multiClkDomains = False
 
     for i in parameters:
@@ -970,6 +979,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
             superTileEnable = i[1] == "TRUE"
         elif i[0].startswith("DisableUserCLK"):
             disableUserCLK = i[1] == "TRUE"
+        elif i[0].startswith("UserCLKDirection"):
+            if i[1] not in USER_CLK_DIRECTIONS:
+                raise InvalidFabricParameter(
+                    f"Invalid UserCLKDirection {i[1]} in parameters. "
+                    f"Valid options are {', '.join(USER_CLK_DIRECTIONS)}."
+                )
+            userCLKSide = USER_CLK_DIRECTIONS[i[1]]
         elif i[0].startswith("MultiClkDomains"):
             multiClkDomains = i[1] == "TRUE"
         elif i[0].startswith("PreserveListOrder"):
@@ -1039,6 +1055,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
+        userCLKSide=userCLKSide,
         multiClkDomains=multiClkDomains,
         tileDic=tileDic,
         superTileDic=superTileDic,

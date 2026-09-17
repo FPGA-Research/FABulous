@@ -328,6 +328,7 @@ class FABulous_API:
                 max_frame_per_col or self.fabric.maxFramesPerCol,
                 disable_user_clk or self.fabric.disableUserCLK,
                 config_bit_mode or self.fabric.configBitMode,
+                user_clk_side=self.fabric.userCLKSide,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")

@@ -90,6 +90,38 @@ class Side(StrEnum):
                 return Side.ANY
 
 
+# Grid offset (dx, dy) of the tile whose UserCLKo feeds a tile's UserCLK, keyed by
+# the side the clock enters. y grows downwards, so SOUTH means "the row below".
+USER_CLK_PREDECESSOR: dict[Side, tuple[int, int]] = {
+    Side.SOUTH: (0, 1),
+    Side.NORTH: (0, -1),
+    Side.WEST: (-1, 0),
+    Side.EAST: (1, 0),
+}
+
+
+def grid_at[T](grid: list[list[T | None]], x: int, y: int) -> T | None:
+    """Return `grid[y][x]`, or None when the coordinate is off the grid.
+
+    Parameters
+    ----------
+    grid : list[list[T | None]]
+        Row-major tile grid (fabric tiles or a supertile tileMap).
+    x : int
+        Column index.
+    y : int
+        Row index.
+
+    Returns
+    -------
+    T | None
+        The entry at (x, y), or None if out of bounds or empty.
+    """
+    if 0 <= y < len(grid) and 0 <= x < len(grid[y]):
+        return grid[y][x]
+    return None
+
+
 class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.
 

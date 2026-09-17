@@ -195,6 +195,17 @@ class TestSerializeTilePorts:
 
         assert "UserCLK" in all_pins or any("UserCLK" in str(p) for p in all_pins)
 
+    def test_serialize_tile_ports_user_clk_side_west(self, mock_tile: Tile) -> None:
+        """With a W2E clock, UserCLK sits on WEST and UserCLKo on EAST."""
+        result = _serialize_tile_ports(mock_tile, user_clk_side=Side.WEST)
+
+        def pins(side: str) -> list[str]:
+            return [p for config in result[side] for p in config["pins"]]
+
+        assert "UserCLK" in pins("WEST")
+        assert "UserCLKo" in pins("EAST")
+        assert not any("UserCLK" in p for p in pins("NORTH") + pins("SOUTH"))
+
     def test_serialize_tile_ports_east_includes_frame_data_o(
         self, mock_tile: Tile
     ) -> None:

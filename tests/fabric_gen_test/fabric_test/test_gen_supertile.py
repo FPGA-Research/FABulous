@@ -11,8 +11,10 @@ signals. The directions:
 - _FrameData_ flows West to East: tile `(x, y)` consumes the `FrameData_O`
   of tile `(x-1, y)`; the first column reads a boundary input port and the
   last column drives a boundary output port.
-- _FrameStrobe_ / _UserCLK_ flow vertically: tile `(x, y)` consumes the
-  `FrameStrobe_O` / `UserCLKo` of tile `(x, y+1)`.
+- _FrameStrobe_ flows vertically: tile `(x, y)` consumes the `FrameStrobe_O`
+  of tile `(x, y+1)`.
+- _UserCLK_ chains from the tile on `user_clk_side` (default SOUTH, i.e.
+  `(x, y+1)`), so the ladder direction is configurable.
 
 A tile's output is wired to a neighbour when that neighbour exists inside the
 grid, otherwise to the matching supertile boundary port. Issue #875 was a
@@ -29,7 +31,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    USER_CLK_PREDECESSOR,
+    ConfigBitMode,
+    Direction,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -173,7 +181,13 @@ GRIDS = [(1, 1), (1, 2), (2, 2), (5, 2), (3, 3)]
 class TestConfigChainConnectivity:
     """Each tile's config/clock terminals tie to the correct neighbour or port."""
 
-    def _check(self, net: GridConnectivity, tileMap: list[list[Tile | None]]) -> None:
+    def _check(
+        self,
+        net: GridConnectivity,
+        tileMap: list[list[Tile | None]],
+        user_clk_side: Side = Side.SOUTH,
+    ) -> None:
+        dx, dy = USER_CLK_PREDECESSOR[user_clk_side]
         for y in range(len(tileMap)):
             for x in range(len(tileMap[y])):
                 if not net.exists(x, y):
@@ -205,16 +219,16 @@ class TestConfigChainConnectivity:
                 else:
                     assert fs_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe_O")
 
-                # UserCLK is buffered vertically (consumer at y-1).
+                # UserCLK is buffered from the predecessor on user_clk_side.
                 clk_in = net.cell_net(x, y, "UserCLK")
-                if net.exists(x, y + 1):
-                    assert clk_in == net.cell_net(x, y + 1, "UserCLKo")
+                if net.exists(x + dx, y + dy):
+                    assert clk_in == net.cell_net(x + dx, y + dy, "UserCLKo")
                 else:
                     assert clk_in == net.top_port_net(f"Tile_X{x}Y{y}_UserCLK")
 
                 clk_out = net.cell_net(x, y, "UserCLKo")
-                if net.exists(x, y - 1):
-                    assert clk_out == net.cell_net(x, y - 1, "UserCLK")
+                if net.exists(x - dx, y - dy):
+                    assert clk_out == net.cell_net(x - dx, y - dy, "UserCLK")
                 else:
                     assert clk_out == net.top_port_net(f"Tile_X{x}Y{y}_UserCLKo")
 
@@ -234,6 +248,18 @@ class TestConfigChainConnectivity:
     ) -> None:
         tileMap = shape(SHAPES[name])
         self._check(supertile_netlist(tileMap), tileMap)
+
+    @pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
+    @pytest.mark.parametrize("name", sorted(SHAPES))
+    def test_user_clk_side(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+        side: Side,
+    ) -> None:
+        tileMap = shape(SHAPES[name])
+        net = supertile_netlist(tileMap, user_clk_side=side)
+        self._check(net, tileMap, side)
 
 
 class TestCrossBoundaryDriverSinks:

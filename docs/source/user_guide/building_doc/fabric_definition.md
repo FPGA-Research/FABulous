@@ -175,6 +175,16 @@ It is planned to remove these limitations in future versions of FABulous.
 
     Disable the generation of the UserCLK port, regardless the fabric uses them or not.
 
+  - `UserCLKDirection`, `[S2N|N2S|W2E|E2W]` (default `S2N`)
+
+    Direction in which `UserCLK` is chained through the fabric. Every tile has a `UserCLK` input and a buffered `UserCLKo` output; each tile takes its clock from the `UserCLKo` of its neighbour on the entry side (`S2N`: the tile below, `W2E`: the tile to the left, and so on) and tiles with no such neighbour take the fabric-level `UserCLK` directly. The GDS pin placement follows the same sides.
+
+    :::{warning}
+    Changing the clock direction changes the clock tree topology in the fabric
+    and therefore the clock skew and timing of the whole fabric.
+    Only change it if you know what you are doing and verify functional correctness and timing after the change.
+    :::
+
   - `PreserveListOrder`, `[TRUE|FALSE]` (default `FALSE`)
 
     When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the rightmost listed input becomes `A0`, the next-rightmost `A1`, and so on (MSB-first, matching Verilog/VHDL `downto`). The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
