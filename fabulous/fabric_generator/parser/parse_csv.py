@@ -17,7 +17,17 @@ from fabulous.custom_exception import (
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.define import (
+    DEFAULT_CONFIG_BIT_MODE,
+    DEFAULT_DISABLE_USER_CLK,
+    DEFAULT_MULTI_CLK_DOMAINS,
+    DEFAULT_MULTIPLEXER_STYLE,
+    DEFAULT_PACKAGE,
+    DEFAULT_SUPER_TILE_ENABLE,
+    DEFAULT_SWITCH_MATRIX_DELAY,
+    DEFAULT_USER_CLK_SIDE,
+    FRAME_BITS_PER_ROW,
     IO,
+    MAX_FRAMES_PER_COL,
     SWITCH_MATRIX_CONSTANTS,
     ConfigBitMode,
     Direction,
@@ -914,16 +924,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
     # parse the parameters
     height = 0
     width = 0
-    configBitMode = ConfigBitMode.FRAME_BASED
-    frameBitsPerRow = 32
-    maxFramesPerCol = 20
-    package = "use work.my_package.all;"
-    generateDelayInSwitchMatrix = 80
-    multiplexerStyle = MultiplexerStyle.CUSTOM
-    superTileEnable = True
-    disableUserCLK = False
-    userCLKSide = Side.SOUTH
-    multiClkDomains = False
+    configBitMode = DEFAULT_CONFIG_BIT_MODE
+    frameBitsPerRow = FRAME_BITS_PER_ROW
+    maxFramesPerCol = MAX_FRAMES_PER_COL
+    package = f"{DEFAULT_PACKAGE};"
+    generateDelayInSwitchMatrix = DEFAULT_SWITCH_MATRIX_DELAY
+    multiplexerStyle = DEFAULT_MULTIPLEXER_STYLE
+    superTileEnable = DEFAULT_SUPER_TILE_ENABLE
+    disableUserCLK = DEFAULT_DISABLE_USER_CLK
+    userCLKSide = DEFAULT_USER_CLK_SIDE
+    multiClkDomains = DEFAULT_MULTI_CLK_DOMAINS
 
     for i in parameters:
         i = i.split(",")
