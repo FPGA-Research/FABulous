@@ -6,7 +6,7 @@ Three layers of coverage:
   that drives the ``IncludeBorderRows`` archspec flag.
 * Integration tests that run the real generator on a fully generated demo fabric
   and assert the whole specification is internally consistent.
-* Bit-offset tests: ``generateBitstreamSpec`` assigns configuration-bit offsets
+* Bit-offset tests: ``generate_bitstream_spec`` assigns configuration-bit offsets
   while iterating a tile's BEL feature map, switch-matrix sources, and wire
   list. Those offsets must mirror the order in which the fabric HDL wires its
   config bits: ``genTileSwitchMatrix`` walks ``parseMatrix``'s connections in
@@ -21,10 +21,14 @@ import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import (
     border_rows_have_config_bits,
-    generateBitstreamSpec,
+    generate_bitstream_spec,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.configmem import (
+    ConfigMem,
+    empty_config_mem,
+)
+from fabulous.fabric_definition.define import ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -104,10 +108,64 @@ def _all_tile_locations(fabric: Fabric) -> set[str]:
     return {f"X{x}Y{y}" for y, row in enumerate(fabric.tile) for x, _ in enumerate(row)}
 
 
+def test_the_memory_the_tile_carries_is_the_one_generated_and_specified(
+    cli: FABulousREPL,
+) -> None:
+    """A non-default mapping on the tile drives both its HDL and its bitstream."""
+    fabric = cli.fabulousAPI.fabric
+    tile = fabric.tileDic["LUT4AB"]
+
+    # The spec refuses a tile whose mapping was never generated.
+    run_cmd(cli, f"gen_config_mem {' '.join(sorted(fabric.tileDic))}")
+    default_spec = generate_bitstream_spec(fabric)
+
+    # Same crosspoints, bit order reversed from the default.
+    reversed_mapping = dict(
+        zip(
+            tile.config_mem.bit_at, sorted(tile.config_mem.bit_at.values()), strict=True
+        )
+    )
+    assert reversed_mapping != tile.config_mem.bit_at
+    tile.config_mem = tile.config_mem.rebuilt_with(reversed_mapping)
+
+    remapped_spec = generate_bitstream_spec(fabric)
+
+    location = next(
+        f"X{x}Y{y}"
+        for y, row in enumerate(fabric.tile)
+        for x, cell in enumerate(row)
+        if cell is not None and cell.name == "LUT4AB"
+    )
+    assert remapped_spec["TileSpecs"][location] != default_spec["TileSpecs"][location]
+
+
+def test_a_chain_fabric_is_specified_without_a_frame_map() -> None:
+    """A chain fabric's specification has a tile map and no frame map."""
+    fabric = _fabric_from_bits([[4, 4]])
+    fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+    for tile in fabric.tileDic.values():
+        tile.config_mem = None
+
+    spec = generate_bitstream_spec(fabric)
+
+    assert spec["TileMap"] == {"X0Y0": "T0_0", "X1Y0": "T0_1"}
+    assert spec["FrameMap"] == {}
+
+
+def test_a_tile_with_no_configuration_bits_needs_no_mapping() -> None:
+    """A tile with no configuration bits needs no mapping."""
+    fabric = _fabric_from_bits([[0]])
+    fabric.tileDic["T0_0"].config_mem = None
+
+    spec = generate_bitstream_spec(fabric)
+
+    assert spec["FrameMap"]["T0_0"] == {}
+
+
 def test_spec_is_internally_consistent(generated_fabric: Fabric) -> None:
     """The spec for a real fabric is complete and self-consistent."""
     fabric = generated_fabric
-    spec = generateBitstreamSpec(fabric)
+    spec = generate_bitstream_spec(fabric)
 
     arch = spec["ArchSpecs"]
     assert arch["FrameBitsPerRow"] == fabric.frameBitsPerRow
@@ -145,13 +203,13 @@ def test_spec_is_internally_consistent(generated_fabric: Fabric) -> None:
 
 def test_border_rows_excluded_for_demo_fabric(generated_fabric: Fabric) -> None:
     """The demo fabric terminates top/bottom rows, so the flag stays off."""
-    spec = generateBitstreamSpec(generated_fabric)
+    spec = generate_bitstream_spec(generated_fabric)
     assert spec["ArchSpecs"]["IncludeBorderRows"] is False
 
 
 def test_multi_clk_domains_defaults_off(generated_fabric: Fabric) -> None:
     """MultiClkDomains defaults to False for a plain fabric."""
-    spec = generateBitstreamSpec(generated_fabric)
+    spec = generate_bitstream_spec(generated_fabric)
     assert spec["ArchSpecs"]["MultiClkDomains"] is False
 
 
@@ -159,7 +217,7 @@ def test_multi_clk_domains_flag_propagates(generated_fabric: Fabric) -> None:
     """Setting the fabric flag propagates into the spec's ArchSpecs."""
     fabric = generated_fabric
     fabric.multiClkDomains = True
-    spec = generateBitstreamSpec(fabric)
+    spec = generate_bitstream_spec(fabric)
     assert spec["ArchSpecs"]["MultiClkDomains"] is True
 
 
@@ -177,7 +235,7 @@ def test_config_tile_in_border_row_sets_flag(generated_fabric: Fabric) -> None:
     target_x = next(x for x, tile in enumerate(top_row) if tile is not None)
     top_row[target_x] = config_tile
 
-    spec = generateBitstreamSpec(fabric)
+    spec = generate_bitstream_spec(fabric)
 
     assert spec["ArchSpecs"]["IncludeBorderRows"] is True
     assert f"X{target_x}Y0" in spec["TileSpecs"]
@@ -310,6 +368,7 @@ def _build_fabric(
         bels=[bel],
         tileDir=tile_dir / f"{_TILE_NAME}.csv",
         switch_matrix=SwitchMatrix.from_file(matrix_path, _TILE_NAME),
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
         gen_ios=[],
         userCLK=False,
     )
@@ -317,6 +376,12 @@ def _build_fabric(
 
     fabric = Fabric(fabric_dir=root)
     fabric.tile = [[tile]]
+    fabric.tileDic = {tile.name: tile}
+    tile.config_mem = ConfigMem.from_csv(
+        tile_dir / f"{_TILE_NAME}_ConfigMem.csv",
+        frame_bits_per_row=_FRAME_BITS,
+        max_frames_per_col=_MAX_FRAMES,
+    )
     fabric.numberOfRows = 1
     fabric.numberOfColumns = 1
     return fabric
@@ -339,8 +404,8 @@ def test_bitstream_spec_is_deterministic(tmp_path: Path) -> None:
         wires=_natural_wires(),
     )
 
-    spec_first = generateBitstreamSpec(first)
-    spec_second = generateBitstreamSpec(second)
+    spec_first = generate_bitstream_spec(first)
+    spec_second = generate_bitstream_spec(second)
 
     assert spec_first == spec_second
     # Guard against a vacuous pass: the tile spec must actually be populated.
@@ -365,7 +430,7 @@ def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
         wires=_natural_wires(),
     )
 
-    tile_spec = generateBitstreamSpec(fabric)["TileSpecs"]["X0Y0"]
+    tile_spec = generate_bitstream_spec(fabric)["TileSpecs"]["X0Y0"]
 
     assert tile_spec["A.F_A"] == {31: "1"}
     # F_B is a two-bit feature; only the highest bit survives the per-bit

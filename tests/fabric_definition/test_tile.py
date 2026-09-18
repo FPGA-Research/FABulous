@@ -3,6 +3,7 @@
 from decimal import Decimal
 from pathlib import Path
 
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -17,6 +18,7 @@ def _mk_tile(ports: list[TilePort]) -> Tile:
         bels=[],
         tileDir=Path(),
         switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
         gen_ios=[],
         userCLK=False,
     )
