@@ -3,4 +3,5 @@ TILE,RegFile,,,,,,,,,,,,,,,,,
 INCLUDE,../include/Base.csv
 BEL,./RegFile_32x4.{HDL_SUFFIX},,,,,,,,,,,,,,,,,
 MATRIX,./RegFile_switch_matrix.list,,,,,,,,,,,,,,,,,
+CONFIGMEM,./RegFile_ConfigMem.csv,,,,,,,,,,,,,,,,,
 EndTILE,,,,,,,,,,,,,,,,,,

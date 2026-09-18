@@ -14,8 +14,14 @@ from loguru import logger
 
 from fabulous.custom_exception import CommandError
 from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
+from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
+)
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
+    generate_tile_config_mem,
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_repl.command_set_base import (
@@ -49,20 +55,29 @@ class FabricGenCommandSet(ReplCommandSet):
     ) -> None:
         """Generate configuration memory of the given tile.
 
-        Parsing input arguments and calling `genConfigMem`.
+        Parsing input arguments and calling `generate_tile_config_mem`. A
+        FLIPFLOP_CHAIN fabric has no configuration memory, so the command
+        refuses.
 
         Logs generation processes for each specified tile.
         """
         repl = self._cmd
+        fabric = repl.fabulousAPI.fabric
+        if fabric.configBitMode is not ConfigBitMode.FRAME_BASED:
+            raise CommandError(
+                f"A {fabric.configBitMode.value} fabric shifts its configuration "
+                "through a daisy chain, so it has no configuration memory to "
+                "generate."
+            )
         logger.info(f"Generating Config Memory for {' '.join(tiles)}")
         for i in tiles:
             logger.info(f"Generating configMem for {i}")
-            repl.fabulousAPI.setWriterOutputFile(
-                repl.projectDir / f"Tile/{i}/{i}_ConfigMem.{repl.extension}"
-            )
-            repl.fabulousAPI.genConfigMem(
-                i, repl.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
-            )
+            tile = fabric.getTileByName(i)
+            if not isinstance(tile, Tile):
+                repl.fabulousAPI.gen_super_tile_config_mem(i)
+                logger.info(f"Generated configMem for super tile {i}")
+                continue
+            generate_tile_config_mem(repl.fabulousAPI.writer, tile)
         logger.info("ConfigMem generation complete")
 
     @with_annotated
@@ -85,11 +100,13 @@ class FabricGenCommandSet(ReplCommandSet):
         Also logs generation process for each specified tile.
         """
         repl = self._cmd
+        fabric = repl.fabulousAPI.fabric
         logger.info(f"Generating switch matrix for {' '.join(tiles)}")
         for i in tiles:
             logger.info(f"Generating switch matrix for {i}")
+            directory = fabric.getTileByName(i).directory
             repl.fabulousAPI.setWriterOutputFile(
-                repl.projectDir / f"Tile/{i}/{i}_switch_matrix.{repl.extension}"
+                directory / f"{i}_switch_matrix.{repl.extension}"
             )
             repl.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
@@ -110,48 +127,53 @@ class FabricGenCommandSet(ReplCommandSet):
         """Generate given tile with switch matrix and configuration memory.
 
         Parsing input arguments, call functions such as `genSwitchMatrix` and
-        `genConfigMem`. Handle both regular tiles and super tiles with sub-tiles.
+        `generate_tile_config_mem`. Handle both regular tiles and super tiles
+        with sub-tiles.
 
         Also logs generation process for each specified tile and sub-tile.
         """
         repl = self._cmd
+        fabric = repl.fabulousAPI.fabric
+        frame_based = fabric.configBitMode is ConfigBitMode.FRAME_BASED
         logger.info(f"Generating tile {' '.join(tiles)}")
         for t in tiles:
-            if sub_tiles := [
-                f.stem
-                for f in (repl.projectDir / f"Tile/{t}").iterdir()
-                if f.is_dir() and f.name != "macro"
-            ]:
+            holder = fabric.getTileByName(t)
+            if isinstance(holder, SuperTile):
+                sub_tiles = [child.name for child in holder.tiles]
                 logger.info(
                     f"{t} is a super tile, generating {t} with sub tiles "
                     f"{' '.join(sub_tiles)}"
                 )
                 for st in sub_tiles:
+                    # `holder.tiles` are copies; the memory lives on the tile type.
+                    sub_tile = fabric.getTileByName(st)
+                    if not isinstance(sub_tile, Tile):
+                        raise TypeError(
+                            f"{st} under {t} resolves to a supertile; a "
+                            "supertile cannot be a subtile of another."
+                        )
+
                     # Gen switch matrix
                     logger.info(f"Generating switch matrix for tile {t}")
                     logger.info(f"Generating switch matrix for {st}")
                     repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}_switch_matrix.{repl.extension}"
+                        sub_tile.directory / f"{st}_switch_matrix.{repl.extension}"
                     )
                     repl.fabulousAPI.genSwitchMatrix(st)
                     logger.info(f"Generated switch matrix for {st}")
 
                     # Gen config mem
-                    logger.info(f"Generating configMem for tile {t}")
-                    logger.info(f"Generating ConfigMem for {st}")
-                    repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}_ConfigMem.{repl.extension}"
-                    )
-                    repl.fabulousAPI.genConfigMem(
-                        st, repl.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
-                    )
-                    logger.info(f"Generated configMem for {st}")
+                    if frame_based:
+                        logger.info(f"Generating configMem for tile {t}")
+                        logger.info(f"Generating ConfigMem for {st}")
+                        generate_tile_config_mem(repl.fabulousAPI.writer, sub_tile)
+                        logger.info(f"Generated configMem for {st}")
 
                     # Gen tile
                     logger.info(f"Generating subtile for tile {t}")
                     logger.info(f"Generating subtile {st}")
                     repl.fabulousAPI.setWriterOutputFile(
-                        f"{repl.projectDir}/Tile/{t}/{st}/{st}.{repl.extension}"
+                        sub_tile.directory / f"{st}.{repl.extension}"
                     )
                     repl.fabulousAPI.genTile(st)
                     logger.info(f"Generated subtile {st}")
@@ -159,23 +181,21 @@ class FabricGenCommandSet(ReplCommandSet):
                 # Gen supertile switch matrix (no-op if no supertile_matrix file)
                 logger.info(f"Generating switch matrix for super tile {t}")
                 repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}_switch_matrix.{repl.extension}"
+                    holder.directory / f"{t}_switch_matrix.{repl.extension}"
                 )
                 repl.fabulousAPI.gen_super_tile_switch_matrix(t)
                 logger.info(f"Generated switch matrix for super tile {t}")
 
                 # Gen supertile ConfigMem (no-op if no ST config bits)
-                logger.info(f"Generating ConfigMem for super tile {t}")
-                repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}_ConfigMem.{repl.extension}"
-                )
-                repl.fabulousAPI.gen_super_tile_config_mem(t)
-                logger.info(f"Generated ConfigMem for super tile {t}")
+                if frame_based:
+                    logger.info(f"Generating ConfigMem for super tile {t}")
+                    repl.fabulousAPI.gen_super_tile_config_mem(t)
+                    logger.info(f"Generated ConfigMem for super tile {t}")
 
                 # Gen super tile
                 logger.info(f"Generating super tile {t}")
                 repl.fabulousAPI.setWriterOutputFile(
-                    f"{repl.projectDir}/Tile/{t}/{t}.{repl.extension}"
+                    holder.directory / f"{t}.{repl.extension}"
                 )
                 repl.fabulousAPI.genSuperTile(t)
                 logger.info(f"Generated super tile {t}")
@@ -187,14 +207,15 @@ class FabricGenCommandSet(ReplCommandSet):
                 raise CommandError(f"Switch matrix generation failed for tile {t}")
 
             # Gen config mem
-            repl.onecmd_plus_hooks(f"gen_config_mem {t}")
-            if repl.exit_code != 0:
-                raise CommandError(f"Config memory generation failed for tile {t}")
+            if frame_based:
+                repl.onecmd_plus_hooks(f"gen_config_mem {t}")
+                if repl.exit_code != 0:
+                    raise CommandError(f"Config memory generation failed for tile {t}")
 
             logger.info(f"Generating tile {t}")
             # Gen tile
             repl.fabulousAPI.setWriterOutputFile(
-                f"{repl.projectDir}/Tile/{t}/{t}.{repl.extension}"
+                holder.directory / f"{t}.{repl.extension}"
             )
             repl.fabulousAPI.genTile(t)
             logger.info(f"Generated tile {t}")
