@@ -113,7 +113,7 @@ Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, syn
 
 ### Pin Config
 
-During the generation process there will be an extra file generated under the `macro` folder, which is the `io_pin_order.yaml`. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
+Each tile keeps its pin layout in `Tile/<name>/<name>_io_pin_order.yaml`, which decides where every IO pin sits along the tile border. `gen_io_pin_config <tile>` writes it from the fabric structure, so that a tile's pins align with the adjacent tiles. `gen_tile_macro` writes one only for a tile that has none, so an edited layout survives a re-harden, and [Placement-driven optimisations](#placement-opt) is how a layout is searched from a placement rather than written by hand. The following is an example of the IO config file:
 
 ```yaml
 X0Y0:
@@ -252,7 +252,23 @@ This pre-hardened-macro path through the automated flow has not been tested yet.
 
 In the manual flow, harden the macro tile with fixed dimensions (`FABULOUS_OPT_MODE: no_opt` and an explicit `DIE_AREA`), then size the remaining tiles around it. Because tiles in a row must share a height (and tiles in a column a width) for seamless stitching, match the macro height to the majority tile height. As there are usually more logic tiles than macro tiles, matching the macro to the logic tile (rather than the reverse) wastes the least area. If a single tile height cannot fit the macro, model it as a [supertile](#stitching-the-tiles) spanning two or more tile heights and adjust the width accordingly.  For the general mechanism of integrating macros into a LibreLane run, see the [LibreLane macro guide](https://librelane.readthedocs.io/en/latest/usage/using_macros.html).
 
-The `io_pin_order.yaml` for each tile is generated during `gen_tile_macro` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+The `io_pin_order.yaml` for each tile comes from `gen_io_pin_config` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, and `gen_tile_macro` writes one for a tile that has none, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+
+(placement-opt)=
+
+### Placement-driven configuration mapping
+
+A tile's `<tile>_ConfigMem.csv` decides which configuration bit sits on which frame data and frame strobe crosspoint. The placer never sees that choice, but it decides how far each latch sits from its frame trunks, so rewriting it from a placed tile shortens the frame nets without changing what the tile computes. This is the method of Chung et al {cite}`10.1145/3490422.3502371`, and `gen_config_mem --opt-config-mapping` is where it reaches the user: the flag changes where the mapping comes from rather than adding a stage.
+
+The search is a flow of its own. It runs synthesis once and then `FABulous.PlacementDrivenTileOptimisation`, which dumps the placement after clock tree synthesis, proposes a mapping from it, and lets the next iteration implement that proposal by rewiring the floorplanned netlist. It stops before routing, holds the die its config gives and refuses a `FABULOUS_OPT_MODE` other than `no_opt`, so the GDS it leaves behind is a by-product. The `gen_tile_macro` run that implements the exported mapping is what searches the die. Measured on LUT4AB with ihp-sg13g2 the mapping takes 9.35% off the routed wirelength and no area at all, since the tile is bound by its pin pitch and its cell count.
+
+```console
+fabulous> gen_config_mem <tile_name> --opt-config-mapping
+fabulous> gen_bitStream_spec
+fabulous> gen_tile_macro <tile_name> --opt-die-area balance
+```
+
+The mapping runs on frame-based fabrics only, since only frames form the crosspoint grid it assigns bits on, and not on super tiles, whose memory borrows free crosspoints of the master tile. The rewire expects every latch pin directly on a frame port net, which the Verilog synthesis flow produces; any other structure stops the flow with `GDSFlowError`. The bitstream specification is fabric-wide and is not regenerated, so run `gen_bitStream_spec` before hardening the tile again: a bitstream built against the old specification will not match a fabric hardened from the new mapping.
 
 (tile-size-optimisation)=
 

@@ -1,5 +1,6 @@
 """Contains functions for parsing CSV files related to the fabric definition."""
 
+import os
 import re
 from copy import deepcopy
 from pathlib import Path
@@ -285,6 +286,59 @@ def _read_config_mem(
         frame_bits_per_row=frame_bits_per_row,
         max_frames_per_col=max_frames_per_col,
     )
+
+
+def set_config_mem_entry(tile_csv: Path, tile_name: str, config_mem_csv: Path) -> None:
+    """Point a tile's `CONFIGMEM` entry at another mapping file.
+
+    The entry is rewritten where the tile has one and added after the `MATRIX`
+    line where it relied on the default name, so a tile generated from a
+    mapping it did not start with says so in its own definition.
+
+    Parameters
+    ----------
+    tile_csv : Path
+        The CSV the tile is defined in, which may define several tiles.
+    tile_name : str
+        The tile whose block is rewritten.
+    config_mem_csv : Path
+        The mapping to name, written relative to `tile_csv` as the parser
+        resolves it.
+
+    Raises
+    ------
+    InvalidTileDefinition
+        If the CSV has no block for the tile, or the block has no `MATRIX`
+        line for the entry to follow.
+    """
+    relative = os.path.relpath(config_mem_csv, tile_csv.parent)
+    entry = f"CONFIGMEM,{relative if relative.startswith('.') else f'./{relative}'}\n"
+
+    lines = tile_csv.read_text().splitlines(keepends=True)
+    inside = False
+    matrix_at: int | None = None
+    config_mem_at: int | None = None
+    for index, line in enumerate(lines):
+        fields = [field.strip() for field in re.sub(r"#.*", "", line).split(",")]
+        if fields[0] == "TILE":
+            inside = len(fields) > 1 and fields[1] == tile_name
+        elif fields[0] == "EndTILE" and inside:
+            break
+        elif inside and fields[0] == "MATRIX":
+            matrix_at = index
+        elif inside and fields[0] == "CONFIGMEM":
+            config_mem_at = index
+
+    if config_mem_at is not None:
+        lines[config_mem_at] = entry
+    elif matrix_at is not None:
+        lines.insert(matrix_at + 1, entry)
+    else:
+        raise InvalidTileDefinition(
+            f"{tile_csv} defines no tile {tile_name} with a MATRIX line, so "
+            "there is nowhere to name its configuration memory."
+        )
+    tile_csv.write_text("".join(lines))
 
 
 def parseTilesCSV(
