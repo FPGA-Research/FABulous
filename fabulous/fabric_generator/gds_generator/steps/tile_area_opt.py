@@ -36,6 +36,9 @@ from fabulous.fabric_generator.gds_generator.steps.timed_detailed_routing import
     FABulousDetailedRoutingTimed,
 )
 from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.fabric_generator.gds_generator.variables import (
+    IGNORE_ANTENNA_VIOLATIONS_VARIABLE,
+)
 
 
 class OptMode(StrEnum):
@@ -91,13 +94,7 @@ var = [
         " - 'no-opt': Disable optimisation.",
         default=OptMode.BALANCE,
     ),
-    Variable(
-        "IGNORE_ANTENNA_VIOLATIONS",
-        bool,
-        "If True, antenna violations are ignored during tile optimisation. "
-        "Default is False.",
-        default=False,
-    ),
+    IGNORE_ANTENNA_VIOLATIONS_VARIABLE,
     Variable(
         "FABULOUS_PIN_MIN_WIDTH",
         Decimal,
@@ -385,6 +382,7 @@ class TileAreaOptimisation(WhileStep):
         self._refresh_routing_obstructions()
 
         if p := self.get_current_iteration_dir():
+            p.mkdir(parents=True, exist_ok=True)
             (p / "config.json").write_text(self.config.dumps())
 
         return pre_iteration

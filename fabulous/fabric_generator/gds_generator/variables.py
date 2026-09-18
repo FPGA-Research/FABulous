@@ -1,11 +1,7 @@
 """LibreLane variables shared across the FABulous GDS flow.
 
-A variable named here is one more than one flow or step reads, so the name, the
-type and the default are declared once rather than repeated wherever they are
-consumed. `FABULOUS_OPT_CONFIG_MAPPING` reassigns configuration bits to the
-frame crosspoints nearest their latches, and switching it on is what makes the
-flow read the placement back. The rest are how the search hands an iteration its
-inputs; a flow sets them once, the loop rewrites them per iteration.
+A variable is declared here rather than at its step when more than one flow or
+step reads it, so the name, the type and the default cannot drift apart.
 """
 
 from librelane.common.types import Path as LibrelanePath
@@ -66,4 +62,22 @@ CONFIG_MAPPING_RECONNECT_VARIABLE = Variable(
     "moved to the named frame port net. Unset, the netlist is implemented as "
     "synthesised.",
     default=None,
+)
+
+PLACEMENT_ITERATIONS_VARIABLE = Variable(
+    "FABULOUS_OPT_PLACEMENT_ITERATIONS",
+    int,
+    "How many placements the search may make before it gives up on the "
+    "proposals settling. It stops earlier when an iteration proposes the "
+    "inputs it was given, and exports the best-scoring iteration either way.",
+    default=10,
+)
+
+ROUTE_EVERY_ITERATION_VARIABLE = Variable(
+    "FABULOUS_OPT_ROUTE_EVERY_ITERATION",
+    bool,
+    "Route every iteration, which reports routed numbers for the search to be "
+    "read by rather than steering it. Off, each iteration stops at its "
+    "proposals, which are read before routing and so cannot depend on it.",
+    default=False,
 )
