@@ -4,9 +4,14 @@ version: "3"
 
 tasks:
   docs-build:
-    desc: Clean and build the documentation
+    desc: Clean and build the documentation (FIGS=force re-renders the draw.io diagrams)
     dir: docs
     cmds:
+      # A diagram is re-exported whenever its own source changes, so forcing is only
+      # for the changes a render is not keyed by, such as drawio_border. Dropping the
+      # caches unconditionally would make draw.io a requirement for building the docs
+      # at all, which is the thing committing the renders exists to avoid.
+      - 'if [ "{{.FIGS}}" = "force" ]; then find source -type d -name _drawio_cache -exec rm -rf {} +; fi'
       - uv sync
       - make clean
       - make html

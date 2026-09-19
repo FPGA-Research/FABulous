@@ -1,24 +1,11 @@
-/* Make transparent image backgrounds white */
-
-/* Apply white background to all images in the content area */
-.content img {
-    background-color: white !important;
-}
-
-/* Also apply to figures */
-figure img {
-    background-color: white !important;
-}
-
-/* Apply to images in tables */
-table img {
-    background-color: white !important;
-}
-
-/* Ensure images in dark mode also have white backgrounds */
-[data-theme="dark"] .content img,
-[data-theme="dark"] figure img,
-[data-theme="dark"] table img {
+/* Most figures here are dark-on-transparent, so they need a white backdrop to
+   stay legible once the page theme goes dark. Images that ship a light and a
+   dark variant carry their own theme colours -- Furo's `only-light` /
+   `only-dark` classes pick between them -- and a backdrop would sit the dark
+   variant in a white box, so those keep their transparent background. */
+.content img:not(.only-light):not(.only-dark),
+figure img:not(.only-light):not(.only-dark),
+table img:not(.only-light):not(.only-dark) {
     background-color: white !important;
 }
 

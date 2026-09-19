@@ -31,6 +31,12 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
+      - id: render-drawio
+        name: render draw.io diagrams
+        description: Regenerate and stage the renders of any changed draw.io diagram
+        language: script
+        entry: scripts/render_drawio.py
+        files: \.drawio$|\.dark\.toml$
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.6
     hooks:
