@@ -4,6 +4,7 @@ This module contains comprehensive tests for the FABulous command-line interface
 covering project creation, script execution, command-line flags, and error handling.
 """
 
+import io
 import sys
 import tarfile
 from collections.abc import Callable
@@ -14,10 +15,12 @@ from typing import Self
 import pytest
 import typer
 from dotenv import set_key
+from loguru import logger
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous import main
 from fabulous.fabulous_api import FABulous_API
+from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
 
@@ -262,6 +265,65 @@ def test_logging_file_creation(
     assert exc_info.value.code == expected_code
     assert log_file.exists()
     assert log_file.stat().st_size > 0
+
+
+class _FakeStream(io.StringIO):
+    """Stream with a chosen tty status, which is what loguru reads to pick colour."""
+
+    def __init__(self, *, is_tty: bool) -> None:
+        super().__init__()
+        self._is_tty = is_tty
+
+    def isatty(self) -> bool:
+        """Report the chosen tty status.
+
+        Returns
+        -------
+        bool
+            True when the stream should be treated as a terminal.
+        """
+        return self._is_tty
+
+
+@pytest.mark.parametrize(
+    ("is_tty", "expect_escapes"),
+    [
+        pytest.param(True, True, id="terminal"),
+        pytest.param(False, False, id="redirected"),
+    ],
+)
+def test_stdout_colour_follows_tty(
+    monkeypatch: pytest.MonkeyPatch, is_tty: bool, expect_escapes: bool
+) -> None:
+    """Markup becomes escape codes on a terminal and plain text when redirected."""
+    monkeypatch.delenv("FABULOUS_TESTING", raising=False)
+    stream = _FakeStream(is_tty=is_tty)
+    monkeypatch.setattr(sys, "stdout", stream)
+
+    setup_logger(0, False)
+    logger.warning("check the colour")
+    written = stream.getvalue()
+
+    assert "check the colour" in written
+    assert ("\x1b" in written) is expect_escapes
+
+
+def test_log_file_is_an_extra_sink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The log file takes the same records as stdout, without the colour."""
+    monkeypatch.delenv("FABULOUS_TESTING", raising=False)
+    stream = _FakeStream(is_tty=True)
+    monkeypatch.setattr(sys, "stdout", stream)
+    log_file = tmp_path / "extra.log"
+
+    setup_logger(0, False, log_file)
+    logger.warning("to both")
+    logger.remove()
+
+    assert "\x1b" in stream.getvalue()
+    assert "to both" in stream.getvalue()
+    assert log_file.read_text() == "WARNING | to both\n"
 
 
 @pytest.mark.parametrize(

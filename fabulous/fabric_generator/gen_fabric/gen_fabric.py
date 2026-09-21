@@ -15,7 +15,13 @@ Key features:
 
 from collections.abc import Generator
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.define import (
+    IO,
+    USER_CLK_PREDECESSOR,
+    ConfigBitMode,
+    Direction,
+    grid_at,
+)
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -206,19 +212,19 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if tile is not None:
                 seenPorts = set()
                 for p in tile.portsInfo:
-                    wireLength = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
+                    wireLength = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                     # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
                     # supertile wrapper), so they need no tile-to-tile fabric wire.
-                    if p.sourceName == "NULL" or p.wireDirection in (
+                    if p.source_name == "NULL" or p.wire_direction in (
                         Direction.JUMP,
                         Direction.SJUMP,
                     ):
                         continue
-                    if p.sourceName in seenPorts:
+                    if p.source_name in seenPorts:
                         continue
-                    seenPorts.add(p.sourceName)
+                    seenPorts.add(p.source_name)
                     writer.addConnectionVector(
-                        f"Tile_X{x}Y{y}_{p.sourceName}", wireLength
+                        f"Tile_X{x}Y{y}_{p.source_name}", wireLength
                     )
     writer.addNewLine()
     # VHDL architecture body
@@ -274,9 +280,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         break
 
             if superTile:
-                portsAround = superTile.getPortsAroundTile()
+                ports_around = superTile.get_ports_around_tile()
                 cord = [
-                    (i.split(",")[0], i.split(",")[1]) for i in list(portsAround.keys())
+                    (i.split(",")[0], i.split(",")[1])
+                    for i in list(ports_around.keys())
                 ]
                 for i, j in cord:
                     tileLocationOffset.append((int(i), int(j)))
@@ -326,15 +333,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             # output signal name is same as the output port name
             if superTile:
-                portsAround = superTile.getPortsAroundTile()
+                ports_around = superTile.get_ports_around_tile()
                 cord = [
-                    (i.split(",")[0], i.split(",")[1]) for i in list(portsAround.keys())
+                    (i.split(",")[0], i.split(",")[1])
+                    for i in list(ports_around.keys())
                 ]
-                cord = list(zip(cord, portsAround.values(), strict=False))
+                cord = list(zip(cord, ports_around.values(), strict=False))
                 for (i, j), around in cord:
                     for ports in around:
                         for port in ports:
-                            if port.inOut == IO.OUTPUT and port.name != "NULL":
+                            if port.is_output and port.name != "NULL":
                                 portsPairs.append(
                                     (
                                         f"Tile_X{int(i)}Y{int(j)}_{port.name}",
@@ -374,13 +382,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
 
             if not fabric.disableUserCLK:
+                dx, dy = USER_CLK_PREDECESSOR[fabric.userCLKSide]
                 if not superTile:
-                    # for userCLK
-                    if (
-                        y + 1 < fabric.numberOfRows
-                        and fabric.tile[y + 1][x] is not None
-                    ):
-                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                    # for userCLK: chain from the neighbour on the entry side,
+                    # or the global clock when there is none
+                    px = x + dx
+                    py = y + dy
+                    if grid_at(fabric.tile, px, py) is not None:
+                        portsPairs.append(("UserCLK", f"Tile_X{px}Y{py}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
 
@@ -392,20 +401,21 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
-                        next_row = y + j + 1
-                        if (
-                            next_row >= fabric.numberOfRows
-                            or fabric.tile[next_row][x + i] is None
-                        ):
+                        px = x + i + dx
+                        py = y + j + dy
+                        if grid_at(fabric.tile, px, py) is None:
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                        elif (x + i, next_row) not in superTileLoc:
+                        elif (px, py) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{next_row}_UserCLKo")
+                                (f"{pre}UserCLK", f"Tile_X{px}Y{py}_UserCLKo")
                             )
 
-                        # UserCLKo signal
-                        if (x + i, y + j - 1) not in superTileLoc:
+                        # UserCLKo signal: only a boundary port when the
+                        # consumer is outside the supertile
+                        sx = x + i - dx
+                        sy = y + j - dy
+                        if (sx, sy) not in superTileLoc:
                             portsPairs.append(
                                 (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
                             )

@@ -21,9 +21,9 @@ class Wire:
         The direction of the wire
     source : str
         The source name of the wire
-    xOffset : int
+    x_offset : int
         The X-offset of the wire
-    yOffset : int
+    y_offset : int
         The Y-offset of the wire
     destination : str
         The destination name of the wire
@@ -35,8 +35,8 @@ class Wire:
 
     direction: Direction
     source: str
-    xOffset: int
-    yOffset: int
+    x_offset: int
+    y_offset: int
     destination: str
     sourceTile: str
     destinationTile: str
@@ -49,7 +49,7 @@ class Wire:
         str
             A compact string showing source, offsets, and destination.
         """
-        return f"{self.source}-X{self.xOffset}Y{self.yOffset}>{self.destination}"
+        return f"{self.source}-X{self.x_offset}Y{self.y_offset}>{self.destination}"
 
     def __eq__(self, __o: object, /) -> bool:
         """Check if two `Wire` objects are equal.
@@ -86,7 +86,7 @@ class Wire:
 
         def validSourceDestination(name: str) -> bool:
             """Check if the source or destination tile name is valid."""
-            if self.xOffset == 0 and self.yOffset == 0:
+            if self.x_offset == 0 and self.y_offset == 0:
                 return True
             if not name:
                 return True

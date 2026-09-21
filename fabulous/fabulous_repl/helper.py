@@ -55,8 +55,8 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     debug : bool
         If True, sets log level to `DEBUG`, otherwise sets to `INFO`.
     log_file : Path
-        Path to log file. If provided, logs will be written to file instead of stdout.
-        Default is `Path()`, which results in logging to stdout.
+        Path to log file. If provided, a second sink writes the same records to that
+        file. Default is `Path()`, which adds no file sink.
 
     Notes
     -----
@@ -106,18 +106,15 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     # Determine the log level for the sink
     log_level_to_set = "DEBUG" if debug else "INFO"
 
-    # Add logger to write logs to stdout using the custom formatter
+    # colorize is left to loguru, which resolves the markup to escape codes only
+    # when the sink is a tty, so a redirected stdout and the log file stay plain.
+    logger.add(
+        sys.stdout, format=custom_format_function, level=log_level_to_set, catch=False
+    )
+
     if log_file != Path():
         logger.add(
             log_file, format=custom_format_function, level=log_level_to_set, catch=False
-        )
-    else:
-        logger.add(
-            sys.stdout,
-            format=custom_format_function,
-            level=log_level_to_set,
-            colorize=True,
-            catch=False,
         )
 
 

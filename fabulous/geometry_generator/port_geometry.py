@@ -31,19 +31,19 @@ class PortGeometry:
     ----------
     name : str | None, optional
         Name of the port
-    sourceName : str | None, optional
+    source_name : str | None, optional
         Name of the port source
     destName : str | None, optional
         Name of the port destination
     type : PortType | None, optional
         Type of the port
-    ioDirection : IO
+    io_direction : IO
         IO direction of the port.
-    sideOfTile : Side
+    side_of_tile : Side
         Side of the tile the port's wire is on.
     offset : int
         Offset to the connected port.
-    wireDirection : Direction | None, optional
+    wire_direction : Direction | None, optional
         Direction of the ports wire
     groupId : int
         ID of the port group.
@@ -58,13 +58,13 @@ class PortGeometry:
     """
 
     name: str | None = None
-    sourceName: str | None = None
+    source_name: str | None = None
     destName: str | None = None
     type: PortType | None = None
-    ioDirection: IO = IO.NULL
-    sideOfTile: Side = Side.ANY
+    io_direction: IO = IO.NULL
+    side_of_tile: Side = Side.ANY
     offset: int = 0
-    wireDirection: Direction | None = None
+    wire_direction: Direction | None = None
     groupId: int = 0
     groupWires: int = 0
     relX: int = 0
@@ -74,10 +74,10 @@ class PortGeometry:
     def generateGeometry(
         self,
         name: str,
-        sourceName: str,
+        source_name: str,
         destName: str,
         portType: PortType,
-        ioDirection: IO,
+        io_direction: IO,
         relX: int,
         relY: int,
     ) -> None:
@@ -91,13 +91,13 @@ class PortGeometry:
         ----------
         name : str
             Name of the port
-        sourceName : str
+        source_name : str
             Name of the port source
         destName : str
             Name of the port destination
         portType : PortType
             Type of the port (SWITCH_MATRIX, JUMP, or BEL)
-        ioDirection : IO
+        io_direction : IO
             I/O direction of the port (INPUT, OUTPUT, or INOUT)
         relX : int
             X coordinate relative to the parent component
@@ -105,10 +105,10 @@ class PortGeometry:
             Y coordinate relative to the parent component
         """
         self.name = name
-        self.sourceName = sourceName
+        self.source_name = source_name
         self.destName = destName
         self.type = portType
-        self.ioDirection = ioDirection
+        self.io_direction = io_direction
         self.relX = relX
         self.relY = relY
 
@@ -128,9 +128,9 @@ class PortGeometry:
             [
                 [self.type.value],
                 ["Name"] + [self.name],
-                ["Source"] + [self.sourceName],
+                ["Source"] + [self.source_name],
                 ["Dest"] + [self.destName],
-                ["IO"] + [self.ioDirection.value],
+                ["IO"] + [self.io_direction.value],
                 ["RelX"] + [str(self.relX)],
                 ["RelY"] + [str(self.relY)],
                 [],

@@ -57,11 +57,13 @@ architecture Behavioral of MULADD is
   signal OPC : std_logic_vector(19 downto 0); -- port B
 
   signal ACC_data : std_logic_vector(19 downto 0); -- accumulator register
-  signal sum      : unsigned(19 downto 0);         -- port B read data register
+  signal sum      : std_logic_vector(19 downto 0); -- port B read data register
   signal sum_in   : std_logic_vector(19 downto 0); -- port B read data register
 
-  signal product          : unsigned(15 downto 0);
-  signal product_extended : unsigned(19 downto 0);
+  signal OPA_extended     : signed(8  downto 0);
+  signal OPB_extended     : signed(8  downto 0);
+  signal product_signed   : signed(17 downto 0);
+  signal product_extended : std_logic_vector(19 downto 0);
 
 begin
 
@@ -75,16 +77,19 @@ begin
   sum_in <= OPC when (ConfigBits(3) = '0') else
             ACC_data;
 
-  product <= unsigned(OPA) * unsigned(OPB);
+  OPA_extended <= signed(OPA(7) & OPA) when (ConfigBits(4) = '1') else
+                  signed('0' & OPA);
+  OPB_extended <= signed(OPB(7) & OPB) when (ConfigBits(4) = '1') else
+                  signed('0' & OPB);
 
-  -- The sign extension was not tested
-  product_extended <= "0000" & product when (ConfigBits(4) = '0') else
-                      (product(product'high) & product(product'high) &
-                        product(product'high) & product(product'high) & product);
+  product_signed <= OPA_extended * OPB_extended;
 
-  sum <= product_extended + unsigned(sum_in);
+  product_extended <= std_logic_vector(product_signed(17) & product_signed(17) & product_signed) when (ConfigBits(4) = '1') else
+                      "00" & std_logic_vector(product_signed);
 
-  Q <= std_logic_vector(sum) when (ConfigBits(5) = '0') else
+  sum <= std_logic_vector(signed(product_extended) + signed(sum_in));
+
+  Q <= sum when (ConfigBits(5) = '0') else
        ACC_data;
 
   process (UserCLK) is
@@ -97,7 +102,7 @@ begin
       if (clr = '1') then
         ACC_data <= (others => '0');
       else
-        ACC_data <= std_logic_vector(sum);
+        ACC_data <= sum;
       end if;
     end if;
 

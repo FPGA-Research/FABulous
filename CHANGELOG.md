@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.2.0](https://github.com/FPGA-Research/FABulous/compare/v2.1.0...v2.2.0) (2026-09-11)
+
+
+### Features
+
+* add add_as_custom_prim repl command ([#988](https://github.com/FPGA-Research/FABulous/issues/988)) ([f4958b0](https://github.com/FPGA-Research/FABulous/commit/f4958b0afdf0e8fb43c44861a27dd60618348440))
+* add MultiClkDomains fabric param to bitstream spec ([#945](https://github.com/FPGA-Research/FABulous/issues/945)) ([f50ce4e](https://github.com/FPGA-Research/FABulous/commit/f50ce4e6f868f643f2f3f2abc3c44a3349d832fa))
+* add xsim support with fixes to HDL for supporting ([#981](https://github.com/FPGA-Research/FABulous/issues/981)) ([6a6625e](https://github.com/FPGA-Research/FABulous/commit/6a6625ecd2fe82ab19e885f203e0447945f932aa))
+* automatic top-bottom border config ([#931](https://github.com/FPGA-Research/FABulous/issues/931)) ([5c76abd](https://github.com/FPGA-Research/FABulous/commit/5c76abdf018e7e53e4a50c6a2e5a461cb4ac091c))
+* better nix flake ([#933](https://github.com/FPGA-Research/FABulous/issues/933)) ([f34ef78](https://github.com/FPGA-Research/FABulous/commit/f34ef78be2ecb2598ccdce7617c6d7ba4f37364b))
+* export as librelane plugin ([#695](https://github.com/FPGA-Research/FABulous/issues/695)) ([75b52a9](https://github.com/FPGA-Research/FABulous/commit/75b52a956c29580a7ba8786a12596698cff37152))
+* **fabric_cad:** add per-type IO pad placement estimates ([#935](https://github.com/FPGA-Research/FABulous/issues/935)) ([ef940cb](https://github.com/FPGA-Research/FABulous/commit/ef940cb0465258e97ec57603f14f76c69c58a8d5))
+* **fabric:** migrate Port to the typed port model ([#955](https://github.com/FPGA-Research/FABulous/issues/955)) ([38e5f8e](https://github.com/FPGA-Research/FABulous/commit/38e5f8e1ba215fa984ffdc6297de92d84c0954c7))
+* **npnr-model:** Add pip delay scale and per flop arrival time  ([#1005](https://github.com/FPGA-Research/FABulous/issues/1005)) ([8892d74](https://github.com/FPGA-Research/FABulous/commit/8892d745cad895a81ce50057a85ef01d5abe2bcd))
+* While step inner substitution ([#990](https://github.com/FPGA-Research/FABulous/issues/990)) ([f6ba5ce](https://github.com/FPGA-Research/FABulous/commit/f6ba5ce7d5545cc1eba96eb62c0443c9fe689611))
+
+
+### Bug Fixes
+
+* **gen:** emit VHDL component declarations for supertile HDL ([#950](https://github.com/FPGA-Research/FABulous/issues/950)) ([616e8f9](https://github.com/FPGA-Research/FABulous/commit/616e8f97786fb6c5d7fe8a1a0af38a1d6484d54d))
+* respect user die area when said so ([#969](https://github.com/FPGA-Research/FABulous/issues/969)) ([8fccb54](https://github.com/FPGA-Research/FABulous/commit/8fccb546ba7030c30acb830f0c9907233a324b99)), closes [#962](https://github.com/FPGA-Research/FABulous/issues/962)
+* sign extension in MULADD primitive ([#995](https://github.com/FPGA-Research/FABulous/issues/995)) ([a7b4050](https://github.com/FPGA-Research/FABulous/commit/a7b4050b37e7a7004da6958d894e92442bb337ca))
+* typos in Docs and python files ([#972](https://github.com/FPGA-Research/FABulous/issues/972)) ([b3f9823](https://github.com/FPGA-Research/FABulous/commit/b3f9823440f2365a794ce6032e5cf412bb61f211))
+
+
+### Documentation
+
+* state uv sync as the whole dev setup and split it from Nix ([#1015](https://github.com/FPGA-Research/FABulous/issues/1015)) ([4fea568](https://github.com/FPGA-Research/FABulous/commit/4fea568dc3d27d3ff770ef89bc94141bf86cb64a))
+
 ## [2.1.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v2.1.0) (2026-07-10)
 
 

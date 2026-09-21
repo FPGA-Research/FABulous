@@ -1,18 +1,21 @@
 """Helper inspection commands for the FABulous REPL.
 
 Small commands that print fabric objects (Bels, tiles) to the console for
-inspection. Grouped as a CommandSet so they can be registered and, in future,
-managed independently of the core REPL.
+inspection, or register RTL as custom primitives. Grouped as a CommandSet so
+they can be registered and, in future, managed independently of the core REPL.
 """
 
 import pprint
+from pathlib import Path
 from typing import Annotated
 
-from cmd2 import with_annotated
-from cmd2.annotated import Argument
+from cmd2 import Cmd, with_annotated
+from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
+from fabulous.fabric_generator.gen_fabric.fabric_automation import addBelsToPrim
+from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_repl.command_set_base import CMD_HELPER, ReplCommandSet
 
 
@@ -75,3 +78,45 @@ class HelperCommandSet(ReplCommandSet):
             logger.info(f"\n{_safe_pformat(tile_obj)}")
         else:
             raise CommandError(f"Tile {tile} not found in fabric")
+
+    @with_annotated
+    def do_add_as_custom_prim(
+        self,
+        rtl_files: Annotated[
+            list[Path],
+            Argument(
+                help_text="RTL (BEL) files to add as blackbox primitives",
+                completer=Cmd.path_complete,
+            ),
+        ],
+        support_vectors: Annotated[
+            bool,
+            Option(
+                "--support-vectors",
+                "-v",
+                help_text="Emit vector ports instead of scalar ports",
+            ),
+        ] = False,
+        overwrite: Annotated[
+            bool,
+            Option(
+                "--overwrite",
+                "-f",
+                help_text="Replace primitives that are already in the prims file",
+            ),
+        ] = False,
+    ) -> None:
+        """Add RTL files as blackbox primitives to `user_design/custom_prims.v`."""
+        repl = self._cmd
+        rtl_files = [f if f.is_absolute() else repl.projectDir / f for f in rtl_files]
+        missing = [f for f in rtl_files if not f.is_file()]
+        if missing:
+            raise CommandError(f"File(s) not found: {', '.join(map(str, missing))}")
+
+        prims_file = repl.projectDir / "user_design" / "custom_prims.v"
+        addBelsToPrim(
+            prims_file,
+            [parseBelFile(f) for f in rtl_files],
+            support_vectors,
+            overwrite,
+        )

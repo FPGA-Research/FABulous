@@ -36,7 +36,7 @@ def parseConfigMem(
     frameBitPerRow : int
         Number of bits per row
     globalConfigBits : int
-        Number of global config bits for the config memory
+        Number of configuration bits the config memory must cover
 
     Raises
     ------

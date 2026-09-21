@@ -7,7 +7,7 @@ import pytest
 
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from tests.conftest import make_empty_tile  # re-exported for fabric_definition tests
 
 __all__ = ["make_empty_tile"]
@@ -37,16 +37,17 @@ def make_fabric() -> Callable[..., Fabric]:
     return _make
 
 
-def make_side_port(side: Side, name: str = "P") -> Port:
-    """Construct a Port physically located on the given side."""
-    return Port(
-        Direction.JUMP,
-        name,
-        0,
-        0,
-        name,
-        1,
-        name,
-        IO.INPUT,
-        side,
+def make_side_port(side: Side, name: str = "P") -> TilePort:
+    """Construct a TilePort physically located on the given side."""
+    return TilePort(
+        name=name,
+        io_direction=IO.INPUT,
+        width=1,
+        side_of_tile=side,
+        wire_direction=Direction.JUMP,
+        source_name=name,
+        x_offset=0,
+        y_offset=0,
+        destination_name=name,
+        wire_count=1,
     )

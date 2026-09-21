@@ -12,7 +12,7 @@ from fabulous.custom_exception import (
 from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.parser.parse_csv import (
-    parsePortLine,
+    parse_port_line,
     validate_super_tile_matrix,
 )
 from fabulous.fabric_generator.parser.parse_switchmatrix import (
@@ -263,7 +263,7 @@ def test_parse_list_warns_on_duplicates(
 
 
 class TestParseSJumpPortLine:
-    """`parsePortLine` accepts the two one-way SJUMP forms, rejects the rest.
+    """`parse_port_line` accepts the two one-way SJUMP forms, rejects the rest.
 
     An SJUMP line is a one-way connection between a basic tile and its supertile
     BEL, so exactly one of source/destination must be NULL and the line carries
@@ -271,34 +271,34 @@ class TestParseSJumpPortLine:
     """
 
     def test_output_form(self) -> None:
-        ports, common = parsePortLine("SJUMP,A,0,0,NULL,8")
+        ports, common = parse_port_line("SJUMP,A,0,0,NULL,8")
         assert common is None
         assert len(ports) == 1
         (port,) = ports
-        assert port.wireDirection == Direction.SJUMP
-        assert port.inOut == IO.OUTPUT
+        assert port.wire_direction == Direction.SJUMP
+        assert port.io_direction == IO.OUTPUT
         assert port.name == "A"
-        assert (port.xOffset, port.yOffset) == (0, 0)
+        assert (port.x_offset, port.y_offset) == (0, 0)
 
     def test_input_form(self) -> None:
-        (port,), common = parsePortLine("SJUMP,NULL,0,0,Q,8")
+        (port,), common = parse_port_line("SJUMP,NULL,0,0,Q,8")
         assert common is None
-        assert port.inOut == IO.INPUT
+        assert port.io_direction == IO.INPUT
         assert port.name == "Q"
 
     def test_both_non_null_rejected(self) -> None:
         with pytest.raises(InvalidPortType, match="exactly one of source"):
-            parsePortLine("SJUMP,A,0,0,Q,8")
+            parse_port_line("SJUMP,A,0,0,Q,8")
 
     def test_both_null_rejected(self) -> None:
         with pytest.raises(InvalidPortType, match="exactly one of source"):
-            parsePortLine("SJUMP,NULL,0,0,NULL,8")
+            parse_port_line("SJUMP,NULL,0,0,NULL,8")
 
     def test_nonzero_offset_rejected(self) -> None:
         with pytest.raises(InvalidPortType, match="offset must be 0,0"):
-            parsePortLine("SJUMP,A,1,0,NULL,8")
+            parse_port_line("SJUMP,A,1,0,NULL,8")
         with pytest.raises(InvalidPortType, match="offset must be 0,0"):
-            parsePortLine("SJUMP,NULL,0,-1,Q,8")
+            parse_port_line("SJUMP,NULL,0,-1,Q,8")
 
 
 class TestSuperTileMatrixValidation:
@@ -313,8 +313,8 @@ class TestSuperTileMatrixValidation:
         bot = make_empty_tile(
             "DSP_bot",
             [
-                sjump_port("A", IO.OUTPUT, wireCount=1),
-                sjump_port("Q", IO.INPUT, wireCount=1),
+                sjump_port("A", IO.OUTPUT, wire_count=1),
+                sjump_port("Q", IO.INPUT, wire_count=1),
             ],
             pinOrderConfig={},
         )

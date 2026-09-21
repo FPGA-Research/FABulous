@@ -54,9 +54,10 @@ def run_pytest_group(
         shutil.copy(TEMP_RUN_DIR / DURATIONS_FILE, group_dir / DURATIONS_FILE)
 
     # Use absolute tests path so collection works even when cwd is isolated temp dir.
+    # `sys.executable` rather than `uv run`, which would pin the groups to `.venv/`
+    # and bypass the store virtualenv when the wrapper is run in the Nix devshell.
     command = [
-        "uv",
-        "run",
+        sys.executable,
         "-m",
         "pytest",
         str(TESTS_DIR),

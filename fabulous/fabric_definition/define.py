@@ -90,6 +90,38 @@ class Side(StrEnum):
                 return Side.ANY
 
 
+# Grid offset (dx, dy) of the tile whose UserCLKo feeds a tile's UserCLK, keyed by
+# the side the clock enters. y grows downwards, so SOUTH means "the row below".
+USER_CLK_PREDECESSOR: dict[Side, tuple[int, int]] = {
+    Side.SOUTH: (0, 1),
+    Side.NORTH: (0, -1),
+    Side.WEST: (-1, 0),
+    Side.EAST: (1, 0),
+}
+
+
+def grid_at[T](grid: list[list[T | None]], x: int, y: int) -> T | None:
+    """Return `grid[y][x]`, or None when the coordinate is off the grid.
+
+    Parameters
+    ----------
+    grid : list[list[T | None]]
+        Row-major tile grid (fabric tiles or a supertile tileMap).
+    x : int
+        Column index.
+    y : int
+        Row index.
+
+    Returns
+    -------
+    T | None
+        The entry at (x, y), or None if out of bounds or empty.
+    """
+    if 0 <= y < len(grid) and 0 <= x < len(grid[y]):
+        return grid[y][x]
+    return None
+
+
 class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.
 
@@ -154,6 +186,56 @@ class PinSortMode(StrEnum):
     BUS_MAJOR = "bus_major"
     BIT_MINOR = "bit_minor"
     CUSTOM = "custom"
+
+
+class FeatureType(StrEnum):
+    """Enumeration for feature types used in configuration ports.
+
+    Defines how configuration features are encoded:
+    - ENUMERATE: Sequential enumeration
+    - INIT: Initialization value
+    - ONE_HOT: One-hot encoding
+    - FEATURE_MAP: Feature map encoding
+    """
+
+    ENUMERATE = "ENUMERATE"
+    INIT = "INIT"
+    ONE_HOT = "ONE_HOT"
+    FEATURE_MAP = "FEATURE_MAP"
+
+
+class FeatureValue(NamedTuple):
+    """Named tuple representing a feature value for configuration.
+
+    Attributes
+    ----------
+    name : str
+        The name of the feature
+    value : int | None
+        The value of the feature, or None if undefined
+    """
+
+    name: str
+    value: int | None
+
+    def value_as_bitstring(self) -> str:
+        """Convert the feature value to a bitstring representation.
+
+        Returns
+        -------
+        str
+            A bitstring representation of the value, or 'x' if value is None.
+
+        Raises
+        ------
+        ValueError
+            If the value is not None or an integer.
+        """
+        if self.value is None:
+            return "x"
+        if isinstance(self.value, int):
+            return f"{self.value:01b}"
+        raise ValueError(f"Invalid value type: {type(self.value)} for {self.name}")
 
 
 class TileSize(NamedTuple):
