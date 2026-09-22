@@ -218,6 +218,38 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     )
 
 
+def _resolve_task_binary() -> Path:
+    """Locate the `task` (go-task) binary shipped with FABulous.
+
+    Returns
+    -------
+    Path
+        Path to the `task` executable.
+
+    Raises
+    ------
+    EnvironmentNotSet
+        If the `task` binary can be found neither next to the running
+        interpreter nor on ``PATH``.
+    """
+    # go-task-bin drops `task` into the environment's script directory, which is
+    # not on PATH when FABulous is installed with `uv tool install`, so look
+    # beside the interpreter before falling back to PATH.
+    script_dir = Path(sys.executable).parent
+    local = shutil.which("task", path=str(script_dir))
+    if local:
+        return Path(local)
+
+    on_path = shutil.which("task")
+    if on_path is None:
+        raise EnvironmentNotSet(
+            "The 'task' command (go-task) was found neither in the Python "
+            f"environment ({script_dir}) nor on PATH. It ships with FABulous; "
+            "reinstall with 'uv tool install FABulous-FPGA'."
+        )
+    return Path(on_path)
+
+
 def run_task(
     task_name: str,
     task_dir: Path,
@@ -240,20 +272,8 @@ def run_task(
     taskfile : str | None
         Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
         When None, ``task`` uses its default lookup (``Taskfile.yml``).
-
-    Raises
-    ------
-    EnvironmentNotSet
-        If the ``task`` binary is not found on ``PATH``.
     """
-    if shutil.which("task") is None:
-        raise EnvironmentNotSet(
-            "The 'task' command (go-task) is not found on PATH. "
-            "It ships with FABulous; reinstall with "
-            "'uv tool install FABulous-FPGA'."
-        )
-
-    cmd: list[str] = ["task", task_name]
+    cmd: list[str] = [str(_resolve_task_binary()), task_name]
     if taskfile:
         cmd.extend(["--taskfile", taskfile])
     if verbose:
