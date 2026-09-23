@@ -406,6 +406,52 @@ wheels = [
 ]
 
 [[package]]
+name = "cocotb-bus"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cocotb" },
+    { name = "scapy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/f9/1474d5503af6f8c979a33e3489c0e6886b6ffb1af3d00419d2e0da1dd274/cocotb_bus-0.3.0.tar.gz", hash = "sha256:9762b29273ff062f52160e57274e3cb106d14e7e776515de1372c1d73546b005", size = 29991, upload-time = "2025-11-22T00:19:31.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/43/8b3f96cf401c2a7f6e907ccc86d3b73433eeaf5525df90b630d8c112474b/cocotb_bus-0.3.0-py3-none-any.whl", hash = "sha256:b4f06cce2462a8f9487b42c46b0ff3afd253f0fa4f67a0c382ebe0ba614229eb", size = 36206, upload-time = "2026-01-15T04:51:43.009Z" },
+]
+
+[[package]]
+name = "cocotbext-axi"
+version = "0.1.28"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cocotb" },
+    { name = "cocotb-bus" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/dc/6cd75a8554dbb07a52a2ce4371e9045bf03b943ae40edfb7428a2413381d/cocotbext_axi-0.1.28.tar.gz", hash = "sha256:5d062185b9bb5476839a1d816821c4533b245f56f7b171b3f39130e26891ae37", size = 58298, upload-time = "2026-03-12T22:22:05.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/eb/d1c1f727a52ef2b7d0a2e4ff31817add1ccd42155642ba971b49d9ee089c/cocotbext_axi-0.1.28-py3-none-any.whl", hash = "sha256:aff88b528733e4e59359f06b8cc30524cc75bf31ee951ed8a573694b26816eb2", size = 56673, upload-time = "2026-03-12T22:22:03.553Z" },
+]
+
+[[package]]
+name = "cocotbext-spi"
+version = "0.5.1.dev7+gbe5761be5"
+source = { git = "https://github.com/schang412/cocotbext-spi?rev=be5761be54796a64607c4b115e2e7cfe8ac6bc83#be5761be54796a64607c4b115e2e7cfe8ac6bc83" }
+dependencies = [
+    { name = "cocotb" },
+]
+
+[[package]]
+name = "cocotbext-uart"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cocotb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/14/150453a9113885a93f8be7a4f21b89e8c67f91369e808d4e16ad8ec35869/cocotbext_uart-0.1.4.tar.gz", hash = "sha256:574643c82067be5e1dd6e2e830f46b8803c07fc1f27b7f75bf25066fd6d06798", size = 7948, upload-time = "2025-09-07T18:51:30.235Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/32/351045b5ac3feb65c3b54153a20ffb882a5445297572d67752ac755791c9/cocotbext_uart-0.1.4-py3-none-any.whl", hash = "sha256:be78f266449765a1cb7877a733f796bbfdbe492e7205051c4cc413e2e0c4727f", size = 6627, upload-time = "2025-09-07T18:51:14.381Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -644,6 +690,9 @@ dependencies = [
     { name = "bitarray" },
     { name = "ciel" },
     { name = "cmd2" },
+    { name = "cocotbext-axi" },
+    { name = "cocotbext-spi" },
+    { name = "cocotbext-uart" },
     { name = "dill" },
     { name = "fabulous-bit-gen" },
     { name = "go-task-bin" },
@@ -683,6 +732,9 @@ requires-dist = [
     { name = "bitarray", specifier = ">=3.10.0" },
     { name = "ciel", specifier = ">=2.4.0" },
     { name = "cmd2", specifier = ">=4.1.2" },
+    { name = "cocotbext-axi", specifier = ">=0.1.28" },
+    { name = "cocotbext-spi", git = "https://github.com/schang412/cocotbext-spi?rev=be5761be54796a64607c4b115e2e7cfe8ac6bc83" },
+    { name = "cocotbext-uart", specifier = ">=0.1.4" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
@@ -2058,6 +2110,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3d/02/7f10ef4700bc223c30a3fdd10631a29830c45524b810a3c7ed947af64591/ruff-0.16.8-py3-none-win32.whl", hash = "sha256:55793ba85c69921e89be061426d91a78652d6e50317c962240922747a4eb713f", size = 10093472, upload-time = "2026-09-16T15:54:37.47Z" },
     { url = "https://files.pythonhosted.org/packages/1e/5d/a509c07d714b6da88f2c518b4637cf6f1d46b074be8f0f1e5fb9ff5126fe/ruff-0.16.8-py3-none-win_amd64.whl", hash = "sha256:a6b85621fd3c81e31fc5f5add09c9c078b430db3595ca632efafdec9e64ebfaa", size = 10586899, upload-time = "2026-09-16T15:54:40.488Z" },
     { url = "https://files.pythonhosted.org/packages/fe/a0/50787329e4f20bf9dc9f6230015d46ec69c51a97ace5bc202dae4755365d/ruff-0.16.8-py3-none-win_arm64.whl", hash = "sha256:d075e820af612102ce217f07cc93e69f9490b10ec13ea85fa87bd03d996cef8a", size = 10386316, upload-time = "2026-09-16T15:54:43.332Z" },
+]
+
+[[package]]
+name = "scapy"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/97/7caec64f05eae3d305d83e7cce1ef2f337710513b89efb334f7278202e79/scapy-2.7.0.tar.gz", hash = "sha256:bfc1ef1b93280aea1ddee53be7f74232aa28ac3d891244d41ee85200d24aa446", size = 2412897, upload-time = "2025-12-26T22:10:53.359Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f0/6f/bd32e5e8adc391063858da17271bb444e4b009842cffa593bca8b2b78af7/scapy-2.7.0-py3-none-any.whl", hash = "sha256:eb22786da92be6fd8e5c694ae5595e4f5b9ac1f4364c9c45986844f3e3063561", size = 2590982, upload-time = "2025-12-26T22:07:48.941Z" },
 ]
 
 [[package]]

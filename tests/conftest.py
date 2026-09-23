@@ -189,7 +189,6 @@ def sjump_port(
     case the width fix in `expand_port_info*` has to handle.
     """
     return TilePort(
-        name=name,
         io_direction=in_out,
         width=wire_count,
         side_of_tile=Side.ANY,
@@ -199,6 +198,7 @@ def sjump_port(
         y_offset=y_offset,
         destination_name=name if in_out == IO.INPUT else "NULL",
         wire_count=wire_count,
+        name=name,
     )
 
 
