@@ -10,6 +10,7 @@ from fabulous.fabric_generator.parser.parse_csv import (
     parse_port_line,
     parseFabricCSV,
     parseSupertilesCSV,
+    parseTilesCSV,
 )
 from fabulous.fabulous_settings import init_context
 
@@ -189,4 +190,44 @@ def test_supertile_bel_add_as_custom_prim(project: Path, prefix: str) -> None:
     (supertile,) = parseSupertilesCSV(csv, {})
 
     assert supertile.bels[0].prefix == prefix
+    assert "module MULADD" in prims.read_text()
+
+
+def test_tile_prefix_add_as_custom_prim_warns(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a tile BEL's prefix field warns and still applies."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "DSP_bot" / "DSP_bot.csv"
+    csv.write_text(
+        csv.read_text().replace(
+            "BEL,./MULADD.v,", "BEL,./MULADD.v,ADD_AS_CUSTOM_PRIM", 1
+        )
+    )
+
+    (tile,) = parseTilesCSV(csv)[0]
+
+    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
+    assert tile.bels[0].prefix == ""
+    assert "module MULADD" in prims.read_text()
+
+
+def test_supertile_prefix_add_as_custom_prim_warns(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a supertile BEL's prefix field warns and applies."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "ST.csv"
+    csv.write_text(
+        "SuperTILE,ST\nNull\nBEL,./DSP_bot/MULADD.v,ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
+    )
+
+    (supertile,) = parseSupertilesCSV(csv, {})
+
+    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
+    assert supertile.bels[0].prefix == ""
     assert "module MULADD" in prims.read_text()
