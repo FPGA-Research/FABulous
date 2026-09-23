@@ -24,11 +24,11 @@ from cocotb.triggers import ReadOnly, RisingEdge  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
     from cocotb.handle import LogicObject  # type: ignore
+    from cocotbext.axi.axi_master import AxiReadResp  # type: ignore[import-untyped]
 
 from cocotbext.axi import (  # type: ignore
     AxiLiteBus,
     AxiLiteMaster,
-    AxiLiteReadResp,
     AxiResp,
 )
 
@@ -149,7 +149,7 @@ async def axi_write_word(
     return await axi_master.write(address, data.to_bytes(4, "little"))
 
 
-async def axi_read_word(axi_master: AxiLiteMaster, address: int) -> AxiLiteReadResp:
+async def axi_read_word(axi_master: AxiLiteMaster, address: int) -> AxiReadResp:
     # pragma: no cover
     """Issue a 32-bit AXI-Lite read and return the AxiLiteReadResp (has .data/.resp).
 
