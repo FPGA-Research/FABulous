@@ -676,6 +676,9 @@ prefix, so the prefix column has to be present, even if it is empty:
 BEL,              crc5.v,          ,         ADD_AS_CUSTOM_PRIM
 ```
 
+The keyword works the same way on `BEL` lines of a `SuperTILE` block, see
+[supertile BELs](#supertile-custom-prim).
+
 Primitives that are already in `custom_prims.v` are left alone, so a hand-tuned
 description with an implementation or a techmap is not overwritten by this keyword.
 
@@ -1263,7 +1266,7 @@ EndTILE
 SuperTILE   DSP  # declace supertile  (Functionality concentrated in DSP_bot)
 DSP_top
 DSP_bot
-EndTILE
+EndSuperTILE
 ```
 
 **Approach B (BEL on the supertile).** The right example hosts the functionality in the supertile wrapper: the BEL is declared on the `SuperTILE` block and lives in the supertile's master tile. The recommended way to wire it is with `SJUMP` wires and a dedicated supertile switch matrix; the supertile declaration carries both the `BEL` and a `MATRIX` line pointing at that switch matrix:
@@ -1276,10 +1279,25 @@ DSP_top
 DSP_bot
 BEL,        MULADD.vhdl
 MATRIX,     DSP_supertile_matrix.list
-EndTILE
+EndSuperTILE
 ```
 
 The basic tiles declare their `SJUMP` ports and the supertile switch matrix is written as described in {ref}`supertile-bel-routing`.
+
+(supertile-custom-prim)=
+
+A supertile `BEL` line accepts the same `ADD_AS_CUSTOM_PRIM` keyword as a tile `BEL` line
+(see {ref}`primitives`). When the supertile is parsed, the BEL is added as a blackbox
+to `user_design/custom_prims.v`, so Yosys can instantiate it:
+
+```{code-block} python
+SuperTILE   DSP
+DSP_top
+DSP_bot
+BEL,        MULADD.v,   ,   ADD_AS_CUSTOM_PRIM
+MATRIX,     DSP_supertile_matrix.list
+EndSuperTILE
+```
 
 ```{admonition} Legacy modelling: LOCAL wires + ConfigBits BEL
 :class: note
