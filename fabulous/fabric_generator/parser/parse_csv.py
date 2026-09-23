@@ -655,8 +655,16 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             row = []
 
             if line[0] == "BEL":
-                belFilePath = filePath.joinpath(line[1])
-                bels.append(parseBelFile(belFilePath, line[2] if len(line) > 2 else ""))
+                # Positional fields: the filtered `line` drops an empty prefix,
+                # which would shift `ADD_AS_CUSTOM_PRIM` into the prefix slot.
+                bel_fields = [field.strip() for field in i.split(",")]
+                belFilePath = filePath.joinpath(bel_fields[1])
+                bel_prefix = bel_fields[2] if len(bel_fields) > 2 else ""
+                bels.append(parseBelFile(belFilePath, bel_prefix))
+                if "ADD_AS_CUSTOM_PRIM" in bel_fields[3:]:
+                    prims_file = get_context().proj_dir / "user_design/custom_prims.v"
+                    logger.info(f"Adding bels to custom prims file: {prims_file}")
+                    addBelsToPrim(prims_file, [bels[-1]])
                 continue
             if line[0] == "MATRIX":
                 # The supertile switch matrix is given by this line's path,

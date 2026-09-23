@@ -6,7 +6,11 @@ import pytest
 
 from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
 from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parseFabricCSV,
+    parseSupertilesCSV,
+)
 from fabulous.fabulous_settings import init_context
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
@@ -168,3 +172,21 @@ class TestUserCLKDirection:
         init_context(project)
         with pytest.raises(InvalidFabricParameter, match="UP"):
             parseFabricCSV(str(self._set_direction(project, "UP")))
+
+
+@pytest.mark.parametrize("prefix", ["", "MUL_"])
+def test_supertile_bel_add_as_custom_prim(project: Path, prefix: str) -> None:
+    """A supertile BEL flagged `ADD_AS_CUSTOM_PRIM` lands in `custom_prims.v`."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "ST.csv"
+    csv.write_text(
+        "SuperTILE,ST\nNull\n"
+        f"BEL,./DSP_bot/MULADD.v,{prefix},ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
+    )
+
+    (supertile,) = parseSupertilesCSV(csv, {})
+
+    assert supertile.bels[0].prefix == prefix
+    assert "module MULADD" in prims.read_text()
