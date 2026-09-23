@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import cocotb  # type: ignore
 from cocotb.clock import Clock  # type: ignore
-from cocotb.triggers import RisingEdge, Timer, ReadOnly  # type: ignore
+from cocotb.triggers import ReadOnly, RisingEdge  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
     from cocotb.handle import LogicObject  # type: ignore
@@ -28,6 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 from cocotbext.axi import (  # type: ignore
     AxiLiteBus,
     AxiLiteMaster,
+    AxiLiteReadResp,
     AxiResp,
 )
 
@@ -124,9 +125,7 @@ async def reset_dut(
         await RisingEdge(dut.clk)
 
 
-async def wait_cycles(
-    dut: ConfigAxiProtocol, cycles: int
-) -> None:  # pragma: no cover
+async def wait_cycles(dut: ConfigAxiProtocol, cycles: int) -> None:  # pragma: no cover
     """Wait for specified number of clock cycles."""
     for _ in range(cycles):
         await RisingEdge(dut.clk)
@@ -140,7 +139,7 @@ def make_axi_master(dut: ConfigAxiProtocol) -> AxiLiteMaster:  # pragma: no cove
 
 async def axi_write_word(
     axi_master: AxiLiteMaster, address: int, data: int
-):  # pragma: no cover
+) -> None:  # pragma: no cover
     """Issue a 32-bit AXI-Lite write and return the AxiLiteWriteResp (has .resp).
 
     Uses the low-level AxiLiteMaster.write() (not write_dword(), which is a
@@ -150,9 +149,8 @@ async def axi_write_word(
     return await axi_master.write(address, data.to_bytes(4, "little"))
 
 
-async def axi_read_word(
-    axi_master: AxiLiteMaster, address: int
-):  # pragma: no cover
+async def axi_read_word(axi_master: AxiLiteMaster, address: int) -> AxiLiteReadResp:
+    # pragma: no cover
     """Issue a 32-bit AXI-Lite read and return the AxiLiteReadResp (has .data/.resp).
 
     Uses the low-level AxiLiteMaster.read() (not read_dword(), which returns a
@@ -224,14 +222,11 @@ async def cocotb_test_config_axi_single_write_basic(
 
     result = await axi_write_word(axi_master, test_addr, test_data)
 
-    assert result.resp == AxiResp.OKAY, (
-        f"Expected OKAY response, got {result.resp!r}"
-    )
+    assert result.resp == AxiResp.OKAY, f"Expected OKAY response, got {result.resp!r}"
 
     await ReadOnly()
     assert int(dut.data.value) == test_data, (
-        f"data mismatch: expected 0x{test_data:08X}, "
-        f"got 0x{int(dut.data.value):08X}"
+        f"data mismatch: expected 0x{test_data:08X}, got 0x{int(dut.data.value):08X}"
     )
     cocotb.log.info("✓ Basic single-word write validated")
 
@@ -577,6 +572,7 @@ async def cocotb_test_config_axi_interleaved_write_read(
 
     cocotb.log.info("✓ Interleaved write/read operation validated")
 
+
 @cocotb.test
 async def cocotb_test_config_axi_read_does_not_strobe(
     dut: ConfigAxiProtocol,
@@ -656,8 +652,7 @@ async def cocotb_test_config_axi_concurrent_read_write(
 
     read_value = int.from_bytes(read_result.data, "little")
     assert read_value == 0, (
-        f"Read should return 0x00000000 (no readable register), "
-        f"got 0x{read_value:08X}"
+        f"Read should return 0x00000000 (no readable register), got 0x{read_value:08X}"
     )
 
     await ReadOnly()
@@ -669,6 +664,7 @@ async def cocotb_test_config_axi_concurrent_read_write(
         "active should be low after both transactions complete"
     )
     cocotb.log.info("✓ Concurrent read/write transactions validated")
+
 
 @cocotb.test
 async def cocotb_test_config_axi_reset_mid_transaction(

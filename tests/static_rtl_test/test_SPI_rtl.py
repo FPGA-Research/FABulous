@@ -41,14 +41,14 @@ from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
 
 
 class ConfigSpiProtocol(Protocol):  # pragma: no cover - interface typing only
-    clk: LogicObject      # System clock
+    clk: LogicObject  # System clock
     reset_n: LogicObject  # Reset, active low
-    sck: LogicObject      # SPI clock (idle low, CPOL=0)
-    mosi: LogicObject     # SPI data in
-    ss_n: LogicObject     # Slave select, active low
-    strobe: LogicObject   # 1-cycle pulse on complete word
-    data: LogicObject     # [31:0] Received word
-    active: LogicObject   # High while ss_n is asserted
+    sck: LogicObject  # SPI clock (idle low, CPOL=0)
+    mosi: LogicObject  # SPI data in
+    ss_n: LogicObject  # Slave select, active low
+    strobe: LogicObject  # 1-cycle pulse on complete word
+    data: LogicObject  # [31:0] Received word
+    active: LogicObject  # High while ss_n is asserted
 
 
 def test_config_spi_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -58,6 +58,7 @@ def test_config_spi_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
         hdl_top_level="config_SPI",
         test_module_path=Path(__file__),
     )
+
 
 def test_config_spi_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     """Pytest entry that invokes cocotb simulation for this module."""
@@ -71,17 +72,17 @@ def test_config_spi_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 # ---------------------------------------------------------------------------
 # Timing / config constants
 # ---------------------------------------------------------------------------
-CLK_PERIOD_NS = 40         # 25 MHz system clock
+CLK_PERIOD_NS = 40  # 25 MHz system clock
 CLK_FREQ_HZ = 25e6
 
 # 4-stage synchronizer on sck -> SCK half-period >= 4 clk cycles.
 # 1 MHz -> 500 ns half-period = 12.5 clk cycles. Very safe.
 SAFE_SCLK_FREQ_HZ = 1e6
 
-SYNC_LATENCY_CYCLES = 4    # 4-stage synchronizer on sck/mosi/ss_n
+SYNC_LATENCY_CYCLES = 4  # 4-stage synchronizer on sck/mosi/ss_n
 
 # DUT is receive-only: no MISO. Any MISO value seen by the master is ignored.
-FRAME_SPACING_NS = 200     # well above DUT's (nonexistent) min frame spacing
+FRAME_SPACING_NS = 200  # well above DUT's (nonexistent) min frame spacing
 
 
 # ---------------- Helper Utilities -----------------
@@ -94,6 +95,7 @@ class _TiedLow:
     shim. Any value the master "reads" is 0 and is discarded — we never
     call master.read().
     """
+
     def __init__(self) -> None:
         self.value = 0
 
@@ -548,14 +550,14 @@ async def cocotb_test_spi_sck_speed_sweep(dut: ConfigSpiProtocol) -> None:
         ok = await wait_for_n_strobes(dut, captures, 1)
         await wait_cycles(dut, 10)
 
-        assert ok, f"freq={freq/1e3:.0f} kHz: no strobe within timeout"
+        assert ok, f"freq={freq / 1e3:.0f} kHz: no strobe within timeout"
         assert len(captures) == 1, (
-            f"freq={freq/1e3:.0f} kHz: expected 1 strobe, got {len(captures)}"
+            f"freq={freq / 1e3:.0f} kHz: expected 1 strobe, got {len(captures)}"
         )
         assert captures[0][0] == 0xA5A5A5A5, (
-            f"freq={freq/1e3:.0f} kHz: data mismatch 0x{captures[0][0]:08X}"
+            f"freq={freq / 1e3:.0f} kHz: data mismatch 0x{captures[0][0]:08X}"
         )
-        cocotb.log.info(f"✓ SCK {freq/1e3:.0f} kHz OK")
+        cocotb.log.info(f"✓ SCK {freq / 1e3:.0f} kHz OK")
 
 
 # ---------------------------------------------------------------------------
