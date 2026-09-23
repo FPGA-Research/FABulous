@@ -432,6 +432,14 @@ wheels = [
 ]
 
 [[package]]
+name = "cocotbext-spi"
+version = "0.5.1.dev7+gbe5761be5"
+source = { git = "https://github.com/schang412/cocotbext-spi?rev=be5761be54796a64607c4b115e2e7cfe8ac6bc83#be5761be54796a64607c4b115e2e7cfe8ac6bc83" }
+dependencies = [
+    { name = "cocotb" },
+]
+
+[[package]]
 name = "cocotbext-uart"
 version = "0.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -683,6 +691,7 @@ dependencies = [
     { name = "ciel" },
     { name = "cmd2" },
     { name = "cocotbext-axi" },
+    { name = "cocotbext-spi" },
     { name = "cocotbext-uart" },
     { name = "dill" },
     { name = "fabulous-bit-gen" },
@@ -724,6 +733,7 @@ requires-dist = [
     { name = "ciel", specifier = ">=2.4.0" },
     { name = "cmd2", specifier = ">=4.1.2" },
     { name = "cocotbext-axi", specifier = ">=0.1.28" },
+    { name = "cocotbext-spi", git = "https://github.com/schang412/cocotbext-spi?rev=be5761be54796a64607c4b115e2e7cfe8ac6bc83" },
     { name = "cocotbext-uart", specifier = ">=0.1.4" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
