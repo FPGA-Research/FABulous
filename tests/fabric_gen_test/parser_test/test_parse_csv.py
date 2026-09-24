@@ -5,8 +5,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
-from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
+from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parse_tile_from_dir,
+    parseFabricCSV,
+    parseSupertilesCSV,
+)
 from fabulous.fabulous_settings import init_context
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
@@ -168,3 +173,101 @@ class TestUserCLKDirection:
         init_context(project)
         with pytest.raises(InvalidFabricParameter, match="UP"):
             parseFabricCSV(str(self._set_direction(project, "UP")))
+
+
+class TestConfigMemLocation:
+    """Where a parsed tile expects its `ConfigMem.csv` to be."""
+
+    @pytest.mark.parametrize(
+        ("row", "expected"),
+        [
+            pytest.param(None, "LUT4AB_ConfigMem.csv", id="derived"),
+            pytest.param(
+                "CONFIGMEM,./elsewhere/Mapping.csv",
+                "elsewhere/Mapping.csv",
+                id="declared",
+            ),
+        ],
+    )
+    def test_the_tile_names_its_mapping_file(
+        self, project: Path, row: str | None, expected: str
+    ) -> None:
+        """A CONFIGMEM line wins; without one the mapping sits beside the tile."""
+        tile_csv = project / "Tile/LUT4AB/LUT4AB.csv"
+        text = tile_csv.read_text()
+        if row is None:
+            text = "\n".join(
+                line for line in text.splitlines() if not line.startswith("CONFIGMEM,")
+            )
+        else:
+            text = "\n".join(
+                row if line.startswith("CONFIGMEM,") else line
+                for line in text.splitlines()
+            )
+        tile_csv.write_text(text + "\n")
+
+        init_context(project)
+        fabric = parseFabricCSV(str(project / "fabric.csv"))
+
+        source = fabric.tileDic["LUT4AB"].config_mem.source
+        assert source is not None
+        assert source == (project / "Tile/LUT4AB" / expected).absolute()
+
+
+@pytest.mark.parametrize(
+    ("mode", "maps_bits"),
+    [("frame_based", True), ("FlipFlopChain", False)],
+    ids=["frame_based", "flip_flop_chain"],
+)
+def test_only_a_frame_based_fabric_maps_its_configuration_bits(
+    project: Path, mode: str, maps_bits: bool
+) -> None:
+    """A chain fabric's tiles keep an empty memory."""
+    fabric_csv = project / "fabric.csv"
+    fabric_csv.write_text(
+        fabric_csv.read_text().replace(
+            "ConfigBitMode,frame_based,", f"ConfigBitMode,{mode},", 1
+        )
+    )
+
+    init_context(project)
+    fabric = parseFabricCSV(str(fabric_csv))
+
+    assert (fabric.tileDic["LUT4AB"].config_mem.config_bits > 0) is maps_bits
+
+
+def test_a_supertile_declared_in_the_fabric_csv_maps_into_its_own_directory(
+    project: Path,
+) -> None:
+    """A supertile declared in `fabric.csv` expects its mapping beside its children."""
+    init_context(project)
+    fabric_csv = project / "fabric.csv"
+    fabric = parseFabricCSV(str(fabric_csv))
+    fabric_csv.write_text(
+        fabric_csv.read_text()
+        + "\nSuperTILE,DSP_INLINE,\nDSP_top,\nDSP_bot,\nEndSuperTILE,\n"
+    )
+
+    (super_tile,) = parseSupertilesCSV(fabric_csv, fabric.tileDic)
+
+    assert super_tile.config_mem.source.parent == project / "Tile" / "DSP"
+
+
+def test_a_chain_tile_parsed_from_its_directory_ignores_a_stale_mapping(
+    project: Path,
+) -> None:
+    """A chain tile flow ignores a mapping left by a frame-based run."""
+    tile_dir = project / "Tile" / "LUT4AB"
+    (tile_dir / "LUT4AB_ConfigMem.csv").write_text("this is not a mapping\n")
+
+    init_context(project)
+    tile = parse_tile_from_dir(
+        tile_dir,
+        "LUT4AB",
+        False,
+        config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        frame_bits_per_row=32,
+        max_frames_per_col=20,
+    )
+
+    assert tile.config_mem.config_bits == 0

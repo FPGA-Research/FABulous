@@ -23,7 +23,10 @@ from fabulous.fabric_generator.gen_fabric.gen_fabric import (
     generateFabric,
     iter_super_tile_anchors,
 )
-from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
+from fabulous.fabric_generator.gen_fabric.gen_tile import (
+    generateSuperTile,
+    generateTile,
+)
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import create_switchmatrix_list
 
@@ -167,6 +170,27 @@ def test_supertile_vhdl_declares_all_instantiated_components(
         "DSP_bot",
     ):
         assert f"component {entity}" in rtl, f"{entity} component not declared"
+
+
+def test_vhdl_chain_tile_declares_no_config_mem_component(
+    tmp_path: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """A chain tile's VHDL declares no ConfigMem component."""
+    tile = make_empty_tile(
+        "T",
+        [sjump_port("A", IO.OUTPUT)],
+        config_bits=4,
+        tileDir=tmp_path / "T.csv",
+        matrixDir=tmp_path / "T_switch_matrix.list",
+        pinOrderConfig={},
+    )
+    _stub_entity(tmp_path / "T_switch_matrix.vhdl", "T_switch_matrix")
+
+    writer = code_generator_factory(".vhd", "T")
+    generateTile(writer, tile, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+    assert "component T_ConfigMem" not in writer.outFileName.read_text()
 
 
 def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:

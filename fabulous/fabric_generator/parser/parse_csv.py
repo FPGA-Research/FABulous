@@ -16,8 +16,19 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.configmem import ConfigMem, empty_config_mem
 from fabulous.fabric_definition.define import (
+    DEFAULT_CONFIG_BIT_MODE,
+    DEFAULT_DISABLE_USER_CLK,
+    DEFAULT_MULTI_CLK_DOMAINS,
+    DEFAULT_MULTIPLEXER_STYLE,
+    DEFAULT_PACKAGE,
+    DEFAULT_SUPER_TILE_ENABLE,
+    DEFAULT_SWITCH_MATRIX_DELAY,
+    DEFAULT_USER_CLK_SIDE,
+    FRAME_BITS_PER_ROW,
     IO,
+    MAX_FRAMES_PER_COL,
     SWITCH_MATRIX_CONSTANTS,
     ConfigBitMode,
     Direction,
@@ -29,7 +40,7 @@ from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.tile import Tile, tile_directory
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
     generateCustomTileConfig,
@@ -231,6 +242,51 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     return (ports, common_wire_pair)
 
 
+def _read_config_mem(
+    memory: ConfigMem,
+    *,
+    config_bit_mode: ConfigBitMode,
+    frame_bits_per_row: int,
+    max_frames_per_col: int,
+) -> ConfigMem:
+    """Read the mapping at `memory.source`, if the fabric has one.
+
+    A frame-based holder with no file yet gets an empty memory on the fabric's
+    grid, for `gen_config_mem` to fill. A FLIPFLOP_CHAIN holder keeps `memory`
+    unchanged, so a stale file from a frame-based run is not read.
+
+    Parameters
+    ----------
+    memory : ConfigMem
+        The memory naming the file, as the parser built it.
+    config_bit_mode : ConfigBitMode
+        How the fabric holds its configuration.
+    frame_bits_per_row : int
+        The fabric's `FrameBitsPerRow`, the width every frame must have.
+    max_frames_per_col : int
+        The fabric's `MaxFramesPerCol`, the number of frames the grid holds.
+
+    Returns
+    -------
+    ConfigMem
+        The mapping from the file, or an empty one.
+    """
+    if config_bit_mode is not ConfigBitMode.FRAME_BASED:
+        return memory
+    if not memory.source.is_file():
+        return ConfigMem.default(
+            0,
+            frame_bits_per_row=frame_bits_per_row,
+            max_frames_per_col=max_frames_per_col,
+            source=memory.source,
+        )
+    return ConfigMem.from_csv(
+        memory.source,
+        frame_bits_per_row=frame_bits_per_row,
+        max_frames_per_col=max_frames_per_col,
+    )
+
+
 def parseTilesCSV(
     fileName: Path, preserve_list_order: bool = False
 ) -> tuple[list[Tile], list[tuple[str, str]]]:
@@ -294,6 +350,7 @@ def parseTilesCSV(
         ports: list[TilePort] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None
+        config_mem_csv: Path | None = None
         gen_ios: list[Gen_IO] = []
         withUserCLK = False
         genMatrixList = False
@@ -489,6 +546,9 @@ def parseTilesCSV(
                 else:
                     matrixDir = fileName.parent.joinpath(temp[1]).absolute()
 
+            elif temp[0] == "CONFIGMEM":
+                config_mem_csv = fileName.parent.joinpath(temp[1]).absolute()
+
             elif temp[0] == "INCLUDE":
                 p = fileName.parent.joinpath(temp[1])
                 if not p.exists():
@@ -512,7 +572,7 @@ def parseTilesCSV(
                 raise InvalidTileDefinition(
                     f"Unknown tile description {temp[0]} in tile {tileName}. "
                     f"Valid descriptions are {', '.join(d.value for d in Direction)}, "
-                    "BEL, GEN_IO, MATRIX, and INCLUDE."
+                    "BEL, GEN_IO, MATRIX, CONFIGMEM, and INCLUDE."
                 )
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
@@ -528,19 +588,27 @@ def parseTilesCSV(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
 
+        switch_matrix = SwitchMatrix.from_file(
+            matrixDir,
+            tileName,
+            ports=ports,
+            bels=bels,
+            preserve_list_order=preserve_list_order,
+        )
+        if config_mem_csv is None:
+            config_mem_csv = (
+                tile_directory(tileName, fileName, switch_matrix.matrix_file)
+                / f"{tileName}_ConfigMem.csv"
+            )
+
         new_tiles.append(
             Tile(
                 name=tileName,
                 ports=ports,
                 bels=bels,
                 tileDir=fileName,
-                switch_matrix=SwitchMatrix.from_file(
-                    matrixDir,
-                    tileName,
-                    ports=ports,
-                    bels=bels,
-                    preserve_list_order=preserve_list_order,
-                ),
+                switch_matrix=switch_matrix,
+                config_mem=empty_config_mem(config_mem_csv),
                 gen_ios=gen_ios,
                 userCLK=withUserCLK,
             )
@@ -704,12 +772,14 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             tileMap.append(row)
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
-        # tileDir is the supertile CSV file path (matching Tile.tileDir), so
-        # consumers use `tileDir.parent` for the supertile's directory.
+        # tileDir is the supertile CSV file path, matching Tile.tileDir.
         super_tile = SuperTile(
             name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )
         super_tile.master_tile_coords = master_coords
+        super_tile.config_mem = empty_config_mem(
+            super_tile.directory / f"{name}_ConfigMem.csv"
+        )
 
         # The supertile switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
@@ -732,7 +802,13 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
 
 def parse_tile_from_dir(
-    tile_dir: Path, tile_name: str, is_supertile: bool
+    tile_dir: Path,
+    tile_name: str,
+    is_supertile: bool,
+    *,
+    config_bit_mode: ConfigBitMode,
+    frame_bits_per_row: int,
+    max_frames_per_col: int,
 ) -> Tile | SuperTile:
     """Parse a single tile or supertile from its own directory.
 
@@ -750,6 +826,12 @@ def parse_tile_from_dir(
         Name of the tile or supertile to return. Also the CSV file stem.
     is_supertile : bool
         Whether the target is a supertile.
+    config_bit_mode : ConfigBitMode
+        How the fabric holds its configuration.
+    frame_bits_per_row : int
+        The fabric's `FrameBitsPerRow`.
+    max_frames_per_col : int
+        The fabric's `MaxFramesPerCol`.
 
     Raises
     ------
@@ -773,6 +855,12 @@ def parse_tile_from_dir(
         tiles, _ = parseTilesCSV(tile_csv)
         for tile in tiles:
             if tile.name == tile_name:
+                tile.config_mem = _read_config_mem(
+                    tile.config_mem,
+                    config_bit_mode=config_bit_mode,
+                    frame_bits_per_row=frame_bits_per_row,
+                    max_frames_per_col=max_frames_per_col,
+                )
                 return tile
         raise InvalidTileDefinition(f"Tile {tile_name!r} not found in {tile_csv}")
 
@@ -803,11 +891,24 @@ def parse_tile_from_dir(
     for subtile_name in subtile_names:
         subtile_csv = tile_dir / subtile_name / f"{subtile_name}.csv"
         tiles, _ = parseTilesCSV(subtile_csv)
+        for tile in tiles:
+            tile.config_mem = _read_config_mem(
+                tile.config_mem,
+                config_bit_mode=config_bit_mode,
+                frame_bits_per_row=frame_bits_per_row,
+                max_frames_per_col=max_frames_per_col,
+            )
         tile_dic.update({tile.name: tile for tile in tiles})
 
     supertiles = parseSupertilesCSV(tile_csv, tile_dic)
     for supertile in supertiles:
         if supertile.name == tile_name:
+            supertile.config_mem = _read_config_mem(
+                supertile.config_mem,
+                config_bit_mode=config_bit_mode,
+                frame_bits_per_row=frame_bits_per_row,
+                max_frames_per_col=max_frames_per_col,
+            )
             return supertile
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
@@ -914,16 +1015,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
     # parse the parameters
     height = 0
     width = 0
-    configBitMode = ConfigBitMode.FRAME_BASED
-    frameBitsPerRow = 32
-    maxFramesPerCol = 20
-    package = "use work.my_package.all;"
-    generateDelayInSwitchMatrix = 80
-    multiplexerStyle = MultiplexerStyle.CUSTOM
-    superTileEnable = True
-    disableUserCLK = False
-    userCLKSide = Side.SOUTH
-    multiClkDomains = False
+    configBitMode = DEFAULT_CONFIG_BIT_MODE
+    frameBitsPerRow = FRAME_BITS_PER_ROW
+    maxFramesPerCol = MAX_FRAMES_PER_COL
+    package = f"{DEFAULT_PACKAGE};"
+    generateDelayInSwitchMatrix = DEFAULT_SWITCH_MATRIX_DELAY
+    multiplexerStyle = DEFAULT_MULTIPLEXER_STYLE
+    superTileEnable = DEFAULT_SUPER_TILE_ENABLE
+    disableUserCLK = DEFAULT_DISABLE_USER_CLK
+    userCLKSide = DEFAULT_USER_CLK_SIDE
+    multiClkDomains = DEFAULT_MULTI_CLK_DOMAINS
 
     for i in parameters:
         i = i.split(",")
@@ -1035,6 +1136,22 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     height = len(fabricTiles)
     width = len(fabricTiles[0])
+
+    # Read after every parameter row is known. Grid cells are deep copies made
+    # above, so the memory lives on the tile types.
+    holders = (
+        list(tileDic.values())
+        + list(unusedTileDic.values())
+        + list(superTileDic.values())
+        + list(unusedSuperTileDic.values())
+    )
+    for holder in holders:
+        holder.config_mem = _read_config_mem(
+            holder.config_mem,
+            config_bit_mode=configBitMode,
+            frame_bits_per_row=frameBitsPerRow,
+            max_frames_per_col=maxFramesPerCol,
+        )
 
     common_wire_pair = list(dict.fromkeys(common_wire_pair))
     common_wire_pair = [

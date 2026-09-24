@@ -4,4 +4,5 @@ INCLUDE,../../include/Base.csv
 NORTH,NULL,0,-1,bot2top,10,,,,,,,,,,,,,
 SOUTH,top2bot,0,1,NULL,18,,,,,,,,,,,,,
 MATRIX,./DSP_top_switch_matrix.list,,,,,,,,,,,,,,,,,
+CONFIGMEM,./DSP_top_ConfigMem.csv,,,,,,,,,,,,,,,,,
 EndTILE,,,,,,,,,,,,,,,,,,
