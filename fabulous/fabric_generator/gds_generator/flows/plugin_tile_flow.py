@@ -10,12 +10,18 @@ from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
 from librelane.state.state import State
 from librelane.steps.step import Step
+from loguru import logger
 
 from fabulous.custom_exception import (
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
+from fabulous.fabric_definition.define import (
+    ConfigBitMode,
+    MultiplexerStyle,
+    Origin,
+    Side,
+)
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -33,6 +39,9 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
+    FABULOUS_ORIGIN_VAR,
+)
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
@@ -89,6 +98,7 @@ class FABulousTile(SequentialFlow):
             "switch matrix. Must match the parent fabric.",
             default=MultiplexerStyle.CUSTOM,
         ),
+        FABULOUS_ORIGIN_VAR,
     ]
 
     gating_config_vars = FABulousTileVerilogMacroFlow.gating_config_vars
@@ -111,8 +121,17 @@ class FABulousTile(SequentialFlow):
         tile_name = self.config.get("DESIGN_NAME") or tile_dir.name
         is_supertile = bool(self.config.get("FABULOUS_SUPERTILE", False))
 
+        origin = Origin(self.config["FABULOUS_ORIGIN"])
+        if origin is Origin.TOP_LEFT:
+            logger.warning(
+                "Deprecation warning: FABULOUS_ORIGIN is TOP_LEFT. FABulous 3.0 "
+                "places the origin at the bottom left for every fabric and drops "
+                "this option. Set FABULOUS_ORIGIN to BOTTOM_LEFT once the parent "
+                "fabric sets TopLeftOrigin,FALSE."
+            )
+
         try:
-            tile = parse_tile_from_dir(tile_dir, tile_name, is_supertile)
+            tile = parse_tile_from_dir(tile_dir, tile_name, is_supertile, origin=origin)
         except (
             FileNotFoundError,
             InvalidTileDefinition,

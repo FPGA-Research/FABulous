@@ -4,28 +4,47 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
-from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
+from fabulous.custom_exception import (
+    InvalidFabricParameter,
+    InvalidPortType,
+    InvalidSwitchMatrixDefinition,
+)
+from fabulous.fabric_definition.define import IO, Direction, Origin, Side
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parseFabricCSV,
+    parseSupertilesCSV,
+)
 from fabulous.fabulous_settings import init_context
+from tests.conftest import make_empty_tile
 
-# (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
+# (kind, OUTPUT/start side, INPUT/end side, unit x_offset, unit y_offset) with a
+# canonical bottom-left unit offset for the direction (north is +y, east is +x).
 DIRECTIONAL_CASES = [
-    ("NORTH", Side.NORTH, Side.SOUTH),
-    ("SOUTH", Side.SOUTH, Side.NORTH),
-    ("EAST", Side.EAST, Side.WEST),
-    ("WEST", Side.WEST, Side.EAST),
+    ("NORTH", Side.NORTH, Side.SOUTH, 0, 1),
+    ("SOUTH", Side.SOUTH, Side.NORTH, 0, -1),
+    ("EAST", Side.EAST, Side.WEST, 1, 0),
+    ("WEST", Side.WEST, Side.EAST, -1, 0),
+]
+
+# Every case again per origin, with the y offset negated for the top-left one.
+ORIGIN_OFFSET_CASES = [
+    (origin, kind, x_off, y_off * origin.north_step)
+    for origin in Origin
+    for kind, _, _, x_off, y_off in DIRECTIONAL_CASES
 ]
 
 
 class TestDirectionalPorts:
     """NORTH/SOUTH/EAST/WEST lines produce an OUTPUT/INPUT port pair."""
 
-    @pytest.mark.parametrize(("kind", "startSide", "endSide"), DIRECTIONAL_CASES)
+    @pytest.mark.parametrize(
+        ("kind", "startSide", "endSide", "x_off", "y_off"), DIRECTIONAL_CASES
+    )
     def test_two_ports_with_expected_io_and_sides(
-        self, kind: str, startSide: Side, endSide: Side
+        self, kind: str, startSide: Side, endSide: Side, x_off: int, y_off: int
     ) -> None:
-        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,0,-1,N1END,4")
+        ports, commonWirePair = parse_port_line(f"{kind},N1BEG,{x_off},{y_off},N1END,4")
 
         assert len(ports) == 2
         output, input_ = ports
@@ -40,17 +59,49 @@ class TestDirectionalPorts:
 
         assert commonWirePair == ("N1BEG", "N1END")
 
-    @pytest.mark.parametrize("kind", [c[0] for c in DIRECTIONAL_CASES])
-    def test_shared_attributes_carry_through(self, kind: str) -> None:
-        ports, _ = parse_port_line(f"{kind},N2BEG,0,-2,N2END,8")
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
+    def test_shared_attributes_carry_through(
+        self, origin: Origin, kind: str, x_off: int, y_off: int
+    ) -> None:
+        ports, _ = parse_port_line(
+            f"{kind},N2BEG,{x_off * 2},{y_off * 2},N2END,8", origin=origin
+        )
 
         for port in ports:
             assert port.wire_direction is Direction[kind]
             assert port.source_name == "N2BEG"
             assert port.destination_name == "N2END"
-            assert port.x_offset == 0
-            assert port.y_offset == -2
+            assert port.x_offset == x_off * 2
+            assert port.y_offset == y_off * 2
             assert port.wire_count == 8
+
+    @pytest.mark.parametrize(("origin", "kind", "x_off", "y_off"), ORIGIN_OFFSET_CASES)
+    def test_authored_offset_sign_is_ignored(
+        self, origin: Origin, kind: str, x_off: int, y_off: int
+    ) -> None:
+        """The direction token, not the authored sign, fixes the offset.
+
+        A fabric may write either sign for a NORTH or SOUTH wire. The sign is
+        derived from the direction token and the origin, so the authored one is
+        ignored and existing projects stay readable under either convention.
+        """
+        # Feed the sign-flipped offset; expect the canonical one back.
+        ports, _ = parse_port_line(
+            f"{kind},N1BEG,{-x_off},{-y_off},N1END,4", origin=origin
+        )
+
+        for port in ports:
+            assert port.x_offset == x_off
+            assert port.y_offset == y_off
+
+    @pytest.mark.parametrize(
+        "bad_line",
+        ["NORTH,N1BEG,1,1,N1END,4", "EAST,E1BEG,1,1,E1END,4"],
+    )
+    def test_diagonal_cardinal_wire_rejected(self, bad_line: str) -> None:
+        """A cardinal wire with a non-zero orthogonal offset is rejected."""
+        with pytest.raises(InvalidSwitchMatrixDefinition):
+            parse_port_line(bad_line)
 
     def test_null_destination_keeps_name_and_pairs(self) -> None:
         ports, commonWirePair = parse_port_line("SOUTH,S4BEG,0,4,NULL,4")
@@ -168,3 +219,38 @@ class TestUserCLKDirection:
         init_context(project)
         with pytest.raises(InvalidFabricParameter, match="UP"):
             parseFabricCSV(str(self._set_direction(project, "UP")))
+
+
+class TestSupertileMasterRow:
+    """The master names the same child tile under either origin.
+
+    The CSV is authored north-first, so `DSP_bot` is the south row in both
+    cases below. An explicit `MASTER` records a row index against the authored
+    order, which bottom-left origin then reverses; the implicit rule picks the
+    southernmost occupied row, which is the opposite end of `tileMap` under the
+    two origins. Both selections land on the same physical child, and both sit
+    at local (0, 1), so comparing coordinates across origins would not catch a
+    regression here.
+    """
+
+    EXPLICIT_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot,MASTER\nEndSuperTILE\n"
+    IMPLICIT_CSV = "SuperTILE,DSP\nDSP_top\nDSP_bot\nEndSuperTILE\n"
+
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
+    @pytest.mark.parametrize(
+        "csv_body", [EXPLICIT_CSV, IMPLICIT_CSV], ids=["explicit", "implicit"]
+    )
+    def test_master_names_the_south_child(
+        self, origin: Origin, csv_body: str, tmp_path: Path
+    ) -> None:
+        csv_path = tmp_path / "DSP.csv"
+        csv_path.write_text(csv_body)
+        tile_dic = {
+            name: make_empty_tile(name, pinOrderConfig={})
+            for name in ("DSP_top", "DSP_bot")
+        }
+
+        (supertile,) = parseSupertilesCSV(csv_path, tile_dic, origin=origin)
+
+        mx, my = supertile.get_master_tile_coords()
+        assert supertile.tileMap[my][mx].name == "DSP_bot"

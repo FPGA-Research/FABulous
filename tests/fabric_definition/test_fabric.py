@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from fabulous.fabric_definition.define import Origin
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -161,3 +162,57 @@ class TestGetSuperTileContaining:
         fabric = make_fabric()
 
         assert fabric.get_super_tile_containing("ANY") is None
+
+
+@pytest.fixture(params=list(Origin), ids=lambda o: o.value)
+def north_over_south(
+    request: pytest.FixtureRequest, make_fabric: Callable[..., Fabric]
+) -> Fabric:
+    """A one-column fabric with `NORTH_TILE` above `SOUTH_TILE`, stored per origin."""
+    origin: Origin = request.param
+    south = make_empty_tile("SOUTH_TILE", pinOrderConfig={})
+    north = make_empty_tile("NORTH_TILE", pinOrderConfig={})
+    rows = [[south], [north]] if origin is Origin.BOTTOM_LEFT else [[north], [south]]
+    return make_fabric(
+        tile=rows,
+        numberOfRows=2,
+        numberOfColumns=1,
+        origin=origin,
+        tileDic={"SOUTH_TILE": south, "NORTH_TILE": north},
+    )
+
+
+class TestFabricRepr:
+    """`Fabric.__repr__` must print the grid north-first, matching the CSV."""
+
+    def test_grid_prints_north_row_before_south_row(
+        self, north_over_south: Fabric
+    ) -> None:
+        """Whichever row storage puts first, the repr prints north first."""
+        lines = repr(north_over_south).splitlines()
+        grid_lines = [
+            line for line in lines if line.startswith(("NORTH_TILE", "SOUTH_TILE"))
+        ]
+
+        assert len(grid_lines) == 2
+        assert grid_lines[0].startswith("NORTH_TILE")
+        assert grid_lines[1].startswith("SOUTH_TILE")
+
+
+class TestRowTraversalOrder:
+    """External ports vectorise from the physical south row, whatever y it is."""
+
+    def test_south_first_starts_at_the_southern_tile(
+        self, north_over_south: Fabric
+    ) -> None:
+        """The first index names the south tile under either origin.
+
+        Any generator that hardcodes one direction agrees with the other only
+        under the origin it was written for, which silently mirrors the
+        wrapper it has to match.
+        """
+        fabric = north_over_south
+        order = list(fabric.rows_south_first)
+        assert fabric.tile[order[0]][0].name == "SOUTH_TILE"
+        assert fabric.tile[order[-1]][0].name == "NORTH_TILE"
+        assert order == list(reversed(fabric.rows_north_first))

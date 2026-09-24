@@ -90,14 +90,59 @@ class Side(StrEnum):
                 return Side.ANY
 
 
-# Grid offset (dx, dy) of the tile whose UserCLKo feeds a tile's UserCLK, keyed by
-# the side the clock enters. y grows downwards, so SOUTH means "the row below".
+class Origin(StrEnum):
+    """Which corner of the fabric grid holds coordinate (0, 0).
+
+    `BOTTOM_LEFT` is the convention FABulous 3.0 will use exclusively: row 0 is
+    the south row and north is increasing y. `TOP_LEFT` is the pre-3.0
+    convention, kept only so fabrics authored against it keep generating the
+    output they did before, and is removed in 3.0 along with every branch that
+    reads it.
+    """
+
+    TOP_LEFT = "top_left"
+    BOTTOM_LEFT = "bottom_left"
+
+    @property
+    def north_step(self) -> int:
+        """Return the grid y increment that moves one tile north.
+
+        Consumers write `y + north_step` and work under either origin. Removing
+        `TOP_LEFT` in 3.0 reduces this to the constant 1.
+        """
+        return 1 if self is Origin.BOTTOM_LEFT else -1
+
+
+# Offset (dx, dy) of the tile whose UserCLKo feeds a tile's UserCLK, keyed by the
+# side the clock enters. dy counts north steps rather than row indices, so it
+# needs scaling by the grid's `north_step`; `user_clk_predecessor` does that.
 USER_CLK_PREDECESSOR: dict[Side, tuple[int, int]] = {
-    Side.SOUTH: (0, 1),
-    Side.NORTH: (0, -1),
+    Side.SOUTH: (0, -1),
+    Side.NORTH: (0, 1),
     Side.WEST: (-1, 0),
     Side.EAST: (1, 0),
 }
+
+
+def user_clk_predecessor(side: Side, *, north_step: int) -> tuple[int, int]:
+    """Return the grid offset of the tile whose UserCLKo feeds a tile's UserCLK.
+
+    Parameters
+    ----------
+    side : Side
+        The side on which the clock enters each tile.
+    north_step : int
+        The `Origin.north_step` of the grid the offset indexes.
+
+    Returns
+    -------
+    tuple[int, int]
+        `(dx, dy)` to add to a tile's coordinate to reach its predecessor.
+    """
+    # `Side.ANY` is the one value with no ladder direction, and the parser
+    # cannot produce it, so the lookup is left to fail on a programming error.
+    dx, dy = USER_CLK_PREDECESSOR[side]
+    return dx, dy * north_step
 
 
 def grid_at[T](grid: list[list[T | None]], x: int, y: int) -> T | None:

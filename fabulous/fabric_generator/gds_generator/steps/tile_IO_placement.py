@@ -16,6 +16,19 @@ from librelane.steps.step import (
     ViewsUpdate,
 )
 
+from fabulous.fabric_definition.define import Origin
+
+FABULOUS_ORIGIN_VAR = Variable(
+    "FABULOUS_ORIGIN",
+    Origin,
+    "Which corner of the fabric grid is (0, 0), fixing the sign of every "
+    "wire y offset and a supertile's row order. Must match the parent "
+    "fabric's TopLeftOrigin; under a mismatch the hardened macro's pin "
+    "order and port assignment are mirrored against the fabric that "
+    "instantiates it.",
+    default=Origin.TOP_LEFT,
+)
+
 
 def _migrate_unmatched_io(x: object) -> str:
     return "unmatched_design" if x else "none"
@@ -53,6 +66,7 @@ class FABulousTileIOPlacement(OdbpyStep):
                 ("QUIT_ON_UNMATCHED_IO", _migrate_unmatched_io),
             ],
         ),
+        FABULOUS_ORIGIN_VAR,
     ]
 
     def get_script_path(self) -> str:
@@ -95,6 +109,8 @@ class FABulousTileIOPlacement(OdbpyStep):
                 str(self.config["IO_PIN_V_EXTENSION"]),
                 "--unmatched-error",
                 self.config["ERRORS_ON_UNMATCHED_IO"],
+                "--origin",
+                Origin(self.config["FABULOUS_ORIGIN"]).value,
             ]
             + length_args
         )

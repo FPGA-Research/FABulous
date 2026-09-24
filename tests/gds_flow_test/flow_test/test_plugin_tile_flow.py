@@ -16,7 +16,11 @@ import pytest
 from librelane.flows.flow import Flow, FlowException
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.define import (
+    ConfigBitMode,
+    MultiplexerStyle,
+    Origin,
+)
 from fabulous.fabric_generator.gds_generator.flows import plugin_tile_flow
 from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
     FABulousTile,
@@ -245,11 +249,13 @@ class TestFABulousTileRunAdapter:
         (tile_dir.parent / "shared.v").write_text("", encoding="utf-8")
         return {"project": project, "tile_dir": tile_dir}
 
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
     def test_run_populates_config_and_delegates(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
         project_tree: dict[str, Path],
+        origin: Origin,
     ) -> None:
         from decimal import Decimal
 
@@ -296,6 +302,7 @@ class TestFABulousTileRunAdapter:
                 "DESIGN_NAME": "LUT4AB",
                 "FABULOUS_TILE_DIR": [str(tile_dir)],
                 "DESIGN_DIR": str(tile_dir),
+                "FABULOUS_ORIGIN": origin,
             },
             design_dir=str(tile_dir),
             pdk="sky130A",
@@ -317,7 +324,7 @@ class TestFABulousTileRunAdapter:
         assert (state, steps) == (sentinel_state, [])
         # init_context is called in api_mode — no project dir required.
         init_ctx.assert_called_once_with(api_mode=True)
-        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False)
+        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False, origin=origin)
         emit_verilog.assert_called_once()
         # Pin YAML should be generated below run_dir.
         assert gen_pin_yaml.call_count == 1
@@ -351,11 +358,13 @@ class TestFABulousTileRunAdapter:
         with pytest.raises(FlowException, match="is not a directory"):
             flow.run(initial_state=mocker.MagicMock())
 
+    @pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
     def test_run_uses_get_super_tile_when_supertile_flag_set(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
         project_tree: dict[str, Path],
+        origin: Origin,
     ) -> None:
         from decimal import Decimal
 
@@ -404,6 +413,7 @@ class TestFABulousTileRunAdapter:
                 "FABULOUS_TILE_DIR": [str(tile_dir)],
                 "FABULOUS_SUPERTILE": True,
                 "DESIGN_DIR": str(tile_dir),
+                "FABULOUS_ORIGIN": origin,
             },
             design_dir=str(tile_dir),
             pdk="sky130A",
@@ -414,7 +424,7 @@ class TestFABulousTileRunAdapter:
         Path(flow.run_dir).mkdir()
         flow.run(initial_state=mocker.MagicMock())
 
-        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", True)
+        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", True, origin=origin)
         # Supertile logical dimensions must be taken from the tile itself.
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 4
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 2

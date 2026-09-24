@@ -244,6 +244,11 @@ class FabricGeometry:
                         maxSmRelXInColumn,
                     )
 
+        # FABulator draws y downwards, so the north row must land at tileY 0.
+        # Under bottom-left origin the north row is the last one, so measure its
+        # offset from the total height instead of accumulating from row 0.
+        totalHeight = sum(maxHeights)
+        bottom_first = self.fabric.north_step == 1
         for i in range(self.fabric.numberOfRows):
             self.tileLocs.append([])
             for j in range(self.fabric.numberOfColumns):
@@ -252,15 +257,14 @@ class FabricGeometry:
                     self.tileLocs[i].append(None)
                 else:
                     tileX = sum([maxWidths[k] for k in range(j)])
-                    tileY = sum([maxHeights[k] for k in range(i)])
+                    if bottom_first:
+                        tileY = totalHeight - sum([maxHeights[k] for k in range(i + 1)])
+                    else:
+                        tileY = sum([maxHeights[k] for k in range(i)])
                     self.tileLocs[i].append(Location(tileX, tileY))
 
         # this step is for figuring out the fabric dimensions
         # as tile dimensions are fixed by now.
-        # Because of the top left point of the fabric being
-        # the origin (0, 0), the fabrics dimensions can be
-        # figured out by determining the rightmost and
-        # bottommost points of the fabric.
         rightMostX = 0
         bottomMostY = 0
         for i in range(self.fabric.numberOfRows):
@@ -271,11 +275,14 @@ class FabricGeometry:
                 tileRightmostX = tileLoc.x + tileGeom.width
                 rightMostX = max(rightMostX, tileRightmostX)
 
+        # The south row holds the largest tileY (screen bottom), so it is the row
+        # that determines the fabric's bottommost extent.
+        south_row = 0 if bottom_first else self.fabric.numberOfRows - 1
         for j in range(self.fabric.numberOfColumns):
-            tile = self.fabric.tile[-1][j]
+            tile = self.fabric.tile[south_row][j]
             if tile is not None:
                 tileGeom = self.tileGeomMap[tile.name]
-                tileLoc = self.tileLocs[-1][j]
+                tileLoc = self.tileLocs[south_row][j]
                 tileBottommostY = tileLoc.y + tileGeom.height
                 bottomMostY = max(bottomMostY, tileBottommostY)
 

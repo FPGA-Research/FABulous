@@ -177,7 +177,7 @@ It is planned to remove these limitations in future versions of FABulous.
 
   - `UserCLKDirection`, `[S2N|N2S|W2E|E2W]` (default `S2N`)
 
-    Direction in which `UserCLK` is chained through the fabric. Every tile has a `UserCLK` input and a buffered `UserCLKo` output; each tile takes its clock from the `UserCLKo` of its neighbour on the entry side (`S2N`: the tile below, `W2E`: the tile to the left, and so on) and tiles with no such neighbour take the fabric-level `UserCLK` directly. The GDS pin placement follows the same sides.
+    Direction in which `UserCLK` is chained through the fabric. Every tile has a `UserCLK` input and a buffered `UserCLKo` output; each tile takes its clock from the `UserCLKo` of its neighbour on the entry side (`S2N`: the tile to its south, `W2E`: the tile to its west, and so on) and tiles with no such neighbour take the fabric-level `UserCLK` directly. The side is a compass direction, so the ladder runs the same way across the fabric whichever origin `TopLeftOrigin` selects; only the `y` index it resolves to changes. The GDS pin placement follows the same sides.
 
     :::{warning}
     Changing the clock direction changes the clock tree topology in the fabric
@@ -190,6 +190,19 @@ It is planned to remove these limitations in future versions of FABulous.
     When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the rightmost listed input becomes `A0`, the next-rightmost `A1`, and so on (MSB-first, matching Verilog/VHDL `downto`). The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
 
     This is useful when a specific input must occupy a known mux position.
+
+  - `TopLeftOrigin`, `[TRUE|FALSE]` (default `TRUE`, deprecated)
+
+    Do not set this in a new fabric. It restores the pre-3.0 convention of
+    putting `X0Y0` at the top-left tile with `y` counting downwards. It exists
+    only so fabrics authored before the origin moved keep generating the output
+    they did before, and it is removed in 3.0 along with every code path that
+    reads it. Reading `TRUE` logs a deprecation warning.
+
+    Absent means `TRUE`, so an untouched pre-3.0 fabric keeps its old
+    coordinates. Every fabric written from now on sets `FALSE`, which is what
+    the project template ships. To migrate an existing fabric, set `FALSE` and
+    check the generated `X<x>Y<y>` names; nothing else about the fabric changes.
 
   - `Tile`, `path`
 
@@ -234,17 +247,24 @@ FabricEnd
 - The fabric layout is encapsulated between the keywords `FabricBegin` and `FabricEnd`.
 
   The specified tiles are references to tile descriptors (see {ref}`tiles`).
-  The tiles form a coordinate system with the origin in the top-left:
+  Rows are written north first. The origin is the bottom-left tile and `y`
+  counts upwards, so the last row written is `y = 0`:
 
   ```{eval-rst}
   +-------+-------+-------+------+
-  | X0Y0  | X1Y0  | X2Y0  | ...  |
+  | X0Y2  | X1Y2  | X2Y2  | ...  |
   +-------+-------+-------+------+
   | X0Y1  | X1Y1  | X2Y1  | ...  |
   +-------+-------+-------+------+
-  | ...   | ...   | ...   | ...  |
+  | X0Y0  | X1Y0  | X2Y0  | ...  |
   +-------+-------+-------+------+
   ```
+
+  A fabric that does not set `TopLeftOrigin`, `FALSE` is read under the
+  deprecated pre-3.0 convention instead, where `X0Y0` is the top-left tile and
+  `y` counts downwards. That inverts every `y` in the generated names and
+  nothing else, and it is going away in 3.0, so write new fabrics against the
+  grid above and see the `TopLeftOrigin` entry to migrate an old one.
 
   `NULL` tiles are used for padding and no code will be generated for these. `NULL` tiles can be used to build non-rectangular shaped fabrics.
 
@@ -432,7 +452,7 @@ specifying:
   Therefore, in each wire specification, either `X-offset` is `0` or `Y-offset` is `X-offset` or both are `0` (in the case of a JUMP wire).
 
   :::{note}
-  The `direction` field and the sign of the `X-offset` and `Y-offset` values are redundant. FABulous uses internally the absolute `X-offset` and `Y-offset` values and only the `direction` field for specifying the direction of a wire. However, FABulous will throw a warning if there is a mismatch with the sign.
+  The `direction` field and the sign of the `X-offset` and `Y-offset` values are redundant. FABulous takes only the reach from the offsets and derives the sign from the `direction` field, so a mismatched sign is normalised rather than reported. A fabric carried over from the deprecated top-left origin therefore reads correctly without editing its wire offsets. A non-zero offset on the axis orthogonal to the direction is a diagonal wire and is rejected.
   :::
 
 - `wires`, `unsigned_int`
@@ -1337,15 +1357,20 @@ EndTILE
 A supertile has two independent reference tiles, and they are easy to confuse:
 
 - The **anchor tile** ({ref}`above <supertiles>`) is the first non-NULL tile in a
-  row-by-row scan (the top-left tile). It fixes where the supertile is _placed_ in the
-  fabric and is purely structural.
+  row-by-row scan of the stored grid, so the bottom-left tile under the
+  bottom-left origin and the top-left tile under the deprecated top-left origin.
+  It fixes where the supertile is _placed_ in the fabric and is purely
+  structural.
 - The **master tile** is where a supertile BEL and its configuration bits _live_. By
-  default it is the **last** non-NULL tile in row-major order; an explicit `MASTER` token
-  in the supertile CSV overrides this.
+  default it is the **easternmost tile of the southernmost occupied row**; an explicit
+  `MASTER` token in the supertile CSV overrides this.
 
-These are usually **different** tiles. In the DSP example the anchor is `DSP_top` (top)
-while the master is `DSP_bot` (bottom), so the BEL, its ConfigMem, and the supertile
-switch matrix all live in `DSP_bot` even though the wrapper is placed at `DSP_top`.
+The anchor is defined by index order and the master by compass direction, so the
+origin moves one and not the other. In the DSP example the master is `DSP_bot`,
+so the BEL, its ConfigMem, and the supertile switch matrix all live there, and
+under the bottom-left origin the anchor is `DSP_bot` as well. A fabric still on
+the deprecated top-left origin stores the pair the other way up, which makes
+`DSP_top` the anchor while the master stays `DSP_bot`.
 ```
 
 A BEL declared on the supertile (such as the `MULADD` block above) lives in the supertile's **master tile**,

@@ -11,7 +11,9 @@ from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
     ConfigBitMode,
+    Origin,
     Side,
+    user_clk_predecessor,
 )
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
@@ -194,16 +196,19 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     assert anchors == [(0, 0, supertile)]
 
 
+@pytest.mark.parametrize("origin", list(Origin), ids=lambda o: o.value)
 @pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
 def test_user_clk_chains_from_side(
     side: Side,
+    origin: Origin,
     mk_tile: Callable[[str], Tile],
     code_generator_factory: Callable[[str, str], CodeGenerator],
 ) -> None:
     """`Fabric.userCLKSide` selects the neighbour that feeds each tile's UserCLK.
 
     On a 3x3 grid the centre tile chains from its `side` neighbour and the
-    tile on the far edge in that direction takes the global clock.
+    tile on the far edge in that direction takes the global clock. The side is
+    a compass direction, so the row index it resolves to flips with the origin.
     """
     tile = mk_tile("T")
     fabric = Fabric(
@@ -212,12 +217,13 @@ def test_user_clk_chains_from_side(
         numberOfRows=3,
         numberOfColumns=3,
         userCLKSide=side,
+        origin=origin,
     )
     writer = code_generator_factory(".v", "eFPGA")
     generateFabric(writer, fabric)
     rtl = writer.outFileName.read_text()
 
-    dx, dy = USER_CLK_PREDECESSOR[side]
+    dx, dy = user_clk_predecessor(side, north_step=fabric.north_step)
     centre = rtl[rtl.index("Tile_X1Y1_T") :]
     assert f".UserCLK(Tile_X{1 + dx}Y{1 + dy}_UserCLKo)" in centre
     # The tile at the entry edge has no predecessor -> global UserCLK.

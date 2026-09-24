@@ -19,6 +19,7 @@ FabricEnd,,,,,,,,,,,,,,,,,,
 
 ,,,,,,,,,,,,,,,,,,
 ParametersBegin,,,,,,,,,,,,,,,,,,
+TopLeftOrigin,FALSE,# (x0 y0) is the bottom-left tile; TRUE is deprecated and removed in 3.0,,,,,,,,,,,,,,,,
 ConfigBitMode,frame_based,# default is frame_based,,frame_based,,,,,,,,,,,,,,
 #FrameBitsPerRow,32,"# we configure an entire configuration frame over the full height of the device (like Virtex-II) and we write FrameBitsPerRow bits per, well, tile=CLB height",,,,,,,,,,,,,,,,
 #MaxFramesPerCol,20,,,,,,,,,,,,,,,,,
