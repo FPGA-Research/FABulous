@@ -4,13 +4,18 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
+from fabulous.custom_exception import (
+    InvalidFabricParameter,
+    InvalidPortType,
+    InvalidTileDefinition,
+)
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_generator.parser.parse_csv import (
     parse_port_line,
     parse_tile_from_dir,
     parseFabricCSV,
     parseSupertilesCSV,
+    set_config_mem_entry,
 )
 from fabulous.fabulous_settings import init_context
 
@@ -271,3 +276,77 @@ def test_a_chain_tile_parsed_from_its_directory_ignores_a_stale_mapping(
     )
 
     assert tile.config_mem.config_bits == 0
+
+
+@pytest.mark.parametrize(
+    "keep_row",
+    [True, False],
+    ids=["entry_rewritten", "entry_added_after_matrix"],
+)
+def test_set_config_mem_entry_points_a_tile_at_another_mapping(
+    project: Path, keep_row: bool
+) -> None:
+    """A tile that relied on the default name gains the entry it lacked."""
+    tile_csv = project / "Tile/LUT4AB/LUT4AB.csv"
+    if not keep_row:
+        tile_csv.write_text(
+            "\n".join(
+                line
+                for line in tile_csv.read_text().splitlines()
+                if not line.startswith("CONFIGMEM,")
+            )
+            + "\n"
+        )
+
+    set_config_mem_entry(
+        tile_csv, "LUT4AB", tile_csv.parent / "LUT4AB_ConfigMem_opt.csv"
+    )
+
+    rows = [
+        line
+        for line in tile_csv.read_text().splitlines()
+        if line.startswith("CONFIGMEM")
+    ]
+    assert rows == ["CONFIGMEM,./LUT4AB_ConfigMem_opt.csv"]
+
+    init_context(project)
+    fabric = parseFabricCSV(str(project / "fabric.csv"))
+    assert (
+        fabric.tileDic["LUT4AB"].config_mem.source
+        == (tile_csv.parent / "LUT4AB_ConfigMem_opt.csv").absolute()
+    )
+
+
+def test_set_config_mem_entry_rejects_a_tile_the_csv_does_not_define(
+    project: Path,
+) -> None:
+    tile_csv = project / "Tile/LUT4AB/LUT4AB.csv"
+    with pytest.raises(InvalidTileDefinition, match="defines no tile Nope"):
+        set_config_mem_entry(tile_csv, "Nope", tile_csv.parent / "X.csv")
+
+
+def test_set_config_mem_entry_touches_only_its_own_block(tmp_path: Path) -> None:
+    """The legacy layout defines every tile in one fabric.csv."""
+    fabric_csv = tmp_path / "fabric.csv"
+    fabric_csv.write_text(
+        "TILE,A\n"
+        "MATRIX,./A_switch_matrix.csv\n"
+        "CONFIGMEM,./A_ConfigMem.csv\n"
+        "EndTILE\n"
+        "TILE,B\n"
+        "MATRIX,./B_switch_matrix.csv\n"
+        "EndTILE\n"
+    )
+
+    set_config_mem_entry(fabric_csv, "B", tmp_path / "B_ConfigMem_opt.csv")
+
+    assert fabric_csv.read_text() == (
+        "TILE,A\n"
+        "MATRIX,./A_switch_matrix.csv\n"
+        "CONFIGMEM,./A_ConfigMem.csv\n"
+        "EndTILE\n"
+        "TILE,B\n"
+        "MATRIX,./B_switch_matrix.csv\n"
+        "CONFIGMEM,./B_ConfigMem_opt.csv\n"
+        "EndTILE\n"
+    )
