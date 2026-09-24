@@ -75,7 +75,6 @@ repos:
             -Wno-MULTITOP,
             -Wno-MODDUP,
           ]
-        exclude: ^fabulous/fabric_files/FABulous_project_template_common/Tile/include/.*_latchmap\.v$
 
   # Verilog / SystemVerilog linting — upstream svlint static binary.
   # scripts/svlint_wrapper.py downloads and caches the pinned release on first

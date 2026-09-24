@@ -16,10 +16,9 @@ from cocotb.types import Logic, LogicArray
 from dotenv import unset_key
 from loguru import logger
 
-import fabulous.fabric_files as _fab_template_pkg
 import fabulous.fabulous_settings
 from fabulous.fabric_definition.define import HDLType
-from tests.conftest import make_default_project, run_cmd
+from tests.conftest import FABRIC_ROOT, make_default_project, run_cmd
 
 if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -572,16 +571,8 @@ def compile_user_design(
 # PDK sim-cell libs are resolved from FAB_PDK + (FAB_PDK_ROOT or ciel default).
 # Override with `--gl-sim-libs=<glob>` (repeatable).
 
-_VERILOG_TEMPLATE_TEST_DIR = (
-    Path(_fab_template_pkg.__file__).resolve().parent
-    / "FABulous_project_template_verilog"
-    / "Test"
-)
-_COMMON_TEMPLATE_TEST_DIR = (
-    Path(_fab_template_pkg.__file__).resolve().parent
-    / "FABulous_project_template_common"
-    / "Test"
-)
+_VERILOG_TEMPLATE_TEST_DIR = FABRIC_ROOT / "verilog" / "Test"
+_COMMON_TEMPLATE_TEST_DIR = FABRIC_ROOT / "common" / "Test"
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
@@ -664,9 +655,9 @@ def hardened_project_copy(
     ``macro/final_views`` netlists, since ``run_simulation --gl`` resolves
     the gate-level sources from the copy (see ``collect_gl_sources``).
 
-    The Test/ Taskfile is taken from the **current** FABulous template rather
-    than what shipped with the artifact, because the compile_design contract
-    evolves with the Python code.
+    The Test/ Taskfile is taken from the **installed** default fabric in
+    `fabulous_fabrics` rather than what shipped with the artifact, because the
+    compile_design contract evolves with the Python code.
     """
     dest = tmp_path / "fabric_project"
     shutil.copytree(

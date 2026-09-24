@@ -9,6 +9,7 @@ from typing import Protocol
 import pytest
 from _pytest.logging import LogCaptureFixture
 from cocotb_tools.runner import get_runner
+from fabulous_fabrics import fabrics
 from loguru import logger
 
 import fabulous.fabulous
@@ -23,19 +24,9 @@ from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
-VERILOG_SOURCE_PATH = (
-    Path(__file__).parent.parent
-    / "fabulous"
-    / "fabric_files"
-    / "FABulous_project_template_verilog"
-)
-
-VHDL_SOURCE_PATH = (
-    Path(__file__).parent.parent
-    / "fabulous"
-    / "fabric_files"
-    / "FABulous_project_template_vhdl"
-)
+FABRIC_ROOT = fabrics["fabulous"].root
+VERILOG_SOURCE_PATH = FABRIC_ROOT / "verilog"
+VHDL_SOURCE_PATH = FABRIC_ROOT / "vhdl"
 
 SIM_FOR_SUFFIX: dict[str, str] = {
     ".v": "verilator",

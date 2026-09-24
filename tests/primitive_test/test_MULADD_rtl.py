@@ -8,8 +8,9 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
+from fabulous_tiles import Language, primitives
 
-from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
+from tests.conftest import CocotbRunner
 
 
 class MULADDProtocol(Protocol):
@@ -36,7 +37,7 @@ class MULADDProtocol(Protocol):
 def test_MULADD_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
     """Test the MULADD module with Verilog source."""
     cocotb_runner(
-        sources=[VERILOG_SOURCE_PATH / "Tile" / "DSP" / "DSP_bot" / "MULADD.v"],
+        sources=[primitives["MULADD"].hdl[Language.VERILOG]],
         hdl_top_level="MULADD",
         test_module_path=Path(__file__),
     )
@@ -44,7 +45,7 @@ def test_MULADD_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
 
 def test_MULADD_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     cocotb_runner(
-        sources=[VHDL_SOURCE_PATH / "Tile" / "DSP" / "DSP_bot" / "MULADD.vhdl"],
+        sources=[primitives["MULADD"].hdl[Language.VHDL]],
         hdl_top_level="MULADD",
         test_module_path=Path(__file__),
     )

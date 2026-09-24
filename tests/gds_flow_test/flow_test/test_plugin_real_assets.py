@@ -32,6 +32,7 @@ from fabulous.fabric_generator.gds_generator.flows.plugin_fabric_flow import (
     FABulousFabric,
 )
 from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import FABulousTile
+from tests.conftest import FABRIC_ROOT
 
 ASSET_ROOT: Path = Path(__file__).resolve().parents[2] / "assets" / "librelane_plugin"
 TILE_NAME = "LUT4x8_ha"
@@ -40,9 +41,16 @@ FABRIC_NAME = "synthetic_lut4x8_ha_10x10"
 
 @pytest.fixture
 def assets(tmp_path: Path) -> Path:
-    """Copy the vendored plugin asset tree into an isolated workspace."""
+    """Copy the vendored plugin asset tree into an isolated workspace.
+
+    `models_pack.v` comes from the installed default fabric, at the path the tile
+    config names.
+    """
     dst: Path = tmp_path / "librelane_plugin"
     shutil.copytree(ASSET_ROOT, dst)
+    shutil.copyfile(
+        FABRIC_ROOT / "verilog" / "Fabric" / "models_pack.v", dst / "models_pack.v"
+    )
     return dst
 
 

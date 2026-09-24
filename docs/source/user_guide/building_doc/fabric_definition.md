@@ -324,6 +324,22 @@ EndTILE
 The path of the `INCLUDE` will be relative to where the base file is. For example if the base file is located
 at `foo/bar/LUT4AB.csv` then the `INCLUDE` path will point to `foo/bar/../Base.csv`.
 
+(tile-deprecated-marker)=
+
+### Deprecated marker
+
+The header row of a `TILE` or `SuperTILE` definition accepts an optional third
+column. The only accepted value is `DEPRECATED`; any other non-empty value is
+rejected with an error. The marker flags the tile or supertile as kept only for
+backward compatibility, and FABulous logs a warning each time it loads the
+definition:
+
+```text
+TILE, LUT4AB, DEPRECATED
+```
+
+A BEL is marked the same way through the [`DEPRECATED` module attribute](#bel-deprecated-attribute).
+
 (wires)=
 
 ### Wires
@@ -945,6 +961,33 @@ UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT
 
 New BEL files should use native VHDL attribute assignments instead.
 :::
+
+(bel-deprecated-attribute)=
+
+#### DEPRECATED attribute
+
+The `DEPRECATED` module attribute flags a BEL as kept only for backward
+compatibility. FABulous detects the attribute by its presence and ignores its
+value. It is not a BelMap feature and takes no configuration bit. The BEL still
+parses, and FABulous logs a warning each time it loads the BEL.
+
+In Verilog, the attribute goes in the module attribute list:
+
+```verilog
+(* FABulous, DEPRECATED, BelMap, INIT=0 *)
+module MyBel (...);
+```
+
+In VHDL, it is an entity-level attribute, declared in the attribute package
+like the other FABulous attributes:
+
+```VHDL
+attribute DEPRECATED : string;
+attribute DEPRECATED of MyBel : entity is "TRUE";
+```
+
+Tiles and supertiles use the [`DEPRECATED` header marker](#tile-deprecated-marker)
+instead.
 
 (belmap-primitives)=
 

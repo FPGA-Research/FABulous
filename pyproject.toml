@@ -43,6 +43,8 @@ dependencies = [
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
   "jinja2>=3.1.6",
+  "fabulous-tiles",
+  "fabulous-fabrics",
 ]
 
 [project.urls]
@@ -176,6 +178,10 @@ FABulous-bit-gen = "FABulous_bit_gen"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
+# The fabulous-tiles entry must match the source fabulous-fabrics declares, since uv
+# reads a git dependency's own sources.
+fabulous-tiles = { git = "https://github.com/FPGA-Research/fabulous-tiles.git", rev = "3fa549b74bd2fb83ac9186460c455877a7f8aa68" }
+fabulous-fabrics = { git = "https://github.com/FPGA-Research/fabulous-fabrics.git", rev = "f4521f763ece0e4b4af1822d6461c5bbcf2520e9" }
 
 [tool.uv.extra-build-dependencies]
 sdf-timing = ["vcs-versioning"]

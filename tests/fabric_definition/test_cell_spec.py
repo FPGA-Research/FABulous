@@ -19,6 +19,7 @@ from fabulous.fabric_definition.cell_spec import (
     StdCellLibrary,
     StdCellLibraryFile,
 )
+from tests.conftest import FABRIC_ROOT
 
 
 def _write_std_cell_library(project_dir: Path, body: str) -> None:
@@ -29,13 +30,8 @@ def _write_std_cell_library(project_dir: Path, body: str) -> None:
 
 
 def _template_fabric_dir() -> Path:
-    """Return the shipped project-template ``Fabric`` directory."""
-    return (
-        Path(fabulous.__file__).parent
-        / "fabric_files"
-        / "FABulous_project_template_common"
-        / "Fabric"
-    )
+    """Return the default fabric's shared `Fabric` directory."""
+    return FABRIC_ROOT / "common" / "Fabric"
 
 
 def _repo_schema_path() -> Path:

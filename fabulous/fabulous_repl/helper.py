@@ -15,20 +15,24 @@ import sys
 import tarfile
 from collections.abc import Callable
 from concurrent import futures
-from importlib import resources
 from importlib.metadata import version
-from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import requests
 from dotenv import get_key, set_key
+from fabulous_fabrics import fabrics
 from loguru import logger
 from packaging.version import Version
 from pick import pick
 
 from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_repl.project_assets import (
+    DEFAULT_FABRIC,
+    copy_fabric,
+    copy_tile_library,
+)
 from fabulous.fabulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
@@ -119,82 +123,38 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
 
 
 def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
-    """Create a FABulous project containing all required files.
+    """Create a FABulous project from the default fabric and its tile library.
 
     **This function will overwrite existing files in the target directory.**
 
-    Copies the common files and the appropriate project template.
-    Replaces the `{HDL_SUFFIX}` placeholder in all tile csv files with the appropriate
-    file extension.
-    Creates a `.FABulous` directory in the project. Also creates a `.env` file in the
-    project directory with the project settings.
-
-    File structure as follows:
-        FABulous_project_template --> project_dir/
-        fabic_cad/synth --> project_dir/Test/synth
+    The fabric `fabulous` registered by `fabulous_fabrics` supplies everything
+    outside `Tile/`, and the tile library its `fabric.yaml` names supplies `Tile/`. The
+    `{HDL_SUFFIX}` placeholder in every project CSV is then replaced with the
+    language's file extension, and `.FABulous/.env` records the project settings.
 
     Parameters
     ----------
     project_dir : Path
         Directory where the project will be created.
-    lang : HDLType, optional
-        The language of project to create ("verilog" or "vhdl"), by default "verilog".
+    lang : HDLType
+        The language of project to create. Defaults to `HDLType.VERILOG`.
 
     Raises
     ------
-    FileNotFoundError
-        If the template files cannot be found in the package resources.
     ValueError
         If an unsupported language is specified.
     """
     project_dir = project_dir.resolve()
     logger.info(f"Creating project at {project_dir}")
 
-    if lang not in ["verilog", "vhdl"]:
+    if lang not in [HDLType.VERILOG, HDLType.VHDL]:
         raise ValueError(f"Unsupported language: {lang!s}")
 
-    # Copy the project template using importlib.resources
-    try:
-        common_template_ref = (
-            resources.files("fabulous.fabric_files")
-            / "FABulous_project_template_common"
-        )
-        lang_template_ref = (
-            resources.files("fabulous.fabric_files")
-            / f"FABulous_project_template_{lang!s}"
-        )
-
-        # Check if templates exist
-        if not common_template_ref.is_dir():
-            raise FileNotFoundError("Common template not found in package resources")
-        if not lang_template_ref.is_dir():
-            raise FileNotFoundError(
-                f"Language template ({lang!s}) not found in package resources"
-            )
-
-    except (ImportError, AttributeError) as e:
-        raise FileNotFoundError(
-            f"Unable to access fabric templates from package: {e}"
-        ) from e
-
-    project_dir.mkdir(parents=True, exist_ok=True)
     (project_dir / ".FABulous").mkdir(parents=True, exist_ok=True)
+    fabric = fabrics[DEFAULT_FABRIC]
+    copy_fabric(project_dir, fabric, lang)
+    copy_tile_library(project_dir, fabric.tile_library, lang)
 
-    def _copy_template_safely(template_ref: Traversable, target_dir: Path) -> None:
-        """Copy a packaged template into `target_dir` with writable permissions."""
-        with resources.as_file(template_ref) as template_src:
-            shutil.copytree(template_src, target_dir, dirs_exist_ok=True)
-        target_dir.chmod(0o755)
-        for path in target_dir.rglob("*"):
-            path.chmod(0o755 if path.is_dir() else 0o644)
-
-    # Copy common template first
-    _copy_template_safely(common_template_ref, project_dir)
-
-    # Copy language-specific template (may overwrite some common files)
-    _copy_template_safely(lang_template_ref, project_dir)
-
-    # Replace {HDL_SUFFIX} placeholder in all tile csv files
     new_suffix = "v" if lang == HDLType.VERILOG else HDLType.VHDL
     for file_path in project_dir.rglob("*.csv"):
         content = file_path.read_text()

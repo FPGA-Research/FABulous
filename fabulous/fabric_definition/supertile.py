@@ -44,6 +44,9 @@ class SuperTile:
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
+    deprecated : bool
+        Whether the supertile CSV header marks the supertile `DEPRECATED`, kept
+        only for backward compatibility. Default is False.
     """
 
     name: str
@@ -54,6 +57,7 @@ class SuperTile:
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+    deprecated: bool = False
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.

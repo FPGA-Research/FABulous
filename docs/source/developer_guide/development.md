@@ -117,7 +117,6 @@ That last point bites the `task` targets, which hardcode `uv run`. Inside the de
 | --- | --- |
 | `task test -- <args>` | `python scripts/run_tests.py <args>` |
 | `task ci` | `pre-commit run --all-files`, then `task docs-build` |
-| `task sync-demo` | `python scripts/sync_demo_tile_gds_config.py` |
 | `task smoke-test` | `FABULOUS=FABulous task smoke-test` |
 
 `task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` build the docs in a separate uv environment under `docs/`, driven by `docs/Makefile` rather than by the root `.venv/`.
@@ -201,7 +200,6 @@ task smoke-test     # Full end-to-end check: create demo, generate fabric, run s
 task docs-build     # Build the documentation
 task docs-server    # Serve docs with live-reload
 task clean-all      # Remove build artefacts and caches
-task sync-demo      # Synchronise demo tile GDS configuration
 task upgrade        # Upgrade lockfiles, update Nix flake, run tests
 ```
 

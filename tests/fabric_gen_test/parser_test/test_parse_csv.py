@@ -4,10 +4,21 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
+from fabulous.custom_exception import (
+    InvalidFabricParameter,
+    InvalidPortType,
+    InvalidSupertileDefinition,
+    InvalidTileDefinition,
+)
 from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parseFabricCSV,
+    parseSupertilesCSV,
+    parseTilesCSV,
+)
 from fabulous.fabulous_settings import init_context
+from tests.conftest import make_empty_tile
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
 DIRECTIONAL_CASES = [
@@ -168,3 +179,58 @@ class TestUserCLKDirection:
         init_context(project)
         with pytest.raises(InvalidFabricParameter, match="UP"):
             parseFabricCSV(str(self._set_direction(project, "UP")))
+
+
+class TestDeprecatedHeader:
+    """Column 3 of a `TILE`/`SuperTILE` header is empty or `DEPRECATED`."""
+
+    @staticmethod
+    def _tile_csv(project: Path, header: str) -> Path:
+        csv = project / "Tile" / "N_term_single" / "N_term_single.csv"
+        _, body = csv.read_text().split("\n", 1)
+        csv.write_text(f"{header}\n{body}")
+        return csv
+
+    @staticmethod
+    def _supertile_csv(tmp_path: Path, header: str) -> Path:
+        csv = tmp_path / "ST.csv"
+        csv.write_text(f"{header}\nT0\nT1\nEndSuperTILE\n")
+        return csv
+
+    @pytest.mark.parametrize(
+        ("header", "deprecated"),
+        [
+            ("TILE,N_term_single,DEPRECATED,,", True),
+            ("TILE,N_term_single,,,", False),
+            ("TILE,N_term_single", False),
+        ],
+    )
+    def test_tile_marker_sets_flag(
+        self, project: Path, header: str, deprecated: bool
+    ) -> None:
+        init_context(project)
+        tiles, _ = parseTilesCSV(self._tile_csv(project, header))
+        assert [tile.deprecated for tile in tiles] == [deprecated]
+
+    @pytest.mark.parametrize(
+        ("header", "deprecated"),
+        [("SuperTILE,ST,DEPRECATED,,", True), ("SuperTILE,ST,,,", False)],
+    )
+    def test_supertile_marker_sets_flag(
+        self, tmp_path: Path, header: str, deprecated: bool
+    ) -> None:
+        tiles = {name: make_empty_tile(name) for name in ("T0", "T1")}
+        (supertile,) = parseSupertilesCSV(self._supertile_csv(tmp_path, header), tiles)
+        assert supertile.deprecated is deprecated
+
+    def test_unknown_tile_marker_raises(self, project: Path) -> None:
+        init_context(project)
+        csv = self._tile_csv(project, "TILE,N_term_single,OBSOLETE,,")
+        with pytest.raises(InvalidTileDefinition, match="OBSOLETE"):
+            parseTilesCSV(csv)
+
+    def test_unknown_supertile_marker_raises(self, tmp_path: Path) -> None:
+        tiles = {name: make_empty_tile(name) for name in ("T0", "T1")}
+        csv = self._supertile_csv(tmp_path, "SuperTILE,ST,OBSOLETE,,")
+        with pytest.raises(InvalidSupertileDefinition, match="OBSOLETE"):
+            parseSupertilesCSV(csv, tiles)

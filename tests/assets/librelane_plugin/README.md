@@ -14,7 +14,6 @@ the relative paths inside the vendored CSV/YAML files (`../common/`,
 ```
 tests/assets/librelane_plugin/
 ├── README.md                     # this file
-├── models_pack.v                 # symlink into the FABulous project template
 ├── primitives/                   # BEL libraries
 │   └── FABULOUS_LC/fabulous/FABULOUS_LC.v
 ├── tiles/classic/                # tile library
@@ -39,9 +38,10 @@ tests/assets/librelane_plugin/
 | `tiles/`, `primitives/` | https://github.com/FPGA-Research/fabulous-tiles | `964c1ab38a4e0a85c190999fbba7dc2fa7aa667c` |
 | `fabrics/synthetic_lut4x8_ha_10x10/` (synthetic, derived from upstream layout) | https://github.com/FPGA-Research/fabulous-fabrics | `bb5d98490fbc99f1f0662f072d3819b7a9b2d663` |
 
-`models_pack.v` is a symlink into the FABulous project template
-(`fabulous/fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v`),
-not a vendored copy, so it always tracks the in-repo primitive models.
+`models_pack.v` is not in this tree. The `assets` fixture in
+`test_plugin_real_assets.py` copies it from the installed `fabulous_fabrics` default
+fabric (`fabrics/fabulous/verilog/Fabric/models_pack.v`) to the tree root, where
+`../../../models_pack.v` in the tile config resolves.
 
 The fabric is **synthetic** rather than vendored verbatim: the upstream
 `classic_fabric_10x10` references 16 distinct tile types, but the nightly

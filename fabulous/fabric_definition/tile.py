@@ -42,6 +42,8 @@ class Tile:
     pinOrderConfig : dict[Side, PinOrderConfig] | None, optional
         Configuration for pin ordering on each side of the tile. If None, defaults to
         BUS_MAJOR sorting on all sides.
+    deprecated : bool
+        Whether the tile CSV header marks the tile `DEPRECATED`. Defaults to False.
 
     Attributes
     ----------
@@ -65,6 +67,9 @@ class Tile:
         Whether the tile is part of a super tile. Default is False.
     pinOrderConfig : dict, optional
         Configuration for pin ordering on each side of the tile.
+    deprecated : bool
+        Whether the tile is marked `DEPRECATED` and kept only for backward
+        compatibility. Default is False.
     """
 
     name: str
@@ -77,6 +82,7 @@ class Tile:
     tileDir: Path = Path()
     partOfSuperTile: bool = False
     pinOrderConfig: dict = field(default_factory=dict)
+    deprecated: bool = False
 
     def __init__(
         self,
@@ -88,6 +94,7 @@ class Tile:
         gen_ios: list[Gen_IO],
         userCLK: bool,
         pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
+        deprecated: bool = False,
     ) -> None:
         self.name = name
         self.portsInfo = ports
@@ -97,6 +104,7 @@ class Tile:
         self.withUserCLK = userCLK
         self.wireList = []
         self.tileDir = tileDir
+        self.deprecated = deprecated
 
         if pinOrderConfig is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (

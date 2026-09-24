@@ -56,11 +56,6 @@ tasks:
       - find . -name '*.pyc' -delete
       - rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/
 
-  sync-demo:
-    desc: Synchronize demo tile GDS configuration
-    cmds:
-      - uv run scripts/sync_demo_tile_gds_config.py
-
   # Usage examples:
   #   task test -- -h
   #   task test -- -p 8

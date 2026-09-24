@@ -285,7 +285,20 @@ def parseTilesCSV(
     # Parse each tile config
     for t in tilesData:
         t = t.split("\n")
-        tileName = t[0].split(",")[1].strip()
+        header = t[0].split(",")
+        tileName = header[1].strip()
+        # Generated tile CSVs write a bare `TILE,<name>` header without column 3.
+        match header[2].strip() if len(header) > 2 else "":
+            case "":
+                deprecated = False
+            case "DEPRECATED":
+                deprecated = True
+                logger.warning(f"Tile {tileName} in {fileName} is marked DEPRECATED.")
+            case marker:
+                raise InvalidTileDefinition(
+                    f"Unknown marker {marker!r} in the header of tile {tileName} in "
+                    f"{fileName}. Only DEPRECATED is accepted in column 3."
+                )
         if filePathParent.name != tileName:
             logger.warning(
                 f"Tile name '{tileName}' does not match folder name "
@@ -543,6 +556,7 @@ def parseTilesCSV(
                 ),
                 gen_ios=gen_ios,
                 userCLK=withUserCLK,
+                deprecated=deprecated,
             )
         )
 
@@ -641,7 +655,19 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
     # Parse each supertile config
     for t in superTilesData:
         description = t.split("\n")
-        name = description[0].split(",")[1]
+        header = description[0].split(",")
+        name = header[1]
+        match header[2].strip() if len(header) > 2 else "":
+            case "":
+                deprecated = False
+            case "DEPRECATED":
+                deprecated = True
+                logger.warning(f"Supertile {name} in {fileName} is marked DEPRECATED.")
+            case marker:
+                raise InvalidSupertileDefinition(
+                    f"Unknown marker {marker!r} in the header of supertile {name} in "
+                    f"{fileName}. Only DEPRECATED is accepted in column 3."
+                )
         tileMap = []
         tiles = []
         bels = []
@@ -707,7 +733,13 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
         # consumers use `tileDir.parent` for the supertile's directory.
         super_tile = SuperTile(
-            name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
+            name,
+            fileName.absolute(),
+            tiles,
+            tileMap,
+            bels,
+            withUserCLK,
+            deprecated=deprecated,
         )
         super_tile.master_tile_coords = master_coords
 

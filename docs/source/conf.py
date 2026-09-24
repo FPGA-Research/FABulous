@@ -241,7 +241,7 @@ autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True
 autoapi_template_dir = "_templates/autoapi"
 autoapi_ignore = [
-    "**/fabric_files/**",  # Exclude fabric_files directory (template files, not code)
+    "**/fabric_files/**",  # Holds only the dummy tile data files, no API to document
 ]
 autoapi_add_toctree_entry = (
     True  # Auto-insert AutoAPI index into our main toctree to reduce toc.not_included

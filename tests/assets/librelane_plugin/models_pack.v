@@ -1,1 +1,0 @@
-../../../fabulous/fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v

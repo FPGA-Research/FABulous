@@ -67,6 +67,32 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("lang", [HDLType.VERILOG, HDLType.VHDL])
+def test_create_project_matches_template_layout(tmp_path: Path, lang: HDLType) -> None:
+    """The project file layout matches the template that shipped at e9e85cc71."""
+    expected = (
+        (Path(__file__).parent / f"expected_project_files_{lang}.txt")
+        .read_text()
+        .splitlines()
+    )
+    project_dir = tmp_path / "proj"
+    create_project(project_dir, lang=lang)
+    created = sorted(
+        str(p.relative_to(project_dir))
+        for p in project_dir.rglob("*")
+        if p.is_file() and ".FABulous" not in p.parts
+    )
+    assert created == expected
+
+
+def test_create_project_overwrites_existing(tmp_path: Path) -> None:
+    """A second create_project over the same directory succeeds."""
+    project_dir = tmp_path / "proj"
+    create_project(project_dir)
+    create_project(project_dir)
+    assert (project_dir / "Tile/LUT4AB/LUT4AB.csv").is_file()
+
+
 def test_update_project_version_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

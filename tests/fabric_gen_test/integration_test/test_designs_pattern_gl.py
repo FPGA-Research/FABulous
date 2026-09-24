@@ -20,24 +20,17 @@ iverilog plus the PDK cell models (see the GL fixtures in this directory's
 # cspell:words netlist iverilog pnr hdl
 
 import shutil
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-import fabulous.fabric_files as _fab_template_pkg
-from tests.conftest import run_cmd
+from tests.conftest import FABRIC_ROOT, run_cmd
 
 if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 _DEMO_NAME = "sequential_16bit_en"
-_DEMO_DESIGN = (
-    Path(_fab_template_pkg.__file__).resolve().parent
-    / "FABulous_project_template_verilog"
-    / "user_design"
-    / f"{_DEMO_NAME}.v"
-)
+_DEMO_DESIGN = FABRIC_ROOT / "verilog" / "user_design" / f"{_DEMO_NAME}.v"
 
 
 @pytest.mark.gl

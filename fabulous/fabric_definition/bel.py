@@ -54,6 +54,8 @@ class Bel:
         Carry chains by name.
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
+    deprecated : bool
+        Whether the BEL carries the `DEPRECATED` attribute. Defaults to False.
 
     Attributes
     ----------
@@ -99,6 +101,9 @@ class Bel:
         {RESET/ENABLE,(portname, IO)}
         Local shared ports of the BEL.
         Are only shared in the Tile, not in the fabric.
+    deprecated : bool
+        Whether the BEL is marked `DEPRECATED` and kept only for backward
+        compatibility. Default is False.
 
     Raises
     ------
@@ -124,6 +129,7 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
     carry: dict[str, dict[IO, str]] = field(default_factory=dict)
     localShared: dict[str, tuple[str, IO]] = field(default_factory=dict)
+    deprecated: bool = False
 
     def __init__(
         self,
@@ -140,6 +146,7 @@ class Bel:
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
+        deprecated: bool = False,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -165,3 +172,4 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.deprecated = deprecated

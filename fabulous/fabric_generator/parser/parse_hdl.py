@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+from loguru import logger
+
 from fabulous.custom_exception import (
     FabricParsingError,
     InvalidBelDefinition,
@@ -47,6 +49,7 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     exclude_attributes = {
         "BelMap",
         "FABulous",
+        FABulousAttribute.DEPRECATED,
         "dynports",
         "cells_not_processed",
         "src",
@@ -116,6 +119,7 @@ def parseBelFile(
     * **CONFIG_PORT**
     * **SHARED_ENABLE**
     * **SHARED_RESET**
+    * **DEPRECATED**
 
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
@@ -149,6 +153,9 @@ def parseBelFile(
     attribute.
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
+
+    **DEPRECATED** is a module attribute marking the BEL as kept only for backward
+    compatibility. The BEL still parses, but a warning is logged.
 
     Example
     -------
@@ -319,6 +326,13 @@ def parseBelFile(
             "config bits"
         )
 
+    deprecated = any(
+        key.casefold() == FABulousAttribute.DEPRECATED.casefold()
+        for key in module_info.attributes
+    )
+    if deprecated:
+        logger.warning(f"BEL {filename} is marked DEPRECATED.")
+
     return Bel(
         src=filename,
         prefix=belPrefix,
@@ -333,4 +347,5 @@ def parseBelFile(
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,
+        deprecated=deprecated,
     )
