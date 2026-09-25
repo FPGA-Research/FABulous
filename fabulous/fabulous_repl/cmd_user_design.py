@@ -19,8 +19,8 @@ from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
-from fabulous import fabric_files
 from fabulous.custom_exception import CommandError, InvalidFileType
+from fabulous.fabric_files import PACKAGED_YOSYS_LIB
 from fabulous.fabulous_repl.command_set_base import CMD_USER_DESIGN_FLOW, ReplCommandSet
 from fabulous.fabulous_repl.helper import make_hex, run_task
 from fabulous.fabulous_settings import get_context
@@ -48,11 +48,6 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
             f"{tool_name} not found at '{tool_path}'. "
             "Ensure it is installed and on PATH."
         )
-
-
-_PACKAGED_YOSYS_LIB = (
-    Path(fabric_files.__file__).parent / "FABulous_project_template_common" / "yosys"
-)
 
 
 def pre_rework_synth_compat_args(
@@ -113,11 +108,10 @@ def pre_rework_synth_compat_args(
     logger.warning(
         f"{taskfile} predates the Yosys synth_fabulous rework and passes no "
         "library options. Injecting the library packaged with FABulous. Support for "
-        "such projects ends in FABulous 3.0; recreate the project, or copy "
-        f"{_PACKAGED_YOSYS_LIB} into the project and update Test/Taskfile.yml "
-        "and Test/Makefile from a new project."
+        "such projects ends in FABulous 3.0; run `FABulous update-project-version` "
+        "to upgrade the project."
     )
-    lib = _PACKAGED_YOSYS_LIB
+    lib = PACKAGED_YOSYS_LIB
     lib_args = [
         f"-extra-plib {lib / 'primitives' / 'prims.v'}",
         f"-cells-map {lib / 'techmap' / 'cells_map.v'}",
