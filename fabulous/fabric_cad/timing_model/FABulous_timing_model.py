@@ -12,11 +12,20 @@ approaches.
 import re
 from pathlib import Path
 
+import networkx as nx
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.models import (
+    BelClockTiming,
+    BelClockToOutTiming,
+    BelDelayTiming,
+    BelSetupHoldTiming,
+    BelTiming,
+    BelTimingArc,
     InternalPipCacheEntry,
+    SDFPathTiming,
+    SDFPathType,
     TimingModelConfig,
     TimingModelMode,
     TimingModelStaTools,
@@ -25,6 +34,8 @@ from fabulous.fabric_cad.timing_model.models import (
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
 from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
 from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 
@@ -1030,8 +1041,380 @@ class FABulousTileTimingModel:
         d_scale: float = self.tm_config.delay_scaling_factor
 
         def _round(x: float) -> float:
+            """Apply configured scaling and nextpnr output precision.
+
+            Parameters
+            ----------
+            x : float
+                Unscaled delay in nanoseconds.
+
+            Returns
+            -------
+            float
+                Scaled delay rounded to three decimal places.
+            """
             return round(x * d_scale, 3)
 
         if self.is_tile_internal_pip(pip_src, pip_dst):
             return _round(self.internal_pip_delay(pip_src, pip_dst))
         return _round(self.external_pip_delay(pip_src, pip_dst))
+
+    def bel_timing(self, bel: Bel) -> BelTiming:
+        """Return characterized timing arcs for one BEL.
+
+        Locate the BEL instance and resolve its ports to leaf standard-cell pins in
+        the netlist. For every logical input-to-output pair, retain the first
+        combinational and first sequential structural path and translate their complete
+        SDF timing into nextpnr BEL timing arcs.
+
+        Parameters
+        ----------
+        bel : Bel
+            Fabric definition for the BEL being characterized.
+
+        Returns
+        -------
+        BelTiming
+            Characterized nextpnr timing arcs for the BEL.
+
+        Raises
+        ------
+        RuntimeError
+            If the timing model has not been initialized.
+        """
+        synth_model: HdlnxTimingModel | None = self.hdlnx_tm_synth
+        if synth_model is None:
+            raise RuntimeError("Timing model is not initialized.")
+
+        # Find the hierarchical instance path for the BEL in the netlist.
+        bel_instance_suffix: str = re.escape(f"{bel.prefix}{bel.name}")
+        bel_instance_paths: list[str] = synth_model.find_instance_paths_by_regex(
+            rf"{bel_instance_suffix}$"
+        )
+        if len(bel_instance_paths) > 1:
+            logger.warning(
+                f"Found multiple hierarchical instance paths for BEL "
+                f"{bel.prefix}{bel.name} in tile {self.tile_name!r}: "
+                f"{bel_instance_paths}. Using the first match."
+            )
+
+        # Use the first matching hierarchical instance path for the BEL.
+        bel_instance_path: str = bel_instance_paths[0]
+
+        # Map flattened nextpnr pin and configuration-feature names back to the
+        # original Verilog module pins.
+        bel_module_internal_input_pins: dict[str, str] = {}
+        bel_module_internal_output_pins: dict[str, str] = {}
+        bel_module_clock_pin: str | None = (
+            "UserCLK"
+            if bel.withUserCLK and "UserCLK" in bel.ports_vectors.get("shared", {})
+            else None
+        )
+        bel_module_configs: dict[str, str] = {
+            feature: f"ConfigBits[{index}]"
+            for index, feature in enumerate(bel.belFeatureMap)
+        }
+
+        # Map flattened nextpnr pin and configuration-feature names back to the
+        # original Verilog module pins.
+        for module_pin, (direction, width) in bel.ports_vectors["internal"].items():
+            internal_pin_mapping: dict[str, str]
+            if direction == IO.INPUT:
+                internal_pin_mapping = bel_module_internal_input_pins
+            elif direction == IO.OUTPUT:
+                internal_pin_mapping = bel_module_internal_output_pins
+            else:
+                continue
+
+            if width == 1:
+                internal_pin_mapping[module_pin] = module_pin
+                continue
+
+            for index in range(width):
+                internal_pin_mapping[f"{module_pin}{index}"] = f"{module_pin}[{index}]"
+
+        # Preserve the nextpnr pin or feature name while resolving each Verilog
+        # module port to every connected leaf standard-cell pin.
+        bel_resolved_internal_input_pins: dict[str, list[str]] = {
+            pin: synth_model.resolve_hier_pin(f"{bel_instance_path}/{module_pin}")
+            for pin, module_pin in bel_module_internal_input_pins.items()
+        }
+        bel_resolved_internal_output_pins: dict[str, list[str]] = {
+            pin: synth_model.resolve_hier_pin(f"{bel_instance_path}/{module_pin}")
+            for pin, module_pin in bel_module_internal_output_pins.items()
+        }
+        bel_resolved_clock_pins: set[str] = (
+            set(
+                synth_model.resolve_hier_pin(
+                    f"{bel_instance_path}/{bel_module_clock_pin}"
+                )
+            )
+            if bel_module_clock_pin is not None
+            else set()
+        )
+        bel_resolved_configs: dict[str, list[str]] = {
+            feature: synth_model.resolve_hier_pin(f"{bel_instance_path}/{module_pin}")
+            for feature, module_pin in bel_module_configs.items()
+        }
+
+        # Evaluation of the BEL timing arcs is based on the presence of flip-flop
+        # features and clocking. The following variables are used to manage the
+        # timing conditions and arcs:
+
+        # Determine if the BEL is a flip-flop based on its features.
+        # Define also the nextpnr clock name and legacy support for fabulous lc.
+        ff_feature_keys: set[str] = {"FF"}
+        clock_name: str = "CLK"
+        is_fabulous_lc: bool = bel.name in (
+            "LUT4c_frame_config",
+            "LUT4c_frame_config_dffesr",
+        )
+
+        # Just the FF features.
+        ff_features: list[str] = sorted(ff_feature_keys.intersection(bel.belFeatureMap))
+        ff_enabled_condition: str | None = (
+            "&".join(f"{feature}=1" for feature in ff_features) if ff_features else None
+        )
+        ff_disabled_condition: str | None = (
+            "&".join(f"{feature}=0" for feature in ff_features) if ff_features else None
+        )
+
+        clock_arcs: list[BelClockTiming] = []
+        delay_arcs: list[BelDelayTiming] = []
+        setup_hold_arcs: list[BelSetupHoldTiming] = []
+        clock_to_output_arcs: list[BelClockToOutTiming] = []
+        emitted_clocks: set[tuple[str, str | None]] = set()
+        emitted_setup_holds: set[tuple[str, str]] = set()
+        emitted_clock_to_outputs: set[tuple[str, str]] = set()
+
+        # What bel is even in the netlist?
+        bel_identifier: str = f"{bel.prefix}{bel.name}"
+        timing_pair_count: int = len(bel_resolved_internal_input_pins) * len(
+            bel_resolved_internal_output_pins
+        )
+        timing_pair_index: int = 0
+        logger.info(
+            f"Timing extraction for tile: {self.tile_name}, BEL: {bel_identifier} "
+            f"({timing_pair_count} input/output pairs)"
+        )
+
+        # Iterate over all combinations of resolved input and output pins for the BEL.
+        # For each input-output pair, query the timing paths from the timing model.
+        # Retain the first combinational and first sequential path found.
+        for input_pin, source_pins in bel_resolved_internal_input_pins.items():
+            for output_pin, sink_pins in bel_resolved_internal_output_pins.items():
+                timing_pair_index += 1
+                combinational_path: SDFPathTiming | None = None
+                sequential_path: SDFPathTiming | None = None
+                sequential_source_pin: str | None = None
+                sequential_sink_pin: str | None = None
+                combinational_delay: float | None = None
+                clock_to_output_delay: float | None = None
+                setup: float | None = None
+                hold: float | None = None
+                for source_pin in source_pins:
+                    for sink_pin in sink_pins:
+                        try:
+                            timing_paths: list[SDFPathTiming] = (
+                                synth_model.query_timing_paths(source_pin, sink_pin)
+                            )
+                        except nx.NetworkXNoPath:
+                            continue
+
+                        for timing_path in timing_paths:
+                            if (
+                                timing_path.path_type == SDFPathType.COMBINATIONAL
+                                and combinational_path is None
+                            ):
+                                combinational_path = timing_path
+                            elif (
+                                timing_path.path_type == SDFPathType.SEQUENTIAL
+                                and sequential_path is None
+                            ):
+                                sequential_path = timing_path
+                                sequential_source_pin = source_pin
+                                sequential_sink_pin = sink_pin
+
+                            if (
+                                combinational_path is not None
+                                and sequential_path is not None
+                            ):
+                                break
+
+                        if (
+                            combinational_path is not None
+                            and sequential_path is not None
+                        ):
+                            break
+                    if combinational_path is not None and sequential_path is not None:
+                        break
+
+                if (
+                    sequential_path is not None
+                    and sequential_path.register_clock_pin in bel_resolved_clock_pins
+                    and sequential_source_pin is not None
+                    and sequential_sink_pin is not None
+                ):
+                    clocked_timing_paths: list[SDFPathTiming] = (
+                        synth_model.query_timing_paths(
+                            sequential_source_pin,
+                            sequential_sink_pin,
+                            clock_pin=sequential_path.register_clock_pin,
+                        )
+                    )
+                    sequential_path = next(
+                        (
+                            timing_path
+                            for timing_path in clocked_timing_paths
+                            if timing_path.path_type == SDFPathType.SEQUENTIAL
+                            and timing_path.nodes == sequential_path.nodes
+                        ),
+                        sequential_path,
+                    )
+
+                if combinational_path is not None:
+                    combinational_max_delays: list[float] = [
+                        delay
+                        for delay in (
+                            combinational_path.rise.maximum,
+                            combinational_path.fall.maximum,
+                        )
+                        if delay is not None
+                    ]
+                    if combinational_max_delays:
+                        combinational_delay = round(max(combinational_max_delays), 3)
+                        delay_arcs.append(
+                            BelDelayTiming(
+                                source=input_pin,
+                                sink=output_pin,
+                                delay=combinational_delay,
+                                condition=ff_disabled_condition,
+                            )
+                        )
+
+                if sequential_path is not None:
+                    clock_key: tuple[str, str | None] = (
+                        clock_name,
+                        ff_enabled_condition,
+                    )
+                    if clock_key not in emitted_clocks:
+                        clock_arcs.append(
+                            BelClockTiming(
+                                clock=clock_name,
+                                condition=ff_enabled_condition,
+                            )
+                        )
+                        emitted_clocks.add(clock_key)
+
+                    if (
+                        sequential_path.effective_setup
+                        and sequential_path.effective_hold
+                    ):
+                        setup = sequential_path.effective_setup[0].maximum
+                        hold = sequential_path.effective_hold[0].maximum
+                        if setup is not None:
+                            setup = round(setup, 3)
+                        if hold is not None:
+                            hold = round(hold, 3)
+                        setup_hold_key: tuple[str, str] = (
+                            input_pin,
+                            clock_name,
+                        )
+                        if (
+                            setup is not None
+                            and hold is not None
+                            and setup_hold_key not in emitted_setup_holds
+                        ):
+                            setup_hold_arcs.append(
+                                BelSetupHoldTiming(
+                                    port=input_pin,
+                                    clock=clock_name,
+                                    setup=setup,
+                                    hold=hold,
+                                    condition=ff_enabled_condition,
+                                )
+                            )
+                            emitted_setup_holds.add(setup_hold_key)
+
+                    sequential_max_delays: list[float] = [
+                        delay
+                        for delay in (
+                            (
+                                sequential_path.clock_to_output_rise.maximum
+                                if sequential_path.clock_to_output_rise is not None
+                                else None
+                            ),
+                            (
+                                sequential_path.clock_to_output_fall.maximum
+                                if sequential_path.clock_to_output_fall is not None
+                                else None
+                            ),
+                        )
+                        if delay is not None
+                    ]
+
+                    # Only relevant for fabulous LC, where the output pin is "O"
+                    # but the clock-to-output timing arc is reported for "Q".
+                    clock_to_output_port: str = (
+                        "Q" if is_fabulous_lc and output_pin == "O" else output_pin
+                    )
+                    clock_to_output_key: tuple[str, str] = (
+                        clock_to_output_port,
+                        clock_name,
+                    )
+
+                    if sequential_max_delays:
+                        clock_to_output_delay = round(max(sequential_max_delays), 3)
+                    if (
+                        clock_to_output_delay is not None
+                        and clock_to_output_key not in emitted_clock_to_outputs
+                    ):
+                        clock_to_output_arcs.append(
+                            BelClockToOutTiming(
+                                port=clock_to_output_port,
+                                clock=clock_name,
+                                delay=clock_to_output_delay,
+                                condition=ff_enabled_condition,
+                            )
+                        )
+                        emitted_clock_to_outputs.add(clock_to_output_key)
+
+                combinational_delay_text: str = (
+                    f"{combinational_delay} ns"
+                    if combinational_delay is not None
+                    else "no path"
+                )
+                clock_to_output_delay_text: str = (
+                    f"{clock_to_output_delay} ns"
+                    if clock_to_output_delay is not None
+                    else "no path"
+                )
+                setup_text: str = f"{setup} ns" if setup is not None else "none"
+                hold_text: str = f"{hold} ns" if hold is not None else "none"
+                logger.info(
+                    f"BEL timing | progress={timing_pair_index}/{timing_pair_count} | "
+                    f"type={bel.module_name} | input={input_pin} | "
+                    f"output={output_pin} | "
+                    f"combinational={combinational_delay_text} | "
+                    f"clock-to-output={clock_to_output_delay_text} | "
+                    f"setup={setup_text} | hold={hold_text}"
+                )
+
+        logger.debug(
+            "Resolved standard-cell configuration pins for BEL {}: {}",
+            bel.module_name,
+            bel_resolved_configs,
+        )
+
+        timing_arcs: list[BelTimingArc] = [
+            *clock_arcs,
+            *delay_arcs,
+            *setup_hold_arcs,
+            *clock_to_output_arcs,
+        ]
+        logger.info(
+            f"Completed timing extraction for tile: {self.tile_name}, "
+            f"BEL: {bel_identifier} ({len(timing_arcs)} timing arcs)"
+        )
+
+        return BelTiming(arcs=tuple(timing_arcs))

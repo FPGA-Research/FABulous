@@ -369,3 +369,45 @@ def test_gen_timing_digraph_uses_header_separator_for_node_names(
     assert result.hier_sep == "|"
     assert result.nx_graph.has_edge("U1|A", "U1|Y")
     assert result.nx_graph.has_edge("U1|Y", "U2|A")
+
+
+def test_gen_timing_digraph_preserves_escaped_sdf_instance_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Preserve the escaped identifier spelling emitted in SDF graph nodes.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary directory used for the synthetic SDF input.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest fixture used to supply parsed SDF data.
+    """
+    sdf_file: Path = tmp_path / "graph_escaped_instance.sdf"
+    sdf_file.write_text("dummy sdf content")
+    instance_name: str = r"registered_leaf/Q\$_DFF_P_"
+    data: dict[str, object] = {
+        "header": {"divider": "/"},
+        "cells": {
+            "DFF": {
+                instance_name: {
+                    "IOPATH CLK Q": make_component_data(
+                        ctype="iopath",
+                        from_pin="CLK",
+                        to_pin="Q",
+                        delay_paths={"nominal": {"min": 1.0, "max": 2.0}},
+                    )
+                }
+            }
+        },
+    }
+
+    monkeypatch.setattr(tg.sdfparse, "parse", lambda _text: data)
+
+    result: tg.SDFGobject = tg.gen_timing_digraph(sdf_file, DelayType.MAX_ALL)
+
+    assert result.nx_graph.has_edge(
+        f"{instance_name}/CLK",
+        f"{instance_name}/Q",
+    )

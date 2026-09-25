@@ -16,6 +16,14 @@ from fabulous.custom_exception import InvalidState
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
 )
+from fabulous.fabric_cad.timing_model.models import (
+    BelClockTiming,
+    BelClockToOutTiming,
+    BelDelayTiming,
+    BelSetupHoldTiming,
+    BelTiming,
+    TimingModelTarget,
+)
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 
@@ -115,15 +123,54 @@ IO_BEL_TYPES = (
 )
 
 
+def _bel_timing_lines(timing: BelTiming) -> list[str]:
+    """Serialize characterized BEL timing arcs into `bel.v3` lines.
+
+    Parameters
+    ----------
+    timing : BelTiming
+        Timing arcs returned by the timing-model interface.
+
+    Returns
+    -------
+    list[str]
+        Serialized nextpnr timing-arc lines.
+
+    Raises
+    ------
+    TypeError
+        If `timing` contains an unsupported arc object.
+    """
+    lines = []
+    for arc in timing.arcs:
+        condition = f",{arc.condition}" if arc.condition is not None else ""
+        if isinstance(arc, BelClockTiming):
+            lines.append(f"Clock,{arc.clock}{condition}")
+        elif isinstance(arc, BelDelayTiming):
+            lines.append(f"Delay,{arc.source},{arc.sink},{arc.delay}{condition}")
+        elif isinstance(arc, BelSetupHoldTiming):
+            lines.append(
+                f"SetupHold,{arc.port},{arc.clock},{arc.setup},{arc.hold}{condition}"
+            )
+        elif isinstance(arc, BelClockToOutTiming):
+            lines.append(f"ClkToOut,{arc.port},{arc.clock},{arc.delay}{condition}")
+        else:
+            raise TypeError(f"Unsupported BEL timing arc: {arc!r}")
+    return lines
+
+
 def belLines(
-    bel: Bel, letter: str, x: int, y: int
+    bel: Bel,
+    letter: str,
+    x: int,
+    y: int,
+    bel_timing: BelTiming | None = None,
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Build a BEL's legacy v1 line, its v2/v3 blocks, and any pin constraint.
 
-    The bel.v3 block additionally carries timing-arc lines, but only for the
-    BEL types nextpnr currently times (``FABULOUS_LC``, ``InPass4_frame_config``,
-    ``OutPass4_frame_config`` and their ``_mux`` variants); every other type
-    gets no arcs so no new timing paths are introduced.
+    When no characterized timing is supplied, the `bel.v3` block retains the
+    original hardcoded arcs for the BEL types nextpnr currently times. Supplied
+    timing-model results are serialized for any BEL type, including custom BELs.
 
     Parameters
     ----------
@@ -135,6 +182,9 @@ def belLines(
         Tile X coordinate the BEL belongs to.
     y : int
         Tile Y coordinate the BEL belongs to.
+    bel_timing : BelTiming | None
+        Characterized timing to write in `bel.v3`. When omitted, retain the original
+        hardcoded BEL timing behavior.
 
     Returns
     -------
@@ -152,6 +202,18 @@ def belLines(
     outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
 
     def block(timing: bool) -> list[str]:
+        """Build one block with optional timing information.
+
+        Parameters
+        ----------
+        timing : bool
+            Whether to include timing arcs in the block.
+
+        Returns
+        -------
+        list[str]
+            Serialized BEL block lines.
+        """
         lines = [f"BelBegin,X{x}Y{y},{letter},{cType},{bel.prefix}"]
         for inp, stripped in zip(bel.inputs, inputs, strict=True):
             lines.append(f"I,{stripped},X{x}Y{y}.{inp}")
@@ -159,7 +221,9 @@ def belLines(
             lines.append(f"O,{stripped},X{x}Y{y}.{outp}")
         for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
             lines.append(f"CFG,{feat}")
-        if timing and cType == "FABULOUS_LC":
+        if timing and bel_timing is not None:
+            lines.extend(_bel_timing_lines(bel_timing))
+        elif timing and cType == "FABULOUS_LC":
             lutInputs = [p for p in inputs if p.startswith("I") and p[1:].isdigit()]
             lines.append("Clock,CLK,FF=1")
             # Combinational (LUT) mode: active when the FF is disabled.
@@ -204,7 +268,10 @@ def belLines(
 
 
 def genNextpnrModel(
-    fabric: Fabric, delay_model: FABulousTimingModelInterface = None
+    fabric: Fabric,
+    delay_model: FABulousTimingModelInterface | None = None,
+    *,
+    target: TimingModelTarget = TimingModelTarget.BOTH,
 ) -> tuple[str, str, str, str, str]:
     """Generate the fabric's nextpnr model.
 
@@ -212,8 +279,10 @@ def genNextpnrModel(
     ----------
     fabric : Fabric
         Fabric object containing tile information.
-    delay_model : FABulousTimingModelInterface, optional
+    delay_model : FABulousTimingModelInterface | None
         Timing model interface to provide delay information, by default None.
+    target : TimingModelTarget
+        Expensive timing calculations to perform when `delay_model` is supplied.
 
     Returns
     -------
@@ -229,6 +298,7 @@ def genNextpnrModel(
     InvalidState
         If a wire in a tile points to an invalid tile outside the fabric bounds.
     """
+    target = TimingModelTarget(target)
     pipStr = []
     belStr = []
     belv2Str = []
@@ -255,7 +325,10 @@ def genNextpnrModel(
             for source, sinkList in tile.switch_matrix.connections.items():
                 for sink in sinkList:
                     delay: float = DUMMY_PIP_DELAY
-                    if delay_model is not None:
+                    if delay_model is not None and target in (
+                        TimingModelTarget.PIPS,
+                        TimingModelTarget.BOTH,
+                    ):
                         delay = delay_model.pip_delay(tile.name, sink, source)
                     pipStr.append(
                         f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
@@ -275,7 +348,10 @@ def genNextpnrModel(
                     )
 
                 delay: float = DUMMY_PIP_DELAY
-                if delay_model is not None:
+                if delay_model is not None and target in (
+                    TimingModelTarget.PIPS,
+                    TimingModelTarget.BOTH,
+                ):
                     delay = delay_model.pip_delay(
                         tile.name,
                         wire.source,
@@ -294,8 +370,14 @@ def genNextpnrModel(
             belv3Str.append(f"#Tile_X{x}Y{y}")
             for i, bel in enumerate(tile.bels):
                 letter = string.ascii_uppercase[i]
+                timing = None
+                if delay_model is not None and target in (
+                    TimingModelTarget.BELS,
+                    TimingModelTarget.BOTH,
+                ):
+                    timing = delay_model.bel_timing(tile.name, bel)
                 v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                    bel, letter, x, y
+                    bel, letter, x, y, timing
                 )
                 belStr.append(v1_line)
                 belv2Str.extend(v2_lines)
@@ -319,8 +401,14 @@ def genNextpnrModel(
         belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         for i, bel in enumerate(super_tile.bels):
             letter = string.ascii_uppercase[bel_offset + i]
+            timing = None
+            if delay_model is not None and target in (
+                TimingModelTarget.BELS,
+                TimingModelTarget.BOTH,
+            ):
+                timing = delay_model.bel_timing(fabric.tile[fty][ftx].name, bel)
             v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                bel, letter, ftx, fty
+                bel, letter, ftx, fty, timing
             )
             belStr.append(v1_line)
             belv2Str.extend(v2_lines)
@@ -331,7 +419,10 @@ def genNextpnrModel(
             for sink, sources in super_tile.switch_matrix.connections.items():
                 for src in sources:
                     delay: float = DUMMY_PIP_DELAY
-                    if delay_model is not None:
+                    if delay_model is not None and target in (
+                        TimingModelTarget.PIPS,
+                        TimingModelTarget.BOTH,
+                    ):
                         delay = delay_model.pip_delay(super_tile.name, sink, src)
                     pipStr.append(
                         f"X{ftx}Y{fty},{src},X{ftx}Y{fty},{sink},{delay},{src}.{sink}"
@@ -362,5 +453,36 @@ def writeNextpnrPipFile(
     delay_model : FABulousTimingModelInterface, optional
         Timing model interface to provide delay information, by default None.
     """
-    pip_str, *_ = genNextpnrModel(fabric, delay_model)
+    pip_str, *_ = genNextpnrModel(fabric, delay_model, target=TimingModelTarget.PIPS)
     outputFile.write_text(pip_str, encoding="utf-8")
+
+
+def write_nextpnr_timing_files(
+    fabric: Fabric,
+    pip_output_file: Path,
+    bel_output_file: Path,
+    delay_model: FABulousTimingModelInterface,
+    target: TimingModelTarget = TimingModelTarget.BOTH,
+) -> None:
+    """Generate and write the selected nextpnr timing files.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        Fabric whose timing data is generated.
+    pip_output_file : Path
+        Destination for characterized routing delays.
+    bel_output_file : Path
+        Destination for characterized BEL timing blocks.
+    delay_model : FABulousTimingModelInterface
+        Timing-model interface used for the selected calculations.
+    target : TimingModelTarget
+        Select whether pip timing, BEL timing, or both are generated.
+    """
+    target = TimingModelTarget(target)
+    pip_str, _, _, bel_v3_str, _ = genNextpnrModel(fabric, delay_model, target=target)
+
+    if target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
+        pip_output_file.write_text(pip_str, encoding="utf-8")
+    if target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
+        bel_output_file.write_text(bel_v3_str, encoding="utf-8")

@@ -23,6 +23,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelMode,
     TimingModelStaTools,
     TimingModelSynthTools,
+    TimingModelTarget,
 )
 
 # Importing Modules from FABulous Framework.
@@ -810,8 +811,11 @@ class FABulous_API:
         output_file: Path,
         debug: bool,
         manual_config: TimingModelConfig | None = None,
+        *,
+        target: TimingModelTarget = TimingModelTarget.BOTH,
+        bel_output_file: Path | None = None,
     ) -> TimingModelConfig:
-        """Initialise timing model interface, generate nextpnr pip file for the fabric.
+        """Initialise the timing model and generate selected nextpnr timing files.
 
         Parameters
         ----------
@@ -826,6 +830,11 @@ class FABulous_API:
             Optional manual configuration for the timing model interface.
             If provided, this configuration will be used instead of the default
             PDK-based configuration.
+        target : TimingModelTarget
+            Select pip timing, BEL timing, or both, by default both.
+        bel_output_file : Path | None
+            BEL timing output path. By default, write `bel.v3.txt` beside
+            `output_file`.
 
         Returns
         -------
@@ -910,12 +919,18 @@ class FABulous_API:
                 debug=debug,
             )
 
+        target = TimingModelTarget(target)
+        if bel_output_file is None:
+            bel_output_file = output_file.with_name("bel.v3.txt")
+
         ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
 
-        model_gen_npnr.writeNextpnrPipFile(
+        model_gen_npnr.write_nextpnr_timing_files(
             fabric=self.fabric,
-            outputFile=output_file,
+            pip_output_file=output_file,
+            bel_output_file=bel_output_file,
             delay_model=ftmi,
+            target=target,
         )
 
         return iconfig
