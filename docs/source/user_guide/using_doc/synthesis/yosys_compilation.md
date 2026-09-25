@@ -15,6 +15,53 @@ FABulous works with Yosys on either side of the rework. Support for Yosys 0.66
 and older ends in FABulous 3.0.
 :::
 
+## Upgrading a project created before Yosys 0.67
+
+A project created before the rework has no `yosys/` folder, and its
+`Test/Taskfile.yml` and `Test/Makefile` pass no library to `synth_fabulous`.
+`compile_design` still works in such a project, because FABulous adds the
+library it ships with and logs a deprecation warning. Running `task` or `make`
+by hand in `Test/` fails on Yosys 0.67 and newer, with an error such as
+``Module `\Global_Clock' ... is not part of the design``. To fix this, upgrade
+the project:
+
+```console
+FABulous -p <project_dir> update-project-version
+```
+
+The upgrade does the following, then updates the project version:
+
+1. Copies the library files the project lacks into `yosys/`.
+2. Adds the library to the `synth_fabulous` invocation in `Test/Taskfile.yml`
+   and `Test/Makefile`, in the form new projects use, which works on Yosys
+   before and after the rework. A Makefile from FABulous 2.0.0b1 to 2.0.0b4
+   calls `yosys` by name; the upgrade switches it to `${YOSYS}`, the binary the
+   library check runs, and defines `YOSYS` from `FAB_YOSYS_PATH` as newer
+   templates do. Every other line of both files stays as it is. The original
+   of each changed file is kept next to it as `Test/Taskfile.yml.bak` and
+   `Test/Makefile.bak`.
+
+The upgrade checks everything before it writes anything, and fails without
+changing the project if:
+
+- a synthesis line was edited by hand and matches no FABulous template since
+  2.0.0b1. The error names the file and the lines it expected; restore the line
+  or apply the change yourself.
+- a `.bak` file it would write already exists. Move it away and run the
+  upgrade again.
+- a file in `yosys/` differs from the library FABulous ships. The error lists
+  the files; move them out, run the upgrade, then port your changes onto the
+  fresh copies.
+- both `Test/Taskfile.yml` and `Test/Makefile` are missing. A project with only
+  one of them gets that one upgraded.
+
+Running the upgrade again on an upgraded project changes nothing.
+
+FABulous 1.x wrote no `.FABulous/.env`. A 1.x project with a hand-written
+`.FABulous/.env` that sets `FAB_PROJ_LANG` and `FAB_VERSION=1.x` but no
+`FAB_PROJ_VERSION` is also accepted. The upgrade patches its `Test/Makefile`,
+since such a project has no `Test/Taskfile.yml`, and writes `FAB_PROJ_VERSION`.
+
 ## User guide
 
 We have provided two methods for synthesis. The first is done using the CLI and the second is done directly by calling
