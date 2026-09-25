@@ -244,32 +244,6 @@ class TimingModelMode(StrEnum):
     PHYSICAL = "physical"
 
 
-class TimingModelSynthTools(StrEnum):
-    """Enumeration of synthesis tools configured for the timing model.
-
-    Attributes
-    ----------
-    YOSYS
-        Represents the Yosys synthesis tool, which is an open-source
-        framework for RTL synthesis.
-    """
-
-    YOSYS = "yosys"
-
-
-class TimingModelStaTools(StrEnum):
-    """Enumeration of static STA tools configured for the timing model.
-
-    Attributes
-    ----------
-    OPENSTA
-        Represents the OpenSTA tool, which is an open-source static
-        timing analysis tool.
-    """
-
-    OPENSTA = "opensta"
-
-
 class TimingModelTileSourceFiles(BaseModel):
     """Configuration class for the source files related to a specific tile.
 
@@ -315,10 +289,6 @@ class TimingModelConfig(BaseModel):
         for timing analysis.
     min_buf_cell_and_ports : str
         The minimum buffer cell and ports "cell_name input_port output_port".
-    synth_executable : Path | str
-        The executable command for the synthesis tool.
-    sta_executable : Path | str
-        The executable command for the static timing analysis tool.
     pdk_name : str | None
         The name of the PDK being used, It's just for informational
         purposes.
@@ -336,12 +306,6 @@ class TimingModelConfig(BaseModel):
         instances containing custom
         source file paths, or None if not applicable. This will overwrite
         the default paths defined in the project directory for the specific tile.
-    sta_program : TimingModelStaTools
-        The static timing analysis tool to be used, specified as an instance of
-        the TimingModelStaTools enumeration.
-    synth_program : TimingModelSynthTools
-        The synthesis tool to be used, specified as an instance of the
-        TimingModelSynthTools enumeration.
     mode : TimingModelMode
         The timing model mode to be used, specified as an instance of the
         TimingModelMode enumeration.
@@ -364,15 +328,11 @@ class TimingModelConfig(BaseModel):
     project_dir: Path
     liberty_files: list[Path] | Path
     min_buf_cell_and_ports: str
-    synth_executable: Path | str
-    sta_executable: Path | str
     pdk_name: str | None = None
     techmap_files: list[Path] | Path | None = None
     tiehi_cell_and_port: str | None = None
     tielo_cell_and_port: str | None = None
     custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None
-    sta_program: TimingModelStaTools = Field(default=TimingModelStaTools.OPENSTA)
-    synth_program: TimingModelSynthTools = Field(default=TimingModelSynthTools.YOSYS)
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
     consider_wire_delay: bool = Field(default=True)
     delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)

@@ -20,7 +20,7 @@ libraries. Two main modes are supported:
     when no post-layout data is available.
 
 Internally the flow performs synthesis (or uses provided netlists), runs static
-timing analysis (STA) with a backend such as OpenSTA, parses the produced SDF
+timing analysis (STA) with OpenSTA, parses the produced SDF
 timing information into a timing graph, computes delays for fabric pips, and
 writes an output pip file that nextpnr can consume.
 
@@ -123,8 +123,6 @@ Usually your project root.
 REQUIRED. Define here the timing library for the desired corner.
 - `min_buf_cell_and_ports`  — Example: "cell_name in_port out_port".
 Used to identify the buffer cell to map minimal buffer insertion.
-- `synth_executable`  — Path to Yosys (or other synth tool) if synthesis is required.
-- `sta_executable` — Path to the STA tool (e.g. OpenSTA) required to generate SDF from the netlist.
 - `techmap_files` — Optional techmap/verilog files used by the synthesiser to produce gate-level
 netlists for the target cell library. Sometimes needed to map multiplexers and latch gates.
 - `pdk_name` — Optional PDK identifier. if FABulous knows defaults for that PDK
@@ -135,13 +133,15 @@ Each value is an object with:
     - `netlist_file` — A pre-generated netlist (gate-level or routed for the tile.
     if set it will be used instead of the project default netlist.
     - `rc_file` — SPEF/RC file for that tile (used in physical mode).
-- `sta_program` / `synth_program` — Strings naming the backends (e.g. opensta, yosys).
 - `mode` — physical or structural.
 - `consider_wire_delay` — Boolean. Include wire delay when computing pip delays.
 - `delay_type_str` — Which DelayType to use (max_all, min_all, avg_all, etc.).
 - `delay_scaling_factor` — Multiplier applied to computed delays (numeric). Mostly useful
 when the timing model was run with structural mode to compensate the more optimistic approximation.
 - `debug` — Enable verbose logging to help debugging.
+
+Synthesis is Yosys and STA is OpenSTA, and neither is selectable here. Both are
+located through the FABulous context (`yosys_path` and `opensta_path`).
 
 ### Example configuration (shortened)
 
@@ -150,8 +150,6 @@ when the timing model was run with structural mode to compensate the more optimi
     "project_dir": "/path/to/demo_test",
     "liberty_files": "libs/sky130_fd_sc_hd__tt_025C_1v80.lib",
     "min_buf_cell_and_ports": "sky130_fd_sc_hd__buf_1 A X",
-    "synth_executable": "/usr/bin/yosys",
-    "sta_executable": "/usr/bin/sta",
     "techmap_files": [
         "tools/latch_map.v",
         "tools/tribuff_map.v"
@@ -166,8 +164,6 @@ when the timing model was run with structural mode to compensate the more optimi
             "rc_file": "demo_test/Tile/RAM_IO/phys/RAM_IO.spef"
         }
     },
-    "sta_program": "opensta",
-    "synth_program": "yosys",
     "mode": "physical",
     "consider_wire_delay": true,
     "delay_type_str": "max_all",
@@ -203,8 +199,7 @@ Notes about the example:
 ## Debugging and common issues
 
 - Missing or incorrect paths: Pydantic validation will raise errors when required
-    fields are missing. Ensure `liberty_files`, `synth_executable` and
-    `sta_executable` are present and correct.
+    fields are missing. Ensure `liberty_files` is present and correct.
 - Tools not found or failing: Make sure `yosys` and `opensta` are available and
     executable in the environment, or set full paths in the config.
 - In physical mode you must provide SPEF/RC files (per-tile or project-wide) if
