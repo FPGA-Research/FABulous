@@ -66,6 +66,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_llm.txt",
     "sphinxcontrib.mermaid",
+    "sphinxcontrib.wavedrom",
     # Custom FABulous extensions
     "generate_repl_docs",
     "generate_configvar_docs",
@@ -75,6 +76,11 @@ extensions = [
 myst_enable_extensions = [
     "colon_fence",
 ]
+
+# Render WaveJSON to an SVG at build time rather than shipping the wavedrom.com
+# client-side renderer, so the diagrams survive an offline or PDF build.
+wavedrom_html_jsinline = False
+render_using_wavedrompy = True
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
