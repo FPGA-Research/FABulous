@@ -8,8 +8,11 @@ Yosys is used for logic synthesis and technology mapping of the Verilog Hardware
 
 To build you may use the Makefile wrapper in the cloned repository (<https://github.com/YosysHQ/yosys.git>) `make` and `sudo make install`
 
-:::{warning}
-Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
+:::{note}
+Yosys 0.67 reworked `synth_fabulous`: it no longer ships the FABulous primitives
+and technology maps, which a FABulous project now carries in its `yosys/` folder.
+FABulous works with Yosys on either side of the rework. Support for Yosys 0.66
+and older ends in FABulous 3.0.
 :::
 
 ## User guide
@@ -38,20 +41,48 @@ The underlying of the command is a python subprocess call to the Yosys command l
 
 ### Manual Synthesis
 
-FABulous is supported by upstream Yosys, using the `synth_fabulous` pass. First, run `yosys`, which will open up an interactive Yosys shell.
+FABulous is supported by upstream Yosys, using the `synth_fabulous` pass. The pass
+reads the fabric's primitives and technology maps from the project's `yosys/`
+folder:
 
-For Verilog projects run this command:
+| File                          | `synth_fabulous` option | Content                                                   |
+| ----------------------------- | ----------------------- | --------------------------------------------------------- |
+| `primitives/prims.v`          | `-extra-plib`           | Blackboxes for the LUTs, flip-flops and BELs, `Global_Clock` included |
+| `techmap/cells_map.v`         | `-cells-map`            | LUTs onto `LUT1` to `LUT6`                                |
+| `techmap/arith_map.v`         | `-arith-map`            | Adders onto `LUT4_HA` with `-carry ha`                    |
+| `techmap/ff_map.v`            | `-extra-map`            | Flip-flops onto `LUTFF`                                   |
+| `techmap/latches_map.v`       | `-extra-map`            | Latches onto LUT logic                                    |
+| `techmap/io_map.v`            | `-extra-map`            | Pads onto `IO_1_bidirectional_frame_config_pass`          |
+| `memlib/ram_regfile.txt`      | `-extra-mlibmap`        | Memories that fit the `RegFile_32x4` BEL                  |
+| `techmap/regfile_map.v`       | `-extra-map`            | Those memories onto `RegFile_32x4`                        |
+
+From the project's `Test/` folder, for Verilog projects run this command:
 
 ```bash
-yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>
+yosys -p "synth_fabulous -top <toplevel> -json <out.json> \
+  -extra-plib ../yosys/primitives/prims.v \
+  -cells-map ../yosys/techmap/cells_map.v \
+  -arith-map ../yosys/techmap/arith_map.v \
+  -extra-map ../yosys/techmap/ff_map.v \
+  -extra-map ../yosys/techmap/latches_map.v \
+  -extra-map ../yosys/techmap/io_map.v \
+  -extra-mlibmap ../yosys/memlib/ram_regfile.txt \
+  -extra-map ../yosys/techmap/regfile_map.v \
+  -ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x" <files.v>
 ```
 
-For VHDL projects run the following command:
+For VHDL projects, elaborate the design with GHDL first and pass the same
+options:
 
 ```bash
-yosys -m ghdl -p ghdl <files.vhdl> -e <top-entity>;read_verilog <top_wrapper(verilog constraint)>
-synth_fabulous -top <top_wrapper> -json <out.json>
+yosys -m ghdl -p "ghdl <files.vhdl> -e <top-entity>; read_verilog <top_wrapper(verilog constraint)>;
+synth_fabulous -top <top_wrapper> -json <out.json> <options as above>"
 ```
+
+Yosys 0.66 and older bundle this library themselves and reject these options, so
+there `synth_fabulous -top <toplevel> -json <out.json>` is the whole command.
+The project's `Test/Taskfile.yml` and `Test/Makefile` pick the right form for the
+Yosys they run.
 
 :::{note}
 For VHDL projects we used the top_wrapper as verilog because ghdl doesn't interpret the attributes(`*BEL*`);
