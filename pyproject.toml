@@ -177,6 +177,10 @@ FABulous-bit-gen = "FABulous_bit_gen"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
+# ihp-sg13cmos5l needs ciel 3, which no librelane release supports yet. This is
+# the dev commit that enabled the variant; flake.nix pins the same rev. Drop
+# both pins, and the dependabot ignores, once librelane 3.1.0 is on PyPI.
+librelane = { git = "https://github.com/librelane/librelane.git", rev = "aaf7a938766e0708ca894776d81e2c2cfb12b7e7" }
 cocotbext-spi = { git = "https://github.com/schang412/cocotbext-spi", rev = "be5761be54796a64607c4b115e2e7cfe8ac6bc83" }
 
 [tool.uv.extra-build-dependencies]
