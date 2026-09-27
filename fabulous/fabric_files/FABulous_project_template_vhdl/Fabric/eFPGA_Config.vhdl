@@ -15,8 +15,8 @@ entity eFPGA_Config is
     axi_enable      : integer := 0
   );
   port (
-    CLK     : in    std_logic;
-    resetn  : in    std_logic;
+    CLK    : in    std_logic;
+    resetn : in    std_logic;
 
     -- UART configuration port
     Rx         : in    std_logic;
@@ -33,34 +33,34 @@ entity eFPGA_Config is
     ss_n : in    std_logic;
 
     -- AXI configuration port (types match config_AXI entity)
-    s_axi_awaddr  : in     unsigned(31 downto 0);
-    s_axi_awvalid : in     std_logic;
+    s_axi_awaddr  : in    unsigned(31 downto 0);
+    s_axi_awvalid : in    std_logic;
     s_axi_awready : buffer std_logic;
-    s_axi_wdata   : in     unsigned(31 downto 0);
-    s_axi_wstrb   : in     unsigned(3 downto 0);
-    s_axi_wvalid  : in     std_logic;
+    s_axi_wdata   : in    unsigned(31 downto 0);
+    s_axi_wstrb   : in    unsigned(3 downto 0);
+    s_axi_wvalid  : in    std_logic;
     s_axi_wready  : buffer std_logic;
-    s_axi_bresp   : out    unsigned(1 downto 0);
+    s_axi_bresp   : out   unsigned(1 downto 0);
     s_axi_bvalid  : buffer std_logic;
-    s_axi_bready  : in     std_logic;
-    s_axi_araddr  : in     unsigned(31 downto 0);
-    s_axi_arvalid : in     std_logic;
+    s_axi_bready  : in    std_logic;
+    s_axi_araddr  : in    unsigned(31 downto 0);
+    s_axi_arvalid : in    std_logic;
     s_axi_arready : buffer std_logic;
-    s_axi_rdata   : out    unsigned(31 downto 0);
-    s_axi_rresp   : out    unsigned(1 downto 0);
+    s_axi_rdata   : out   unsigned(31 downto 0);
+    s_axi_rresp   : out   unsigned(1 downto 0);
     s_axi_rvalid  : buffer std_logic;
-    s_axi_rready  : in     std_logic;
+    s_axi_rready  : in    std_logic;
 
     -- Parallel configuration port
-    SelfWriteData     : in  std_logic_vector(31 downto 0);
-    SelfWriteStrobe   : in  std_logic;
-    ConfigWriteData   : out std_logic_vector(31 downto 0);
-    ConfigWriteStrobe : out std_logic;
+    SelfWriteData     : in    std_logic_vector(31 downto 0);
+    SelfWriteStrobe   : in    std_logic;
+    ConfigWriteData   : out   std_logic_vector(31 downto 0);
+    ConfigWriteStrobe : out   std_logic;
 
     -- Configuration frame outputs
-    FrameAddressRegister : out std_logic_vector(FrameBitsPerRow-1 downto 0);
-    LongFrameStrobe      : out std_logic;
-    RowSelect            : out std_logic_vector(RowSelectWidth-1 downto 0)
+    FrameAddressRegister : out   std_logic_vector(FrameBitsPerRow - 1 downto 0);
+    LongFrameStrobe      : out   std_logic;
+    RowSelect            : out   std_logic_vector(RowSelectWidth - 1 downto 0)
   );
 end entity eFPGA_Config;
 
@@ -151,7 +151,7 @@ architecture from_verilog of eFPGA_Config is
     port (
       active  : out   std_logic;
       clk     : in    std_logic;
-      data    : out   unsigned(31 downto 0);   -- was std_logic_vector
+      data    : out   unsigned(31 downto 0);
       mosi    : in    std_logic;
       reset_n : in    std_logic;
       sck     : in    std_logic;
@@ -162,57 +162,59 @@ architecture from_verilog of eFPGA_Config is
 
   component config_AXI is
     port (
-      active        : out    std_logic;
-      clk           : in     std_logic;
-      data          : out    unsigned(31 downto 0);   -- was std_logic_vector
-      reset_n       : in     std_logic;
-      s_axi_araddr  : in     unsigned(31 downto 0);
+      active        : out   std_logic;
+      clk           : in    std_logic;
+      data          : out   unsigned(31 downto 0);
+      reset_n       : in    std_logic;
+      s_axi_araddr  : in    unsigned(31 downto 0);
       s_axi_arready : buffer std_logic;
-      s_axi_arvalid : in     std_logic;
-      s_axi_awaddr  : in     unsigned(31 downto 0);
+      s_axi_arvalid : in    std_logic;
+      s_axi_awaddr  : in    unsigned(31 downto 0);
       s_axi_awready : buffer std_logic;
-      s_axi_awvalid : in     std_logic;
-      s_axi_bready  : in     std_logic;
-      s_axi_bresp   : out    unsigned(1 downto 0);
+      s_axi_awvalid : in    std_logic;
+      s_axi_bready  : in    std_logic;
+      s_axi_bresp   : out   unsigned(1 downto 0);
       s_axi_bvalid  : buffer std_logic;
-      s_axi_rdata   : out    unsigned(31 downto 0);
-      s_axi_rready  : in     std_logic;
-      s_axi_rresp   : out    unsigned(1 downto 0);
+      s_axi_rdata   : out   unsigned(31 downto 0);
+      s_axi_rready  : in    std_logic;
+      s_axi_rresp   : out   unsigned(1 downto 0);
       s_axi_rvalid  : buffer std_logic;
-      s_axi_wdata   : in     unsigned(31 downto 0);
+      s_axi_wdata   : in    unsigned(31 downto 0);
       s_axi_wready  : buffer std_logic;
-      s_axi_wstrb   : in     unsigned(3 downto 0);
-      s_axi_wvalid  : in     std_logic;
-      strobe        : out    std_logic
+      s_axi_wstrb   : in    unsigned(3 downto 0);
+      s_axi_wvalid  : in    std_logic;
+      strobe        : out   std_logic
     );
   end component config_AXI;
 
 begin
 
   -- Parallel port gating
-  parallel_data_gated   <= SelfWriteData when parallel_enable = 1 else (others => '0');
-  parallel_strobe_gated <= SelfWriteStrobe when parallel_enable = 1 else '0';
+  parallel_data_gated   <= SelfWriteData when parallel_enable = 1 else
+                           (others => '0');
+  parallel_strobe_gated <= SelfWriteStrobe when parallel_enable = 1 else
+                           '0';
 
   -- Configuration port priority muxing: AXI > UART > SPI > BitBang > Parallel
-  BitBangWriteData_Mux <= std_logic_vector(BitBangWriteData) when BitBangActive = '1' else
-                          parallel_data_gated;
+  BitBangWriteData_Mux   <= std_logic_vector(BitBangWriteData) when BitBangActive = '1' else
+                            parallel_data_gated;
   BitBangWriteStrobe_Mux <= BitBangWriteStrobe when BitBangActive = '1' else
                             parallel_strobe_gated;
 
   spi_write_data_mux <= std_logic_vector(spi_write_data) when spi_active = '1' else
                         BitBangWriteData_Mux;
-  spi_strobe_mux <= spi_strobe when spi_active = '1' else
-                    BitBangWriteStrobe_Mux;
+  spi_strobe_mux     <= spi_strobe when spi_active = '1' else
+                        BitBangWriteStrobe_Mux;
 
-  UART_WriteData_Mux <= std_logic_vector(UART_WriteData) when UART_ComActive = '1' else
-                        spi_write_data_mux;
+  UART_WriteData_Mux   <= std_logic_vector(UART_WriteData) when UART_ComActive = '1' else
+                          spi_write_data_mux;
   UART_WriteStrobe_Mux <= UART_WriteStrobe when UART_ComActive = '1' else
                           spi_strobe_mux;
 
   axi_write_data_mux <= std_logic_vector(axi_write_data) when axi_active = '1' else
                         UART_WriteData_Mux;
-  axi_strobe_mux <= axi_strobe when axi_active = '1' else
-                    UART_WriteStrobe_Mux;
+  axi_strobe_mux     <= axi_strobe when axi_active = '1' else
+                        UART_WriteStrobe_Mux;
 
   ConfigWriteData   <= axi_write_data_mux;
   ConfigWriteStrobe <= axi_strobe_mux;
@@ -227,7 +229,7 @@ begin
   RowSelect            <= std_logic_vector(RowSelect_Readable);
 
   -- ConfigFSM instance (no generics on the entity)
-  ConfigFSM_inst : ConfigFSM
+  configfsm_inst : component ConfigFSM
     port map (
       CLK                    => CLK,
       frame_address_register => FrameAddressRegister_Readable,
@@ -240,7 +242,9 @@ begin
     );
 
   -- UART
+
   gen_uart_enabled : if uart_enable = 1 generate
+
     inst_config_uart : component config_UART
       port map (
         CLK         => CLK,
@@ -252,6 +256,7 @@ begin
         Command     => Command,
         ReceiveLED  => UART_LED
       );
+
   end generate gen_uart_enabled;
 
   gen_uart_disabled : if uart_enable = 0 generate
@@ -263,7 +268,9 @@ begin
   end generate gen_uart_disabled;
 
   -- BitBang
+
   gen_bitbang_enabled : if bitbang_enable = 1 generate
+
     inst_bit_bang : component bitbang
       port map (
         s_clk   => s_clk,
@@ -274,6 +281,7 @@ begin
         clk     => CLK,
         reset_n => resetn
       );
+
   end generate gen_bitbang_enabled;
 
   gen_bitbang_disabled : if bitbang_enable = 0 generate
@@ -283,7 +291,9 @@ begin
   end generate gen_bitbang_disabled;
 
   -- SPI
+
   gen_spi_enabled : if spi_enable = 1 generate
+
     inst_config_spi : component config_SPI
       port map (
         sck     => sck,
@@ -295,6 +305,7 @@ begin
         clk     => CLK,
         reset_n => resetn
       );
+
   end generate gen_spi_enabled;
 
   gen_spi_disabled : if spi_enable = 0 generate
@@ -304,7 +315,9 @@ begin
   end generate gen_spi_disabled;
 
   -- AXI
+
   gen_axi_enabled : if axi_enable = 1 generate
+
     inst_config_axi : component config_AXI
       port map (
         clk           => CLK,
@@ -330,6 +343,7 @@ begin
         data          => axi_write_data,
         active        => axi_active
       );
+
   end generate gen_axi_enabled;
 
   gen_axi_disabled : if axi_enable = 0 generate
