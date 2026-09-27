@@ -175,6 +175,16 @@ It is planned to remove these limitations in future versions of FABulous.
 
     Disable the generation of the UserCLK port, regardless the fabric uses them or not.
 
+  - `UserCLKDirection`, `[S2N|N2S|W2E|E2W]` (default `S2N`)
+
+    Direction in which `UserCLK` is chained through the fabric. Every tile has a `UserCLK` input and a buffered `UserCLKo` output; each tile takes its clock from the `UserCLKo` of its neighbour on the entry side (`S2N`: the tile below, `W2E`: the tile to the left, and so on) and tiles with no such neighbour take the fabric-level `UserCLK` directly. The GDS pin placement follows the same sides.
+
+    :::{warning}
+    Changing the clock direction changes the clock tree topology in the fabric
+    and therefore the clock skew and timing of the whole fabric.
+    Only change it if you know what you are doing and verify functional correctness and timing after the change.
+    :::
+
   - `PreserveListOrder`, `[TRUE|FALSE]` (default `FALSE`)
 
     When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the rightmost listed input becomes `A0`, the next-rightmost `A1`, and so on (MSB-first, matching Verilog/VHDL `downto`). The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
@@ -665,6 +675,9 @@ prefix, so the prefix column has to be present, even if it is empty:
 # bel keyword     RTL code         prefix    optional keyword
 BEL,              crc5.v,          ,         ADD_AS_CUSTOM_PRIM
 ```
+
+The keyword works the same way on `BEL` lines of a `SuperTILE` block, see
+[supertile BELs](#supertile-custom-prim).
 
 Primitives that are already in `custom_prims.v` are left alone, so a hand-tuned
 description with an implementation or a techmap is not overwritten by this keyword.
@@ -1253,7 +1266,7 @@ EndTILE
 SuperTILE   DSP  # declace supertile  (Functionality concentrated in DSP_bot)
 DSP_top
 DSP_bot
-EndTILE
+EndSuperTILE
 ```
 
 **Approach B (BEL on the supertile).** The right example hosts the functionality in the supertile wrapper: the BEL is declared on the `SuperTILE` block and lives in the supertile's master tile. The recommended way to wire it is with `SJUMP` wires and a dedicated supertile switch matrix; the supertile declaration carries both the `BEL` and a `MATRIX` line pointing at that switch matrix:
@@ -1266,10 +1279,25 @@ DSP_top
 DSP_bot
 BEL,        MULADD.vhdl
 MATRIX,     DSP_supertile_matrix.list
-EndTILE
+EndSuperTILE
 ```
 
 The basic tiles declare their `SJUMP` ports and the supertile switch matrix is written as described in {ref}`supertile-bel-routing`.
+
+(supertile-custom-prim)=
+
+A supertile `BEL` line accepts the same `ADD_AS_CUSTOM_PRIM` keyword as a tile `BEL` line
+(see {ref}`primitives`). When the supertile is parsed, the BEL is added as a blackbox
+to `user_design/custom_prims.v`, so Yosys can instantiate it:
+
+```{code-block} python
+SuperTILE   DSP
+DSP_top
+DSP_bot
+BEL,        MULADD.v,   ,   ADD_AS_CUSTOM_PRIM
+MATRIX,     DSP_supertile_matrix.list
+EndSuperTILE
+```
 
 ```{admonition} Legacy modelling: LOCAL wires + ConfigBits BEL
 :class: note

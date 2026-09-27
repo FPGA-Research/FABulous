@@ -66,6 +66,9 @@ class Fabric:
         Whether the fabric has super tile.
     disableUserCLK : bool
         Whether to disable UserCLK generation in the fabric.
+    userCLKSide : Side
+        Side on which UserCLK enters each tile; UserCLKo leaves on the opposite
+        side and feeds the next tile in that direction. Default SOUTH (S->N ladder).
     multiClkDomains : bool
         Whether the fabric uses multiple clock domains. When True, CLK features
         are kept in the bitstream instead of being filtered out.
@@ -118,6 +121,7 @@ class Fabric:
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
     disableUserCLK: bool = False
+    userCLKSide: Side = Side.SOUTH
     multiClkDomains: bool = False
     bitbang_enable: int = 1
     uart_enable: int = 1
@@ -487,6 +491,7 @@ class Fabric:
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
         fabric += f"disableUserCLK: {self.disableUserCLK}\n"
+        fabric += f"userCLKSide: {self.userCLKSide}\n"
         fabric += f"multiClkDomains: {self.multiClkDomains}\n"
         fabric += f"bitbang_enable: {self.bitbang_enable}\n"
         fabric += f"UART_enable: {self.uart_enable}\n"

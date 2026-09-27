@@ -41,6 +41,14 @@ from fabulous.fabulous_settings import get_context
 if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
 
+# fabric.csv `UserCLKDirection` value -> side the clock enters each tile.
+USER_CLK_DIRECTIONS: dict[str, Side] = {
+    "S2N": Side.SOUTH,
+    "N2S": Side.NORTH,
+    "W2E": Side.WEST,
+    "E2W": Side.EAST,
+}
+
 
 def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
@@ -354,6 +362,13 @@ def parseTilesCSV(
             elif temp[0] == "BEL":
                 belFilePath = filePathParent.joinpath(temp[1])
                 bel_prefix = temp[2] if len(temp) > 2 else ""
+                if bel_prefix == "ADD_AS_CUSTOM_PRIM":
+                    logger.warning(
+                        f"BEL {temp[1]} in tile {tileName} has ADD_AS_CUSTOM_PRIM in "
+                        "the prefix field, treating it as an empty prefix. Write "
+                        "BEL,FILE,,ADD_AS_CUSTOM_PRIM instead."
+                    )
+                    bel_prefix = ""
                 if (
                     temp[1].endswith(".vhdl")
                     or temp[1].endswith(".v")
@@ -366,7 +381,8 @@ def parseTilesCSV(
                         "Please check the BEL file."
                     )
 
-                if "ADD_AS_CUSTOM_PRIM" in temp[3:]:
+                # temp[2:] also catches the flag written in the prefix field.
+                if "ADD_AS_CUSTOM_PRIM" in temp[2:]:
                     primsFile = proj_dir.joinpath("user_design/custom_prims.v")
                     logger.info(f"Adding bels to custom prims file: {primsFile}")
                     addBelsToPrim(primsFile, [bels[-1]])
@@ -647,8 +663,24 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             row = []
 
             if line[0] == "BEL":
-                belFilePath = filePath.joinpath(line[1])
-                bels.append(parseBelFile(belFilePath, line[2] if len(line) > 2 else ""))
+                # Positional fields: the filtered `line` drops an empty prefix,
+                # which would shift `ADD_AS_CUSTOM_PRIM` into the prefix slot.
+                bel_fields = [field.strip() for field in i.split(",")]
+                belFilePath = filePath.joinpath(bel_fields[1])
+                bel_prefix = bel_fields[2] if len(bel_fields) > 2 else ""
+                if bel_prefix == "ADD_AS_CUSTOM_PRIM":
+                    logger.warning(
+                        f"BEL {bel_fields[1]} in supertile {name} has "
+                        "ADD_AS_CUSTOM_PRIM in the prefix field, treating it as an "
+                        "empty prefix. Write BEL,FILE,,ADD_AS_CUSTOM_PRIM instead."
+                    )
+                    bel_prefix = ""
+                bels.append(parseBelFile(belFilePath, bel_prefix))
+                # bel_fields[2:] also catches the flag written in the prefix field.
+                if "ADD_AS_CUSTOM_PRIM" in bel_fields[2:]:
+                    prims_file = get_context().proj_dir / "user_design/custom_prims.v"
+                    logger.info(f"Adding bels to custom prims file: {prims_file}")
+                    addBelsToPrim(prims_file, [bels[-1]])
                 continue
             if line[0] == "MATRIX":
                 # The supertile switch matrix is given by this line's path,
@@ -914,6 +946,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
     disableUserCLK = False
+    userCLKSide = Side.SOUTH
     multiClkDomains = False
     bitbang_enable = 1
     uart_enable = 1
@@ -975,6 +1008,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
             superTileEnable = i[1] == "TRUE"
         elif i[0].startswith("DisableUserCLK"):
             disableUserCLK = i[1] == "TRUE"
+        elif i[0].startswith("UserCLKDirection"):
+            if i[1] not in USER_CLK_DIRECTIONS:
+                raise InvalidFabricParameter(
+                    f"Invalid UserCLKDirection {i[1]} in parameters. "
+                    f"Valid options are {', '.join(USER_CLK_DIRECTIONS)}."
+                )
+            userCLKSide = USER_CLK_DIRECTIONS[i[1]]
         elif i[0].startswith("MultiClkDomains"):
             multiClkDomains = i[1] == "TRUE"
         elif i[0].startswith("BitBangEnable"):
@@ -1059,6 +1099,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
+        userCLKSide=userCLKSide,
         multiClkDomains=multiClkDomains,
         bitbang_enable=bitbang_enable,
         uart_enable=uart_enable,

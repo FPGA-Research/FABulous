@@ -24,6 +24,9 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # librelane is pinned to a dev rev until 3.1.0; see pyproject.toml.
+    ignore:
+      - dependency-name: "librelane"
 
   - package-ecosystem: "nix"
     directory: "/"
@@ -44,6 +47,9 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # librelane is pinned to a dev rev until 3.1.0; see pyproject.toml.
+    ignore:
+      - dependency-name: "librelane"
 
   - package-ecosystem: "github-actions"
     directories:

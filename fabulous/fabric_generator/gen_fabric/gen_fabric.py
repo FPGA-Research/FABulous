@@ -15,7 +15,13 @@ Key features:
 
 from collections.abc import Generator
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.define import (
+    IO,
+    USER_CLK_PREDECESSOR,
+    ConfigBitMode,
+    Direction,
+    grid_at,
+)
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -376,13 +382,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
 
             if not fabric.disableUserCLK:
+                dx, dy = USER_CLK_PREDECESSOR[fabric.userCLKSide]
                 if not superTile:
-                    # for userCLK
-                    if (
-                        y + 1 < fabric.numberOfRows
-                        and fabric.tile[y + 1][x] is not None
-                    ):
-                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                    # for userCLK: chain from the neighbour on the entry side,
+                    # or the global clock when there is none
+                    px = x + dx
+                    py = y + dy
+                    if grid_at(fabric.tile, px, py) is not None:
+                        portsPairs.append(("UserCLK", f"Tile_X{px}Y{py}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
 
@@ -394,20 +401,21 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
-                        next_row = y + j + 1
-                        if (
-                            next_row >= fabric.numberOfRows
-                            or fabric.tile[next_row][x + i] is None
-                        ):
+                        px = x + i + dx
+                        py = y + j + dy
+                        if grid_at(fabric.tile, px, py) is None:
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                        elif (x + i, next_row) not in superTileLoc:
+                        elif (px, py) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{next_row}_UserCLKo")
+                                (f"{pre}UserCLK", f"Tile_X{px}Y{py}_UserCLKo")
                             )
 
-                        # UserCLKo signal
-                        if (x + i, y + j - 1) not in superTileLoc:
+                        # UserCLKo signal: only a boundary port when the
+                        # consumer is outside the supertile
+                        sx = x + i - dx
+                        sy = y + j - dy
+                        if (sx, sy) not in superTileLoc:
                             portsPairs.append(
                                 (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
                             )

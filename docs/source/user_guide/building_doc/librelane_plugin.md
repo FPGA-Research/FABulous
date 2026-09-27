@@ -10,7 +10,7 @@ The plugin adds no hardening capability the CLI flow lacks. It only swaps the dr
 
 FABulous ships a [LibreLane](https://github.com/librelane/librelane) plugin, `librelane_plugin_fabulous`, that exposes the tile-hardening and fabric-stitching flows as native LibreLane flows. This lets you drive the ASIC flow directly with `librelane` and a `config.yaml`, rather than through the FABulous CLI. It is a thin adapter over the same steps as the CLI flow, so the [flow variable table](#gds-variables), [pin configuration](#pin-config), and [tile stitching](#stitching-the-tiles) sections of the GDS guide apply here as well.
 
-Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `run_FABulous_eFPGA_macro` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the [Full Automated Flow](#full-automated-flow)). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
+Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `gen_macro full` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the [Full Automated Flow](#full-automated-flow)). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
 
 The plugin provides two flows:
 

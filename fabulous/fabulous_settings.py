@@ -481,9 +481,9 @@ class FABulousSettings(BaseSettings):
         # Import librelane lazily: a module-level import pulls in librelane's
         # plugin discovery, which imports librelane_plugin_fabulous (and thus the
         # gds flows that import this module), forming an import cycle.
-        from librelane.common.misc import get_pdk_hash  # noqa: PLC0415
+        from librelane.common.misc import get_ciel_pdk_hash  # noqa: PLC0415
 
-        recommended_hash = get_pdk_hash(ciel_family.name)
+        recommended_hash = get_ciel_pdk_hash(ciel_family.name)
         if self.pdk_hash is None:
             self.pdk_hash = recommended_hash
 
@@ -491,7 +491,7 @@ class FABulousSettings(BaseSettings):
             logger.warning(
                 f"PDK hash mismatch: configured '{self.pdk_hash}' "
                 f"vs recommended '{recommended_hash}' for "
-                f"family '{ciel_family}'. "
+                f"family '{ciel_family.name}'. "
                 "You may experience compatibility issues."
             )
 

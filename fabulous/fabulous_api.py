@@ -328,6 +328,7 @@ class FABulous_API:
                 max_frame_per_col or self.fabric.maxFramesPerCol,
                 disable_user_clk or self.fabric.disableUserCLK,
                 config_bit_mode or self.fabric.configBitMode,
+                user_clk_side=self.fabric.userCLKSide,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")
@@ -767,7 +768,6 @@ class FABulous_API:
         logger.info(f"Output folder: {out_folder.resolve()}")
         config_args = {
             "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
-            "FABULOUS_FABRIC": self.fabric,
             "DESIGN_NAME": self.fabric.name,
             "FABULOUS_NLP_ONLY": nlp_only,
             "FABULOUS_NLP_AREA_MARGIN": nlp_area_margin,
@@ -786,6 +786,7 @@ class FABulous_API:
         ]
         flow = FABulousFabricOptimisationFlow(
             configs,
+            fabric=self.fabric,
             name=self.fabric.name,
             design_dir=str(out_folder.resolve()),
             pdk=pdk,
@@ -857,6 +858,18 @@ class FABulous_API:
                     pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
+
+            case "ihp-sg13cmos5l":
+                liberty_files: Path = (
+                    pdk_root
+                    / "libs.ref/sg13cmos5l_stdcell/lib"
+                    / "sg13cmos5l_stdcell_typ_1p20V_25C.lib"
+                )
+                techmap_files: list[Path] = [
+                    pdk_root / "libs.tech/librelane/sg13cmos5l_stdcell/latch_map.v",
+                    pdk_root / "libs.tech/librelane/sg13cmos5l_stdcell/tribuff_map.v",
+                ]
+                min_buf_cell_and_ports: str = "sg13cmos5l_buf_1 A X"
 
             case "sky130A" | "sky130B":
                 liberty_files: Path = (

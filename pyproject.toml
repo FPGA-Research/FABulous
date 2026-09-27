@@ -33,14 +33,16 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.3.1",
   'PyYAML>=6.0.0',
-  "librelane>=3.0.0",
+  # Every PyPI librelane up to 3.1.0.dev3 pins ciel<3, so a non-uv install
+  # fails at resolution until 3.1.0 ships. See the librelane uv source.
+  "librelane>=3.1.0.dev3",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
   "numpy>=2.5.1",
   "dill>=0.4.0",
   "networkx>=3.6.1",
   "sdf-timing",
-  "ciel>=2.4.0",
+  "ciel>=3.0.0",
   "go-task-bin>=3.40.0",
   "jinja2>=3.1.6",
   "cocotbext-uart>=0.1.4",
@@ -80,7 +82,9 @@ build_py = "build_hooks.BuildPyWithFabulousNix"
 fabulous = ["**/*"]
 
 [tool.interrogate]
-ignore-init-method = false
+# pydoclint (DOC301) rejects `__init__` docstrings, so requiring them here
+# would make the two hooks contradict each other.
+ignore-init-method = true
 ignore-init-module = false
 ignore-magic = false
 ignore-semiprivate = false
