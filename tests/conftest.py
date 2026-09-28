@@ -116,6 +116,8 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
 
         runner = get_runner(sim)
 
+        parameters = parameters or {}
+
         test_dir = tmp_path / "tests"
         test_dir.mkdir(exist_ok=True)
         shutil.copy(test_module_path, test_dir / test_module_path.name)
