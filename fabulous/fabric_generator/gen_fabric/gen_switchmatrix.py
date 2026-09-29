@@ -145,62 +145,60 @@ def genTileSwitchMatrix(
     for i in tile.portsInfo:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_input:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+                writer.addPort(p, IO.INPUT, indentLevel=2)
 
     # bel wire input
     for b in tile.bels:
         for p in b.outputs:
-            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+            writer.addPort(p, IO.INPUT, indentLevel=2)
 
     # jump wire input
     for i in tile.portsInfo:
         if i.wire_direction == Direction.JUMP and i.is_input:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+                writer.addPort(p, IO.INPUT, indentLevel=2)
 
     # normal wire output (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_output:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+                writer.addPort(p, IO.OUTPUT, indentLevel=2)
 
     # bel wire output
     for b in tile.bels:
         for p in b.inputs:
-            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            writer.addPort(p, IO.OUTPUT, indentLevel=2)
 
     # jump wire output
     for i in tile.portsInfo:
         if i.wire_direction == Direction.JUMP and i.is_output:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+                writer.addPort(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire output - SM drives OUTPUT signals exiting to supertile SM
     for i in tile.portsInfo:
         if i.wire_direction == Direction.SJUMP and i.is_output:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+                writer.addPort(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire input - SM receives INPUT signals arriving from supertile SM
     for i in tile.portsInfo:
         if i.wire_direction == Direction.SJUMP and i.is_input:
             for p in i.expand_port_info_by_name():
-                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+                writer.addPort(p, IO.INPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
         if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
+            writer.addPort("MODE", IO.INPUT, indentLevel=2)
             writer.addComment("global signal 1: configuration, 0: operation")
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
+            writer.addPort("CONFin", IO.INPUT, indentLevel=2)
+            writer.addPort("CONFout", IO.OUTPUT, indentLevel=2)
+            writer.addPort("CLK", IO.INPUT, indentLevel=2)
         if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
+            writer.addPort("ConfigBits", IO.INPUT, width="NoConfigBits", indentLevel=2)
+            writer.addPort(
+                "ConfigBits_N", IO.INPUT, width="NoConfigBits", indentLevel=2
             )
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
@@ -264,9 +262,7 @@ def _gen_switch_matrix_body(
     # signal declaration - one input-concat vector per multi-input mux
     for portName in connections:
         if len(connections[portName]) > 1:
-            writer.addConnectionVector(
-                f"{portName}_input", f"{len(connections[portName])}-1"
-            )
+            writer.addConnection(f"{portName}_input", width=len(connections[portName]))
 
     ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     if switch_matrix_debug_signal:
@@ -275,9 +271,8 @@ def _gen_switch_matrix_body(
             muxSize = len(connections[portName])
             if muxSize >= 2:
                 paddedMuxSize = 2 ** (muxSize - 1).bit_length() - 1
-                writer.addConnectionVector(
-                    f"DEBUG_select_{portName}",
-                    f"{paddedMuxSize.bit_length() - 1}",
+                writer.addConnection(
+                    f"DEBUG_select_{portName}", width=paddedMuxSize.bit_length()
                 )
     writer.addComment(
         "The configuration bits (if any) are just a long shift register",
@@ -290,13 +285,13 @@ def _gen_switch_matrix_body(
 
     if noConfigBits > 0:
         if config_bit_mode == "ff_chain":
-            writer.addConnectionVector("ConfigBits", noConfigBits)
+            writer.addConnection("ConfigBits", width=noConfigBits + 1)
         if config_bit_mode == "FlipFlopChain":
-            writer.addConnectionVector(
-                "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
+            writer.addConnection(
+                "ConfigBits", width=int(math.ceil(noConfigBits / 2.0)) * 2 + 1
             )
-            writer.addConnectionVector(
-                "ConfigBitsInput", int(math.ceil(noConfigBits / 2.0)) * 2
+            writer.addConnection(
+                "ConfigBitsInput", width=int(math.ceil(noConfigBits / 2.0)) * 2 + 1
             )
 
     writer.addLogicStart()
@@ -328,14 +323,12 @@ def _gen_switch_matrix_body(
             )
         elif muxSize == 1:
             if connections[portName][0] == "0":
-                writer.addAssignScalar(portName, 0)
+                writer.addAssign(portName, "0")
             elif connections[portName][0] == "1":
-                writer.addAssignScalar(portName, 1)
+                writer.addAssign(portName, "1")
             else:
-                writer.addAssignScalar(
-                    portName,
-                    connections[portName][0],
-                    delay=default_pip_delay,
+                writer.addAssign(
+                    portName, connections[portName][0], delay=default_pip_delay
                 )
             writer.addNewLine()
         elif muxSize >= 2:
@@ -367,7 +360,7 @@ def _gen_switch_matrix_body(
             portsPairs.append(("X", f"{portName}"))
 
             # Drive the mux input vector for both mux styles.
-            writer.addAssignScalar(
+            writer.addAssign(
                 f"{portName}_input",
                 connections[portName][::-1],
                 delay=default_pip_delay,
@@ -410,11 +403,11 @@ def _gen_switch_matrix_body(
             if muxSize >= 2:
                 paddedMuxSize = 2 ** (muxSize - 1).bit_length()
                 configBitstreamPosition += paddedMuxSize.bit_length() - 1
-                writer.addAssignVector(
+                writer.addAssign(
                     f"DEBUG_select_{portName:<15}",
                     "ConfigBits",
-                    f"{configBitstreamPosition - 1}",
-                    old_ConfigBitstreamPosition,
+                    high=configBitstreamPosition - 1,
+                    low=old_ConfigBitstreamPosition,
                 )
                 old_ConfigBitstreamPosition = configBitstreamPosition
     ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
@@ -474,21 +467,21 @@ def gen_super_tile_switch_matrix(
         for lx, ly, p in all_sjump_ports:
             tileName = superTile.tileMap[ly][lx].name
             for k in range(p.wire_count):
-                writer.addPortScalar(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
+                writer.addPort(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
 
     # Outputs: input ports of supertile BELs (SM drives BEL inputs)
     if superTile.bels:
         writer.addComment("BEL input ports (SM outputs)", onNewLine=True)
     for bel in superTile.bels:
         for p in bel.inputs:
-            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            writer.addPort(p, IO.OUTPUT, indentLevel=2)
 
     # Inputs: output ports of supertile BELs (SM routes them back to child tiles)
     if any(bel.outputs for bel in superTile.bels):
         writer.addComment("BEL output ports (SM inputs)", onNewLine=True)
     for bel in superTile.bels:
         for p in bel.outputs:
-            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+            writer.addPort(p, IO.INPUT, indentLevel=2)
 
     # Outputs: reverse SJUMP signals driven back into child tiles
     all_input_sjump = superTile.get_all_input_sjump_ports()
@@ -497,23 +490,19 @@ def gen_super_tile_switch_matrix(
         for lx, ly, p in all_input_sjump:
             tileName = superTile.tileMap[ly][lx].name
             for k in range(p.wire_count):
-                writer.addPortScalar(
-                    f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2
-                )
+                writer.addPort(f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
         if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
+            writer.addPort("MODE", IO.INPUT, indentLevel=2)
+            writer.addPort("CONFin", IO.INPUT, indentLevel=2)
+            writer.addPort("CONFout", IO.OUTPUT, indentLevel=2)
+            writer.addPort("CLK", IO.INPUT, indentLevel=2)
         if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
+            writer.addPort("ConfigBits", IO.INPUT, width="NoConfigBits", indentLevel=2)
+            writer.addPort(
+                "ConfigBits_N", IO.INPUT, width="NoConfigBits", indentLevel=2
             )
     writer.addPortEnd()
     writer.addHeaderEnd(module_name)

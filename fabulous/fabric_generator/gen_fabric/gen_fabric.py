@@ -98,14 +98,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if tile is not None:
                 for bel in tile.bels:
                     for i in bel.externalInput:
-                        writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{i}", IO.INPUT, indentLevel=2
-                        )
+                        writer.addPort(f"Tile_X{x}Y{y}_{i}", IO.INPUT, indentLevel=2)
                         writer.addComment("EXTERNAL", onNewLine=False)
                     for i in bel.externalOutput:
-                        writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2
-                        )
+                        writer.addPort(f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2)
                         writer.addComment("EXTERNAL", onNewLine=False)
 
     # supertile-level BEL external ports (the BEL lives in the wrapper, not a
@@ -113,30 +109,30 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
             for i in bel.externalInput:
-                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
+                writer.addPort(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
                 writer.addComment("EXTERNAL", onNewLine=False)
             for i in bel.externalOutput:
-                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.OUTPUT, indentLevel=2)
+                writer.addPort(f"Tile_X{ax}Y{ay}_{i}", IO.OUTPUT, indentLevel=2)
                 writer.addComment("EXTERNAL", onNewLine=False)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-        writer.addPortVector(
+        writer.addPort(
             "FrameData",
             IO.INPUT,
-            f"(FrameBitsPerRow*{fabric.numberOfRows})-1",
+            width=f"(FrameBitsPerRow*{fabric.numberOfRows})",
             indentLevel=2,
         )
         writer.addComment("CONFIG_PORT", onNewLine=False)
-        writer.addPortVector(
+        writer.addPort(
             "FrameStrobe",
             IO.INPUT,
-            f"(MaxFramesPerCol*{fabric.numberOfColumns})-1",
+            width=f"(MaxFramesPerCol*{fabric.numberOfColumns})",
             indentLevel=2,
         )
         writer.addComment("CONFIG_PORT", onNewLine=False)
 
     if not fabric.disableUserCLK:
-        writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
+        writer.addPort("UserCLK", IO.INPUT, indentLevel=2)
 
     writer.addPortEnd()
     writer.addHeaderEnd(fabricName)
@@ -169,7 +165,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     if not fabric.disableUserCLK:
         for y, row in enumerate(fabric.tile):
             for x, _tile in enumerate(row):
-                writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo")
+                writer.addConnection(f"Tile_X{x}Y{y}_UserCLKo")
 
     writer.addComment("configuration signal declarations", onNewLine=True, end="\n")
 
@@ -179,7 +175,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             for t in row:
                 if t is not None:
                     tileCounter += 1
-        writer.addConnectionVector("conf_data", tileCounter)
+        writer.addConnection("conf_data", width=tileCounter + 1)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
         # FrameData       =>     Tile_Y3_FrameData,
@@ -187,23 +183,21 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         # MaxFramesPerCol : integer := 20;
         # FrameBitsPerRow : integer := 32;
         for y in range(fabric.numberOfRows):
-            writer.addConnectionVector(f"Row_Y{y}_FrameData", "FrameBitsPerRow -1")
+            writer.addConnection(f"Row_Y{y}_FrameData", width="FrameBitsPerRow")
 
         for x in range(fabric.numberOfColumns):
-            writer.addConnectionVector(
-                f"Column_X{x}_FrameStrobe", "MaxFramesPerCol - 1"
-            )
+            writer.addConnection(f"Column_X{x}_FrameStrobe", width="MaxFramesPerCol")
 
         for y in range(fabric.numberOfRows):
             for x in range(fabric.numberOfColumns):
-                writer.addConnectionVector(
-                    f"Tile_X{x}Y{y}_FrameData_O", "FrameBitsPerRow - 1"
+                writer.addConnection(
+                    f"Tile_X{x}Y{y}_FrameData_O", width="FrameBitsPerRow"
                 )
 
         for y in range(fabric.numberOfRows + 1):
             for x in range(fabric.numberOfColumns):
-                writer.addConnectionVector(
-                    f"Tile_X{x}Y{y}_FrameStrobe_O", "MaxFramesPerCol - 1"
+                writer.addConnection(
+                    f"Tile_X{x}Y{y}_FrameStrobe_O", width="MaxFramesPerCol"
                 )
 
     writer.addComment("tile-to-tile signal declarations", onNewLine=True)
@@ -212,7 +206,6 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if tile is not None:
                 seenPorts = set()
                 for p in tile.portsInfo:
-                    wireLength = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                     # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
                     # supertile wrapper), so they need no tile-to-tile fabric wire.
                     if p.source_name == "NULL" or p.wire_direction in (
@@ -223,8 +216,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     if p.source_name in seenPorts:
                         continue
                     seenPorts.add(p.source_name)
-                    writer.addConnectionVector(
-                        f"Tile_X{x}Y{y}_{p.source_name}", wireLength
+                    writer.addConnection(
+                        f"Tile_X{x}Y{y}_{p.source_name}", width=p.bus_width
                     )
     writer.addNewLine()
     # VHDL architecture body
@@ -235,25 +228,25 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # (so we can modify this here without side effects)
     if fabric.configBitMode == "FlipFlopChain":
         writer.addComment("configuration data daisy chaining", onNewLine=True)
-        writer.addAssignScalar("conf_data'low", "CONFin")
+        writer.addAssign("conf_data'low", "CONFin")
         writer.addComment("conf_data'low=0 and CONFin is from tile entity")
-        writer.addAssignScalar("CONFout", "conf_data'high")
+        writer.addAssign("CONFout", "conf_data'high")
         writer.addComment("CONFout is from tile entity")
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
         for y in range(len(fabric.tile)):
-            writer.addAssignVector(
+            writer.addAssign(
                 f"Row_Y{y}_FrameData",
                 "FrameData",
-                f"FrameBitsPerRow*({y}+1)-1",
-                f"FrameBitsPerRow*{y}",
+                high=f"FrameBitsPerRow*({y}+1)-1",
+                low=f"FrameBitsPerRow*{y}",
             )
         for x in range(len(fabric.tile[0])):
-            writer.addAssignVector(
+            writer.addAssign(
                 f"Column_X{x}_FrameStrobe",
                 "FrameStrobe",
-                f"MaxFramesPerCol*({x}+1)-1",
-                f"MaxFramesPerCol*{x}",
+                high=f"MaxFramesPerCol*({x}+1)-1",
+                low=f"MaxFramesPerCol*{x}",
             )
 
     instantiatedPosition = []

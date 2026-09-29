@@ -19,11 +19,18 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
+    VerilogCodeGenerator,
+)
 from fabulous.fabric_generator.gen_fabric.gen_fabric import (
     generateFabric,
     iter_super_tile_anchors,
 )
-from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
+from fabulous.fabric_generator.gen_fabric.gen_tile import (
+    generateSuperTile,
+    generateTile,
+)
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import create_switchmatrix_list
 
@@ -169,6 +176,37 @@ def test_supertile_vhdl_declares_all_instantiated_components(
         assert f"component {entity}" in rtl, f"{entity} component not declared"
 
 
+@pytest.mark.parametrize(
+    ("extension", "build", "declaration", "binding"),
+    [
+        (".v", _supertile, "wire ST_ConfigBits;", ".ConfigBits(ST_ConfigBits)"),
+        (
+            ".vhd",
+            _vhdl_supertile,
+            "signal ST_ConfigBits : STD_LOGIC;",
+            "ConfigBits(0) => ST_ConfigBits",
+        ),
+    ],
+)
+def test_supertile_single_config_bit_is_scalar(
+    tmp_path: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+    extension: str,
+    build: Callable[[Path], SuperTile],
+    declaration: str,
+    binding: str,
+) -> None:
+    """One supertile config bit is a scalar, bound to its consumers' vector port."""
+    supertile = build(tmp_path)
+    assert supertile.total_config_bits == 1
+    writer = code_generator_factory(extension, "DSP")
+    generateSuperTile(writer, supertile)
+    rtl = writer.outFileName.read_text()
+
+    assert declaration in rtl
+    assert binding in rtl
+
+
 def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     """Each supertile placement yields one anchor at its top-left child tile.
 
@@ -225,3 +263,28 @@ def test_user_clk_chains_from_side(
     ey = 1 + dy
     edge = rtl[rtl.index(f"Tile_X{ex}Y{ey}_T") :]
     assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]
+
+
+@pytest.mark.parametrize(
+    ("line", "scalars"),
+    [
+        ("NORTH,Z1BEG,0,-1,Z1END,1", ["Z1BEG", "Z1END"]),
+        ("NORTH,X2BEG,0,-2,X2END,1", ["X2BEG_i"]),
+        ("SOUTH,TBEG,0,1,NULL,1", ["TBEG"]),
+        ("JUMP,J_BEG,0,0,J_END,1", ["J_BEG"]),
+        ("SJUMP,SA,0,0,NULL,1", ["SA"]),
+    ],
+)
+def test_generate_tile_declares_one_wire_signals_as_scalars(
+    tmp_path: Path, line: str, scalars: list[str]
+) -> None:
+    """A one-wire signal has no `[0:0]` range and is never bit-selected."""
+    tile = make_empty_tile("T", parse_port_line(line)[0], pinOrderConfig={})
+    writer = VerilogCodeGenerator()
+    writer.outFileName = tmp_path / "T.v"
+    generateTile(writer, tile)
+    code = re.sub(r"//.*", "", writer.outFileName.read_text())
+
+    for name in scalars:
+        assert re.search(rf"\b(input|output|wire)\s+{name}\b", code)
+        assert not re.search(rf"\b{name}\s*\[", code)

@@ -228,10 +228,10 @@ def generateConfigMem(
     writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
     # the port definitions are generic
-    writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow - 1", indentLevel=2)
-    writer.addPortVector("FrameStrobe", IO.INPUT, "MaxFramesPerCol - 1", indentLevel=2)
-    writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
-    writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
+    writer.addPort("FrameData", IO.INPUT, width="FrameBitsPerRow", indentLevel=2)
+    writer.addPort("FrameStrobe", IO.INPUT, width="MaxFramesPerCol", indentLevel=2)
+    writer.addPort("ConfigBits", IO.OUTPUT, width="NoConfigBits", indentLevel=2)
+    writer.addPort("ConfigBits_N", IO.OUTPUT, width="NoConfigBits", indentLevel=2)
     writer.addPortEnd(indentLevel=1)
     writer.addHeaderEnd(f"{name}_ConfigMem")
     writer.addNewLine()
@@ -249,7 +249,7 @@ def generateConfigMem(
                     index = i.frameIndex * frame_bits_per_row + (
                         frame_bits_per_row - 1 - k
                     )
-                    writer.addAssignScalar(
+                    writer.addAssign(
                         f"ConfigBits[{i.configBitRanges[counter]}]",
                         f"Emulate_Bitstream[{index}]",
                     )

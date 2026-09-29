@@ -152,15 +152,17 @@ class VHDLCodeGenerator(CodeGenerator):
             self._add(deSemiColon(temp))
         self._add(");", indentLevel)
 
-    def addPortScalar(
+    def addPort(
         self,
         name: str,
         io: IO,
-        _reg: bool = False,
+        *,
+        width: int | str = 1,
+        reg: bool = False,  # noqa: ARG002, accepted for API parity; VHDL has no reg
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
-        """Add a scalar port declaration.
+        """Add a port declaration, `STD_LOGIC` for an integer width of 1.
 
         Parameters
         ----------
@@ -168,7 +170,9 @@ class VHDLCodeGenerator(CodeGenerator):
             Port name
         io : IO
             Input/output direction
-        _reg : bool
+        width : int | str
+            Number of wires, or an HDL expression
+        reg : bool
             Register flag (unused in VHDL)
         attribute : str
             Additional attributes to add as a comment
@@ -182,47 +186,14 @@ class VHDLCodeGenerator(CodeGenerator):
             ioVHDL = "out"
         if attribute:
             attribute = f" -- {attribute}"
-        self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC;{attribute}", indentLevel=indentLevel
+        msbIndex = self._msbIndex(width)
+        portType = (
+            "STD_LOGIC"
+            if msbIndex is None
+            else f"STD_LOGIC_VECTOR( {msbIndex} downto 0 )"
         )
-
-    def addPortVector(
-        self,
-        name: str,
-        io: IO,
-        msbIndex: int,
-        _reg: bool = False,
-        attribute: str = "",
-        indentLevel: int = 0,
-    ) -> None:
-        """Add a vector port declaration.
-
-        Parameters
-        ----------
-        name : str
-            Port name
-        io : IO
-            Input/output direction
-        msbIndex : int
-            Most significant bit index
-        _reg : bool
-            Register flag (unused in VHDL)
-        attribute : str
-            Additional attributes to add as a comment
-        indentLevel : int
-            The indentation level
-        """
-        ioVHDL = ""
-        if io.value.lower() == "input":
-            ioVHDL = "in"
-        elif io.value.lower() == "output":
-            ioVHDL = "out"
-        if attribute:
-            attribute = f" -- {attribute}"
         self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );"
-            f"{attribute}",
-            indentLevel=indentLevel,
+            f"{name:<10} : {ioVHDL} {portType};{attribute}", indentLevel=indentLevel
         )
 
     def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
@@ -261,49 +232,35 @@ class VHDLCodeGenerator(CodeGenerator):
         """
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
 
-    def addConnectionScalar(
-        self, name: str, _reg: bool = False, indentLevel: int = 0
-    ) -> None:
-        """Add a scalar signal declaration.
-
-        Parameters
-        ----------
-        name : str
-            Signal name
-        _reg : bool
-            Register flag (unused in VHDL)
-        indentLevel : int
-            The indentation level
-        """
-        self._add(f"signal {name} : STD_LOGIC;", indentLevel)
-
-    def addConnectionVector(
+    def addConnection(
         self,
         name: str,
-        startIndex: int,
-        _reg: bool = False,
-        endIndex: int = 0,
+        *,
+        width: int | str = 1,
+        reg: bool = False,  # noqa: ARG002, accepted for API parity; VHDL has no reg
         indentLevel: int = 0,
     ) -> None:
-        """Add a vector signal declaration.
+        """Add a signal declaration, `STD_LOGIC` for an integer width of 1.
 
         Parameters
         ----------
         name : str
             Signal name
-        startIndex : int
-            Start index (MSB)
-        _reg : bool
+        width : int | str
+            Number of wires, or an HDL expression
+        reg : bool
             Register flag (unused in VHDL)
-        endIndex : int
-            End index (LSB)
         indentLevel : int
             The indentation level
         """
-        self._add(
-            f"signal {name} : STD_LOGIC_VECTOR( {startIndex} downto {endIndex} );",
-            indentLevel,
-        )
+        msbIndex = self._msbIndex(width)
+        if msbIndex is None:
+            self._add(f"signal {name} : STD_LOGIC;", indentLevel)
+        else:
+            self._add(
+                f"signal {name} : STD_LOGIC_VECTOR( {msbIndex} downto 0 );",
+                indentLevel,
+            )
 
     def addLogicStart(self, indentLevel: int = 0) -> None:
         """Start the logic section (begin statement).
@@ -359,71 +316,51 @@ end process;
 """
         self._add(template, indentLevel)
 
-    def addAssignScalar(
+    def addAssign(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
+        *,
+        high: int | str | None = None,
+        low: int | str | None = None,
         delay: int = 0,
-        indentLevel: int = 0,
         inverted: bool = False,
+        indentLevel: int = 0,
     ) -> None:
-        """Add a signal assignment statement.
+        """Add a signal assignment, optionally selecting `right(high downto low)`.
 
         Parameters
         ----------
         left : str
             Left-hand side signal
-        right : str
-            Right-hand side signal or expression
+        right : str | list[str]
+            Right-hand side signal or expression; a list is concatenated
+        high : int | str | None
+            MSB of the selection from `right`
+        low : int | str | None
+            LSB of the selection from `right`
         delay : int
             Delay in picoseconds
-        indentLevel : int
-            The indentation level
         inverted : bool
             Whether to invert the right-hand side
+        indentLevel : int
+            The indentation level
         """
         inv = "not " if inverted else ""
         if isinstance(right, list):
-            self._add(
-                f"{left} <= {inv}{' & '.join(right)} after {delay} ps;", indentLevel
-            )
+            right = " & ".join(right)
         else:
-            left = (
-                str(left).replace(":", " downto ").replace("[", "(").replace("]", ")")
-            )
-            right = (
-                str(right).replace(":", " downto ").replace("[", "(").replace("]", ")")
-            )
-            self._add(f"{left} <= {inv}{right} after {delay} ps;", indentLevel)
-
-    def addAssignVector(
-        self,
-        left: str,
-        right: str,
-        widthL: str | int,
-        widthR: str | int,
-        indentLevel: int = 0,
-        inverted: bool = False,
-    ) -> None:
-        """Add a vector slice assignment.
-
-        Parameters
-        ----------
-        left : str
-            Left-hand side signal
-        right : str
-            Right-hand side signal
-        widthL : str | int
-            Upper bound of slice
-        widthR : str | int
-            Lower bound of slice
-        indentLevel : int
-            The indentation level
-        inverted : bool
-            Whether to invert the right-hand side
-        """
-        inv = "not " if inverted else ""
-        self._add(f"{left} <= {inv}{right}( {widthL} downto {widthR} );", indentLevel)
+            # callers write Verilog-style selects, e.g. `select_wire` output
+            left = left.replace(":", " downto ").replace("[", "(").replace("]", ")")
+            right = right.replace(":", " downto ").replace("[", "(").replace("]", ")")
+        match self._rangeSelect(high, low):
+            case None:
+                pass
+            case (msb, lsb):
+                right = f"{right}( {msb} downto {lsb} )"
+            case bit:
+                right = f"{right}({bit})"
+        self._add(f"{left} <= {inv}{right} after {delay} ps;", indentLevel)
 
     def addMuxAssign(
         self,

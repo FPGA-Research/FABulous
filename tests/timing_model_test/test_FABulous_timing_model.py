@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pytest_mock import MockerFixture
 
 import fabulous.fabric_cad.timing_model.FABulous_timing_model as tm_mod
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
@@ -14,6 +15,8 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelStaTools,
     TimingModelSynthTools,
 )
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import make_empty_tile
 
 
 def make_source_override(
@@ -173,6 +176,7 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
     m.internal_pips_grouped_by_inst = {}
     m.internal_pips = []
     m.internal_pip_cache = {}
+    m.port_bit_names = {"NN2BEG3": "NN2BEG[3]"}
     return m
 
 
@@ -1581,3 +1585,27 @@ def test_pip_delay_dispatch_external_applies_scaling_and_rounding(
     monkeypatch.setattr(bare_model, "external_pip_delay", lambda _s, _d: 0.33333)
 
     assert bare_model.pip_delay("A", "Y") == round(0.33333 * 3.0, 3)
+
+
+@pytest.mark.parametrize(
+    ("line", "wire", "bit"),
+    [
+        ("NORTH,NN2BEG,0,-2,NN2END,4", "NN2BEG3", "NN2BEG[3]"),
+        ("NORTH,NN2BEG,0,-2,NN2END,4", "NN2BEG5", "NN2BEG[5]"),
+        ("NORTH,Co,0,-1,Ci,1", "Co0", "Co"),
+        ("NORTH,Co,0,-1,Ci,1", "Ci0", "Ci"),
+    ],
+)
+def test_port_bit_names_follow_the_netlist_declaration(
+    bare_model: FABulousTileTimingModel,
+    mocker: MockerFixture,
+    line: str,
+    wire: str,
+    bit: str,
+) -> None:
+    """A one-wire port is a netlist scalar, every other port bit a bit-select."""
+    tile = make_empty_tile("TILE_A", parse_port_line(line)[0], pinOrderConfig={})
+    bare_model.fabric = mocker.Mock(getTileByName=mocker.Mock(return_value=tile))
+    del bare_model.port_bit_names
+
+    assert bare_model.port_bit_names[wire] == bit
