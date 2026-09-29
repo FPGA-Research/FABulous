@@ -9,12 +9,23 @@ algorithms based on the SDF, and should not contain high-level algorithms based 
 verilog netlists.
 """
 
+from dataclasses import replace
+from functools import cached_property
+from itertools import islice, pairwise
 from math import isclose
 
 import networkx as nx
+from typing_extensions import deprecated
 
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import (
     SDFTimingGraphBase,
+)
+from fabulous.fabric_cad.timing_model.models import (
+    Component,
+    SDFCellType,
+    SDFPathTiming,
+    SDFPathType,
+    SDFTimingTriplet,
 )
 
 
@@ -50,6 +61,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         """
         return nx.has_path(self.graph, source=source, target=target)
 
+    @deprecated("Use query_timing_paths() instead.")
     def single_delay(self, source: str, target: str) -> float:
         """Find path with delay between source and target nodes in the timing graph.
 
@@ -80,6 +92,601 @@ class SDFTimingGraph(SDFTimingGraphBase):
             self.graph, source=source, target=target, weight="weight"
         )
         return length
+
+    def query_timing_paths(
+        self,
+        source: str,
+        target: str,
+        max_paths: int = 10,
+        clock_pin: str | None = None,
+    ) -> list[SDFPathTiming]:
+        """Return complete timing information for the shortest structural paths.
+
+        Paths are ordered by edge count rather than delay, keeping path discovery
+        independent of the scalar delay selected when the graph was constructed. The
+        search is bounded and lazy, and results beyond `max_paths` are truncated.
+
+        When `clock_pin` is supplied, sequential paths are split at their first
+        synthetic data-to-clock timing-check edge. Setup and hold constraints are
+        adjusted for the data path before that edge and the clock path from
+        `clock_pin` to the matching register clock. Clock-to-target propagation uses
+        that clock path and the selected sequential path's exact output suffix. Raw
+        standard-cell timing checks remain available separately.
+
+        The current SDF parser stores one transition triple as `nominal`, two as
+        `fast` and `slow`, and three as `fast`, `nominal`, and `slow`. This method
+        normalizes those shapes according to SDF transition ordering: a single value
+        applies to rise and fall, while the first and second values of longer lists
+        describe rise and fall respectively. Within each triple, the parser's `avg`
+        value is the SDF typical value.
+
+        Parameters
+        ----------
+        source : str
+            Source graph node.
+        target : str
+            Target graph node.
+        max_paths : int
+            Maximum number of shortest simple paths to return.
+        clock_pin : str | None
+            Optional graph pin representing the BEL-level clock source. Without it,
+            raw timing checks and propagation delays are still returned, but effective
+            setup/hold and clock-to-target delays are unavailable.
+
+        Returns
+        -------
+        list[SDFPathTiming]
+            Timing results ordered from the fewest to the most graph edges.
+
+        Raises
+        ------
+        ValueError
+            If `max_paths` is less than one or a propagation component contains an
+            unsupported delay-path shape.
+
+        Notes
+        -----
+        NetworkX propagates `NodeNotFound` when either endpoint is absent and
+        `NetworkXNoPath` when the endpoints are disconnected.
+        """
+        if max_paths < 1:
+            raise ValueError("max_paths must be at least 1.")
+
+        path_timings: list[SDFPathTiming] = self._query_structural_timing_paths(
+            source,
+            target,
+            max_paths,
+        )
+        if clock_pin is None:
+            return path_timings
+
+        clock_paths: dict[str, SDFPathTiming | None] = {}
+        clocked_path_timings: list[SDFPathTiming] = []
+        for path_timing in path_timings:
+            register_clock_pin: str | None = path_timing.register_clock_pin
+            effective_setup: tuple[SDFTimingTriplet, ...] = ()
+            effective_hold: tuple[SDFTimingTriplet, ...] = ()
+            clock_to_output_rise: SDFTimingTriplet | None = None
+            clock_to_output_fall: SDFTimingTriplet | None = None
+            if register_clock_pin is not None:
+                if register_clock_pin not in clock_paths:
+                    clock_paths[register_clock_pin] = (
+                        self._first_structural_timing_path(
+                            clock_pin,
+                            register_clock_pin,
+                        )
+                    )
+                register_clock_path: SDFPathTiming | None = clock_paths[
+                    register_clock_pin
+                ]
+                if register_clock_path is not None:
+                    effective_setup, effective_hold = self._effective_timing_checks(
+                        path_timing,
+                        register_clock_path,
+                    )
+                    timing_check_index: int = next(
+                        index
+                        for index, component in enumerate(path_timing.components)
+                        if component.is_timing_check
+                    )
+                    clock_to_output_components: tuple[Component, ...] = (
+                        *register_clock_path.components,
+                        *path_timing.components[timing_check_index + 1 :],
+                    )
+                    rise_values, fall_values, _ = self._transition_delays(
+                        clock_to_output_components
+                    )
+                    clock_to_output_rise = self._sum_timing_triplets(rise_values)
+                    clock_to_output_fall = self._sum_timing_triplets(fall_values)
+
+            clocked_path_timings.append(
+                replace(
+                    path_timing,
+                    effective_setup=effective_setup,
+                    effective_hold=effective_hold,
+                    clock_to_output_rise=clock_to_output_rise,
+                    clock_to_output_fall=clock_to_output_fall,
+                )
+            )
+
+        return clocked_path_timings
+
+    def _query_structural_timing_paths(
+        self,
+        source: str,
+        target: str,
+        max_paths: int,
+    ) -> list[SDFPathTiming]:
+        """Find and decode structural paths without clock-dependent calculations.
+
+        Parameters
+        ----------
+        source : str
+            Source graph node.
+        target : str
+            Target graph node.
+        max_paths : int
+            Maximum number of shortest simple paths to decode.
+
+        Returns
+        -------
+        list[SDFPathTiming]
+            Decoded paths ordered by increasing edge count.
+        """
+        path_generator = nx.shortest_simple_paths(
+            self.graph,
+            source=source,
+            target=target,
+            weight=None,
+        )
+        node_paths: list[list[str]] = list(islice(path_generator, max_paths))
+        return [
+            self._decode_timing_path(node_path, self._sequential_instances)
+            for node_path in node_paths
+        ]
+
+    @cached_property
+    def _sequential_instances(self) -> frozenset[str]:
+        """Return SDF instances containing sequential timing checks.
+
+        Returns
+        -------
+        frozenset[str]
+            Instance names containing setup or hold timing checks.
+        """
+        return frozenset(
+            instance_name
+            for instance_name, instance_components in self.instances.items()
+            if any(
+                component.c_type in {SDFCellType.SETUP, SDFCellType.HOLD}
+                for component in instance_components
+            )
+        )
+
+    def _first_structural_timing_path(
+        self,
+        source: str,
+        target: str,
+    ) -> SDFPathTiming | None:
+        """Return the first structural timing path between two graph nodes.
+
+        Parameters
+        ----------
+        source : str
+            Source graph node.
+        target : str
+            Target graph node.
+
+        Returns
+        -------
+        SDFPathTiming | None
+            First path ordered by edge count, or `None` when no path exists.
+
+        Notes
+        -----
+        NetworkX `NodeNotFound` errors remain visible to identify invalid caller input.
+        """
+        try:
+            paths: list[SDFPathTiming] = self._query_structural_timing_paths(
+                source,
+                target,
+                max_paths=1,
+            )
+        except nx.NetworkXNoPath:
+            return None
+        return paths[0] if paths else None
+
+    def _decode_timing_path(
+        self,
+        node_path: list[str],
+        sequential_instances: frozenset[str],
+    ) -> SDFPathTiming:
+        """Decode one graph-node path into its complete structural timing data.
+
+        Parameters
+        ----------
+        node_path : list[str]
+            Ordered graph nodes forming the path.
+        sequential_instances : frozenset[str]
+            SDF instances containing setup or hold timing checks.
+
+        Returns
+        -------
+        SDFPathTiming
+            Structural propagation, timing-check, and path classification data.
+        """
+        components: list[Component] = [
+            self.graph.edges[path_source, path_target]["component"]
+            for path_source, path_target in pairwise(node_path)
+        ]
+        rise_values, fall_values, high_impedance_values = self._transition_delays(
+            components
+        )
+        high_impedance: SDFTimingTriplet | None = None
+        if all(value is not None for value in high_impedance_values):
+            high_impedance = self._sum_timing_triplets(
+                [value for value in high_impedance_values if value is not None]
+            )
+
+        timing_checks: list[Component] = self._path_timing_checks(components)
+        setup: tuple[SDFTimingTriplet, ...] = tuple(
+            self._timing_triplet(component.delay_paths["nominal"])
+            for component in timing_checks
+            if component.c_type == SDFCellType.SETUP
+        )
+        hold: tuple[SDFTimingTriplet, ...] = tuple(
+            self._timing_triplet(component.delay_paths["nominal"])
+            for component in timing_checks
+            if component.c_type == SDFCellType.HOLD
+        )
+        timing_check_index: int | None = next(
+            (
+                index
+                for index, component in enumerate(components)
+                if component.is_timing_check
+            ),
+            None,
+        )
+        register_clock_pin: str | None = (
+            node_path[timing_check_index + 1]
+            if timing_check_index is not None
+            else None
+        )
+        is_sequential: bool = any(
+            component.is_timing_check
+            or (
+                component.c_type == SDFCellType.IOPATH
+                and component.from_cell_instance == component.to_cell_instance
+                and component.from_cell_instance in sequential_instances
+            )
+            for component in components
+        )
+        conditions: tuple[str, ...] = tuple(
+            dict.fromkeys(
+                component.cond_equation
+                for component in [*components, *timing_checks]
+                if component.is_cond and component.cond_equation is not None
+            )
+        )
+        return SDFPathTiming(
+            nodes=tuple(node_path),
+            components=tuple(components),
+            path_type=(
+                SDFPathType.SEQUENTIAL if is_sequential else SDFPathType.COMBINATIONAL
+            ),
+            rise=self._sum_timing_triplets(rise_values),
+            fall=self._sum_timing_triplets(fall_values),
+            high_impedance=high_impedance,
+            setup=setup,
+            hold=hold,
+            timing_checks=tuple(timing_checks),
+            conditions=conditions,
+            register_clock_pin=register_clock_pin,
+        )
+
+    def _transition_delays(
+        self,
+        components: list[Component] | tuple[Component, ...],
+    ) -> tuple[
+        list[SDFTimingTriplet],
+        list[SDFTimingTriplet],
+        list[SDFTimingTriplet | None],
+    ]:
+        """Decode transition delays for an ordered collection of SDF components.
+
+        Parameters
+        ----------
+        components : list[Component] | tuple[Component, ...]
+            Ordered path components.
+
+        Returns
+        -------
+        rise_values : list[SDFTimingTriplet]
+            Per-component rising-transition delays.
+        fall_values : list[SDFTimingTriplet]
+            Per-component falling-transition delays.
+        high_impedance_values : list[SDFTimingTriplet | None]
+            Per-component high-impedance delays when available.
+
+        Raises
+        ------
+        ValueError
+            If a component contains an unsupported delay-path shape.
+        """
+        rise_values: list[SDFTimingTriplet] = []
+        fall_values: list[SDFTimingTriplet] = []
+        high_impedance_values: list[SDFTimingTriplet | None] = []
+        zero_delay = SDFTimingTriplet(minimum=0.0, typical=0.0, maximum=0.0)
+        for component in components:
+            if component.delay_paths is None:
+                rise_values.append(zero_delay)
+                fall_values.append(zero_delay)
+                high_impedance_values.append(zero_delay)
+                continue
+
+            delay_path_keys: set[str] = set(component.delay_paths)
+            if delay_path_keys == {"nominal"}:
+                rise_delay = self._timing_triplet(component.delay_paths["nominal"])
+                fall_delay = rise_delay
+                high_impedance_delay: SDFTimingTriplet | None = rise_delay
+            elif delay_path_keys == {"fast", "slow"}:
+                rise_delay = self._timing_triplet(component.delay_paths["fast"])
+                fall_delay = self._timing_triplet(component.delay_paths["slow"])
+                high_impedance_delay = None
+            elif delay_path_keys == {"fast", "nominal", "slow"}:
+                rise_delay = self._timing_triplet(component.delay_paths["fast"])
+                fall_delay = self._timing_triplet(component.delay_paths["nominal"])
+                high_impedance_delay = self._timing_triplet(
+                    component.delay_paths["slow"]
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported SDF delay-path shape {delay_path_keys!r} for "
+                    f"component {component.connection_string!r}."
+                )
+            rise_values.append(rise_delay)
+            fall_values.append(fall_delay)
+            high_impedance_values.append(high_impedance_delay)
+        return rise_values, fall_values, high_impedance_values
+
+    def _path_timing_checks(self, components: list[Component]) -> list[Component]:
+        """Find setup and hold checks associated with a structural path.
+
+        Parameters
+        ----------
+        components : list[Component]
+            Ordered path components.
+
+        Returns
+        -------
+        list[Component]
+            Unique SDF setup and hold components in encounter order.
+        """
+        timing_checks: list[Component] = []
+        for component in components:
+            if not component.is_timing_check:
+                continue
+            for timing_check in self.instances.get(component.from_cell_instance, []):
+                if (
+                    timing_check.c_type in {SDFCellType.SETUP, SDFCellType.HOLD}
+                    and timing_check.from_cell_pin == component.to_cell_pin
+                    and timing_check.to_cell_pin == component.from_cell_pin
+                    and timing_check not in timing_checks
+                ):
+                    timing_checks.append(timing_check)
+        return timing_checks
+
+    def _effective_timing_checks(
+        self,
+        data_path: SDFPathTiming,
+        clock_path: SDFPathTiming,
+    ) -> tuple[tuple[SDFTimingTriplet, ...], tuple[SDFTimingTriplet, ...]]:
+        """Adjust cell setup and hold checks for data and clock path delays.
+
+        Parameters
+        ----------
+        data_path : SDFPathTiming
+            Sequential path containing the data propagation and cell timing checks.
+        clock_path : SDFPathTiming
+            Path from the requested clock source to the register clock pin.
+
+        Returns
+        -------
+        tuple[tuple[SDFTimingTriplet, ...], tuple[SDFTimingTriplet, ...]]
+            Effective setup and hold timing triples.
+        """
+        timing_check_index: int = next(
+            index
+            for index, component in enumerate(data_path.components)
+            if component.is_timing_check
+        )
+        data_rise_values, data_fall_values, _ = self._transition_delays(
+            data_path.components[:timing_check_index]
+        )
+        data_rise: SDFTimingTriplet = self._sum_timing_triplets(data_rise_values)
+        data_fall: SDFTimingTriplet = self._sum_timing_triplets(data_fall_values)
+        (
+            data_minimum,
+            data_typical_minimum,
+            data_typical_maximum,
+            data_maximum,
+        ) = self._transition_extremes(data_rise, data_fall)
+        (
+            clock_minimum,
+            clock_typical_minimum,
+            clock_typical_maximum,
+            clock_maximum,
+        ) = self._transition_extremes(clock_path.rise, clock_path.fall)
+
+        effective_setup: tuple[SDFTimingTriplet, ...] = tuple(
+            SDFTimingTriplet(
+                minimum=self._sum_and_subtract(
+                    data_minimum,
+                    cell_setup.minimum,
+                    clock_maximum,
+                ),
+                typical=self._sum_and_subtract(
+                    data_typical_maximum,
+                    cell_setup.typical,
+                    clock_typical_minimum,
+                ),
+                maximum=self._sum_and_subtract(
+                    data_maximum,
+                    cell_setup.maximum,
+                    clock_minimum,
+                ),
+            )
+            for cell_setup in data_path.setup
+        )
+        effective_hold: tuple[SDFTimingTriplet, ...] = tuple(
+            SDFTimingTriplet(
+                minimum=self._sum_and_subtract(
+                    cell_hold.minimum,
+                    clock_minimum,
+                    data_maximum,
+                ),
+                typical=self._sum_and_subtract(
+                    cell_hold.typical,
+                    clock_typical_maximum,
+                    data_typical_minimum,
+                ),
+                maximum=self._sum_and_subtract(
+                    cell_hold.maximum,
+                    clock_maximum,
+                    data_minimum,
+                ),
+            )
+            for cell_hold in data_path.hold
+        )
+        return effective_setup, effective_hold
+
+    def _timing_triplet(
+        self,
+        delay_values: dict[str, float | None],
+    ) -> SDFTimingTriplet:
+        """Convert one parser delay triple into the public timing model.
+
+        Parameters
+        ----------
+        delay_values : dict[str, float | None]
+            Parser dictionary containing `min`, `avg`, and `max` values.
+
+        Returns
+        -------
+        SDFTimingTriplet
+            Normalized minimum, typical, and maximum delay values.
+        """
+        return SDFTimingTriplet(
+            minimum=delay_values.get("min"),
+            typical=delay_values.get("avg"),
+            maximum=delay_values.get("max"),
+        )
+
+    def _sum_timing_triplets(
+        self,
+        values: list[SDFTimingTriplet],
+    ) -> SDFTimingTriplet:
+        """Sum timing triples while preserving unavailable SDF values.
+
+        Parameters
+        ----------
+        values : list[SDFTimingTriplet]
+            Timing triples for the ordered components of one path.
+
+        Returns
+        -------
+        SDFTimingTriplet
+            Component-wise path sum. A field remains `None` if any traversed
+            component does not provide that field.
+        """
+        minimum_values: list[float | None] = [value.minimum for value in values]
+        typical_values: list[float | None] = [value.typical for value in values]
+        maximum_values: list[float | None] = [value.maximum for value in values]
+        return SDFTimingTriplet(
+            minimum=(
+                sum(value for value in minimum_values if value is not None)
+                if all(value is not None for value in minimum_values)
+                else None
+            ),
+            typical=(
+                sum(value for value in typical_values if value is not None)
+                if all(value is not None for value in typical_values)
+                else None
+            ),
+            maximum=(
+                sum(value for value in maximum_values if value is not None)
+                if all(value is not None for value in maximum_values)
+                else None
+            ),
+        )
+
+    def _transition_extremes(
+        self,
+        rise: SDFTimingTriplet,
+        fall: SDFTimingTriplet,
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        """Return conservative extrema across rise and fall transitions.
+
+        Parameters
+        ----------
+        rise : SDFTimingTriplet
+            Rising-transition timing values.
+        fall : SDFTimingTriplet
+            Falling-transition timing values.
+
+        Returns
+        -------
+        tuple[float | None, float | None, float | None, float | None]
+            Minimum, typical minimum, typical maximum, and maximum values. An
+            extremum is `None` when either transition does not provide that corner.
+        """
+        minimum: float | None = (
+            min(rise.minimum, fall.minimum)
+            if rise.minimum is not None and fall.minimum is not None
+            else None
+        )
+        typical_minimum: float | None = (
+            min(rise.typical, fall.typical)
+            if rise.typical is not None and fall.typical is not None
+            else None
+        )
+        typical_maximum: float | None = (
+            max(rise.typical, fall.typical)
+            if rise.typical is not None and fall.typical is not None
+            else None
+        )
+        maximum: float | None = (
+            max(rise.maximum, fall.maximum)
+            if rise.maximum is not None and fall.maximum is not None
+            else None
+        )
+        return minimum, typical_minimum, typical_maximum, maximum
+
+    def _sum_and_subtract(
+        self,
+        first_addend: float | None,
+        second_addend: float | None,
+        subtrahend: float | None,
+    ) -> float | None:
+        """Add two timing values and subtract a third when all are available.
+
+        Parameters
+        ----------
+        first_addend : float | None
+            First value to add.
+        second_addend : float | None
+            Second value to add.
+        subtrahend : float | None
+            Value to subtract.
+
+        Returns
+        -------
+        float | None
+            Calculated value, or `None` when any operand is unavailable.
+        """
+        if first_addend is None or second_addend is None or subtrahend is None:
+            return None
+        return first_addend + second_addend - subtrahend
 
     def earliest_common_nodes(
         self,

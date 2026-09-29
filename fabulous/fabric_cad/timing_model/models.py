@@ -223,6 +223,99 @@ class DelayType(StrEnum):
     MIN_SLOW = "min_slow"
 
 
+class SDFPathType(StrEnum):
+    """Classify an SDF timing path by its sequential behavior.
+
+    Attributes
+    ----------
+    COMBINATIONAL
+        The path contains only combinational timing components.
+    SEQUENTIAL
+        The path crosses a sequential cell or synthetic timing-check edge.
+    """
+
+    COMBINATIONAL = "combinational"
+    SEQUENTIAL = "sequential"
+
+
+@dataclass(frozen=True, slots=True)
+class SDFTimingTriplet:
+    """Represent the minimum, typical, and maximum values of an SDF delay.
+
+    Attributes
+    ----------
+    minimum : float | None
+        Minimum delay, or `None` when the SDF does not provide it.
+    typical : float | None
+        Typical delay, called `avg` by the current SDF parser, or `None` when
+        the SDF does not provide it.
+    maximum : float | None
+        Maximum delay, or `None` when the SDF does not provide it.
+    """
+
+    minimum: float | None
+    typical: float | None
+    maximum: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class SDFPathTiming:
+    """Collect the complete timing information for one structural graph path.
+
+    Attributes
+    ----------
+    nodes : tuple[str, ...]
+        Ordered graph nodes forming the path.
+    components : tuple[Component, ...]
+        Ordered SDF components forming the path edges.
+    path_type : SDFPathType
+        Whether the path is combinational or sequential.
+    rise : SDFTimingTriplet
+        Aggregated rising-transition propagation delay.
+    fall : SDFTimingTriplet
+        Aggregated falling-transition propagation delay.
+    high_impedance : SDFTimingTriplet | None
+        Aggregated high-impedance transition delay when it can be derived for every
+        component on the path.
+    setup : tuple[SDFTimingTriplet, ...]
+        Setup checks associated with sequential edges on the path.
+    hold : tuple[SDFTimingTriplet, ...]
+        Hold checks associated with sequential edges on the path.
+    timing_checks : tuple[Component, ...]
+        Original SDF timing-check components associated with the path.
+    conditions : tuple[str, ...]
+        Ordered, unique SDF conditions affecting the path or its timing checks.
+    register_clock_pin : str | None
+        Graph pin at the register clock reached by the first timing-check edge.
+    effective_setup : tuple[SDFTimingTriplet, ...]
+        Setup constraints adjusted for the data and clock paths. Empty when no
+        `clock_pin` was supplied to the path query or its clock path is unavailable.
+    effective_hold : tuple[SDFTimingTriplet, ...]
+        Hold constraints adjusted for the data and clock paths. Empty when no
+        `clock_pin` was supplied to the path query or its clock path is unavailable.
+    clock_to_output_rise : SDFTimingTriplet | None
+        Rising clock-to-target propagation delay from the supplied clock pin.
+    clock_to_output_fall : SDFTimingTriplet | None
+        Falling clock-to-target propagation delay from the supplied clock pin.
+    """
+
+    nodes: tuple[str, ...]
+    components: tuple[Component, ...]
+    path_type: SDFPathType
+    rise: SDFTimingTriplet
+    fall: SDFTimingTriplet
+    high_impedance: SDFTimingTriplet | None = None
+    setup: tuple[SDFTimingTriplet, ...] = ()
+    hold: tuple[SDFTimingTriplet, ...] = ()
+    timing_checks: tuple[Component, ...] = ()
+    conditions: tuple[str, ...] = ()
+    register_clock_pin: str | None = None
+    effective_setup: tuple[SDFTimingTriplet, ...] = ()
+    effective_hold: tuple[SDFTimingTriplet, ...] = ()
+    clock_to_output_rise: SDFTimingTriplet | None = None
+    clock_to_output_fall: SDFTimingTriplet | None = None
+
+
 class TimingModelMode(StrEnum):
     """Enumeration of timing model modes for the SDF timing model.
 
@@ -242,6 +335,127 @@ class TimingModelMode(StrEnum):
 
     STRUCTURAL = "structural"
     PHYSICAL = "physical"
+
+
+class TimingModelTarget(StrEnum):
+    """Select which nextpnr timing data the timing-model flow generates.
+
+    Attributes
+    ----------
+    PIPS
+        Generate routing-resource delays in `pips.txt`.
+    BELS
+        Generate BEL-internal timing arcs in `bel.v3.txt`.
+    BOTH
+        Generate both pip and BEL timing data.
+    """
+
+    PIPS = "pips"
+    BELS = "bels"
+    BOTH = "both"
+
+
+@dataclass(frozen=True, slots=True)
+class BelClockTiming:
+    """Declare a BEL clock port and its optional activation condition.
+
+    Attributes
+    ----------
+    clock : str
+        Logical nextpnr clock-port name.
+    condition : str | None
+        Optional nextpnr timing condition.
+    """
+
+    clock: str
+    condition: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BelDelayTiming:
+    """Represent one combinational BEL timing arc.
+
+    Attributes
+    ----------
+    source : str
+        Logical nextpnr source-port name.
+    sink : str
+        Logical nextpnr destination-port name.
+    delay : float
+        Arc delay in nanoseconds.
+    condition : str | None
+        Optional nextpnr timing condition.
+    """
+
+    source: str
+    sink: str
+    delay: float
+    condition: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BelSetupHoldTiming:
+    """Represent setup and hold checks for one BEL data port.
+
+    Attributes
+    ----------
+    port : str
+        Logical nextpnr data-port name.
+    clock : str
+        Logical nextpnr clock-port name.
+    setup : float
+        Setup time in nanoseconds.
+    hold : float
+        Hold time in nanoseconds.
+    condition : str | None
+        Optional nextpnr timing condition.
+    """
+
+    port: str
+    clock: str
+    setup: float
+    hold: float
+    condition: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BelClockToOutTiming:
+    """Represent one BEL clock-to-output timing arc.
+
+    Attributes
+    ----------
+    port : str
+        Logical nextpnr output-port name.
+    clock : str
+        Logical nextpnr clock-port name.
+    delay : float
+        Clock-to-output delay in nanoseconds.
+    condition : str | None
+        Optional nextpnr timing condition.
+    """
+
+    port: str
+    clock: str
+    delay: float
+    condition: str | None = None
+
+
+type BelTimingArc = (
+    BelClockTiming | BelDelayTiming | BelSetupHoldTiming | BelClockToOutTiming
+)
+
+
+@dataclass(frozen=True, slots=True)
+class BelTiming:
+    """Collect all characterized timing arcs for one BEL instance.
+
+    Attributes
+    ----------
+    arcs : tuple[BelTimingArc, ...]
+        Immutable sequence of timing arcs in nextpnr emission order.
+    """
+
+    arcs: tuple[BelTimingArc, ...] = ()
 
 
 class TimingModelSynthTools(StrEnum):
