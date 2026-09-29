@@ -5,6 +5,7 @@ invocation, so the contract worth pinning is the command string it forwards.
 """
 
 import pytest
+from cmd2.exceptions import Cmd2ArgparseError
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -26,6 +27,17 @@ SYNTH_CASES = [
     ),
 ]
 
+# Options the reworked Yosys synth_fabulous no longer accepts.
+REMOVED_SYNTH_OPTIONS = [
+    "-iopad",
+    "-complex-dff",
+    "-noregfile",
+    "-plib p.v",
+    "-blif out.blif",
+    "-edif out.edif",
+    "-encfile enc.txt",
+]
+
 FORWARD_CASES = [
     ("place_and_route", "x.json", "compile_design x.json --pnr-only"),
     ("gen_bitStream_binary", "x.fasm", "compile_design x.fasm --bitgen-only"),
@@ -41,6 +53,17 @@ def test_synthesis_translation(
     spy = mocker.patch.object(cli, "onecmd_plus_hooks")
     cli.get_command_func("synthesis")(args)
     spy.assert_called_once_with(expected)
+
+
+@pytest.mark.parametrize("option", REMOVED_SYNTH_OPTIONS)
+def test_synthesis_rejects_removed_option(
+    cli: FABulousREPL, mocker: MockerFixture, option: str
+) -> None:
+    """Options removed from synth_fabulous are rejected, not forwarded."""
+    spy = mocker.patch.object(cli, "onecmd_plus_hooks")
+    with pytest.raises(Cmd2ArgparseError):
+        cli.get_command_func("synthesis")(f"a.v {option}")
+    spy.assert_not_called()
 
 
 @pytest.mark.parametrize(("command", "args", "expected"), FORWARD_CASES)

@@ -489,6 +489,33 @@ def project_factory(
     return _create
 
 
+PRE_REWORK_TEST_FILES = Path(__file__).parent / "assets" / "pre_rework_project"
+
+
+@pytest.fixture
+def pre_rework_project_factory(
+    project_factory: Callable[..., Path],
+) -> Callable[..., Path]:
+    """Return a callable that creates a project as made before the Yosys rework.
+
+    Such a project has no `yosys/` library folder, and its `Test/Taskfile.yml`
+    and `Test/Makefile` pass no library options to `synth_fabulous`.
+
+    TODO(3.0): remove with the support for such projects.
+    """
+
+    def _create(lang: HDLType = HDLType.VERILOG) -> Path:
+        project_dir = project_factory(lang=lang)
+        shutil.rmtree(project_dir / "yosys")
+        for name in ("Taskfile.yml", "Makefile"):
+            shutil.copy(
+                PRE_REWORK_TEST_FILES / str(lang) / name, project_dir / "Test" / name
+            )
+        return project_dir
+
+    return _create
+
+
 @pytest.fixture
 def project(project_factory: Callable[..., Path]) -> Path:
     """Verilog FABulous project in a temp directory."""

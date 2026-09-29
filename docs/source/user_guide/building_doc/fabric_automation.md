@@ -1005,7 +1005,9 @@ demo
 │       ├── IO_1_bidirectional_frame_config_pass.v
 │       ├── W_IO.csv
 │       └── W_IO_switch_matrix.list
-└── user_design   # User Design Files
+├── user_design   # User Design Files
+│   └── ...
+└── yosys         # Yosys Primitives and Technology Maps
     └── ...
 ```
 

@@ -28,6 +28,7 @@ from pick import pick
 
 from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
 from fabulous.fabulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
@@ -608,7 +609,8 @@ def update_project_version(project_dir: Path) -> bool:
 
     This function reads the current project version from the .env file and updates it
     to match the currently installed FABulous package version, provided there are no
-    major version mismatches.
+    major version mismatches. Before the version is bumped, the project is upgraded
+    to carry its own Yosys library (see `upgrade_to_yosys_library`).
 
     Parameters
     ----------
@@ -624,6 +626,8 @@ def update_project_version(project_dir: Path) -> bool:
     -----
     The function will refuse to update if there is a major version mismatch between
     the project version and the package version, as this could indicate incompatibility.
+    A project that cannot be upgraded raises `ProjectUpgradeError` and keeps its
+    version.
     """
     env_file = project_dir / ".FABulous" / ".env"
 
@@ -641,6 +645,7 @@ def update_project_version(project_dir: Path) -> bool:
         )
         return False
 
+    upgrade_to_yosys_library(project_dir)
     set_key(env_file, "FAB_PROJ_VERSION", str(package_version))
     return True
 
