@@ -119,6 +119,14 @@ def round_die_area(config: Config) -> Config:
     return config.copy(DIE_AREA=(0, 0, width_rounded, height_rounded))
 
 
+def get_supply_nets(config: Config) -> tuple[list[str], list[str]]:
+    """Return the power and ground nets, defaulting to `VDD_PIN` and `GND_PIN`."""
+    return (
+        config["VDD_NETS"] or [config["VDD_PIN"]],
+        config["GND_NETS"] or [config["GND_PIN"]],
+    )
+
+
 def get_routing_obstructions(
     config: Config,
 ) -> list[tuple[str, Decimal, Decimal, Decimal, Decimal]]:

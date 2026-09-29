@@ -21,12 +21,17 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_dimension,
 )
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
+from fabulous.fabric_generator.gds_generator.steps.common_variables import (
+    tile_logical_height_variable,
+    tile_logical_width_variable,
+)
 from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
     FABulousDiodesOnPorts,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
+from fabulous.fabric_generator.gds_generator.steps.tile_pdn import FABulousTilePDN
 from fabulous.fabric_generator.gds_generator.steps.timed_detailed_routing import (
     FABulousDetailedRoutingTimed,
 )
@@ -105,20 +110,8 @@ var = [
         "Minimum tile height based on pin requirements.",
         default=Decimal(0),
     ),
-    Variable(
-        "FABULOUS_TILE_LOGICAL_WIDTH",
-        int,
-        "Supertile logical column count; 1 for regular tiles. Used to lock the "
-        "balance-mode aspect ratio to logical_w:logical_h (square cells).",
-        default=1,
-    ),
-    Variable(
-        "FABULOUS_TILE_LOGICAL_HEIGHT",
-        int,
-        "Supertile logical row count; 1 for regular tiles. Paired with "
-        "FABULOUS_TILE_LOGICAL_WIDTH for aspect locking.",
-        default=1,
-    ),
+    tile_logical_width_variable,
+    tile_logical_height_variable,
     Variable(
         "FABULOUS_BASE_OPTIMISATION_ITERATION_START",
         int,
@@ -146,7 +139,7 @@ class TileAreaOptimisation(WhileStep):
         OpenROAD.CutRows,
         OpenROAD.TapEndcapInsertion,
         Odb.AddPDNObstructions,
-        OpenROAD.GeneratePDN,
+        FABulousTilePDN,
         Odb.RemovePDNObstructions,
         Odb.AddRoutingObstructions,
         FABulousTileIOPlacement,  # Replace with FABulous IO Placement
