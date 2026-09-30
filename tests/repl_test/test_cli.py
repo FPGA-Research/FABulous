@@ -848,8 +848,11 @@ def test_deprecated_macro_commands_forward(
     )
     mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
     api_mock = mocker.patch.object(cli.fabulousAPI, api_method)
-    # `gen_macro stitch` returns early unless a hardened tile exists.
-    (cli.projectDir / "Tile" / TILE / "macro" / "final_views").mkdir(parents=True)
+    # `gen_macro stitch` raises unless every tile in the fabric is hardened.
+    for tile in cli.fabulousAPI.fabric.get_all_unique_tiles():
+        (cli.projectDir / "Tile" / tile.name / "macro" / "final_views").mkdir(
+            parents=True
+        )
     command = f"{deprecated} {arguments}".strip()
 
     if through_tcl:
@@ -883,6 +886,42 @@ def test_deprecated_macro_command_propagates_failure(
     else:
         assert cli.onecmd_plus_hooks(f"gen_tile_macro {TILE}")
     assert cli.exit_code != 0
+
+
+@pytest.mark.parametrize(
+    ("unhardened", "stale"),
+    [(set(), set()), (set(), {"DROPPED_TILE"}), ({TILE}, set())],
+    ids=["all_hardened", "stale_unused_macro", "used_tile_unhardened"],
+)
+def test_gen_macro_stitch_hands_over_exactly_the_fabric_tiles(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    unhardened: set[str],
+    stale: set[str],
+) -> None:
+    """Stitch takes the fabric's tiles, ignores stale macros and needs each hardened.
+
+    A tile hardened once and later dropped from the fabric leaves its
+    `final_views` behind under `Tile/`, which must not reach the stitching flow.
+    """
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+    )
+    api_mock = mocker.patch.object(cli.fabulousAPI, "fabric_stitching")
+    used = {tile.name for tile in cli.fabulousAPI.fabric.get_all_unique_tiles()}
+    for name in (used - unhardened) | stale:
+        (cli.projectDir / "Tile" / name / "macro" / "final_views").mkdir(parents=True)
+
+    run_cmd(cli, "gen_macro stitch")
+
+    if unhardened:
+        assert cli.exit_code != 0
+        assert any(TILE in r.message for r in caplog.records if r.levelname == "ERROR")
+        api_mock.assert_not_called()
+    else:
+        assert cli.exit_code == 0
+        assert set(api_mock.call_args.args[0]) == used
 
 
 CUSTOM_PRIM_BELS = [
