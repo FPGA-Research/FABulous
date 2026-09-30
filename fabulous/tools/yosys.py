@@ -6,6 +6,8 @@ Used as a singleton through classmethods (`YosysTool.convert_to_json(...)`,
 
 from pathlib import Path
 
+from packaging.version import Version
+
 from fabulous.fabulous_settings import get_context
 from fabulous.tools.tool import Tool
 
@@ -16,6 +18,12 @@ class YosysTool(Tool):
     Converts Verilog into Yosys's JSON netlist format. Used as a singleton: call
     the classmethods directly, never instantiate.
     """
+
+    MAXIMUM_VERSION = Version("0.66")
+    VERSION_HINT = (
+        "Yosys changed behaviour FABulous has not been adapted to after the "
+        "0.66 release; see the CAD tool installation guide."
+    )
 
     @classmethod
     def executable(cls) -> Path | str:
