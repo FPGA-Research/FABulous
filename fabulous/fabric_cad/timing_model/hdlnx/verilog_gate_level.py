@@ -1,11 +1,12 @@
 """Convert a Verilog gate-level netlist into a timing graph.
 
 It uses the SDFTimingGraph class to parse the SDF file and generate a NetworkX directed
-graph representing the timing relationships. It will call an external STA tool to
-generate the SDF file from the Verilog netlist.
+graph representing the timing relationships. It will call OpenSTA to generate the SDF
+file from the Verilog netlist.
 """
 
 import re
+from pathlib import Path
 
 import networkx as nx
 
@@ -13,7 +14,7 @@ from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingG
 from fabulous.fabric_cad.timing_model.models import (
     DelayType,
 )
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool
+from fabulous.tools.opensta import OpenStaTool
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):
@@ -31,30 +32,44 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     ----------
     top_name : str
         Name of the top-level module in the Verilog netlist.
-    sta_tool : StaTool
-        Instance of the STA tool used for timing analysis.
-    delay_type_str : DelayType, optional
-        Type of delay to consider (e.g., DelayType.MAX_ALL).
-        Default is DelayType.MAX_ALL.
-    debug : bool, optional
-        Flag to enable debug mode. Default is False.
+    netlist_file : Path
+        The gate-level netlist to analyze. It is read but never deleted, so a
+        netlist owned by the caller survives.
+    liberty_files : list[Path] | Path
+        The Liberty file(s) describing the cells in the netlist.
+    spef_files : list[Path] | Path | None
+        Parasitics to back-annotate for wire delay, or None to ignore wire delay.
+    delay_type_str : DelayType
+        Type of delay to consider. Defaults to DelayType.MAX_ALL.
+    debug : bool
+        Flag to enable debug mode. Defaults to False.
     """
 
     def __init__(
         self,
         top_name: str,
-        sta_tool: StaTool,
+        netlist_file: Path,
+        liberty_files: list[Path] | Path,
+        spef_files: list[Path] | Path | None = None,
         delay_type_str: DelayType = DelayType.MAX_ALL,
         debug: bool = False,
     ) -> None:
         self.top_name: str = top_name
         self.delay_type_str: DelayType = delay_type_str
         self.debug: bool = debug
-        self.sta_tool: StaTool = sta_tool
+        self.netlist_file: Path = netlist_file
+        self.verilog_netlist_content: str = netlist_file.read_text()
 
-        self.sta_tool.sta_analyze()
-        super().__init__(self.sta_tool.sta_sdf_file, self.delay_type_str)
-        self.sta_tool.sta_clean_up()
+        sdf_file: Path = OpenStaTool.analyze(
+            verilog_netlist=netlist_file,
+            liberty_files=liberty_files,
+            top_name=top_name,
+            spef_files=spef_files,
+        )
+        try:
+            super().__init__(sdf_file, self.delay_type_str)
+        finally:
+            OpenStaTool.clean_up(sdf_file)
 
     ### Public methods ###
 

@@ -15,16 +15,14 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
+from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
+    VerilogGateLevelTimingGraph,
+)
 from fabulous.fabric_cad.timing_model.models import (
     InternalPipCacheEntry,
     TimingModelConfig,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
-from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
-from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 
@@ -83,7 +81,7 @@ class FABulousTileTimingModel:
         # Init:
 
         self.hdlnx_tm_synth: HdlnxTimingModel | None = None
-        self.hdlnx_tm_phys: HdlnxTimingModel | None = None
+        self.hdlnx_tm_phys: VerilogGateLevelTimingGraph | None = None
         self._initialize_timing_models()
 
         # Extract switch matrix information
@@ -102,11 +100,15 @@ class FABulousTileTimingModel:
     def _get_project_rtl_files(self) -> None:
         """Find all the Verilog files for the tile in the project directory.
 
-        Exclude certain directories that are not relevant for synthesis. If custom
-        source files are specified in the configuration for this tile, use those
-        instead.
+        Directories holding synthesis support for the user design are excluded,
+        because they declare behavioural models under the same module names as the
+        fabric BELs and would displace them. `user_design` covers the
+        `custom_prims.v` FABulous itself generates and `yosys` covers the
+        `primitives/<name>/yosys/` models a tile library ships beside its
+        `primitives/<name>/fabulous/` BEL. A layout the sweep cannot classify is
+        overridden per tile through `custom_per_tile_source_files`.
         """
-        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
+        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test", "yosys"]
         self.verilog_files: list[Path] = self._find_matching_files(
             self.tm_config.project_dir, r".*\.v$", exclude_dir_patterns
         )
@@ -160,76 +162,13 @@ class FABulousTileTimingModel:
                         self.unique_tile_name = unique_tiles.name
                         break
 
-    def _cad_tools(self) -> dict[str, SynthTool | StaTool]:
-        """Set up the synthesis and STA tools based on the configuration.
-
-        This method can be used to initialize the tools before creating
-        the timing models. New tools can be added here by extending the
-        match-case statements for synthesis and STA
-        tools.
-
-        Returns
-        -------
-        dict[str, SynthTool | StaTool]
-            A dictionary containing the synthesis and STA tools.
-
-        Raises
-        ------
-        ValueError
-            If the synthesis or STA tool specified in the
-            configuration is not supported.
-        """
-        synth_tool: SynthTool | None = None
-        sta_tool: StaTool | None = None
-
-        # Use match-case to select the synthesis and STA tools based on the
-        # configuration.
-
-        match self.tm_config.synth_program:
-            case TimingModelSynthTools.YOSYS:
-                synth_tool = YosysTool(
-                    verilog_files=self.verilog_files,
-                    liberty_files=self.tm_config.liberty_files,
-                    top_name=self.unique_tile_name,
-                    synth_executable=self.tm_config.synth_executable,
-                    techmap_files=self.tm_config.techmap_files,
-                    tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
-                    tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
-                    min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
-                    is_gate_level=False,
-                    debug=self.tm_config.debug,
-                    flat=False,
-                )
-            case _:
-                raise ValueError(
-                    f"Unsupported synthesis tool: {self.tm_config.synth_program}"
-                )
-
-        # Use match-case to select the STA tool based on the configuration.
-
-        match self.tm_config.sta_program:
-            case TimingModelStaTools.OPENSTA:
-                sta_tool = OpenStaTool(
-                    sta_executable=self.tm_config.sta_executable,
-                    spef_files=None,
-                    debug=self.tm_config.debug,
-                )
-            case _:
-                raise ValueError(f"Unsupported STA tool: {self.tm_config.sta_program}")
-
-        # Return the initialized tools in a dictionary for use in the timing
-        # model initialization.
-
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
     def _initialize_timing_models(self) -> None:
-        """Initialize the synthesis and physical timing models using HdlnxTimingModel.
+        """Initialize the synthesis and physical timing models.
 
-        - The synthesis-level model is initialized with the RTL Verilog files
-          and the specified synthesis and STA tools.
-        - The physical-level model is initialized with the gate-level netlist,
-          and optionally with SPEF files for wire delay if consider_wire_delay
-          is True in the configuration.
+        - The synthesis-level model synthesizes the project RTL for the tile.
+        - The physical-level model reads the post-layout gate-level netlist
+          directly, and back-annotates parasitics when consider_wire_delay is
+          set in the configuration.
 
         Returns
         -------
@@ -240,87 +179,76 @@ class FABulousTileTimingModel:
         logger.info(f"Initializing FABulous Timing Model for Tile: {self.tile_name}")
         logger.info(f"  SuperTile: {self.is_in_which_super_tile}")
 
-        # Initialize the synthesis-level timing model first, as it is needed
-        # to extract the switch matrix information and to find the relevant
-        # Verilog files for the physical-level model.
+        # The synthesis-level model comes first: it is what the switch matrix
+        # information is extracted from.
         logger.info("Initializing Synthesis-level timing model...")
 
-        # Get the Verilog files for the project.
         self._get_project_rtl_files()
 
-        # Initialize the synthesis and STA tools based on the configuration.
-        cad_tool = self._cad_tools()
-        synth_tool: SynthTool = cad_tool["synth_tool"]
-        sta_tool: StaTool = cad_tool["sta_tool"]
-
-        # Initialize the synthesis-level timing model.
         self.hdlnx_tm_synth = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+            top_name=self.unique_tile_name,
+            verilog_files=self.verilog_files,
+            liberty_files=self.tm_config.liberty_files,
+            techmap_files=self.tm_config.techmap_files,
+            tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
+            tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
+            min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
+            delay_type_str=self.tm_config.delay_type_str,
+            debug=self.tm_config.debug,
         )
 
-        # If the mode is STRUCTURAL, we only need the synthesis-level model and can skip
-        # initializing the physical-level model.
         if self.tm_config.mode == TimingModelMode.STRUCTURAL:
             logger.info(
                 "Mode is STRUCTURAL, skipping physical-level model initialization."
             )
             return
 
-        # For the physical-level model, we need to switch to the gate-level netlist.
         logger.info("Initializing Physical-level timing model...")
 
-        # For the physical-level model, we need to switch to the gate-level netlist.
-        synth_tool.synth_rtl_files = Path(
-            f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
-            f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"
+        netlist_file: Path = (
+            self.tm_config.project_dir
+            / "Tile"
+            / self.unique_tile_name
+            / "macro"
+            / "final_views"
+            / "nl"
+            / f"{self.unique_tile_name}.nl.v"
         )
 
-        # Optionally override the default netlist file with a custom one for this tile.
-        if (
-            self.tm_config.custom_per_tile_source_files is not None
-            and self.unique_tile_name in self.tm_config.custom_per_tile_source_files
-            and (
-                netl := self.tm_config.custom_per_tile_source_files[
-                    self.unique_tile_name
-                ].netlist_file
-            )
-        ):
-            synth_tool.synth_rtl_files = netl
+        tile_sources = (self.tm_config.custom_per_tile_source_files or {}).get(
+            self.unique_tile_name
+        )
+
+        if tile_sources is not None and tile_sources.netlist_file:
+            netlist_file = tile_sources.netlist_file
             logger.info(
-                f"Using netlist file for tile {self.unique_tile_name}: "
-                f"{synth_tool.synth_rtl_files}"
+                f"Using netlist file for tile {self.unique_tile_name}: {netlist_file}"
             )
 
-        # Disable synthesis for the physical-level model since we already
-        # have the gate-level netlist.
-        synth_tool.synth_passthrough = True
-
-        # Optionally load RC files for wire delay if consider_wire_delay
-        # is True in the configuration.
+        spef_files: Path | None = None
         if self.tm_config.consider_wire_delay:
-            sta_tool.sta_rc_files = Path(
-                f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
-                f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"
+            spef_files = (
+                self.tm_config.project_dir
+                / "Tile"
+                / self.unique_tile_name
+                / "macro"
+                / "final_views"
+                / "spef"
+                / "nom"
+                / f"{self.unique_tile_name}.nom.spef"
             )
 
-            # Optionally override the default RC file with a custom one for this tile.
-            if (
-                self.tm_config.custom_per_tile_source_files is not None
-                and self.unique_tile_name in self.tm_config.custom_per_tile_source_files
-                and (
-                    rc := self.tm_config.custom_per_tile_source_files[
-                        self.unique_tile_name
-                    ].rc_file
-                )
-            ):
-                sta_tool.sta_rc_files = rc
-                logger.info(
-                    f"Use RC file for {self.unique_tile_name}: {sta_tool.sta_rc_files}"
-                )
+            if tile_sources is not None and tile_sources.rc_file:
+                spef_files = tile_sources.rc_file
+                logger.info(f"Use RC file for {self.unique_tile_name}: {spef_files}")
 
-        # Initialize the physical-level timing model with the gate-level netlist.
-        self.hdlnx_tm_phys = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+        self.hdlnx_tm_phys = VerilogGateLevelTimingGraph(
+            top_name=self.unique_tile_name,
+            netlist_file=netlist_file,
+            liberty_files=self.tm_config.liberty_files,
+            spef_files=spef_files,
+            delay_type_str=self.tm_config.delay_type_str,
+            debug=self.tm_config.debug,
         )
 
     def _find_matching_files(
@@ -352,7 +280,7 @@ class FABulousTileTimingModel:
         Returns
         -------
         list[Path]
-            List of Path objects for matched files.
+            Sorted list of Path objects for matched files.
 
         Raises
         ------
@@ -378,7 +306,9 @@ class FABulousTileTimingModel:
                 if file_re.search(fname):
                     matched_files.append(dirpath / fname)
 
-        return matched_files
+        # `walk` yields in filesystem order, so sorting is what makes a residual
+        # module-name collision resolve the same way on every machine.
+        return sorted(matched_files)
 
     def _extract_switch_matrix_info(self) -> None:
         """Extract switch matrix information for the tile.
