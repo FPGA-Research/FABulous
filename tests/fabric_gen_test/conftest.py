@@ -28,6 +28,7 @@ class FabricConfig(NamedTuple):
     name: str
     frame_bits_per_row: int
     max_frames_per_col: int
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED
 
 
 class TileConfig(NamedTuple):
@@ -142,17 +143,33 @@ def switch_matrix_tile(parsed_default_fabric: Fabric) -> Tile:
         FabricConfig(
             frame_bits_per_row=32, max_frames_per_col=20, name="StandardFabric"
         ),
-        FabricConfig(frame_bits_per_row=8, max_frames_per_col=5, name="SmallFabric"),
+        FabricConfig(
+            frame_bits_per_row=8,
+            max_frames_per_col=5,
+            name="SmallFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
         FabricConfig(frame_bits_per_row=1, max_frames_per_col=1, name="MinimalFabric"),
-        FabricConfig(frame_bits_per_row=1, max_frames_per_col=64, name="ThinFabric"),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=64,
+            name="ThinFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
         FabricConfig(frame_bits_per_row=64, max_frames_per_col=1, name="WideFabric"),
         FabricConfig(frame_bits_per_row=5, max_frames_per_col=7, name="IrregularSmall"),
         FabricConfig(
-            frame_bits_per_row=33, max_frames_per_col=21, name="IrregularLarge"
+            frame_bits_per_row=33,
+            max_frames_per_col=21,
+            name="IrregularLarge",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         ),
         FabricConfig(frame_bits_per_row=7, max_frames_per_col=13, name="PrimeFabric"),
         FabricConfig(
-            frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"
+            frame_bits_per_row=256,
+            max_frames_per_col=100,
+            name="VeryLargeFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         ),
     ],
     ids=lambda config: config.name,
@@ -164,9 +181,7 @@ def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabr
     fabric.frameBitsPerRow = config.frame_bits_per_row
     fabric.maxFramesPerCol = config.max_frames_per_col
     fabric.name = config.name
-    # Explicitly set FRAME_BASED mode so cocotb RTL generation
-    # includes FrameData/FrameStrobe
-    fabric.configBitMode = getattr(config, "config_bit_mode", ConfigBitMode.FRAME_BASED)
+    fabric.configBitMode = config.config_bit_mode
     return fabric
 
 

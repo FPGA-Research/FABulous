@@ -11,6 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -240,14 +241,14 @@ class TestGenerateConfigMemInit:
 class TestGeneratedConfigMemRTL:
     """Parametric test cases for generateConfigMem function."""
 
-    def test_configmem_rtl_generates_correct_lhqd1_instantiations(
+    def test_configmem_rtl_generates_correct_config_prims_instantiations(
         self,
         tmp_path: Path,
         fabric_config: Fabric,
         tile_config: Tile,
         code_generator_factory: Callable[..., CodeGenerator],
     ) -> None:
-        """Test generateConfigMem creates RTL with right number of config_latch."""
+        """Test generateConfigMem creates RTL with right number of config prims."""
         # Create config CSV file path
         config_csv = tmp_path / f"{tile_config.name}_configMem.csv"
 
@@ -291,14 +292,37 @@ class TestGeneratedConfigMemRTL:
         # Read and verify the generated content
         content = output_file.read_text()
 
-        # Count actual config_latch instantiations in content
-        actual_instantiations = content.count("config_latch")
-        assert actual_instantiations == tile_config.globalConfigBits, (
-            f"Expected {tile_config.globalConfigBits} config_latch instantiations, "
-            f"found {actual_instantiations}"
-        )
+        if fabric_config.configBitMode == ConfigBitMode.FRAME_BASED:
+            # Count actual config_latch instantiations in content
+            actual_instantiations = content.count("config_latch")
+            unwanted_instantiations = content.count("config_dff")
+            assert actual_instantiations == tile_config.globalConfigBits, (
+                f"Expected {tile_config.globalConfigBits} config_latch instantiations, "
+                f"found {actual_instantiations}"
+            )
+            assert unwanted_instantiations == 0, (
+                "config_dff shouldn't be instantiated in the FRAME_BASED mode"
+            )
+        elif fabric_config.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+            # Count actual config_dff instantiations in content
+            actual_instantiations = content.count("config_dff")
+            unwanted_instantiations = content.count("config_latch")
+            assert actual_instantiations == tile_config.globalConfigBits, (
+                f"Expected {tile_config.globalConfigBits} config_dff instantiations, "
+                f"found {actual_instantiations}"
+            )
+            assert unwanted_instantiations == 0, (
+                "config_latch shouldn't be instantiated in the FlipFlopChain mode"
+            )
+        else:
+            pytest.fail(f"Unexpected config bit mode: {fabric_config.configBitMode}")
 
-    def test_configmem_rtl_maps_frame_signals_to_config_bits_correctly(
+    @pytest.mark.parametrize(
+        "config_bit_mode",
+        [ConfigBitMode.FRAME_BASED, ConfigBitMode.FLIPFLOP_CHAIN],
+        ids=["frame_based", "flipflop_chain"],
+    )
+    def test_configmem_rtl_maps_signals_to_config_bits_correctly(
         self,
         default_fabric: Fabric,
         default_tile: Tile,
@@ -306,26 +330,34 @@ class TestGeneratedConfigMemRTL:
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
         mocker: MockerFixture,
+        config_bit_mode: ConfigBitMode,
     ) -> None:
-        """Test that generated RTL correctly maps FrameData and FrameStrobe to
-        ConfigBits."""
-        # Create code generator
+        """Verify generated RTL wires each config bit to the correct source signal.
+
+        FRAME_BASED: each bit is driven by a unique (FrameData, FrameStrobe) pair.
+        FLIPFLOP_CHAIN: bits form a shift register — the first bit comes from CONFin,
+        each subsequent bit from the previous bit's Q, and CONFout is driven by the
+        last bit in the chain.
+        """
+
+        # Safe: default_fabric is function-scoped, so this only affects this test.
+        default_fabric.configBitMode = config_bit_mode
+
         writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
         writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
 
-        # Create CSV file path
         csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
         csv_path.touch()
 
         config_memlist_data = configmem_list(default_fabric, default_tile)
 
-        # Mock parseConfigMem to return our configmem_list fixture
-        mock_parse = mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
+        # Patch is active for the test body; the return value (the mock handle)
+        # is not needed because nothing asserts on call count.
+        mocker.patch(
+            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
+            return_value=config_memlist_data,
         )
-        mock_parse.return_value = config_memlist_data
 
-        # Generate the ConfigMem RTL
         generate_config_mem(
             writer,
             default_tile.name,
@@ -333,51 +365,70 @@ class TestGeneratedConfigMemRTL:
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,
-            config_bit_mode=default_fabric.configBitMode,
+            config_bit_mode=config_bit_mode,
         )
 
-        # Read the generated RTL
         rtl_content = writer.outFileName.read_text()
 
-        # Verify each frame mapping
-        for config_mem in config_memlist_data:
-            if config_mem.bitsUsedInFrame == 0:
-                continue
+        if config_bit_mode == ConfigBitMode.FRAME_BASED:
+            for config_mem in config_memlist_data:
+                if config_mem.bitsUsedInFrame == 0:
+                    continue
+                frame_idx = config_mem.frameIndex
+                bit_mask = config_mem.usedBitMask
+                expected_config_bits = config_mem.configBitRanges
+                config_bit_counter = 0
+                for bit_pos in range(len(bit_mask)):
+                    if bit_mask[bit_pos] == "1":
+                        frame_data_bit = default_fabric.frameBitsPerRow - 1 - bit_pos
+                        expected_config_bit = expected_config_bits[config_bit_counter]
+                        expected_inst_name = (
+                            f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
+                        )
+                        assert expected_inst_name in rtl_content
+                        connection = (
+                            f"    .D(FrameData[{frame_data_bit}]),\n"
+                            f"    .E(FrameStrobe[{frame_idx}]),\n"
+                            f"    .Q(ConfigBits[{expected_config_bit}]),\n"
+                            f"    .QN(ConfigBits_N[{expected_config_bit}])"
+                        )
+                        assert connection in rtl_content
+                        config_bit_counter += 1
 
-            frame_idx = config_mem.frameIndex
-            bit_mask = config_mem.usedBitMask
-            expected_config_bits = config_mem.configBitRanges
+        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+            mapped_indices: list[int] = []
+            for config_mem in config_memlist_data:
+                mapped_indices.extend(config_mem.configBitRanges)
 
-            # Check each bit in the frame
-            config_bit_counter = 0
-            for bit_pos in range(len(bit_mask)):
-                if bit_mask[bit_pos] == "1":
-                    # This bit should be connected
-                    frame_data_bit = default_fabric.frameBitsPerRow - 1 - bit_pos
-                    frame_strobe_bit = frame_idx
-                    expected_config_bit = expected_config_bits[config_bit_counter]
+            assert mapped_indices, (
+                "FF-chain branch requires at least one mapped config bit"
+            )
 
-                    # Verify the config_latch instantiation exists with correct
-                    # connections
-                    expected_inst_name = (
-                        f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
-                    )
-                    assert expected_inst_name in rtl_content, (
-                        f"Missing config_latch instantiation: {expected_inst_name}"
-                    )
+            for i, curr_bit in enumerate(mapped_indices):
+                d_source = (
+                    "CONFin" if i == 0 else f"ConfigBits[{mapped_indices[i - 1]}]"
+                )
+                expected_inst_name = f"Inst_ConfigBit_FF{curr_bit}"
+                assert expected_inst_name in rtl_content, (
+                    f"Missing config_dff instantiation: {expected_inst_name}"
+                )
+                connection = (
+                    f"    .D({d_source}),\n"
+                    f"    .CLK(CONF_CLK),\n"
+                    f"    .Q(ConfigBits[{curr_bit}]),\n"
+                    f"    .QN(ConfigBits_N[{curr_bit}])"
+                )
+                assert connection in rtl_content, (
+                    f"Missing connection for {expected_inst_name}:\n{connection}"
+                )
 
-                    # Verify the port connections
-                    connection = (
-                        f"    .D(FrameData[{frame_data_bit}]),\n"
-                        f"    .E(FrameStrobe[{frame_strobe_bit}]),\n"
-                        f"    .Q(ConfigBits[{expected_config_bit}]),\n"
-                        f"    .QN(ConfigBits_N[{expected_config_bit}])"
-                    )
-                    assert connection in rtl_content, (
-                        f"Missing connection {connection} for {expected_inst_name}"
-                    )
+            last_bit = mapped_indices[-1]
+            assert f"CONFout = ConfigBits[{last_bit}]" in rtl_content, (
+                f"Missing CONFout assignment for last bit {last_bit}"
+            )
 
-                    config_bit_counter += 1
+        else:
+            pytest.fail(f"Unexpected config bit mode: {config_bit_mode}")
 
 
 def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> None:
