@@ -18,6 +18,19 @@ module config_latch (
     /* verilator lint_on LATCH */
 endmodule
 
+module config_dff (
+    input wire D,
+    input wire CLK,
+    output reg Q,
+    output QN
+);
+    always @(posedge CLK) begin
+        Q <= D;
+    end
+
+    assign QN = ~Q;
+endmodule
+
 module my_buf (
     input  wire A,
     output wire X
