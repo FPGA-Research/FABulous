@@ -9,6 +9,7 @@ from typing import Any, Protocol
 import cocotb
 import pytest
 from cocotb.triggers import Timer
+from cocotb.types import LogicArray
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
@@ -23,6 +24,7 @@ from fabulous.fabric_generator.gen_fabric.gen_configmem import (
 # Use parseConfigMem function to get accurate bit mapping
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
+
 class ConfigMemChainDUT(Protocol):
     """Protocol for configuration memory DUT.
 
@@ -35,6 +37,7 @@ class ConfigMemChainDUT(Protocol):
     ConfigBits: Any
     ConfigBits_N: Any
 
+
 def load_chain_mapping() -> list[int]:
     """Load the flip-flop chain ordering from JSON: chain_position -> config_bit.
 
@@ -44,9 +47,9 @@ def load_chain_mapping() -> list[int]:
     """
     here = Path(__file__).resolve().parent
     candidates = (
-        here.parent / "config_info.json",   # <tmp_path>/config_info.json
-        here        / "config_info.json",   # <tmp_path>/tests/config_info.json
-        Path.cwd()  / "config_info.json",   # <tmp_path>/cocotb_build/config_info.json
+        here.parent / "config_info.json",  # <tmp_path>/config_info.json
+        here / "config_info.json",  # <tmp_path>/tests/config_info.json
+        Path.cwd() / "config_info.json",  # <tmp_path>/cocotb_build/config_info.json
     )
     for candidate in candidates:
         if candidate.exists():
@@ -54,12 +57,14 @@ def load_chain_mapping() -> list[int]:
                 return json.load(f)["mapped_indices"]
     return []
 
+
 async def clock_chain(dut: ConfigMemChainDUT) -> None:
     """One rising-edge pulse on CONF_CLK"""
     dut.CONF_CLK.value = 1
     await Timer(10, units="ps")
     dut.CONF_CLK.value = 0
     await Timer(10, units="ps")
+
 
 async def initialize_configmem_chain(dut: ConfigMemChainDUT) -> None:
     """Initialize the flip-flop chain by clocking zeros through all stages."""
@@ -71,7 +76,8 @@ async def initialize_configmem_chain(dut: ConfigMemChainDUT) -> None:
     for _ in range(n + 1):
         await clock_chain(dut)
 
-def _read_bit(handle, index: int) -> int:
+
+def _read_bit(handle: LogicArray, index: int) -> int:
     """Read a single bit from a cocotb signal handle.
 
     Works around two simulator quirks:
@@ -111,7 +117,9 @@ async def cocotb_test_configmem_chain(dut: ConfigMemChainDUT) -> None:
     await initialize_configmem_chain(dut)
     for i in range(n):
         assert _read_bit(dut.ConfigBits, i) == 0, f"ConfigBits[{i}] not 0 after init"
-        assert _read_bit(dut.ConfigBits_N, i) == 1, f"ConfigBits_N[{i}] not 1 after init"
+        assert _read_bit(dut.ConfigBits_N, i) == 1, (
+            f"ConfigBits_N[{i}] not 1 after init"
+        )
     assert dut.CONFout.value == 0
 
     # --- 1. Edge sensitivity: no shift without a posedge ---
@@ -137,7 +145,8 @@ async def cocotb_test_configmem_chain(dut: ConfigMemChainDUT) -> None:
             expected = 1 if i == mapped_indices[pos] else 0
             assert _read_bit(dut.ConfigBits, i) == expected, (
                 f"single-1 walk, chain position {pos}: "
-                f"ConfigBits[{i}] expected {expected}, got {_read_bit(dut.ConfigBits, i)}"
+                f"ConfigBits[{i}] expected {expected}, "
+                f"got {_read_bit(dut.ConfigBits, i)}"
             )
         if pos == n - 1:
             assert dut.CONFout.value == 1, (
@@ -168,12 +177,14 @@ async def cocotb_test_configmem_chain(dut: ConfigMemChainDUT) -> None:
         f"CONFout expected {pattern[0]} (first bit shifted in, now at chain end)"
     )
 
+
 def _flatten_mapped_indices(config_mem_entries: list[ConfigMem]) -> list[int]:
     """Flatten configBitRanges across CSV entries, mirroring the generator."""
     mapped_indices: list[int] = []
     for entry in config_mem_entries:
         mapped_indices.extend(entry.configBitRanges)
     return mapped_indices
+
 
 @pytest.mark.parametrize("hdl_lang", [".v", ".vhd"])
 def test_configmem_chain_rtl_with_generated_configmem_simulation(
