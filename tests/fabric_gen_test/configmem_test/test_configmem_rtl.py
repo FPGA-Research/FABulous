@@ -12,6 +12,7 @@ from cocotb.triggers import Timer
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -143,6 +144,10 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     cocotb_runner: Callable[..., Callable],
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
+
+    if fabric_config.configBitMode != ConfigBitMode.FRAME_BASED:
+        pytest.skip("FLIPFLOP_CHAIN covered by chain tests")
+
     # Skip impossible configurations where fabric capacity < tile requirements
     fabric_capacity = fabric_config.frameBitsPerRow * fabric_config.maxFramesPerCol
     tile_requirements = tile_config.globalConfigBits

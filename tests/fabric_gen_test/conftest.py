@@ -532,6 +532,8 @@ def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
                 "1g",
                 "--ieee-warnings=off",
             ]
+        elif sim == "ghdl":
+            build_kwargs["build_args"] = ["--std=08"]
         runner.build(**build_kwargs)
 
         if sim == "ghdl":

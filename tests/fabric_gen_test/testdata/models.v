@@ -21,4 +21,18 @@ module config_latch (
     end
     /* verilator lint_on LATCH */
 endmodule
+
+module config_dff (
+    input wire D,
+    input wire CLK,
+    output reg Q,
+    output QN
+);
+    always @(posedge CLK) begin
+        Q <= D;
+    end
+
+    assign QN = ~Q;
+endmodule
+
 `default_nettype wire
