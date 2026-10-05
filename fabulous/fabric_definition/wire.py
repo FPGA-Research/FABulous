@@ -51,26 +51,6 @@ class Wire:
         """
         return f"{self.source}-X{self.x_offset}Y{self.y_offset}>{self.destination}"
 
-    def __eq__(self, __o: object, /) -> bool:
-        """Check if two `Wire` objects are equal.
-
-        Two wires are considered equal if they have the same
-        source and destination names.
-
-        Parameters
-        ----------
-        __o : object
-            The object to compare with.
-
-        Returns
-        -------
-        bool
-            True if the wires are equal, False otherwise.
-        """
-        if __o is None or not isinstance(__o, Wire):
-            return False
-        return self.source == __o.source and self.destination == __o.destination
-
     def __post_init__(self) -> None:
         """Validate wire configuration after initialization.
 
