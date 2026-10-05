@@ -10,9 +10,11 @@ import pytest
 from librelane.config.config import Config
 from librelane.flows.flow import FlowException
 from librelane.state.state import State
+from librelane.steps.step import Step
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
+    Checker,
     OptMode,
     TileAreaOptimisation,
 )
@@ -21,42 +23,109 @@ from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
 class TestTileOptimisation:
     """Test suite for TileOptimisation step."""
 
-    def test_condition_returns_true_on_drc_errors(
-        self, mock_config: Config, mock_state: State
+    @pytest.mark.parametrize(
+        ("mode", "metrics", "ignore_antenna", "brackets", "keep_looping"),
+        [
+            pytest.param(
+                OptMode.BALANCE, {"route__drc_errors": 5}, False, {}, True, id="drc"
+            ),
+            pytest.param(
+                OptMode.BALANCE,
+                {"antenna__violating__nets": 2},
+                False,
+                {},
+                True,
+                id="nets",
+            ),
+            pytest.param(
+                OptMode.BALANCE,
+                {"antenna__violating__pins": 2},
+                False,
+                {},
+                True,
+                id="pins",
+            ),
+            pytest.param(
+                OptMode.BALANCE,
+                {"antenna__violating__nets": 2, "antenna__violating__pins": 2},
+                True,
+                {},
+                False,
+                id="antenna-ignored",
+            ),
+            pytest.param(OptMode.LARGE, {}, False, {}, False, id="clean"),
+            pytest.param(
+                OptMode.BALANCE,
+                {"route__drc_errors": None},
+                False,
+                {},
+                True,
+                id="unrouted",
+            ),
+            pytest.param(
+                OptMode.FIND_MIN_WIDTH,
+                {"route__drc_errors": 5},
+                False,
+                {"bracket_exhausted": True},
+                False,
+                id="directional-exhausted",
+            ),
+            pytest.param(
+                OptMode.FIND_MIN_WIDTH,
+                {},
+                False,
+                {"bracket_low": Decimal(10), "bracket_high": Decimal("10.5")},
+                False,
+                id="directional-converged",
+            ),
+            pytest.param(
+                OptMode.FIND_MIN_HEIGHT,
+                {},
+                False,
+                {"bracket_low": Decimal(10), "bracket_high": Decimal(11)},
+                True,
+                id="directional-gap-above-pitch",
+            ),
+            pytest.param(
+                OptMode.FIND_MIN_WIDTH,
+                {},
+                False,
+                {},
+                True,
+                id="directional-clean-unbracketed",
+            ),
+        ],
+    )
+    def test_condition(
+        self,
+        mocker: MockerFixture,
+        mock_config: Config,
+        mock_state: State,
+        mode: OptMode,
+        metrics: dict,
+        ignore_antenna: bool,
+        brackets: dict,
+        keep_looping: bool,
     ) -> None:
-        """Test condition returns True when DRC errors exist."""
-        mock_state.metrics["route__drc_errors"] = 5
+        """BALANCE/LARGE loop on DRC or antenna errors, directional modes on brackets.
 
-        step = TileAreaOptimisation(mock_config)
-        step.config = mock_config
-        assert step.condition(mock_state) is True
+        `mock_state` starts DRC and antenna clean; each row overrides some metrics.
+        """
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_pitch",
+            return_value=(Decimal("0.5"), Decimal("0.5")),
+        )
+        mock_state.metrics.update(metrics)
+        config = mock_config.copy(
+            FABULOUS_OPT_MODE=mode, IGNORE_ANTENNA_VIOLATIONS=ignore_antenna
+        )
+        step = TileAreaOptimisation(config)
+        step.config = config
+        step.bracket_exhausted = brackets.get("bracket_exhausted", False)
+        step.bracket_low = brackets.get("bracket_low")
+        step.bracket_high = brackets.get("bracket_high")
 
-    def test_condition_returns_true_on_antenna_violations(
-        self, mock_config: Config, mock_state: State
-    ) -> None:
-        """Test condition returns True when antenna violations exist."""
-        mock_state.metrics["route__drc_errors"] = 0
-        mock_state.metrics["antenna__violating__nets"] = 2
-
-        step = TileAreaOptimisation(mock_config)
-        step.config = mock_config
-        assert step.condition(mock_state) is True
-
-    def test_condition_returns_false_when_no_errors(
-        self, mock_config: Config, mock_state: State
-    ) -> None:
-        """Test condition returns False when no errors exist."""
-        mock_state.metrics["route__drc_errors"] = 0
-        mock_state.metrics["antenna__violating__nets"] = 0
-        mock_state.metrics["antenna__violating__pins"] = 0
-
-        # Non-directional modes terminate on clean DRC. Directional modes use a
-        # bracket-based termination and ignore DRC when no bracket is set, so
-        # pin the mode here.
-        mock_config = mock_config.copy(FABULOUS_OPT_MODE=OptMode.BALANCE)
-        step = TileAreaOptimisation(mock_config)
-        step.config = mock_config
-        assert step.condition(mock_state) is False
+        assert step.condition(mock_state) is keep_looping
 
     def test_pre_iteration_callback_find_min_width_mode(
         self,
@@ -65,57 +134,66 @@ class TestTileOptimisation:
         mock_state: State,
         tmp_path: Path,
     ) -> None:
-        """Test pre_iteration_callback in find_min_width mode."""
-        # Mock get_pitch to return reasonable pitch values
+        """Bracketing doubles the width, holds the height, and rounds both to pitch."""
         mocker.patch(
             "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_pitch",
             return_value=(Decimal("0.46"), Decimal("2.72")),
         )
-        # Mock get_routing_obstructions to avoid config key errors
         mocker.patch(
             "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_routing_obstructions",
             return_value=[],
         )
-
-        mock_config = mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH)
-        mock_config = mock_config.copy(
-            DIE_AREA=(Decimal(0), Decimal(0), Decimal(100), Decimal(100))
+        config = mock_config.copy(
+            FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH,
+            DIE_AREA=(Decimal(0), Decimal(0), Decimal(100), Decimal(100)),
         )
-        mock_config = mock_config.copy(LEFT_MARGIN_MULT=Decimal(0))
-        mock_config = mock_config.copy(RIGHT_MARGIN_MULT=Decimal(0))
-        mock_config = mock_config.copy(BOTTOM_MARGIN_MULT=Decimal(0))
-        mock_config = mock_config.copy(TOP_MARGIN_MULT=Decimal(0))
 
-        step = TileAreaOptimisation(mock_config)
+        step = TileAreaOptimisation(config)
         step.step_dir = str(tmp_path)
-        step.config = mock_config
+        step.config = config
         step.iter_count = 0
         step.pre_iteration_callback(mock_state)
 
-        # DIE_AREA should be updated
-        new_die_area = step.config["DIE_AREA"]
-        assert new_die_area is not None
-        assert new_die_area[2] >= Decimal(100)
+        # 200 rounds up to 435 * 0.46; 100 rounds up to 37 * 2.72.
+        assert step.config["DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal("200.10"),
+            Decimal("100.64"),
+        )
+        assert step.config["DRT_OPT_ITERS"] == 15
 
     def test_post_loop_callback_returns_working_state(
         self, mock_config: Config, mock_state: State
     ) -> None:
-        """Test post_loop_callback returns a state derived from the last working one.
+        """The last working state comes back with the probes and sets the die area.
 
-        The result is a freshly constructed ``State`` so the ``fabulous__clean_probes``
-        metric can be added onto an immutable metrics dict — identity comparison
-        against ``mock_state`` no longer holds, but the original metrics must still be
-        visible on the returned state.
+        The result is a freshly constructed `State` so the `fabulous__clean_probes`
+        metric can be added onto an immutable metrics dict.
         """
-        step = TileAreaOptimisation(mock_config)
-        step.config = mock_config
-        step.last_working_state = State(metrics=mock_state.metrics)
-        step.clean_probes = []
+        config = mock_config.copy(
+            DIE_AREA=(Decimal(0), Decimal(0), Decimal(1), Decimal(1))
+        )
+        step = TileAreaOptimisation(config)
+        step.config = config
+        step.last_working_state = State(
+            metrics={"route__drc_errors": 0, "design__die__bbox": "0 0 10.5 20"}
+        )
+        step.clean_probes = [[0.0, 0.0, 10.5, 20.0]]
 
         result = step.post_loop_callback(mock_state)
 
-        assert result.metrics["route__drc_errors"] == 0
-        assert result.metrics["fabulous__clean_probes"] == []
+        assert dict(result.metrics) == {
+            "route__drc_errors": 0,
+            "design__die__bbox": "0 0 10.5 20",
+            "fabulous__clean_probes": [[0.0, 0.0, 10.5, 20.0]],
+        }
+        assert step.config["DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal("10.5"),
+            Decimal(20),
+        )
 
     def test_post_loop_callback_raises_error_without_working_state(
         self, mock_config: Config, mock_state: State
@@ -146,23 +224,50 @@ class TestTileOptimisation:
         # ERROR_ON_TR_DRC should be set to False
         assert step.config["ERROR_ON_TR_DRC"] is False
 
-    def test_mid_iteration_break_on_drc_errors(
-        self, mock_config: Config, mock_state: State
+    @pytest.mark.parametrize(
+        ("checker", "metrics", "ignore_antenna", "break_iteration"),
+        [
+            pytest.param(Checker.TrDRC, {"route__drc_errors": 5}, True, True, id="drc"),
+            pytest.param(
+                Checker.TrDRC,
+                {"antenna__violating__pins": 2},
+                False,
+                True,
+                id="antenna",
+            ),
+            pytest.param(
+                Checker.TrDRC,
+                {"antenna__violating__nets": 2},
+                True,
+                False,
+                id="antenna-ignored",
+            ),
+            pytest.param(Checker.TrDRC, {}, False, False, id="clean"),
+            pytest.param(
+                Checker.WireLength,
+                {"route__drc_errors": 5},
+                False,
+                False,
+                id="other-checker",
+            ),
+        ],
+    )
+    def test_mid_iteration_break(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        checker: type[Step],
+        metrics: dict,
+        ignore_antenna: bool,
+        break_iteration: bool,
     ) -> None:
-        """Test mid_iteration_break returns True on DRC errors."""
-        from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
-            Checker,
-        )
+        """Only the TrDRC checker can cut an iteration short, on routing errors."""
+        mock_state.metrics.update(metrics)
+        config = mock_config.copy(IGNORE_ANTENNA_VIOLATIONS=ignore_antenna)
+        step = TileAreaOptimisation(config)
+        step.config = config
 
-        mock_state.metrics["route__drc_errors"] = 5
-        mock_config = mock_config.copy(IGNORE_ANTENNA_VIOLATIONS=True)
-
-        step = TileAreaOptimisation(mock_config)
-        step.config = mock_config
-
-        result = step.mid_iteration_break(mock_state, Checker.TrDRC())
-
-        assert result is True
+        assert step.mid_iteration_break(mock_state, checker()) is break_iteration
 
 
 class TestSupertileDieAreaGridAlignment:
@@ -213,9 +318,14 @@ class TestSupertileDieAreaGridAlignment:
 
         step.pre_iteration_callback(mock_state)
 
-        width = step.config["DIE_AREA"][2]
-        # Per-division boundary must be a multiple of the 0.5 track pitch.
-        assert (width / Decimal(2)) % Decimal("0.5") == 0
+        # BALANCE grows 10x10 by one 0.1 cell step to 10.2x10.1. Each half of
+        # 10.2 rounds up to 5.5 (on the 0.5 pitch), so the width is 11, not 10.5.
+        assert step.config["DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal(11),
+            Decimal("10.5"),
+        )
 
     def test_run_smart_init_keeps_divisions_on_grid(
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
@@ -247,8 +357,13 @@ class TestSupertileDieAreaGridAlignment:
 
         step.run(mock_state)
 
-        width = step.config["DIE_AREA"][2]
-        assert (width / Decimal(2)) % Decimal("0.5") == 0
+        # Cell side sqrt(26.01) = 5.1 rounds up to 5.5 per division: 11 x 5.5.
+        assert step.config["DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal(11),
+            Decimal("5.5"),
+        )
 
 
 class TestRunUserFixedSmartInit:
@@ -279,57 +394,65 @@ class TestRunUserFixedSmartInit:
         step.config = cfg
         return step
 
-    def test_find_min_width_locks_height_and_seeds_width(
-        self, mocker: MockerFixture, mock_config: Config, mock_state: State
-    ) -> None:
-        # Tiny start width, fixed height 100; instance area 5000 needs ~50 width.
-        step = self._prepare(
-            mocker,
-            mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH),
-            (Decimal(0), Decimal(0), Decimal(1), Decimal(100)),
-        )
-        mock_state.metrics["design__instance__area"] = 5000
-
-        step.run(mock_state)
-
-        die = step.config["DIE_AREA"]
-        assert die[3] == Decimal(100)  # height locked to the user value
-        assert die[2] >= Decimal(50)  # width seeded to hold the cells
-
-    def test_find_min_height_locks_width_and_seeds_height(
-        self, mocker: MockerFixture, mock_config: Config, mock_state: State
-    ) -> None:
-        step = self._prepare(
-            mocker,
-            mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_HEIGHT),
-            (Decimal(0), Decimal(0), Decimal(100), Decimal(1)),
-        )
-        mock_state.metrics["design__instance__area"] = 5000
-
-        step.run(mock_state)
-
-        die = step.config["DIE_AREA"]
-        assert die[2] == Decimal(100)  # width locked to the user value
-        assert die[3] >= Decimal(50)  # height seeded to hold the cells
-
-    def test_user_fixed_height_not_grown_by_pin_floor(
-        self, mocker: MockerFixture, mock_config: Config, mock_state: State
-    ) -> None:
-        # A larger pin floor must not override the user-locked fixed axis.
-        step = self._prepare(
-            mocker,
-            mock_config.copy(
-                FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH,
-                FABULOUS_PIN_MIN_WIDTH=Decimal(1),
-                FABULOUS_PIN_MIN_HEIGHT=Decimal(500),
+    @pytest.mark.parametrize(
+        ("opt_mode", "pin_min", "die_area", "expected_die", "expected_cap"),
+        [
+            pytest.param(
+                OptMode.FIND_MIN_WIDTH,
+                {},
+                (Decimal(0), Decimal(0), Decimal(1), Decimal(100)),
+                (Decimal(0), Decimal(0), Decimal(50), Decimal(100)),
+                Decimal(200),
+                id="min-width-locks-height",
             ),
-            (Decimal(0), Decimal(0), Decimal(10), Decimal(100)),
+            pytest.param(
+                OptMode.FIND_MIN_HEIGHT,
+                {},
+                (Decimal(0), Decimal(0), Decimal(100), Decimal(1)),
+                (Decimal(0), Decimal(0), Decimal(100), Decimal(50)),
+                Decimal(200),
+                id="min-height-locks-width",
+            ),
+            pytest.param(
+                # A larger pin floor must not override the user-locked fixed axis.
+                OptMode.FIND_MIN_WIDTH,
+                {
+                    "FABULOUS_PIN_MIN_WIDTH": Decimal(1),
+                    "FABULOUS_PIN_MIN_HEIGHT": Decimal(500),
+                },
+                (Decimal(0), Decimal(0), Decimal(10), Decimal(100)),
+                (Decimal(0), Decimal(0), Decimal(50), Decimal(100)),
+                Decimal(200),
+                id="pin-floor-does-not-grow-locked-height",
+            ),
+        ],
+    )
+    def test_directional_locks_user_axis_and_seeds_target(
+        self,
+        mocker: MockerFixture,
+        mock_config: Config,
+        mock_state: State,
+        opt_mode: OptMode,
+        pin_min: dict,
+        die_area: tuple[Decimal, Decimal, Decimal, Decimal],
+        expected_die: tuple[Decimal, Decimal, Decimal, Decimal],
+        expected_cap: Decimal,
+    ) -> None:
+        """The user axis is kept; the target axis holds 5000 area units at 100%.
+
+        The bracket cap is four times the seeded target axis.
+        """
+        step = self._prepare(
+            mocker,
+            mock_config.copy(FABULOUS_OPT_MODE=opt_mode, **pin_min),
+            die_area,
         )
         mock_state.metrics["design__instance__area"] = 5000
 
         step.run(mock_state)
 
-        assert step.config["DIE_AREA"][3] == Decimal(100)
+        assert step.config["DIE_AREA"] == expected_die
+        assert step.bracket_cap == expected_cap
 
     def test_zero_locked_axis_raises_clear_error(
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
@@ -403,44 +526,45 @@ class TestOptModeMissing:
 class TestDirectionalHelpers:
     """``_is_directional`` and ``_directional_target`` drive bracket-based search."""
 
-    def test_is_directional_true_for_min_width_and_min_height(
-        self, mock_config: Config
+    @pytest.mark.parametrize(
+        ("mode", "directional"),
+        [
+            (OptMode.FIND_MIN_WIDTH, True),
+            (OptMode.FIND_MIN_HEIGHT, True),
+            (OptMode.BALANCE, False),
+            (OptMode.LARGE, False),
+            (OptMode.NO_OPT, False),
+        ],
+    )
+    def test_is_directional(
+        self, mock_config: Config, mode: OptMode, directional: bool
     ) -> None:
-        for mode in (OptMode.FIND_MIN_WIDTH, OptMode.FIND_MIN_HEIGHT):
-            cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
-            step = TileAreaOptimisation(cfg)
-            step.config = cfg
-            assert step._is_directional() is True
-
-    def test_is_directional_false_for_balance_and_no_opt(
-        self, mock_config: Config
-    ) -> None:
-        for mode in (OptMode.BALANCE, OptMode.LARGE, OptMode.NO_OPT):
-            cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
-            step = TileAreaOptimisation(cfg)
-            step.config = cfg
-            assert step._is_directional() is False
-
-    def test_directional_target_returns_w_for_find_min_width(
-        self, mock_config: Config
-    ) -> None:
-        cfg = mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH)
+        """Only the two FIND_MIN modes run the bracket search."""
+        cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
         step = TileAreaOptimisation(cfg)
         step.config = cfg
-        # die_area is (x0, y0, w, h); FIND_MIN_WIDTH targets w.
-        assert step._directional_target(
-            (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
-        ) == Decimal("12.5")
+        assert step._is_directional() is directional
 
-    def test_directional_target_returns_h_for_find_min_height(
-        self, mock_config: Config
+    @pytest.mark.parametrize(
+        ("mode", "expected"),
+        [
+            (OptMode.FIND_MIN_WIDTH, Decimal("12.5")),
+            (OptMode.FIND_MIN_HEIGHT, Decimal("99.9")),
+        ],
+    )
+    def test_directional_target(
+        self, mock_config: Config, mode: OptMode, expected: Decimal
     ) -> None:
-        cfg = mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_HEIGHT)
+        """die_area is (x0, y0, w, h); FIND_MIN_WIDTH targets w, FIND_MIN_HEIGHT h."""
+        cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
         step = TileAreaOptimisation(cfg)
         step.config = cfg
-        assert step._directional_target(
-            (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
-        ) == Decimal("99.9")
+        assert (
+            step._directional_target(
+                (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
+            )
+            == expected
+        )
 
 
 class TestComputeNewDimensions:
