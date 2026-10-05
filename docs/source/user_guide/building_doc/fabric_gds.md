@@ -240,7 +240,7 @@ This command performs the following steps automatically:
 :::{note}
 **The automated flow is non-deterministic.** The NLP optimisation is solved with [pymoo](https://pymoo.org/)'s ISRES (Improved Stochastic Ranking Evolution Strategy), a stochastic evolutionary algorithm currently run without a fixed random seed. Two runs on the same fabric can therefore converge to slightly different tile dimensions. Every solution is valid (it satisfies the minimum-area and grid constraints), but the solutions are not identical and the reported total area can vary slightly between runs.
 
-Seed control to make the optimisation reproducible is planned but not yet available. `FABULOUS_NLP_FTOL_TOLERANCE` only controls the convergence tolerance, not the randomness.
+Seed control to make the optimisation reproducible is planned but not yet available. ISRES always runs a fixed 500 generations; no configuration variable sets a convergence tolerance or the seed.
 :::
 
 ### When to use the automated flow
