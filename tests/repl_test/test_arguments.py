@@ -799,13 +799,6 @@ def test_project_dir_precedence(
             False,
             0,
             id="legacy",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "convert_legacy_args_with_deprecation_warning passes project_dir "
-                    "to the zero-argument update_project_version_cmd: TypeError"
-                ),
-            ),
         ),
     ],
 )
