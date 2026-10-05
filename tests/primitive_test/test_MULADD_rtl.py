@@ -401,56 +401,30 @@ async def cocotb_test_muladd_configbit3_accumulator_mode(
 
 @cocotb.test
 async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> None:
-    """Test ConfigBits[4] - Sign extension functionality with proper cocotb timing."""
+    """ConfigBits[4] multiplies A and B as two's-complement, else as unsigned.
+
+    Each operand is negative on its own in one vector and both are negative in
+    another, so dropping the sign extension of either operand changes Q.
+    """
     await setup_dut(dut)
-
-    # Create cocotb-aware software model for comparison
-    model = MULADDModel(dut.UserCLK)
-
-    # Test without sign extension (ConfigBits[4] = 0) - zero extension
-    # 200 * 200 = 40000 = 0x9C40, (unsigned interpretation, since sign
-    # extension is disabled OPA/OPB are simply zero-extended before the
-    # multiply)
-    model.ConfigBits = 0b000000  # signExtension = 0
-    model.A = 200
-    model.B = 200
-    model.C = 0
-    dut.A.value = 200
-    dut.B.value = 200
     dut.C.value = 0
-    dut.ConfigBits.value = 0b000000
 
-    await RisingEdge(dut.UserCLK)
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
+    def signed8(value: int) -> int:
+        return value - 0x100 if value & 0x80 else value
 
-    # Verify zero extension behavior
-    assert dut.Q.value == model.Q, (
-        f"Zero extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
-    )
+    # (A, B): 200 is -56 and 246 is -10 as signed bytes.
+    for a_val, b_val in [(200, 10), (10, 200), (200, 246), (100, 10)]:
+        dut.A.value = a_val
+        dut.B.value = b_val
 
-    # Test with sign extension (ConfigBits[4] = 1)
-    # A=200, B=10 -> product = -560
-    model.A = 200
-    model.B = 10
-    dut.A.value = 200
-    dut.B.value = 10
-    model.ConfigBits = 0b010000  # signExtension = 1
-    dut.ConfigBits.value = 0b010000
+        dut.ConfigBits.value = 0
+        await Timer(Decimal(1), "ps")
+        assert int(dut.Q.value) == a_val * b_val, f"unsigned A={a_val}, B={b_val}"
 
-    await RisingEdge(dut.UserCLK)
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-
-    assert dut.Q.value == model.Q, (
-        f"Sign extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
-    )
-
-    # Verify sign extension actually set the top 4 bits of the 20-bit result
-    result = int(dut.Q.value)
-    actual_top_bits = (result >> 16) & 0xF
-    assert actual_top_bits == 0xF, (
-        f"Sign extension verification failed: Expected top 4 bits = 1111, "
-        f"got {actual_top_bits:04b}"
-    )
+        dut.ConfigBits.value = BIT_4
+        await Timer(Decimal(1), "ps")
+        expected = (signed8(a_val) * signed8(b_val)) & 0xFFFFF
+        assert int(dut.Q.value) == expected, f"signed A={a_val}, B={b_val}"
 
 
 @cocotb.test

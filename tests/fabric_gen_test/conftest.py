@@ -11,6 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -201,14 +202,14 @@ def create_config_csv(file_path: Path, data: list[dict]) -> None:
             writer.writerows(data)
 
 
-def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> list[dict]:
+def verify_csv_content(file_path: Path, expected_rows: int) -> list[dict]:
     """Verify CSV content and return parsed data.
 
     Parameters
     ----------
     file_path : Path
         The path to the CSV file to verify
-    expected_rows : int | None, optional
+    expected_rows : int
         Expected number of rows in the CSV
 
     Returns
@@ -230,10 +231,7 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
         "ConfigBits_ranges",
     }, f"CSV file {file_path} has unexpected headers"
 
-    if expected_rows is not None:
-        assert len(rows) == expected_rows, (
-            f"Expected {expected_rows} rows, got {len(rows)}"
-        )
+    assert len(rows) == expected_rows, f"Expected {expected_rows} rows, got {len(rows)}"
 
     return rows
 
@@ -255,74 +253,6 @@ def create_switchmatrix_list(
     connections = connections or [("N1BEG0", "E1END0")]
     lines = [f"{src},{dst}" for src, dst in connections]
     file_path.write_text("\n".join(lines) + "\n")
-
-
-def create_switchmatrix_csv(
-    file_path: Path,
-    tile_name: str,
-    destinations: list[str] | None = None,
-    sources: list[str] | None = None,
-) -> None:
-    """Create a valid .csv switch matrix file for testing.
-
-    Parameters
-    ----------
-    file_path : Path
-        The path where the CSV file should be created
-    tile_name : str
-        The name of the tile (used as the top-left cell value)
-    destinations : list[str] | None
-        List of destination port names. Defaults to ["DEST0"]
-    sources : list[str] | None
-        List of source port names. Defaults to ["SRC0"]
-    """
-    destinations = destinations or ["DEST0"]
-    sources = sources or ["SRC0"]
-
-    lines = [f"{tile_name}," + ",".join(destinations)]
-    for src in sources:
-        lines.append(f"{src}," + ",".join(["1"] * len(destinations)))
-
-    file_path.write_text("\n".join(lines) + "\n")
-
-
-@pytest.fixture
-def connections_factory() -> Callable[..., dict[str, list[str]]]:
-    """Factory fixture for creating switch matrix connection dictionaries.
-
-    Returns a factory function that creates connection dictionaries with
-    configurable complexity.
-
-    Usage:
-        connections = connections_factory()  # minimal
-        connections = connections_factory(size="sample")  # typical config
-        connections = connections_factory(custom={"OUT": ["IN1", "IN2"]})
-    """
-
-    def _create(
-        size: str = "minimal",
-        custom: dict[str, list[str]] | None = None,
-    ) -> dict[str, list[str]]:
-        if custom is not None:
-            return custom
-
-        if size == "minimal":
-            return {"E1END0": ["N1BEG0"]}
-
-        if size == "sample":
-            return {
-                "E1END0": ["N1BEG0", "O_A"],
-                "E1END1": ["N1BEG1", "O_B", "VCC", "GND"],
-                "LUT_A": ["N1BEG0"],
-                "LUT_B": ["N1BEG1", "VCC"],
-                "O_A": ["FF_D"],
-                "GND": ["0"],
-                "VCC": ["1"],
-            }
-
-        return {"E1END0": ["N1BEG0"]}
-
-    return _create
 
 
 @pytest.fixture(params=[1, 2, 3, 4, 5], ids=lambda param: f"ConfigMemPattern{param}")
@@ -484,6 +414,139 @@ class Netlist:
     def sinks(self, bit: int) -> list[tuple[str, str]]:
         """The `(instance, port)` terminals driven by net `bit`."""
         return self.yj.getNetPortSrcSinks(bit)[1]
+
+
+def tile_stub(tile: Tile) -> str:
+    """Emit a body-less module matching `tile`'s fabric-facing interface.
+
+    Yosys needs each instantiated tile defined so it can resolve the hierarchy
+    and assign net IDs to every instance port. The body is empty on purpose:
+    the tests check how the parent wires instances together, not what a tile
+    does internally. Widths follow FrameBitsPerRow=32, MaxFramesPerCol=20.
+
+    Parameters
+    ----------
+    tile : Tile
+        The tile whose module interface to emit.
+
+    Returns
+    -------
+    str
+        Verilog source of the stub module.
+    """
+    decls: list[str] = []
+    for p in (
+        tile.getNorthSidePorts()
+        + tile.getEastSidePorts()
+        + tile.getWestSidePorts()
+        + tile.getSouthSidePorts()
+    ):
+        width = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
+        direction = "input" if p.io_direction == IO.INPUT else "output"
+        decls.append(f"    {direction} [{width}:0] {p.name}")
+    for bel in tile.bels:
+        decls += [f"    input {p}" for p in bel.externalInput]
+        decls += [f"    output {p}" for p in bel.externalOutput]
+    decls += [
+        "    input  UserCLK",
+        "    output UserCLKo",
+        "    output [19:0] FrameStrobe_O",
+        "    input  [31:0] FrameData",
+        "    input  [19:0] FrameStrobe",
+        "    output [31:0] FrameData_O",
+    ]
+    body = ",\n".join(decls)
+    return (
+        f"\nmodule {tile.name} #(parameter [639:0] Emulate_Bitstream=640'b0) (\n"
+        f"{body}\n);\nendmodule\n"
+    )
+
+
+CUS_MUX_SIZES = (2, 4, 8, 16)
+
+
+def cus_mux_stubs() -> str:
+    """Emit body-less `cus_mux{N}1` modules for every custom mux size.
+
+    Returns
+    -------
+    str
+        Verilog source declaring the custom mux pin interfaces.
+    """
+    modules: list[str] = []
+    for size in CUS_MUX_SIZES:
+        pins = [f"input wire A{k}" for k in range(size)]
+        if size == 2:
+            pins.append("input wire S")
+        else:
+            for i in range(size.bit_length() - 1):
+                pins += [f"input wire S{i}", f"input wire S{i}N"]
+        pins.append("output wire X")
+        modules.append(f"module cus_mux{size}1({', '.join(pins)});\nendmodule\n")
+    return "\n" + "\n".join(modules)
+
+
+class MuxWiring(NamedTuple):
+    """Nets on the data and select pins of one switch-matrix mux.
+
+    Inputs and selects are LSB first. Constant inputs are Yosys `"0"`/`"1"`.
+    `selects_n` holds the inverted select pins of a custom mux with more than
+    two inputs and is empty otherwise.
+    """
+
+    inputs: list[int | str]
+    selects: list[int | str]
+    selects_n: list[int | str]
+
+
+def mux_wiring(netlist: Netlist, port: str) -> MuxWiring:
+    """Read the mux driving top-level output `port` from the netlist.
+
+    A generic mux elaborates to a `$shiftx` cell indexing the input vector with
+    the select bits; a custom mux is a `cus_mux{N}1` instance.
+
+    Parameters
+    ----------
+    netlist : Netlist
+        The elaborated switch matrix.
+    port : str
+        A one-bit output port of the switch matrix.
+
+    Returns
+    -------
+    MuxWiring
+        The mux's data, select and inverted select nets.
+
+    Raises
+    ------
+    ValueError
+        If `port` is not driven by a `$shiftx` cell or a custom mux.
+    """
+    (bit,) = netlist.port_net(port)
+    # `Netlist.driver` needs a sink cell, which a top-level output never has.
+    (cell,) = [
+        cell
+        for cell in netlist.top.cells.values()
+        if any(
+            bit in nets and cell.port_directions[pin] == "output"
+            for pin, nets in cell.connections.items()
+        )
+    ]
+    pins = cell.connections
+    if cell.type == "$shiftx":
+        return MuxWiring(list(pins["A"]), list(pins["B"]), [])
+    if not cell.type.startswith("cus_mux"):
+        raise ValueError(f"{port} is driven by {cell.type}, not a mux")
+    size = int(cell.type.removeprefix("cus_mux")[:-1])
+    inputs = [pins[f"A{k}"][0] for k in range(size)]
+    if size == 2:
+        return MuxWiring(inputs, list(pins["S"]), [])
+    width = size.bit_length() - 1
+    return MuxWiring(
+        inputs,
+        [pins[f"S{i}"][0] for i in range(width)],
+        [pins[f"S{i}N"][0] for i in range(width)],
+    )
 
 
 class GridConnectivity:

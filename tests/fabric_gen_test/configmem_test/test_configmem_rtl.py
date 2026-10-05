@@ -9,7 +9,6 @@ from typing import Any, Protocol
 import cocotb
 import pytest
 from cocotb.triggers import Timer
-from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
@@ -19,6 +18,7 @@ from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 
 # Use parseConfigMem function to get accurate bit mapping
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from tests.fabric_gen_test.conftest import create_config_csv
 
 
 class ConfigMemDUT(Protocol):
@@ -199,37 +199,30 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
     code_generator_factory: Callable[..., CodeGenerator],
     cocotb_runner: Callable[..., Callable],
-    mocker: MockerFixture,
 ) -> None:
-    """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
-    # Skip impossible configurations where fabric capacity < tile requirements
-    fabric_capacity = default_fabric.frameBitsPerRow * default_fabric.maxFramesPerCol
-    tile_requirements = default_tile.globalConfigBits
-    if fabric_capacity < tile_requirements and tile_requirements > 0:
-        pytest.skip(
-            f"Impossible configuration: fabric capacity ({fabric_capacity}) < "
-            f"tile requirements ({tile_requirements})"
-        )
+    """Simulate ConfigMem RTL generated from a shuffled CSV bit mapping.
 
-    # Create code generator using the factory fixture, but with tmp_path output
-    writer = code_generator_factory(
-        hdl_lang,
-        f"{default_tile.name}_ConfigMem",
-    )
-    # Override the output path to use tmp_path
-    writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem{hdl_lang}"
-    writer.outFileName.touch()
-
-    # Create CSV file in tmp_path
+    The CSV goes through the real `parseConfigMem`, so a parser that reorders a
+    frame's config bits fails here as well as a generator that miswires them.
+    """
+    writer = code_generator_factory(hdl_lang, f"{default_tile.name}_ConfigMem")
     csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
     configmem_list_data = configmem_list(default_fabric, default_tile)
-
-    mocker.patch(
-        "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
-        return_value=configmem_list_data,
+    create_config_csv(
+        csv_path,
+        [
+            {
+                "frame_name": mem.frameName,
+                "frame_index": mem.frameIndex,
+                "bits_used_in_frame": mem.bitsUsedInFrame,
+                "used_bits_mask": mem.usedBitMask,
+                "ConfigBits_ranges": ";".join(map(str, mem.configBitRanges))
+                or "# NULL",
+            }
+            for mem in configmem_list_data
+        ],
     )
 
-    # Generate the ConfigMem RTL
     generateConfigMem(
         writer,
         default_tile.name,

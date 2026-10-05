@@ -47,7 +47,7 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
 from tests.fabric_definition.conftest import make_empty_tile
-from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
+from tests.fabric_gen_test.conftest import GridConnectivity, Netlist, tile_stub
 
 
 def grid(rows: int, cols: int) -> list[list[Tile]]:
@@ -84,43 +84,6 @@ SHAPES = {
     "plus": [".#.", "###", ".#."],
     "staircase": ["#..", "##.", ".##"],
 }
-
-
-def _tile_stub(tile: Tile) -> str:
-    """Emit a body-less module matching `tile`'s wrapper-facing interface.
-
-    Yosys needs each instantiated sub-tile defined so it can resolve the
-    hierarchy and assign net IDs to every instance port. The body is empty on
-    purpose, since the tests check how the wrapper wires instances together, not
-    what a tile does internally. Port set / widths mirror what
-    `generateSuperTile` connects (FrameBitsPerRow=32, MaxFramesPerCol=20).
-    """
-    decls: list[str] = []
-    for p in (
-        tile.getNorthSidePorts()
-        + tile.getEastSidePorts()
-        + tile.getWestSidePorts()
-        + tile.getSouthSidePorts()
-    ):
-        width = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
-        direction = "input" if p.io_direction == IO.INPUT else "output"
-        decls.append(f"    {direction} [{width}:0] {p.name}")
-    for bel in tile.bels:
-        decls += [f"    input {p}" for p in bel.externalInput]
-        decls += [f"    output {p}" for p in bel.externalOutput]
-    decls += [
-        "    input  UserCLK",
-        "    output UserCLKo",
-        "    output [19:0] FrameStrobe_O",
-        "    input  [31:0] FrameData",
-        "    input  [19:0] FrameStrobe",
-        "    output [31:0] FrameData_O",
-    ]
-    body = ",\n".join(decls)
-    return (
-        f"\nmodule {tile.name} #(parameter [639:0] Emulate_Bitstream=640'b0) (\n"
-        f"{body}\n);\nendmodule\n"
-    )
 
 
 def supertile_grid(
@@ -165,7 +128,7 @@ def supertile_netlist(
         generateSuperTile(writer, st, **kwargs)
         text = out.read_text()
         for tile in {t.name: t for t in tiles}.values():
-            text += _tile_stub(tile)
+            text += tile_stub(tile)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build
