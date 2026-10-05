@@ -1285,20 +1285,8 @@ def test_script_execution_with_content(
     ("suffix", "type_flag", "expected_command"),
     [
         pytest.param(".tcl", [], "run_tcl", id="tcl-default"),
-        pytest.param(".txt", [], "run_tcl", id="txt-default"),
-        pytest.param(
-            ".fab",
-            [],
-            "run_script",
-            id="fab-default",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "--type defaults to tcl, so the `script_type is None` extension "
-                    "detection in script_cmd is unreachable"
-                ),
-            ),
-        ),
+        pytest.param(".fab", [], "run_script", id="fab-default"),
+        pytest.param(".fs", [], "run_script", id="fs-default"),
         pytest.param(".tcl", ["-t", "tcl"], "run_tcl", id="tcl-explicit-tcl"),
         pytest.param(".fab", ["-t", "tcl"], "run_tcl", id="fab-explicit-tcl"),
         pytest.param(".tcl", ["-t", "fabulous"], "run_script", id="tcl-explicit-fab"),
@@ -1341,6 +1329,29 @@ def test_script_type_dispatch(
         f"{expected_command} {script_file.resolve()}",
         *script_lines,
     ]
+
+
+def test_script_unknown_extension_needs_type(
+    tmp_path: Path,
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """An extension with no known script type fails before the REPL runs."""
+    script_file = tmp_path / "test.txt"
+    script_file.write_text("help\n")
+    spy = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
+    monkeypatch.setattr(
+        sys, "argv", ["FABulous", "-p", str(project), "script", str(script_file)]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    spy.assert_not_called()
+    assert "Pass --type fabulous or --type tcl." in capfd.readouterr().out
 
 
 def test_main_function_exception_handling(
