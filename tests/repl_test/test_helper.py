@@ -2,9 +2,12 @@
 
 import shutil
 import subprocess
+from importlib import resources
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from dotenv import dotenv_values
 from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import EnvironmentNotSet
@@ -19,52 +22,41 @@ from fabulous.fabulous_repl.helper import (
 from tests.conftest import normalize_and_check_for_errors, run_cmd
 
 
-def test_create_project(tmp_path: Path) -> None:
-    """Test creating a Verilog project."""
-    # Test Verilog project creation
-    project_dir = tmp_path / "test_project_verilog"
-    create_project(project_dir)
+@pytest.mark.parametrize(
+    ("lang", "suffix"),
+    [(HDLType.VERILOG, "v"), (HDLType.VHDL, "vhdl")],
+    ids=["verilog", "vhdl"],
+)
+def test_create_project(tmp_path: Path, lang: HDLType, suffix: str) -> None:
+    """The project gets its settings, its language's templates and Taskfiles."""
+    project_dir = tmp_path / "test_project"
+    create_project(project_dir, lang=lang)
 
-    # Check if directories exist
-    assert project_dir.exists()
-    assert (project_dir / ".FABulous").exists()
+    package_version = version("FABulous-FPGA")
+    assert dotenv_values(project_dir / ".FABulous" / ".env") == {
+        "FAB_PROJ_LANG": str(lang),
+        "FAB_PROJ_VERSION": package_version,
+        "FAB_PROJ_VERSION_CREATED": package_version,
+        "FAB_MODELS_PACK": str(Path("..") / "Fabric" / f"models_pack.{suffix}"),
+        "FAB_PDK": "ihp-sg13g2",
+    }
 
-    # Check if .env file exists and contains correct content
-    env_file = project_dir / ".FABulous" / ".env"
-    assert env_file.exists()
-    env_content = env_file.read_text()
-    assert "FAB_PROJ_LANG='verilog'" in env_content
-    assert "FAB_PROJ_VERSION=" in env_content
-    assert "FAB_PROJ_VERSION_CREATED=" in env_content
-    assert "FAB_PDK='ihp-sg13g2'" in env_content
+    # tile CSVs name the BEL sources of the chosen language
+    lut4ab_dir = project_dir / "Tile" / "LUT4AB"
+    tile_csv = (lut4ab_dir / "LUT4AB.csv").read_text()
+    assert "{HDL_SUFFIX}" not in tile_csv
+    assert f"LUT4c_frame_config_dffesr.{suffix}" in tile_csv
+    assert (lut4ab_dir / f"LUT4c_frame_config_dffesr.{suffix}").is_file()
 
-    # Check if template files were copied
-    assert any(project_dir.glob("**/*.v")), (
-        "No Verilog files found in project directory"
-    )
-
-
-def test_create_project_vhdl(tmp_path: Path) -> None:
-    """Test creating a VHDL project."""
-    # Test VHDL project creation
-    project_dir = tmp_path / "test_project_vhdl"
-    create_project(project_dir, lang=HDLType.VHDL)
-
-    # Check if directories exist
-    assert project_dir.exists()
-    assert (project_dir / ".FABulous").exists()
-
-    # Check if .env file exists and contains correct content
-    env_file = project_dir / ".FABulous" / ".env"
-    assert env_file.exists()
-    assert "FAB_PROJ_LANG='vhdl'" in env_file.read_text()
-    assert "FAB_PROJ_VERSION=" in env_file.read_text()
-    assert "FAB_PROJ_VERSION_CREATED=" in env_file.read_text()
-
-    # Check if template files were copied
-    assert any(project_dir.glob("**/*.vhdl")), (
-        "No VHDL files found in project directory"
-    )
+    package_files = resources.files("fabulous.fabric_files")
+    lang_taskfile = package_files / f"FABulous_project_template_{lang}" / "Test"
+    common_taskfile = package_files / "FABulous_project_template_common" / "Test"
+    assert (project_dir / "Test" / "Taskfile.yml").read_text() == (
+        lang_taskfile / "Taskfile.yml"
+    ).read_text()
+    assert (project_dir / "Test" / "compile.Taskfile.yml").read_text() == (
+        common_taskfile / "compile.Taskfile.yml"
+    ).read_text()
 
 
 def test_update_project_version_success(
@@ -106,6 +98,7 @@ def test_update_project_version_major_mismatch(
     monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "2.0.0")
 
     assert update_project_version(tmp_path / "proj") is False
+    assert env_file.read_text() == "FAB_PROJ_VERSION=1.2.3\n"
 
 
 # --- run_task tests ---
@@ -206,55 +199,6 @@ def test_run_task_propagates_subprocess_error(
         run_task("run-simulation", task_dir=tmp_path)
 
 
-# --- Taskfile.yml creation tests ---
-
-
-def test_create_project_verilog_has_taskfile(tmp_path: Path) -> None:
-    """Test that Verilog project creation includes Taskfile.yml."""
-    project_dir = tmp_path / "test_project_taskfile_v"
-    create_project(project_dir)
-
-    taskfile = project_dir / "Test" / "Taskfile.yml"
-    assert taskfile.exists(), "Taskfile.yml not found in Verilog project"
-
-    content = taskfile.read_text()
-    assert "iverilog" in content, "Verilog Taskfile should reference iverilog"
-    assert "WAVEFORM_TYPE" in content, "Verilog Taskfile should have WAVEFORM_TYPE var"
-    assert "EXTRA_IVERILOG_FLAGS" in content
-
-
-def test_create_project_vhdl_has_taskfile(tmp_path: Path) -> None:
-    """Test that VHDL project creation includes Taskfile.yml."""
-    project_dir = tmp_path / "test_project_taskfile_vhdl"
-    create_project(project_dir, lang=HDLType.VHDL)
-
-    taskfile = project_dir / "Test" / "Taskfile.yml"
-    assert taskfile.exists(), "Taskfile.yml not found in VHDL project"
-
-    content = taskfile.read_text()
-    assert "ghdl" in content, "VHDL Taskfile should reference ghdl"
-    assert "nvc" in content, "VHDL Taskfile should reference nvc"
-    assert "GHDL_GLOBAL_FLAGS" in content, (
-        "VHDL Taskfile should have GHDL_GLOBAL_FLAGS var"
-    )
-    assert "EXTRA_GHDL_FLAGS" in content
-    assert "EXTRA_NVC_FLAGS" in content
-
-
-def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:
-    """Test that project creation includes compile.Taskfile.yml."""
-    project_dir = tmp_path / "test_project_compile"
-    create_project(project_dir)
-
-    compile_taskfile = project_dir / "Test" / "compile.Taskfile.yml"
-    assert compile_taskfile.exists(), "compile.Taskfile.yml not found in Test/"
-
-    content = compile_taskfile.read_text()
-    assert "compile-yosys" in content
-    assert "compile-nextpnr" in content
-    assert "compile-bitgen" in content
-
-
 def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
     """register_tile_in_fabric_csv appends Tile entry before ParametersEnd."""
     csv_path = tmp_path / "fabric.csv"
@@ -266,8 +210,12 @@ def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
 
     register_tile_in_fabric_csv(csv_path, dst_dir)
 
-    csv_text = csv_path.read_text(encoding="utf-8")
-    assert f"Tile,./{Path('Tile', 'MY_TILE', 'MY_TILE.csv')!s}" in csv_text
+    # the entry copies the column count of the existing Tile rows
+    assert csv_path.read_text(encoding="utf-8") == (
+        "Tile,./Tile/LUT4AB/LUT4AB.csv,\n"
+        f"Tile,./{Path('Tile', 'MY_TILE', 'MY_TILE.csv')!s},\n"
+        "ParametersEnd\n"
+    )
 
 
 @pytest.mark.parametrize("src_kind", ["name", "absolute", "external"])
@@ -343,16 +291,23 @@ def test_clone_tile_error_cases(
     cmd: str,
     error_fragment: str,
 ) -> None:
-    """Error cases log an ERROR with an informative message."""
+    """Error cases log an informative ERROR and clone or register nothing."""
     if "LUT4AB_copy" in cmd:
         (cli.projectDir / "Tile" / "LUT4AB_copy").mkdir(parents=True)
     if "EMPTY_DIR" in cmd:
         (cli.projectDir / "Tile" / "EMPTY_DIR").mkdir(parents=True)
+    tiles_before = sorted(p.name for p in (cli.projectDir / "Tile").iterdir())
+    csv_before = cli.csvFile.read_text(encoding="utf-8")
 
     run_cmd(cli, cmd)
 
-    assert "ERROR" in caplog.text
-    assert error_fragment in caplog.text
+    errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+    assert len(errors) == 1
+    assert error_fragment in errors[0]
+    assert sorted(p.name for p in (cli.projectDir / "Tile").iterdir()) == tiles_before
+    assert cli.csvFile.read_text(encoding="utf-8") == csv_before
+    # bug: clone_tile only logs its usage errors, so the command still exits 0
+    assert cli.exit_code == 0
 
 
 def test_clone_tile_dst_absolute_path(
