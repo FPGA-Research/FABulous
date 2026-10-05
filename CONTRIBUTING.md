@@ -13,7 +13,7 @@ Thank you for your interest in contributing to FABulous! Contributions of all ki
 
 AI-assisted contributions are welcome, but the policy in the [Coding Assistants and Generative AI](https://fabulous.readthedocs.io/en/latest/developer_guide/development.html#coding-assistants-and-generative-ai) section of the development guide applies in full. In short: you are responsible for the correctness, licensing, and quality of everything you submit, you must understand and be able to defend the change, and you must verify that it solves the problem (a green CI run is not proof of correctness).
 
-For tooling, point your assistant (Claude Code, Gemini CLI, Cursor, GitHub Copilot, Codex, Aider, etc.) at [`AGENTS.md`](./AGENTS.md). It is the single source of truth for project conventions, build commands, and architecture notes. The agent-specific files (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`) are symlinks to `AGENTS.md`, so every supported tool reads the same guidance.
+For tooling, point your assistant (Claude Code, Gemini CLI, Cursor, GitHub Copilot, Codex, Aider, etc.) at [`AGENTS.md`](./AGENTS.md). It is the single source of truth for project conventions, build commands, and architecture notes. The agent-specific files (`CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`) are symlinks to `AGENTS.md`, so every supported tool reads the same guidance.
 
 When proposing changes to agent guidance, edit `AGENTS.md` directly; do not replace the symlinks with copies. Contributors on Windows may need to enable Developer Mode (or `git config --global core.symlinks true`) for git to materialise the symlinks; on Linux and macOS they work out of the box.
 
