@@ -27,7 +27,7 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - **Logging**: `loguru` (`from loguru import logger`). Not `print`, not stdlib `logging`.
 - **Docstrings**: NumPy style — `pydoclint` + `interrogate` (≥95% coverage) enforce this.
 - **Inline code in docstrings/comments**: We use MyST for documentation. We use single "`" for raw text and "_" for italic.
-- **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.  
+- **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.
 - Formatting (line length, quotes, etc.) is whatever `ruff format` produces.
 
 ### Design

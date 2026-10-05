@@ -170,7 +170,7 @@ Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: A
 
 ## Disclaimer and Limitation of Liability
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > READ CAREFULLY BEFORE USING THIS SOFTWARE!
 
 ### Liability

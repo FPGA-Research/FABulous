@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Run the pytest suite as parallel pytest-split groups, like the CI matrix."""
 
 import argparse
 import json
@@ -29,22 +30,34 @@ logger.remove()
 logger.add(
     sys.stderr,
     colorize=True,
-    format="<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | <white>{message}</white>",
+    format=(
+        "<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | "
+        "<white>{message}</white>"
+    ),
 )
 
 
 def run_pytest_group(
     group_index: int, total_groups: int, pytest_args: list[str]
 ) -> tuple[int, int, str, str]:
-    """
-    Runs a single pytest group in a subprocess.
+    """Run a single pytest group in a subprocess.
 
     Each group runs in its own isolated directory to prevent race conditions
     on the .test_durations file.
 
+    Parameters
+    ----------
+    group_index : int
+        1-based index of the pytest-split group to run.
+    total_groups : int
+        Total number of pytest-split groups.
+    pytest_args : list[str]
+        Extra arguments forwarded to pytest.
+
     Returns
     -------
-        A tuple containing (group_index, exit_code, stdout, stderr).
+    tuple[int, int, str, str]
+        The group index, pytest exit code, stdout and stderr.
     """
     group_dir = TEMP_RUN_DIR / f"group_{group_index}"
     group_dir.mkdir(parents=True, exist_ok=True)
@@ -103,7 +116,8 @@ def run_pytest_group(
         )
     else:
         logger.error(
-            f"❌ Group {group_index} failed after {duration:.2f}s (exit {process.returncode})."
+            f"❌ Group {group_index} failed after {duration:.2f}s "
+            f"(exit {process.returncode})."
         )
 
     return group_index, process.returncode, process.stdout, process.stderr
@@ -155,16 +169,21 @@ def merge_and_update_durations(num_groups: int) -> None:
     try:
         with DURATIONS_FALLBACK_FILE.open("w") as f:
             json.dump(merged, f, indent=2)
+            f.write("\n")
         logger.success(
-            f"Updated '{DURATIONS_FALLBACK_FILE}' with {new_count} durations (was {existing_count})."
+            f"Updated '{DURATIONS_FALLBACK_FILE}' with {new_count} durations "
+            f"(was {existing_count})."
         )
     except OSError as e:
         logger.error(f"Failed writing fallback '{DURATIONS_FALLBACK_FILE}' : {e}")
 
 
 def main() -> None:
+    """Parse wrapper arguments, run the groups and report failures."""
     parser = argparse.ArgumentParser(
-        description="Run pytest in parallel locally, mimicking GitHub Actions parallel matrix.",
+        description=(
+            "Run pytest in parallel locally, mimicking GitHub Actions parallel matrix."
+        ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
@@ -183,16 +202,14 @@ def main() -> None:
     # --- 1. Determine number of processes ---
     if args.parallel.lower() == "auto":
         num_processes = os.cpu_count() or 4
+    elif args.parallel.isdigit() and int(args.parallel) >= 1:
+        num_processes = int(args.parallel)
     else:
-        try:
-            num_processes = int(args.parallel)
-            if num_processes < 1:
-                raise ValueError
-        except ValueError:
-            logger.error(
-                f"Error: --parallel must be a positive integer or 'auto'. Got '{args.parallel}'",
-            )
-            sys.exit(1)
+        logger.error(
+            "Error: --parallel must be a positive integer or 'auto'. "
+            f"Got '{args.parallel}'",
+        )
+        sys.exit(1)
 
     logger.info(f"Starting parallel pytest run with {num_processes} processes.")
 
@@ -206,7 +223,8 @@ def main() -> None:
         shutil.copy(DURATIONS_FALLBACK_FILE, TEMP_RUN_DIR / DURATIONS_FILE)
     else:
         logger.warning(
-            f"'{DURATIONS_FALLBACK_FILE}' not found. Tests will be split evenly by default."
+            f"'{DURATIONS_FALLBACK_FILE}' not found. "
+            "Tests will be split evenly by default."
         )
 
     # --- 3. Run tests in parallel ---
@@ -220,16 +238,10 @@ def main() -> None:
         ]
 
         for future in as_completed(futures):
-            try:
-                group_index, exit_code, stdout, stderr = future.result()
-                if exit_code != 0:
-                    failed_groups.append(
-                        {"index": group_index, "stdout": stdout, "stderr": stderr}
-                    )
-            except Exception as e:
-                logger.error(f"A worker process crashed: {e}")
+            group_index, exit_code, stdout, stderr = future.result()
+            if exit_code != 0:
                 failed_groups.append(
-                    {"index": "Unknown", "stdout": "", "stderr": str(e)}
+                    {"index": group_index, "stdout": stdout, "stderr": stderr}
                 )
 
     # --- 4. Report results ---

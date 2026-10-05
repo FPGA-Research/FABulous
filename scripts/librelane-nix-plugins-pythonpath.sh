@@ -5,8 +5,8 @@
 # PYTHONPATH fragment, one entry per plugin, pointing at whichever
 # directory actually contains the importable librelane_plugin_* package.
 #
-# Usage example: This scenario assumes there is a folder containing one or multiple 
-#                git cloned librelane plugin projects. 
+# Usage example: This scenario assumes there is a folder containing one or multiple
+#                git cloned librelane plugin projects.
 #                uncomment, adjust and add the following lines in your $HOME/.bashrc
 #####################
 # # Librelane plugins

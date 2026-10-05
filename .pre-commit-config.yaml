@@ -1,4 +1,3 @@
-files: ^(fabulous|docs|nix|tests)/|\.nix$
 default_language_version:
   python: python3.12
 repos:

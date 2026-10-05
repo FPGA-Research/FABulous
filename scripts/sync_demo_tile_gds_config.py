@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+"""Copy the demo tile `gds_config.yaml` files into the project template tiles."""
 
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+
+from loguru import logger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEMO_TILE_DIR = REPO_ROOT / "demo" / "Tile"
@@ -34,7 +36,8 @@ def sync_tile_configs(dry_run: bool) -> int:
 
         if not template_config.is_file():
             raise FileNotFoundError(
-                f"Missing matching template config for tile '{tile_name}': {template_config}"
+                f"Missing matching template config for tile '{tile_name}': "
+                f"{template_config}"
             )
 
         demo_content = demo_config.read_text(encoding="utf-8")
@@ -42,25 +45,29 @@ def sync_tile_configs(dry_run: bool) -> int:
 
         if demo_content == template_content:
             unchanged += 1
-            print(f"UNCHANGED {tile_name}")
+            logger.info(f"UNCHANGED {tile_name}")
             continue
 
         updated += 1
-        print(f"UPDATE    {tile_name}")
+        logger.info(f"UPDATE    {tile_name}")
         if not dry_run:
             template_config.write_text(demo_content, encoding="utf-8")
 
     mode = "DRY-RUN" if dry_run else "APPLY"
-    print(
-        f"\n{mode} summary: updated={updated}, unchanged={unchanged}, total={len(demo_configs)}"
+    logger.info(
+        f"{mode} summary: updated={updated}, unchanged={unchanged}, "
+        f"total={len(demo_configs)}"
     )
     return updated
 
 
 def main() -> None:
-    """Main entry point for the script."""
+    """Parse arguments and sync the tile configs."""
     parser = argparse.ArgumentParser(
-        description="Sync full demo tile gds_config.yaml files into FABulous template tile configs."
+        description=(
+            "Sync full demo tile gds_config.yaml files into FABulous template "
+            "tile configs."
+        )
     )
     parser.add_argument(
         "--dry-run",
@@ -73,8 +80,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
+    main()
