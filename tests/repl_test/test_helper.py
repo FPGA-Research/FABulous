@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
+from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import EnvironmentNotSet
 from fabulous.fabric_definition.define import HDLType
@@ -111,59 +111,60 @@ def test_update_project_version_major_mismatch(
 # --- run_task tests ---
 
 
-def test_run_task_basic(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task calls subprocess.run with correct arguments."""
+@pytest.fixture
+def subprocess_run_with_task_on_path(tmp_path: Path, mocker: MockerFixture) -> MockType:
+    """Mock `subprocess.run` with `task` on PATH and none beside the interpreter."""
     mocker.patch("sys.executable", str(tmp_path / "python"))
     mocker.patch(
         "shutil.which",
         side_effect=lambda _, path=None: None if path else "/usr/bin/task",
     )
-    m = mocker.patch("subprocess.run")
-
-    run_task("run-simulation", task_dir=tmp_path)
-
-    m.assert_called_once_with(
-        ["/usr/bin/task", "run-simulation"],
-        cwd=tmp_path,
-        check=True,
-    )
+    return mocker.patch("subprocess.run")
 
 
-def test_run_task_with_vars(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task passes variables as VAR=value arguments."""
-    mocker.patch("sys.executable", str(tmp_path / "python"))
-    mocker.patch(
-        "shutil.which",
-        side_effect=lambda _, path=None: None if path else "/usr/bin/task",
-    )
-    m = mocker.patch("subprocess.run")
-
+@pytest.mark.parametrize(
+    ("task_vars", "verbose", "taskfile", "expected_tail"),
+    [
+        (None, False, None, []),
+        (
+            {"WAVEFORM_TYPE": "vcd", "EXTRA_IVERILOG_FLAGS": "-DFOO"},
+            False,
+            None,
+            ["WAVEFORM_TYPE=vcd", "EXTRA_IVERILOG_FLAGS=-DFOO"],
+        ),
+        (None, True, None, ["--verbose"]),
+        (None, False, "compile.Taskfile.yml", ["--taskfile", "compile.Taskfile.yml"]),
+        (
+            {"DESIGN": "top"},
+            True,
+            "compile.Taskfile.yml",
+            ["--taskfile", "compile.Taskfile.yml", "--verbose", "DESIGN=top"],
+        ),
+    ],
+    ids=["bare", "vars", "verbose", "taskfile", "all"],
+)
+def test_run_task_command_line(
+    tmp_path: Path,
+    subprocess_run_with_task_on_path: MockType,
+    task_vars: dict[str, str] | None,
+    verbose: bool,
+    taskfile: str | None,
+    expected_tail: list[str],
+) -> None:
+    """`run_task` builds `task <name> [--taskfile F] [--verbose] [K=V...]`."""
     run_task(
         "run-simulation",
         task_dir=tmp_path,
-        task_vars={"WAVEFORM_TYPE": "vcd", "EXTRA_IVERILOG_FLAGS": "-DFOO"},
+        task_vars=task_vars,
+        verbose=verbose,
+        taskfile=taskfile,
     )
 
-    call_args = m.call_args.args[0]
-    assert call_args[0] == "/usr/bin/task"
-    assert call_args[1] == "run-simulation"
-    assert "WAVEFORM_TYPE=vcd" in call_args
-    assert "EXTRA_IVERILOG_FLAGS=-DFOO" in call_args
-
-
-def test_run_task_verbose(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task adds --verbose flag when verbose is True."""
-    mocker.patch("sys.executable", str(tmp_path / "python"))
-    mocker.patch(
-        "shutil.which",
-        side_effect=lambda _, path=None: None if path else "/usr/bin/task",
+    subprocess_run_with_task_on_path.assert_called_once_with(
+        ["/usr/bin/task", "run-simulation", *expected_tail],
+        cwd=tmp_path,
+        check=True,
     )
-    m = mocker.patch("subprocess.run")
-
-    run_task("run-simulation", task_dir=tmp_path, verbose=True)
-
-    call_args = m.call_args.args[0]
-    assert "--verbose" in call_args
 
 
 def test_run_task_not_installed(tmp_path: Path, mocker: MockerFixture) -> None:
@@ -194,57 +195,15 @@ def test_run_task_prefers_interpreter_local_binary(
 
 
 def test_run_task_propagates_subprocess_error(
-    tmp_path: Path, mocker: MockerFixture
+    tmp_path: Path, subprocess_run_with_task_on_path: MockType
 ) -> None:
     """Test run_task propagates CalledProcessError from subprocess."""
-    mocker.patch("sys.executable", str(tmp_path / "python"))
-    mocker.patch(
-        "shutil.which",
-        side_effect=lambda _, path=None: None if path else "/usr/bin/task",
-    )
-    mocker.patch(
-        "subprocess.run",
-        side_effect=subprocess.CalledProcessError(1, "task"),
+    subprocess_run_with_task_on_path.side_effect = subprocess.CalledProcessError(
+        1, "task"
     )
 
     with pytest.raises(subprocess.CalledProcessError):
         run_task("run-simulation", task_dir=tmp_path)
-
-
-def test_run_task_with_taskfile(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task passes --taskfile when a custom taskfile name is given."""
-    mocker.patch("sys.executable", str(tmp_path / "python"))
-    mocker.patch(
-        "shutil.which",
-        side_effect=lambda _, path=None: None if path else "/usr/bin/task",
-    )
-    m = mocker.patch("subprocess.run")
-
-    run_task(
-        "compile-yosys",
-        task_dir=tmp_path,
-        taskfile="compile.Taskfile.yml",
-    )
-
-    call_args = m.call_args.args[0]
-    assert "--taskfile" in call_args
-    idx = call_args.index("--taskfile")
-    assert call_args[idx + 1] == "compile.Taskfile.yml"
-
-
-def test_run_task_without_taskfile(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task omits --taskfile when taskfile is None (default)."""
-    mocker.patch("sys.executable", str(tmp_path / "python"))
-    mocker.patch(
-        "shutil.which",
-        side_effect=lambda _, path=None: None if path else "/usr/bin/task",
-    )
-    m = mocker.patch("subprocess.run")
-
-    run_task("run-simulation", task_dir=tmp_path)
-
-    call_args = m.call_args.args[0]
-    assert "--taskfile" not in call_args
 
 
 # --- Taskfile.yml creation tests ---

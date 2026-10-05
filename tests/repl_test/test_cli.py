@@ -298,64 +298,35 @@ def test_run_simulation_no_taskfile_no_makefile(
 
 
 @pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_extra_flags(
+@pytest.mark.parametrize(
+    ("flag", "task_var"),
+    [
+        ("--extra-iverilog-flag=-DSOME_DEFINE", "EXTRA_IVERILOG_FLAGS=-DSOME_DEFINE"),
+        (
+            "--extra-nvc-flag=--ieee-warnings=error",
+            "EXTRA_NVC_FLAGS=--ieee-warnings=error",
+        ),
+        ("--simulator=iverilog", "SIMULATOR=iverilog"),
+        ("--simulator=xvlog", "SIMULATOR=xvlog"),
+        ("--simulator=nvc", "SIMULATOR=nvc"),
+        ("--simulator=ghdl", "SIMULATOR=ghdl"),
+        ("--simulator=xvhdl", "SIMULATOR=xvhdl"),
+        ("--simulator=auto", "SIMULATOR=auto"),
+        ("-d my_custom_design", "DESIGN=my_custom_design"),
+    ],
+)
+def test_run_simulation_forwards_flag_as_task_var(
     cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
+    flag: str,
+    task_var: str,
 ) -> None:
-    """Test simulation passes extra iverilog flags to Taskfile."""
-    run_cmd(cli, f'{SIM_CMD} --extra-iverilog-flag="-DSOME_DEFINE"')
+    """Each `run_simulation` flag reaches the Taskfile as its `KEY=value` variable."""
+    run_cmd(cli, f"{SIM_CMD} {flag}")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Simulation finished" in log[-1]
 
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("EXTRA_IVERILOG_FLAGS" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_extra_nvc_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --extra-nvc-flag to Taskfile as EXTRA_NVC_FLAGS."""
-    run_cmd(cli, f'{SIM_CMD} --extra-nvc-flag="--ieee-warnings=error"')
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
-
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("EXTRA_NVC_FLAGS" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_simulator_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --simulator to Taskfile as SIMULATOR."""
-    for sim in ("iverilog", "xvlog", "nvc", "ghdl", "xvhdl", "auto"):
-        run_cmd(cli, f"{SIM_CMD} --simulator={sim}")
-        log = normalize_and_check_for_errors(caplog.text)
-        assert "Simulation finished" in log[-1]
-
-        task_cmds = find_task_calls()
-        assert len(task_cmds) >= 1
-        assert any(f"SIMULATOR={sim}" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_design_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --design flag to Taskfile as DESIGN variable."""
-    run_cmd(cli, f"{SIM_CMD} -d my_custom_design")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
-
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("DESIGN=my_custom_design" in arg for arg in task_cmds[-1])
+    assert task_var in find_task_calls()[-1]
 
 
 def test_run_tcl_with_tcl_command(
