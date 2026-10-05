@@ -263,7 +263,7 @@ def common_options(
         raise typer.Exit(1) from None
 
 
-def check_version_compatibility(_: Path) -> None:
+def check_version_compatibility() -> None:
     """Check version compatibility between package and project."""
     settings = get_context()
     project_version = settings.proj_version
@@ -516,7 +516,7 @@ def script_cmd(
 
     If no project directory is specified, uses the current directory.
     """
-    # Initialize context
+    check_version_compatibility()
     script_file = script_file.absolute()
     repl = FABulousREPL(
         writerType=get_context().proj_lang,
@@ -569,6 +569,7 @@ def start_cmd(force: ForceType = False) -> None:
     This is the main command for running FABulous in interactive mode or with scripts.
     If no project directory is specified, uses the current directory.
     """
+    check_version_compatibility()
     repl = FABulousREPL(
         get_context().proj_lang,
         force=force,
@@ -602,6 +603,7 @@ def run_cmd(
 
     Alias: r
     """
+    check_version_compatibility()
     repl = FABulousREPL(
         get_context().proj_lang,
         force=force,

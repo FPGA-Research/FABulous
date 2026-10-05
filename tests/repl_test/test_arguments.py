@@ -1180,9 +1180,9 @@ def test_check_version_compatibility_cases(
 
     if should_exit:
         with pytest.raises(typer.Exit):
-            check_version_compatibility(project)
+            check_version_compatibility()
     else:
-        check_version_compatibility(project)
+        check_version_compatibility()
 
     errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
     if expected_error is None:
@@ -1190,6 +1190,39 @@ def test_check_version_compatibility_cases(
     else:
         assert len(errors) == 1
         assert errors[0].startswith(expected_error)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [["start"], ["run", "help"], ["script", "{script}"]],
+    ids=["start", "run", "script"],
+)
+def test_newer_project_version_blocks_repl(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    command: list[str],
+) -> None:
+    """A project newer than the package exits 1 before the REPL runs anything."""
+    script_file = tmp_path / "test.fab"
+    script_file.write_text("help\n")
+    set_key(project / ".FABulous" / ".env", "FAB_PROJ_VERSION", "99.0.0")
+    monkeypatch.setattr("fabulous.fabulous.version", lambda _: "1.0.0")
+    dispatch = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
+    # not a MagicMock: cmd2 scans the class for subcommand markers and a mock
+    # answers every attribute lookup
+    looped: list[FABulousREPL] = []
+    monkeypatch.setattr(FABulousREPL, "cmdloop", looped.append)
+    argv = [arg.replace("{script}", str(script_file)) for arg in command]
+    monkeypatch.setattr(sys, "argv", ["FABulous", "-p", str(project), *argv])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    dispatch.assert_not_called()
+    assert looped == []
 
 
 @pytest.mark.parametrize(
