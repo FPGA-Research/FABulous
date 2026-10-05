@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
@@ -443,84 +442,6 @@ def code_generator_factory(tmp_path: Path) -> Callable[[str, str], CodeGenerator
         raise ValueError(f"Unsupported extension: {extension}")
 
     return _create_generator
-
-
-@pytest.fixture
-def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
-    """Create cocotb runners for RTL simulation."""
-
-    def _create_runner(
-        sources: list[Path],
-        hdl_top_level: str,
-        test_module_path: Path,
-        plusargs: list[str] | None = None,
-        testcase: str | None = None,
-    ) -> None:
-        lang = set([i.suffix for i in sources])
-
-        if len(lang) > 1:
-            raise ValueError("All source files must have the same HDL language suffix")
-
-        hdl_toplevel_lang = lang.pop()
-        if hdl_toplevel_lang == ".v":
-            sim, test_lang = "icarus", "verilog"
-        elif hdl_toplevel_lang in {".vhd", ".vhdl"}:
-            test_lang = "vhdl"
-            if shutil.which("nvc") is not None:
-                sim = "nvc"
-            elif shutil.which("ghdl") is not None:
-                sim = "ghdl"
-                hdl_top_level = hdl_top_level.lower()
-            else:
-                raise RuntimeError("No VHDL simulator available: install nvc or ghdl.")
-        else:
-            raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
-        runner = get_runner(sim)
-
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir(exist_ok=True)
-
-        shutil.copy(test_module_path, test_dir / test_module_path.name)
-
-        # cocotb_tools.runner exports the parent's sys.path to the simulator
-        # subprocess as PYTHONPATH; prepend test_dir so the copied test module
-        # imports as a top-level module by its stem.
-        monkeypatch.syspath_prepend(str(test_dir))
-
-        build_dir = tmp_path / "cocotb_build"
-        build_kwargs: dict = {
-            "sources": sources,
-            "hdl_toplevel": hdl_top_level,
-            "always": True,
-            "build_dir": build_dir,
-        }
-        if test_lang == "verilog":
-            build_kwargs["timescale"] = ("1ps", "1ps")
-        elif sim == "nvc":
-            build_kwargs["build_args"] = [
-                "--std=2008",
-                "-H",
-                "2g",
-                "-M",
-                "1g",
-                "--ieee-warnings=off",
-            ]
-        runner.build(**build_kwargs)
-
-        if sim == "ghdl":
-            for file in build_dir.iterdir():
-                if file.is_file():
-                    shutil.copy(file, test_dir / file.name)
-
-        runner.test(
-            hdl_toplevel=hdl_top_level,
-            hdl_toplevel_lang=test_lang,
-            test_module=test_module_path.stem,
-            plusargs=plusargs or [],
-            testcase=testcase,
-        )
-
-    return _create_runner
 
 
 class Netlist:
