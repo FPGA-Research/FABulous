@@ -1,21 +1,19 @@
 from pathlib import Path
 
-import networkx as nx
 import pytest
 
-import fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base as base_mod
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
     VerilogGateLevelTimingGraph,
 )
-from fabulous.fabric_cad.timing_model.models import DelayType, SDFGobject
+from fabulous.fabric_cad.timing_model.models import DelayType
 
 TEST_NETLIST = r"""
 /* block comment with fake module
 module Fake (input A); endmodule
 */
 
-module LeafWrap (IN, OUT);
+module LeafWrap (IN, OUT, NC);
     BUF leafbuf ( .A(IN), .Y(OUT) ); // line comment
 endmodule
 
@@ -28,13 +26,49 @@ endmodule
 module Top (IN1, IN2, OUT1, OUT2);
     wire n_top;
     wire n_mid;
+    wire n_nc;
 
-    Mid      u_mid   ( .A(IN1), .B(IN2), .C(n_top) );
-    LeafWrap u_leaf2 ( .IN(n_top), .OUT(n_mid) );
-    BUF      u_buf0  ( .A(n_mid), .Y(OUT1) );
-    BUF      u_buf1  ( .A(IN2),   .Y(OUT2) );
+    Mid      u_mid    ( .A(IN1), .B(IN2), .C(n_top) );
+    LeafWrap u_leaf2  ( .IN(n_top), .OUT(n_mid), .NC(IN1) );
+    BUF      u_buf0   ( .A(n_mid), .Y(OUT1) );
+    BUF      u_buf1   ( .A(IN2),   .Y(OUT2) );
+    BUF      u_dangle ( .A(IN2),   .Y(n_nc) );
 endmodule
 """
+
+
+def _iopath_cell(cell_type: str, instance: str, arcs: list[str]) -> str:
+    """Return an SDF `CELL` block with one 0.1 ns `IOPATH` per `from to` arc."""
+    paths = "".join(f"    (IOPATH {arc} (0.1::0.1))\n" for arc in arcs)
+    return (
+        f'(CELL (CELLTYPE "{cell_type}") (INSTANCE {instance})\n'
+        f" (DELAY (ABSOLUTE\n{paths} )))\n"
+    )
+
+
+# The STA view of TEST_NETLIST: OpenSTA names leaf cells by hierarchical path.
+TEST_SDF = (
+    '(DELAYFILE (SDFVERSION "3.0") (DESIGN "Top") (DIVIDER /)\n'
+    '(CELL (CELLTYPE "Top") (INSTANCE)\n'
+    " (DELAY (ABSOLUTE\n"
+    "    (INTERCONNECT IN1 u_mid/u_leaf1/leafbuf/A (0.1::0.1))\n"
+    "    (INTERCONNECT u_mid/u_leaf1/leafbuf/Y u_mid/u_nand1/A (0.1::0.1))\n"
+    "    (INTERCONNECT IN2 u_mid/u_nand1/B (0.1::0.1))\n"
+    "    (INTERCONNECT u_mid/u_nand1/Y u_leaf2/leafbuf/A (0.1::0.1))\n"
+    "    (INTERCONNECT u_leaf2/leafbuf/Y u_buf0/A (0.1::0.1))\n"
+    "    (INTERCONNECT u_buf0/Y OUT1 (0.1::0.1))\n"
+    "    (INTERCONNECT IN2 u_buf1/A (0.1::0.1))\n"
+    "    (INTERCONNECT u_buf1/Y OUT2 (0.1::0.1))\n"
+    "    (INTERCONNECT IN2 u_dangle/A (0.1::0.1))\n"
+    " )))\n"
+    + _iopath_cell("BUF", "u_mid/u_leaf1/leafbuf", ["A Y"])
+    + _iopath_cell("NAND2", "u_mid/u_nand1", ["A Y", "B Y"])
+    + _iopath_cell("BUF", "u_leaf2/leafbuf", ["A Y"])
+    + _iopath_cell("BUF", "u_buf0", ["A Y"])
+    + _iopath_cell("BUF", "u_buf1", ["A Y"])
+    + _iopath_cell("BUF", "u_dangle", ["A Y"])
+    + ")\n"
+)
 
 
 class DummySynthTool:
@@ -69,33 +103,16 @@ class DummyStaTool:
 
 
 @pytest.fixture
-def vg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> VerilogGateLevelTimingGraph:
+def vg(tmp_path: Path) -> VerilogGateLevelTimingGraph:
     """Build the timing graph through the real constructor chain.
 
-    The netlist content is read back from a file on disc, so every reader test
-    exercises the parsing rather than a planted attribute. Only the SDF parser is
-    faked out, since the tests here never look at delays.
+    Only the external synthesis and STA runs are stood in for: the netlist and the
+    SDF they would produce are written to disc and parsed for real.
     """
     netlist_file = tmp_path / "Top.v"
     netlist_file.write_text(TEST_NETLIST)
     sdf_file = tmp_path / "Top.sdf"
-    sdf_file.write_text("(DELAYFILE)")
-
-    sdf_gobject = SDFGobject(
-        nx_graph=nx.DiGraph(),
-        hier_sep="/",
-        header_info={},
-        sdf_data={},
-        cells=[],
-        instances={},
-        io_paths=[],
-        interconnects=[],
-    )
-    monkeypatch.setattr(
-        base_mod,
-        "gen_timing_digraph",
-        lambda _path, _delay_type: sdf_gobject,
-    )
+    sdf_file.write_text(TEST_SDF)
 
     return HdlnxTimingModel(
         DummyStaTool(sdf_file),
@@ -110,47 +127,51 @@ def test_get_raw_verilog_netlist_data(
     assert vg.get_raw_verilog_netlist_data() == TEST_NETLIST
 
 
-def test_find_verilog_modules_regex_all(
-    vg: VerilogGateLevelTimingGraph,
+@pytest.mark.parametrize(
+    ("name_pattern", "expected"),
+    [(r".*", ["LeafWrap", "Mid", "Top"]), (r"^L", ["LeafWrap"]), (r"^XYZ$", [])],
+    ids=["all", "filtered", "no_match"],
+)
+def test_find_verilog_modules_regex(
+    vg: VerilogGateLevelTimingGraph, name_pattern: str, expected: list[str]
 ) -> None:
-    assert vg.find_verilog_modules_regex(r".*") == ["LeafWrap", "Mid", "Top"]
+    assert vg.find_verilog_modules_regex(name_pattern) == expected
 
 
-def test_find_verilog_modules_regex_filtered(
+@pytest.mark.parametrize(
+    ("inst_regex", "filter_regex", "expected"),
+    [
+        (
+            r"u_",
+            None,
+            [
+                "u_mid",
+                "u_mid/u_leaf1",
+                "u_mid/u_leaf1/leafbuf",
+                "u_mid/u_nand1",
+                "u_leaf2",
+                "u_leaf2/leafbuf",
+                "u_buf0",
+                "u_buf1",
+                "u_dangle",
+            ],
+        ),
+        (
+            r"u_",
+            r"leaf",
+            ["u_mid/u_leaf1", "u_mid/u_leaf1/leafbuf", "u_leaf2", "u_leaf2/leafbuf"],
+        ),
+        (r"leafbuf$", None, ["u_mid/u_leaf1/leafbuf", "u_leaf2/leafbuf"]),
+    ],
+    ids=["recursive_paths", "with_filter", "leaf_only"],
+)
+def test_find_instance_paths_by_regex(
     vg: VerilogGateLevelTimingGraph,
+    inst_regex: str,
+    filter_regex: str | None,
+    expected: list[str],
 ) -> None:
-    assert vg.find_verilog_modules_regex(r"^L") == ["LeafWrap"]
-
-
-def test_find_verilog_modules_regex_no_match(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    assert vg.find_verilog_modules_regex(r"^XYZ$") == []
-
-
-def test_find_instance_paths_by_regex_matches_recursive_paths(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    paths = vg.find_instance_paths_by_regex(r"u_")
-    assert "u_mid" in paths
-    assert "u_mid/u_leaf1" in paths
-    assert "u_mid/u_leaf1/leafbuf" in paths
-    assert "u_mid/u_nand1" in paths
-    assert "u_leaf2" in paths
-    assert "u_leaf2/leafbuf" in paths
-    assert "u_buf0" in paths
-    assert "u_buf1" in paths
-
-
-def test_find_instance_paths_by_regex_with_filter(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    paths = vg.find_instance_paths_by_regex(r"u_", filter_regex=r"leaf")
-    assert "u_mid/u_leaf1" in paths
-    assert "u_mid/u_leaf1/leafbuf" in paths
-    assert "u_leaf2" in paths
-    assert "u_leaf2/leafbuf" in paths
-    assert "u_buf0" not in paths
+    assert vg.find_instance_paths_by_regex(inst_regex, filter_regex) == expected
 
 
 def test_find_instances_with_all_nets(
@@ -251,14 +272,29 @@ def test_get_instance_pins_nested(
     assert vg.get_instance_pins("u_mid/u_nand1") == ["A", "B", "Y"]
 
 
-def test_get_module_instance_nets_top(
+@pytest.mark.parametrize(
+    ("module_name", "expected"),
+    [
+        (
+            "Top",
+            {
+                "u_mid": ["IN1", "IN2", "n_top"],
+                "u_leaf2": ["n_top", "n_mid", "IN1"],
+                "u_buf0": ["n_mid", "OUT1"],
+                "u_buf1": ["IN2", "OUT2"],
+                "u_dangle": ["IN2", "n_nc"],
+            },
+        ),
+        ("LeafWrap", {"leafbuf": ["IN", "OUT"]}),
+    ],
+    ids=["top", "commented_leaf_module"],
+)
+def test_get_module_instance_nets(
     vg: VerilogGateLevelTimingGraph,
+    module_name: str,
+    expected: dict[str, list[str]],
 ) -> None:
-    result = vg.get_module_instance_nets("Top")
-    assert result["u_mid"] == ["IN1", "IN2", "n_top"]
-    assert result["u_leaf2"] == ["n_top", "n_mid"]
-    assert result["u_buf0"] == ["n_mid", "OUT1"]
-    assert result["u_buf1"] == ["IN2", "OUT2"]
+    assert vg.get_module_instance_nets(module_name) == expected
 
 
 def test_get_module_instance_nets_missing_module(
@@ -271,24 +307,32 @@ def test_get_module_instance_nets_missing_module(
         vg.get_module_instance_nets("Nope")
 
 
+@pytest.mark.parametrize(
+    ("hier_inst_path", "expected"),
+    [
+        (
+            "u_mid/u_leaf1",
+            {"A": ["u_mid/u_leaf1/leafbuf/A"], "n1": ["u_mid/u_leaf1/leafbuf/Y"]},
+        ),
+        # NC is a LeafWrap port with nothing behind it
+        (
+            "u_leaf2",
+            {
+                "n_top": ["u_leaf2/leafbuf/A"],
+                "n_mid": ["u_leaf2/leafbuf/Y"],
+                "IN1": [],
+            },
+        ),
+        ("u_buf0", {"n_mid": ["u_buf0/A"], "OUT1": ["u_buf0/Y"]}),
+    ],
+    ids=["nested_submodule", "unconnected_port", "leaf_cell"],
+)
 def test_net_to_pin_paths_for_instance_resolved(
     vg: VerilogGateLevelTimingGraph,
-    monkeypatch: pytest.MonkeyPatch,
+    hier_inst_path: str,
+    expected: dict[str, list[str]],
 ) -> None:
-    monkeypatch.setattr(
-        vg,
-        "net_to_pin_paths_for_instance",
-        lambda _path: {"N1": "u0/A", "N2": "u0/B"},
-    )
-    monkeypatch.setattr(
-        vg,
-        "resolve_hier_pin",
-        lambda pin: [pin + "_leaf1", pin + "_leaf2"],
-    )
-    assert vg.net_to_pin_paths_for_instance_resolved("u0") == {
-        "N1": ["u0/A_leaf1", "u0/A_leaf2"],
-        "N2": ["u0/B_leaf1", "u0/B_leaf2"],
-    }
+    assert vg.net_to_pin_paths_for_instance_resolved(hier_inst_path) == expected
 
 
 def test_nearest_port_from_pin_rejects_invalid_num_ports(
@@ -301,117 +345,62 @@ def test_nearest_port_from_pin_rejects_invalid_num_ports(
         vg.nearest_port_from_pin("X", num_ports=0)
 
 
-def test_nearest_port_from_pin_single_port(
+@pytest.mark.parametrize(
+    ("hier_pin_path", "reverse", "num_ports", "expected"),
+    [
+        ("u_buf0/A", False, 1, ["OUT1"]),
+        ("u_leaf2/leafbuf/A", True, 1, ["IN2"]),
+        ("u_dangle/A", False, 1, []),
+        ("IN2", False, 2, ["OUT2", "OUT1"]),
+        ("u_leaf2/leafbuf/A", True, 2, ["IN2", "IN1"]),
+        ("u_dangle/A", False, 2, []),
+    ],
+    ids=[
+        "single_forward",
+        "single_reverse",
+        "single_none_reachable",
+        "nearest_first_forward",
+        "nearest_first_reverse",
+        "multiple_none_reachable",
+    ],
+)
+def test_nearest_port_from_pin(
     vg: VerilogGateLevelTimingGraph,
-    monkeypatch: pytest.MonkeyPatch,
+    hier_pin_path: str,
+    reverse: bool,
+    num_ports: int,
+    expected: list[str],
 ) -> None:
-    def _path_to_nearest_target_sentinel(
-        _pin: str, _targets: set[str], reverse: bool = False
-    ) -> tuple[list[str], str]:
-        _ = reverse
-        return ["dummy"], "OUT1"
-
-    monkeypatch.setattr(
-        vg,
-        "path_to_nearest_target_sentinel",
-        _path_to_nearest_target_sentinel,
+    assert (
+        vg.nearest_port_from_pin(hier_pin_path, reverse=reverse, num_ports=num_ports)
+        == expected
     )
-    assert vg.nearest_port_from_pin("u_buf0/A", reverse=False, num_ports=1) == ["OUT1"]
 
 
-def test_nearest_port_from_pin_single_port_none(
-    vg: VerilogGateLevelTimingGraph,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def _path_to_nearest_target_sentinel(
-        _pin: str, _targets: set[str], reverse: bool = False
-    ) -> tuple[list[str], None]:
-        _ = reverse
-        return [], None
-
-    monkeypatch.setattr(
-        vg,
-        "path_to_nearest_target_sentinel",
-        _path_to_nearest_target_sentinel,
-    )
-    assert vg.nearest_port_from_pin("u_buf0/A", num_ports=1) == []
-
-
-def test_nearest_port_from_pin_multiple_forward(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    vg.graph.add_edges_from(
-        [
-            ("PIN", "N1"),
-            ("N1", "OUT1"),
-            ("PIN", "N2"),
-            ("N2", "OUT2"),
-        ]
-    )
-    vg.output_ports = {"OUT1", "OUT2"}
-    assert vg.nearest_port_from_pin("PIN", reverse=False, num_ports=2) == [
-        "OUT1",
-        "OUT2",
-    ]
-
-
-def test_nearest_port_from_pin_multiple_reverse(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    vg.reverse_graph.add_edges_from(
-        [
-            ("PIN", "N1"),
-            ("N1", "IN1"),
-            ("PIN", "N2"),
-            ("N2", "IN2"),
-        ]
-    )
-    vg.input_ports = {"IN1", "IN2"}
-    assert vg.nearest_port_from_pin("PIN", reverse=True, num_ports=2) == ["IN1", "IN2"]
-
-
-def test_nearest_port_from_pin_multiple_no_ports(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    vg.graph.add_edge("PIN", "N1")
-    vg.output_ports = {"OUT1", "OUT2"}
-    assert vg.nearest_port_from_pin("PIN", reverse=False, num_ports=2) == []
-
-
+@pytest.mark.parametrize(
+    ("inst_path", "num_ports", "expected_mapping", "expected_flat"),
+    [
+        (
+            "u_mid/u_nand1",
+            2,
+            {"n1": ["IN1"], "B": ["IN2"], "C": ["IN2", "IN1"]},
+            ["IN1", "IN2"],
+        ),
+        # the unconnected NC port resolves to no pin and gets no entry
+        ("u_leaf2", 1, {"n_top": ["IN2"], "n_mid": ["IN2"]}, ["IN2"]),
+    ],
+    ids=["deduplicated_flat_list", "skips_unresolved_net"],
+)
 def test_nearest_ports_from_instance_pin_nets(
     vg: VerilogGateLevelTimingGraph,
-    monkeypatch: pytest.MonkeyPatch,
+    inst_path: str,
+    num_ports: int,
+    expected_mapping: dict[str, list[str]],
+    expected_flat: list[str],
 ) -> None:
-    monkeypatch.setattr(
-        vg,
-        "net_to_pin_paths_for_instance_resolved",
-        lambda _inst: {
-            "N1": ["p1"],
-            "N2": ["p2"],
-            "N3": [],
-        },
-    )
-
-    def fake_nearest(
-        _pin: str,
-        reverse: bool = False,
-        num_ports: int = 1,
-    ) -> list[str]:
-        _ = (reverse, num_ports)
-        if _pin == "p1":
-            return ["OUT1", "OUT2"]
-        if _pin == "p2":
-            return ["OUT2"]
-        return []
-
-    monkeypatch.setattr(vg, "nearest_port_from_pin", fake_nearest)
-
     mapping, flat = vg.nearest_ports_from_instance_pin_nets(
-        "u0", reverse=False, num_ports=2
+        inst_path, reverse=True, num_ports=num_ports
     )
 
-    assert mapping == {
-        "N1": ["OUT1", "OUT2"],
-        "N2": ["OUT2"],
-    }
-    assert flat == ["OUT1", "OUT2"]
+    assert mapping == expected_mapping
+    assert flat == expected_flat
