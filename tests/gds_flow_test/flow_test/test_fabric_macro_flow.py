@@ -1,11 +1,11 @@
 """Tests for FABulousFabricMacroFlow - Fabric stitching flow.
 
 Tests focus on:
-- Flow initialization and configuration
 - Die area computation
 - Macro overlap validation
 - Tile size validation
 - Row and column size computation
+- Spacing variable types and step substitutions
 """
 
 # ruff: noqa: SLF001
@@ -19,11 +19,23 @@ from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
+    FABulousFabricVHDLMacroFlow,
     configs,
-    subs,
 )
+from fabulous.fabric_generator.gds_generator.flows.flow_define import physical_steps
+from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+    FABulousFabricIOPlacement,
+)
+from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import FABulousPDN
+from tests.conftest import make_empty_tile, make_fabric_from_grid
+
+
+def _tile(name: str) -> Tile:
+    return make_empty_tile(name, pinOrderConfig={})
 
 
 class TestComputeDieArea:
@@ -36,98 +48,67 @@ class TestComputeDieArea:
         mock_flow._compute_die_area = FABulousFabricMacroFlow._compute_die_area
         return mock_flow
 
-    def test_compute_die_area_basic(self, flow: MagicMock) -> None:
-        """Test basic die area computation with no spacing."""
-        row_heights: list[Decimal] = [Decimal(100), Decimal(200)]
-        column_widths: list[Decimal] = [Decimal(150), Decimal(250)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
+    @pytest.mark.parametrize(
+        ("row_heights", "column_widths", "halo", "spacing", "expected"),
+        [
+            pytest.param(
+                [Decimal(100), Decimal(200)],
+                [Decimal(150), Decimal(250)],
+                (Decimal(0), Decimal(0), Decimal(0), Decimal(0)),
+                (Decimal(0), Decimal(0)),
+                (Decimal(400), Decimal(300)),
+                id="no_spacing",
+            ),
+            # width = left + right + 200 = 10 + 30 + 200
+            # height = bottom + top + 100 = 20 + 40 + 100
+            pytest.param(
+                [Decimal(100)],
+                [Decimal(200)],
+                (Decimal(10), Decimal(20), Decimal(30), Decimal(40)),
+                (Decimal(0), Decimal(0)),
+                (Decimal(240), Decimal(160)),
+                id="halo_spacing",
+            ),
+            # Width adds one 5 gap between 2 columns, height two 10 gaps.
+            pytest.param(
+                [Decimal(100), Decimal(100), Decimal(100)],
+                [Decimal(200), Decimal(200)],
+                (Decimal(0), Decimal(0), Decimal(0), Decimal(0)),
+                (Decimal(5), Decimal(10)),
+                (Decimal(405), Decimal(320)),
+                id="tile_spacing",
+            ),
+            pytest.param(
+                [],
+                [],
+                (Decimal(10), Decimal(10), Decimal(10), Decimal(10)),
+                (Decimal(5), Decimal(5)),
+                (Decimal(20), Decimal(20)),
+                id="empty_grid_is_halo_only",
+            ),
+        ],
+    )
+    def test_compute_die_area(
+        self,
+        flow: MagicMock,
+        row_heights: list[Decimal],
+        column_widths: list[Decimal],
+        halo: tuple[Decimal, Decimal, Decimal, Decimal],
+        spacing: tuple[Decimal, Decimal],
+        expected: tuple[Decimal, Decimal],
+    ) -> None:
+        """Die size is the summed rows/columns plus halo and inter-tile spacing."""
+        assert (
+            flow._compute_die_area(flow, row_heights, column_widths, halo, spacing)
+            == expected
         )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(0), Decimal(0))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        assert width == Decimal(400), f"Expected 400, got {width}"
-        assert height == Decimal(300), f"Expected 300, got {height}"
-
-    def test_compute_die_area_with_halo_spacing(self, flow: MagicMock) -> None:
-        """Test die area computation with halo spacing."""
-        row_heights: list[Decimal] = [Decimal(100)]
-        column_widths: list[Decimal] = [Decimal(200)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(10),
-            Decimal(20),
-            Decimal(30),
-            Decimal(40),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(0), Decimal(0))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # width = left + right + sum(widths) = 10 + 30 + 200 = 240
-        # height = bottom + top + sum(heights) = 20 + 40 + 100 = 160
-        assert width == Decimal(240), f"Expected 240, got {width}"
-        assert height == Decimal(160), f"Expected 160, got {height}"
-
-    def test_compute_die_area_with_tile_spacing(self, flow: MagicMock) -> None:
-        """Test die area computation with tile spacing."""
-        row_heights: list[Decimal] = [Decimal(100), Decimal(100), Decimal(100)]
-        column_widths: list[Decimal] = [Decimal(200), Decimal(200)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(5), Decimal(10))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # width = sum(widths) + spacing * (cols - 1) = 400 + 5 * 1 = 405
-        # height = sum(heights) + spacing * (rows - 1) = 300 + 10 * 2 = 320
-        assert width == Decimal(405), f"Expected 405, got {width}"
-        assert height == Decimal(320), f"Expected 320, got {height}"
-
-    def test_compute_die_area_empty_grid(self, flow: MagicMock) -> None:
-        """Test die area computation with empty grid."""
-        row_heights: list[Decimal] = []
-        column_widths: list[Decimal] = []
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(10),
-            Decimal(10),
-            Decimal(10),
-            Decimal(10),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(5), Decimal(5))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # Should just be halo spacing with no tiles
-        assert width == Decimal(20), f"Expected 20, got {width}"
-        assert height == Decimal(20), f"Expected 20, got {height}"
 
 
 class TestValidateNoMacroOverlaps:
-    """Tests for _validate_no_macro_overlaps method."""
+    """Tests for _validate_no_macro_overlaps method.
+
+    Every tile is 100 x 100; a placement is `(tile, instance, x, y)`.
+    """
 
     @pytest.fixture
     def flow(self, mocker: MockerFixture) -> MagicMock:
@@ -138,119 +119,62 @@ class TestValidateNoMacroOverlaps:
         )
         return mock_flow
 
-    def test_no_overlaps_single_macro(self, flow: MagicMock) -> None:
-        """Test validation passes with a single macro."""
-        instance: Instance = create_instance(Decimal(0), Decimal(0))
-        macro: Macro = create_macro({"inst1": instance})
-        macros: dict[str, Macro] = {"tile1": macro}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100))
-        }
+    @staticmethod
+    def _macros(placements: list[tuple[str, str, int, int]]) -> dict[str, Macro]:
+        instances: dict[str, dict[str, Instance]] = {}
+        for tile, instance, x, y in placements:
+            instances.setdefault(tile, {})[instance] = create_instance(
+                Decimal(x), Decimal(y)
+            )
+        return {tile: create_macro(insts) for tile, insts in instances.items()}
 
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
+    @pytest.mark.parametrize(
+        "placements",
+        [
+            pytest.param([], id="empty"),
+            pytest.param([("t1", "i1", 0, 0)], id="single"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 200, 0)], id="apart"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 100, 0)], id="x_touching"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 0, 100)], id="y_touching"),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 200, 50)], id="y_overlap_only"
+            ),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 50, 200)], id="x_overlap_only"
+            ),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t1", "i2", 200, 0)], id="same_macro_apart"
+            ),
+        ],
+    )
+    def test_accepts_disjoint_placements(
+        self, flow: MagicMock, placements: list[tuple[str, str, int, int]]
+    ) -> None:
+        """Placements that at most share an edge pass validation."""
+        tile_sizes = {tile: (Decimal(100), Decimal(100)) for tile, *_ in placements}
 
-    def test_no_overlaps_multiple_macros(self, flow: MagicMock) -> None:
-        """Test validation passes with non-overlapping macros."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(0))
+        assert (
+            flow._validate_no_macro_overlaps(flow, self._macros(placements), tile_sizes)
+            is True
+        )
 
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_overlapping_macros_raises_error(self, flow: MagicMock) -> None:
-        """Test validation raises error when macros overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(50), Decimal(50))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
+    @pytest.mark.parametrize(
+        "placements",
+        [
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 50, 50)], id="different_macros"
+            ),
+            pytest.param([("t1", "i1", 0, 0), ("t1", "i2", 50, 50)], id="same_macro"),
+        ],
+    )
+    def test_rejects_overlapping_placements(
+        self, flow: MagicMock, placements: list[tuple[str, str, int, int]]
+    ) -> None:
+        """Two instances whose areas intersect fail, whichever macro they belong to."""
+        tile_sizes = {tile: (Decimal(100), Decimal(100)) for tile, *_ in placements}
 
         with pytest.raises(ValueError, match="overlapping macros detected"):
-            flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-
-    def test_adjacent_macros_no_overlap(self, flow: MagicMock) -> None:
-        """Test that adjacent (touching) macros don't count as overlapping."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(100), Decimal(0))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_multiple_instances_in_same_macro(self, flow: MagicMock) -> None:
-        """Test validation with multiple instances in the same macro."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(0))
-
-        macro: Macro = create_macro({"inst1": instance1, "inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100))
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_y_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in Y but not X don't overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(50))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in Y (0-100 and 50-150) but not in X
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_x_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in X but not Y don't overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(50), Decimal(200))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in X (0-100 and 50-150) but not in Y
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
+            flow._validate_no_macro_overlaps(flow, self._macros(placements), tile_sizes)
 
     def test_instance_without_location(self, flow: MagicMock) -> None:
         """Test handling of instance without location set."""
@@ -278,14 +202,13 @@ class TestValidateNoMacroOverlaps:
         result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
         assert result is True
 
-    def test_empty_macros_dict(self, flow: MagicMock) -> None:
-        """Test with empty macros dictionary."""
-        result: bool = flow._validate_no_macro_overlaps(flow, {}, {})
-        assert result is True
-
 
 class TestValidateTileSizes:
-    """Tests for _validate_tile_sizes method."""
+    """Tests for _validate_tile_sizes method.
+
+    The X and Y pitches differ, so checking an axis against the other axis's
+    pitch changes the outcome.
+    """
 
     @pytest.fixture
     def flow(self, mocker: MockerFixture) -> MagicMock:
@@ -294,82 +217,67 @@ class TestValidateTileSizes:
         mock_flow._validate_tile_sizes = FABulousFabricMacroFlow._validate_tile_sizes
         return mock_flow
 
-    def test_valid_tile_sizes_aligned(
-        self, flow: MagicMock, mock_fabric: MagicMock
-    ) -> None:
-        """Test validation passes when tiles are aligned to pitch."""
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(200)),
-            "tile2": (Decimal(50), Decimal(100)),
-        }
-        pitch_x: Decimal = Decimal(50)
-        pitch_y: Decimal = Decimal(100)
+    @pytest.fixture
+    def fabric(self) -> Fabric:
+        """A real one-row fabric holding `tile1` and `tile2`."""
+        return make_fabric_from_grid([[_tile("tile1"), _tile("tile2")]])
 
-        result: bool = flow._validate_tile_sizes(
-            flow, mock_fabric, tile_sizes, pitch_x, pitch_y
+    @pytest.mark.parametrize(
+        ("tile_sizes", "pitch_x", "pitch_y"),
+        [
+            pytest.param(
+                {
+                    "tile1": (Decimal(100), Decimal(90)),
+                    "tile2": (Decimal(50), Decimal(30)),
+                },
+                Decimal(50),
+                Decimal(30),
+                id="aligned",
+            ),
+            pytest.param(
+                {"tile1": (Decimal(75), Decimal(35))},
+                Decimal(0),
+                Decimal(0),
+                id="zero_pitch_skips_check",
+            ),
+        ],
+    )
+    def test_accepts_pitch_aligned_sizes(
+        self,
+        flow: MagicMock,
+        fabric: Fabric,
+        tile_sizes: dict[str, tuple[Decimal, Decimal]],
+        pitch_x: Decimal,
+        pitch_y: Decimal,
+    ) -> None:
+        """Widths on the X pitch and heights on the Y pitch pass."""
+        assert (
+            flow._validate_tile_sizes(flow, fabric, tile_sizes, pitch_x, pitch_y)
+            is True
         )
-        assert result is True
 
-    def test_invalid_tile_width_not_aligned(
-        self, flow: MagicMock, mock_fabric: MagicMock
+    @pytest.mark.parametrize(
+        "tile_sizes",
+        [
+            pytest.param({"tile1": (Decimal(75), Decimal(90))}, id="width_off_grid"),
+            pytest.param({"tile1": (Decimal(100), Decimal(75))}, id="height_off_grid"),
+        ],
+    )
+    def test_rejects_misaligned_sizes(
+        self,
+        flow: MagicMock,
+        fabric: Fabric,
+        tile_sizes: dict[str, tuple[Decimal, Decimal]],
     ) -> None:
-        """Test validation fails when tile width is not aligned."""
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(75), Decimal(100)),  # 75 not multiple of 50
-        }
-        pitch_x: Decimal = Decimal(50)
-        pitch_y: Decimal = Decimal(100)
-
+        """A width off the X pitch or a height off the Y pitch fails."""
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
-
-    def test_invalid_tile_height_not_aligned(
-        self, flow: MagicMock, mock_fabric: MagicMock
-    ) -> None:
-        """Test validation fails when tile height is not aligned."""
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(75)),  # 75 not multiple of 50
-        }
-        pitch_x: Decimal = Decimal(50)
-        pitch_y: Decimal = Decimal(50)
-
-        with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
-
-    def test_zero_pitch_handling(self, flow: MagicMock, mock_fabric: MagicMock) -> None:
-        """Test validation handles zero pitch gracefully."""
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(200)),
-        }
-        pitch_x: Decimal = Decimal(0)
-        pitch_y: Decimal = Decimal(0)
-
-        # Should not raise - zero pitch means no alignment check
-        result: bool = flow._validate_tile_sizes(
-            flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-        )
-        assert result is True
-
-    def test_supertile_validation(
-        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
-    ) -> None:
-        """Test validation also checks supertiles."""
-        # Modify mock_fabric to include a supertile
-        mock_fabric.superTileDic = {"super1": mocker.MagicMock()}
-
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(200)),
-            "super1": (Decimal(75), Decimal(200)),  # Not aligned
-        }
-        pitch_x: Decimal = Decimal(50)
-        pitch_y: Decimal = Decimal(100)
-
-        with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
+            flow._validate_tile_sizes(
+                flow, fabric, tile_sizes, Decimal(50), Decimal(30)
+            )
 
 
 class TestComputeRowAndColumnSizes:
-    """Tests for _compute_row_and_column_sizes method."""
+    """Tests for _compute_row_and_column_sizes method on real fabrics."""
 
     @pytest.fixture
     def flow(self, mocker: MockerFixture) -> MagicMock:
@@ -380,133 +288,82 @@ class TestComputeRowAndColumnSizes:
         )
         return mock_flow
 
-    def test_compute_sizes_simple_grid(
-        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
-    ) -> None:
-        """Test computing sizes for a simple 2x2 grid."""
-        # Mock tile
-        tile1: MagicMock = mocker.MagicMock()
-        tile1.name = "tile1"
-
-        # Set up fabric iterator
-        mock_fabric.__iter__ = mocker.MagicMock(
-            return_value=iter(
-                [
-                    ((0, 0), tile1),
-                    ((1, 0), tile1),
-                    ((0, 1), tile1),
-                    ((1, 1), tile1),
-                ]
-            )
+    def test_compute_sizes_full_grid(self, flow: MagicMock) -> None:
+        """A 2-row x 3-column grid gives one height per row, one width per column."""
+        fabric: Fabric = make_fabric_from_grid(
+            [
+                [_tile("A"), _tile("B"), _tile("C")],
+                [_tile("D"), _tile("E"), _tile("F")],
+            ]
         )
-
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(50))
+            "A": (Decimal(100), Decimal(50)),
+            "B": (Decimal(200), Decimal(50)),
+            "C": (Decimal(150), Decimal(50)),
+            "D": (Decimal(100), Decimal(75)),
+            "E": (Decimal(200), Decimal(75)),
+            "F": (Decimal(150), Decimal(75)),
         }
 
-        row_heights: list[Decimal]
-        col_widths: list[Decimal]
-        row_heights, col_widths = flow._compute_row_and_column_sizes(
-            flow, mock_fabric, tile_sizes
+        assert flow._compute_row_and_column_sizes(flow, fabric, tile_sizes) == (
+            [Decimal(50), Decimal(75)],
+            [Decimal(100), Decimal(200), Decimal(150)],
         )
 
-        assert len(row_heights) == 2
-        assert len(col_widths) == 2
-        assert row_heights[0] == Decimal(50)
-        assert row_heights[1] == Decimal(50)
-        assert col_widths[0] == Decimal(100)
-        assert col_widths[1] == Decimal(100)
-
-    def test_compute_sizes_with_none_tiles(
-        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
-    ) -> None:
+    def test_compute_sizes_with_none_tiles(self, flow: MagicMock) -> None:
         """Null grid cells are skipped; sizes come from the tiles that are present."""
-        tile1: MagicMock = mocker.MagicMock()
-        tile1.name = "tile1"
-        tile2: MagicMock = mocker.MagicMock()
-        tile2.name = "tile2"
-
         # Only the diagonal is populated, so each row and column is sized by
         # exactly one tile.
-        mock_fabric.__iter__ = mocker.MagicMock(
-            return_value=iter(
-                [
-                    ((0, 0), tile1),
-                    ((1, 0), None),
-                    ((0, 1), None),
-                    ((1, 1), tile2),
-                ]
-            )
+        fabric: Fabric = make_fabric_from_grid(
+            [[_tile("tile1"), None], [None, _tile("tile2")]]
         )
-
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
             "tile1": (Decimal(100), Decimal(50)),
             "tile2": (Decimal(200), Decimal(75)),
         }
 
-        row_heights: list[Decimal]
-        col_widths: list[Decimal]
-        row_heights, col_widths = flow._compute_row_and_column_sizes(
-            flow, mock_fabric, tile_sizes
+        assert flow._compute_row_and_column_sizes(flow, fabric, tile_sizes) == (
+            [Decimal(50), Decimal(75)],
+            [Decimal(100), Decimal(200)],
         )
 
-        assert row_heights == [Decimal(50), Decimal(75)]
-        assert col_widths == [Decimal(100), Decimal(200)]
-
+    @pytest.mark.parametrize(
+        ("grid_names", "tile_sizes", "message"),
+        [
+            pytest.param(
+                [["tile1"], ["tile2"]],
+                {
+                    "tile1": (Decimal(100), Decimal(50)),
+                    "tile2": (Decimal(150), Decimal(50)),
+                },
+                "Non-uniform tile widths in column 0 for tile: tile2",
+                id="width_in_column",
+            ),
+            pytest.param(
+                [["tile1", "tile2"]],
+                {
+                    "tile1": (Decimal(100), Decimal(50)),
+                    "tile2": (Decimal(100), Decimal(75)),
+                },
+                "Non-uniform tile heights in row 0 for tile: tile2",
+                id="height_in_row",
+            ),
+        ],
+    )
     def test_compute_sizes_non_uniform_raises_error(
-        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
+        self,
+        flow: MagicMock,
+        grid_names: list[list[str]],
+        tile_sizes: dict[str, tuple[Decimal, Decimal]],
+        message: str,
     ) -> None:
-        """Test that non-uniform tile sizes in a column raise error."""
-        # Override fabric dimensions for this test
-        mock_fabric.numberOfRows = 2
-        mock_fabric.numberOfColumns = 1
-
-        tile1: MagicMock = mocker.MagicMock()
-        tile1.name = "tile1"
-        tile2: MagicMock = mocker.MagicMock()
-        tile2.name = "tile2"
-
-        mock_fabric.__iter__ = mocker.MagicMock(
-            return_value=iter(
-                [
-                    ((0, 0), tile1),
-                    ((0, 1), tile2),
-                ]
-            )
+        """Tiles sharing a column must agree on width, sharing a row on height."""
+        fabric: Fabric = make_fabric_from_grid(
+            [[_tile(name) for name in row] for row in grid_names]
         )
 
-        # Different widths for same column
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(50)),
-            "tile2": (Decimal(150), Decimal(50)),  # Different width
-        }
-
-        with pytest.raises(ValueError, match="Non-uniform tile widths"):
-            flow._compute_row_and_column_sizes(flow, mock_fabric, tile_sizes)
-
-
-class TestFlowConfiguration:
-    """Tests for flow configuration and class attributes."""
-
-    def test_flow_has_substitutions(self) -> None:
-        """Test that flow has expected substitutions."""
-        assert "OpenROAD.STAPrePNR*" in subs
-        assert subs["OpenROAD.STAPrePNR*"] is None
-
-    def test_flow_has_fabulous_tile_spacing_config(self) -> None:
-        """Test flow has FABULOUS_TILE_SPACING config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_TILE_SPACING" in config_names
-
-    def test_flow_has_fabulous_halo_spacing_config(self) -> None:
-        """Test flow has FABULOUS_HALO_SPACING config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_HALO_SPACING" in config_names
-
-    def test_flow_has_fabulous_spef_corners_config(self) -> None:
-        """Test flow has FABULOUS_SPEF_CORNERS config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_SPEF_CORNERS" in config_names
+        with pytest.raises(ValueError, match=message):
+            flow._compute_row_and_column_sizes(flow, fabric, tile_sizes)
 
 
 class TestSpacingVariableTypes:
@@ -587,20 +444,40 @@ class TestSpacingVariableTypes:
 
 
 class TestFlowSubstitutions:
-    """Tests for the flow's step substitutions."""
+    """The class-level `Substitutions` reach `Steps` on both HDL variants."""
 
-    def test_io_placement_substitution(self) -> None:
-        """Test IO placement substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
-            FABulousFabricIOPlacement,
-        )
+    # Placement, timing repair and STA steps a macro-only fabric must not run.
+    REMOVED_STEP_IDS: frozenset[str] = frozenset(
+        {
+            "OpenROAD.CutRows",
+            "OpenROAD.TapEndcapInsertion",
+            "OpenROAD.STAPrePNR",
+            "OpenROAD.STAMidPNR",
+            "OpenROAD.STAPostPNR",
+            "OpenROAD.GeneratePDN",
+            "Odb.CustomIOPlacement",
+            "Odb.ApplyDEFTemplate",
+            "OpenROAD.GlobalPlacement",
+            "Odb.ManualGlobalPlacement",
+            "OpenROAD.DetailedPlacement",
+            "OpenROAD.RepairDesignPostGPL",
+            "OpenROAD.RepairDesignPostGRT",
+            "OpenROAD.RepairAntennas",
+            "OpenROAD.ResizerTimingPostCTS",
+            "OpenROAD.ResizerTimingPostGRT",
+            "OpenROAD.RCX",
+            "OpenROAD.IRDropReport",
+        }
+    )
 
-        assert subs["Odb.CustomIOPlacement"] == FABulousFabricIOPlacement
+    @pytest.mark.parametrize(
+        "flow_cls", [FABulousFabricMacroFlow, FABulousFabricVHDLMacroFlow]
+    )
+    def test_substituted_steps(self, flow_cls: type[FABulousFabricMacroFlow]) -> None:
+        """Removed steps are gone and the IO placer / PDN are the FABulous ones."""
+        assert {step.id for step in physical_steps} >= self.REMOVED_STEP_IDS
 
-    def test_pdn_substitution(self) -> None:
-        """Test PDN substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
-            FABulousPDN,
-        )
+        step_ids: set[str] = {step.id for step in flow_cls.Steps}
 
-        assert subs["OpenROAD.GeneratePDN"] == FABulousPDN
+        assert step_ids.isdisjoint(self.REMOVED_STEP_IDS)
+        assert {FABulousFabricIOPlacement, FABulousPDN} <= set(flow_cls.Steps)

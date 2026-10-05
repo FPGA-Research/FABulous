@@ -122,9 +122,19 @@ class TestTileRealAsset:
         assert flow.config["FABULOUS_IO_PIN_ORDER_CFG"] == str(pin_yaml)
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
-        verilog_files = [str(p) for p in flow.config["VERILOG_FILES"]]
-        assert any(f"{TILE_NAME}.v" in p for p in verilog_files)
-        assert any(f"{TILE_NAME}_switch_matrix.v" in p for p in verilog_files)
+        # The eight LUT BELs share one primitive source, listed once ahead of
+        # the generated tile RTL. The BEL path keeps the CSV's relative `..`
+        # segments.
+        resolved_tile_dir: Path = tile_dir.resolve()
+        assert flow.config["VERILOG_FILES"] == [
+            str(
+                resolved_tile_dir
+                / "../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v"
+            ),
+            str(resolved_tile_dir / f"{TILE_NAME}.v"),
+            str(resolved_tile_dir / f"{TILE_NAME}_switch_matrix.v"),
+            str(resolved_tile_dir / f"{TILE_NAME}_ConfigMem.v"),
+        ]
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -160,10 +170,9 @@ class TestFabricRealAsset:
         assert flow.tile_sizes[TILE_NAME] == (Decimal(100), Decimal(100))
         assert flow.config["DESIGN_NAME"] == FABRIC_NAME
         # VERILOG_FILES was populated by the fabric-Verilog collector.
-        verilog_files = [str(p) for p in flow.config["VERILOG_FILES"]]
-        assert any(
-            p.endswith("fabric.v") or f"{FABRIC_NAME}.v" in p for p in verilog_files
-        )
+        assert flow.config["VERILOG_FILES"] == [
+            str((fabric_dir / "fabric.v").resolve())
+        ]
 
 
 class TestAssetConfigSchema:
