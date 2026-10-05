@@ -110,20 +110,19 @@ class TestGetMinDieArea:
     """``get_min_die_area`` derives pin-limited min dimensions from get_port_count."""
 
     def test_pin_min_reflects_physical_pins_only(self) -> None:
-        # Without the double-count bug, 4 wires on N should produce pin_min_w
-        # of roughly (4 + frame_strobe_width)·thickness_mult·pitch + offset·pitch.
+        # 4 N1 wires put 4 pins on the N and S edges and none on E/W. The frame
+        # strobes run N-S and the frame data E-W, so each widens only its axis.
         ports = _directional_ports("NORTH", "N1BEG", "N1END", 4)
         tile = _mk_tile(ports)
-        pitch = Decimal("0.5")
-        thickness = Decimal(2)
-        mw, _ = tile.get_min_die_area(
-            x_pitch=pitch,
-            y_pitch=pitch,
-            x_pin_thickness_mult=thickness,
-            y_pin_thickness_mult=thickness,
-            frame_data_width=0,
-            frame_strobe_width=0,
+        mw, mh = tile.get_min_die_area(
+            x_pitch=Decimal("0.5"),
+            y_pitch=Decimal("0.25"),
+            x_pin_thickness_mult=Decimal(2),
+            y_pin_thickness_mult=Decimal(3),
+            frame_data_width=32,
+            frame_strobe_width=20,
             edge_offset=2,
         )
-        # 4 pins × 2 thickness + 2 offset = 10 tracks × 0.5 pitch = 5.0 um
-        assert mw == Decimal("5.0")
+        # width:  ((4 pins + 20 strobes) × 2 + 2 offset) × 0.5 = 25.0 um
+        # height: ((0 pins + 32 data) × 3 + 2 offset) × 0.25 = 24.5 um
+        assert (mw, mh) == (Decimal("25.0"), Decimal("24.5"))

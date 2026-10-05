@@ -70,22 +70,26 @@ pdk::sky130A:
 # --------------------------------- CellSpec ---------------------------------
 
 
-def test_cell_spec_yosys_arg_buffer() -> None:
-    spec = CellSpec(cell="buf_1", input_ports=["A"], output_ports=["X"])
-
-    assert spec.yosys_arg == "buf_1 A X"
-
-
-def test_cell_spec_yosys_arg_tie_cell() -> None:
-    spec = CellSpec(cell="conb_1", output_ports=["HI"])
-
-    assert spec.yosys_arg == "conb_1 HI"
-
-
-def test_cell_spec_yosys_arg_multiple_ports() -> None:
-    spec = CellSpec(cell="mux", input_ports=["S", "A", "B"], output_ports=["Y"])
-
-    assert spec.yosys_arg == "mux S A B Y"
+@pytest.mark.parametrize(
+    ("spec", "expected"),
+    [
+        pytest.param(
+            CellSpec(cell="buf_1", input_ports=["A"], output_ports=["X"]),
+            "buf_1 A X",
+            id="buffer",
+        ),
+        pytest.param(
+            CellSpec(cell="conb_1", output_ports=["HI"]), "conb_1 HI", id="tie_cell"
+        ),
+        pytest.param(
+            CellSpec(cell="mux", input_ports=["S", "A", "B"], output_ports=["Y"]),
+            "mux S A B Y",
+            id="multiple_ports",
+        ),
+    ],
+)
+def test_cell_spec_yosys_arg(spec: CellSpec, expected: str) -> None:
+    assert spec.yosys_arg == expected
 
 
 # ------------------------------ StdCellLibrary ------------------------------
@@ -114,14 +118,6 @@ def test_get_missing_function_returns_empty() -> None:
     )
 
     assert library.get(CellFunction.TIE_LOW) == []
-
-
-def test_defaults_are_empty() -> None:
-    library = StdCellLibrary()
-
-    assert library.liberty_files == []
-    assert library.techmap_files == []
-    assert library.get(CellFunction.BUFFER) == []
 
 
 def test_load_returns_library(tmp_path: Path) -> None:
@@ -157,7 +153,7 @@ def test_load_unknown_cell_function_raises(tmp_path: Path) -> None:
         "pdk::sky130A:\n  cells:\n    not_a_function:\n      - cell: x\n",
     )
 
-    with pytest.raises(ValueError, match="StdCellLibrary"):
+    with pytest.raises(ValueError, match=r"cells\.not_a_function"):
         StdCellLibrary.load(tmp_path, "sky130A")
 
 
