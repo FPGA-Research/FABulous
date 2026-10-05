@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for reference testing."""
 
+from argparse import BooleanOptionalAction
 from pathlib import Path
 
 import pytest
@@ -51,7 +52,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     """Add custom command line options."""
     parser.addoption(
         "--download-projects",
-        action="store_true",
+        action=BooleanOptionalAction,
         default=True,
         help="Download or update reference projects before running tests",
     )

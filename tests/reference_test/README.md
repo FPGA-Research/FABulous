@@ -105,6 +105,7 @@ reference_projects:
 
 ## Command Line Options
 
+- `--download-projects` / `--no-download-projects`: Clone or update the reference projects before the run (default on); turn it off to use an existing `--projects-dir` as is
 - `--repo-url`: Specify custom GitHub repository URL
 - `--projects-dir`: Specify local projects directory
 - `--reference-projects-config`: Path to YAML config file
