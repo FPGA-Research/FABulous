@@ -311,10 +311,11 @@ class SegmentInfo:
         """Build a fully populated segment from a raw YAML entry."""
         try:
             sort_mode = PinSortMode[segment.sort_mode.upper()]
-        except ValueError as e:
+        except KeyError as e:
             raise ValueError(
                 f"Invalid sort_mode '{segment.sort_mode}' in segment "
-                f"on side {side.value}"
+                f"on side {side.value}, expected one of "
+                f"{[mode.value for mode in PinSortMode]}"
             ) from e
 
         entries: list[odbBTermLike | int] = []

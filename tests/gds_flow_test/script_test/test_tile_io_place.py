@@ -214,11 +214,9 @@ class TestSegmentInfo:
         assert seg_info.actual_pin_count == 3
 
     def test_invalid_sort_mode(self) -> None:
-        """A sort_mode outside `PinSortMode` fails the enum lookup in `from_config`."""
+        """A sort_mode outside `PinSortMode` is rejected naming the bad value."""
         # Segments are built straight from YAML, so sort_mode arrives as a raw
         # string and is looked up by member name.
-        # Bug: from_config catches ValueError, so its "Invalid sort_mode" message
-        # never fires and the bare KeyError escapes.
         segment_config = PinOrderConfig(
             pins=["pin.*"],
             sort_mode="invalid_mode",
@@ -227,7 +225,7 @@ class TestSegmentInfo:
             reverse_result=False,
         )
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="Invalid sort_mode 'invalid_mode'"):
             SegmentInfo.from_config(Side.NORTH, segment_config, [], {}, set())
 
     def test_duplicate_regex_match(self, mocker: MockerFixture) -> None:
