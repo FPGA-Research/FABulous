@@ -18,12 +18,12 @@ not only generates the binary bitstream for simulation, but also the bitstream f
 The bitstream in both Verilog and VHDL follow the original order of configuration bits in each tile, not the re-mapping one.
 :::
 
-- Verilog: Users should define the global macro value of `EMULATION_MODE` to enable the emulation function in the fabric testing.
+- Verilog: Users should define the global macro `EMULATION` to enable the emulation function in the fabric testing.
 
   ```{code-block} verilog
   :emphasize-lines: 1
 
-     `ifdef EMULATION_MODE
+     `ifdef EMULATION
              `include "sequential_2bit_en_bitstream.vh"
      `endif
   ```
