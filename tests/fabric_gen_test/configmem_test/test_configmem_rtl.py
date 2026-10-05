@@ -33,13 +33,27 @@ class ConfigMemDUT(Protocol):
     ConfigBits_N: Any
 
 
-def load_bit_mapping() -> dict:
-    """Load direct bit mapping from JSON file: (frame,framedata_bit) -> config_bit."""
-    config_file = Path().cwd() / "config_info.json"
-    if config_file.exists():
-        with config_file.open() as f:
-            return json.load(f)
-    return {}
+def write_bit_mapping(
+    config_mems: list[ConfigMem], frame_bits_per_row: int, path: Path
+) -> None:
+    """Write the `"frame, framedata_bit"` -> config bit mapping to `path` as JSON.
+
+    The simulator runs the cocotb test in its own process and working directory,
+    so the mapping reaches it as a file whose path travels in a plusarg.
+    """
+    bit_mapping: dict[str, int] = {}
+    for config_mem in config_mems:
+        # Same reading as the bitstream spec: mask character k, left to right,
+        # is FrameData bit `frame_bits_per_row - 1 - k` and takes the next
+        # entry of configBitRanges.
+        config_bits = iter(config_mem.configBitRanges)
+        for k, bit in enumerate(config_mem.usedBitMask):
+            if bit == "1":
+                framedata_bit_idx = frame_bits_per_row - 1 - k
+                bit_mapping[f"{config_mem.frameIndex}, {framedata_bit_idx}"] = next(
+                    config_bits
+                )
+    path.write_text(json.dumps(bit_mapping, indent=2))
 
 
 async def initialize_configmem(dut: ConfigMemDUT) -> None:
@@ -64,71 +78,50 @@ async def cocotb_test_configmem_settings(dut: ConfigMemDUT) -> None:
     """Test exact bit mapping from FrameData to ConfigBits using direct mapping."""
     await initialize_configmem(dut)
 
-    # Load direct bit mapping: "(frame,framedata_bit)" -> config_bit
-    bit_mapping = load_bit_mapping()
+    bit_mapping: dict[str, int] = json.loads(
+        Path(cocotb.plusargs["CONFIG_INFO"]).read_text()
+    )
+    # An empty mapping would skip every check below and pass vacuously.
+    assert bit_mapping, "CONFIG_INFO holds no mapped config bits"
 
     max_frames = len(dut.FrameStrobe)
-    configbits_width = len(dut.ConfigBits)
+    all_config_bits = (1 << len(dut.ConfigBits)) - 1
 
-    # Get valid FrameData bits from the bit mapping
-    valid_framedata_bits = set()
-    for key in bit_mapping:
-        frame_str, bit_str = key.split(", ")
-        valid_framedata_bits.add(int(bit_str))
+    valid_framedata_bits = sorted({int(key.split(", ")[1]) for key in bit_mapping})
 
-    # Test each frame and FrameData bit combination
+    # Whole-vector writes and reads, because Icarus exposes a one-bit port as a
+    # scalar that cannot be indexed.
     for frame_idx in range(max_frames):
-        # Test valid mapped bits
-        for framedata_bit_idx in sorted(valid_framedata_bits):
-            # Initialize to all zeros
+        for framedata_bit_idx in valid_framedata_bits:
             await initialize_configmem(dut)
+            where = f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}"
 
-            # Set only one FrameData bit directly
-            dut.FrameData[framedata_bit_idx].value = 1
-            dut.FrameStrobe[frame_idx].value = 1
+            dut.FrameData.value = 1 << framedata_bit_idx
+            dut.FrameStrobe.value = 1 << frame_idx
             await Timer(10, units="ps")
 
-            # Check if this (frame, framedata_bit) combination has a mapping
             mapping_key = f"{frame_idx}, {framedata_bit_idx}"
-
-            if mapping_key in bit_mapping:
-                # This FrameData bit should map to a specific ConfigBit
-                expected_config_bit = bit_mapping[mapping_key]
-
-                assert dut.ConfigBits[expected_config_bit].value == 1, (
-                    f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                    f"Expected ConfigBits[{expected_config_bit}] to be 1, "
-                    f"but got {dut.ConfigBits[expected_config_bit].value}"
+            if mapping_key not in bit_mapping:
+                assert int(dut.ConfigBits.value) == 0, (
+                    f"{where}: no mapping, so no ConfigBits should be set"
                 )
+                continue
 
-                assert dut.ConfigBits_N[expected_config_bit].value == 0, (
-                    f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                    f"Expected ConfigBits_N[{expected_config_bit}] to be 0, "
-                    f"but got {dut.ConfigBits_N[expected_config_bit].value}"
-                )
+            expected = 1 << bit_mapping[mapping_key]
+            assert int(dut.ConfigBits.value) == expected, (
+                f"{where}: expected ConfigBits=0x{expected:x}, "
+                f"got 0x{int(dut.ConfigBits.value):x}"
+            )
+            assert int(dut.ConfigBits_N.value) == all_config_bits ^ expected, (
+                f"{where}: ConfigBits_N is not the complement of ConfigBits"
+            )
 
-                # Check that no other ConfigBits are set
-                for config_bit_idx in range(configbits_width):
-                    if config_bit_idx != expected_config_bit:
-                        assert dut.ConfigBits[config_bit_idx].value == 0, (
-                            f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                            f"Unexpected ConfigBits[{config_bit_idx}] is set"
-                        )
-
-                # Test latch behavior - deassert strobe and verify value is maintained
-                dut.FrameStrobe[frame_idx].value = 0
-                await Timer(10, units="ps")
-
-                assert dut.ConfigBits[expected_config_bit].value == 1, (
-                    f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                    f"ConfigBits[{expected_config_bit}] should maintain value when "
-                    "strobe deasserted"
-                )
-            else:
-                assert dut.ConfigBits.value == 0, (
-                    f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                    "No mapping found, all ConfigBits should be 0"
-                )
+            # The latch holds its value once the strobe drops.
+            dut.FrameStrobe.value = 0
+            await Timer(10, units="ps")
+            assert int(dut.ConfigBits.value) == expected, (
+                f"{where}: ConfigBits did not hold after the strobe dropped"
+            )
 
 
 @pytest.mark.parametrize("hdl_lang", [".v", ".vhd"])
@@ -176,45 +169,24 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     else:
         return
 
-    bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index
-    config_mem_entries = parseConfigMem(
-        csv_path,
-        fabric_config.maxFramesPerCol,
+    config_info = tmp_path / "config_info.json"
+    write_bit_mapping(
+        parseConfigMem(
+            csv_path,
+            fabric_config.maxFramesPerCol,
+            fabric_config.frameBitsPerRow,
+            tile_config.globalConfigBits,
+        ),
         fabric_config.frameBitsPerRow,
-        tile_config.globalConfigBits,
+        config_info,
     )
-
-    # Create direct mapping using the parsed ConfigMem objects
-    for config_mem in config_mem_entries:
-        frame_index = config_mem.frameIndex
-        config_bit_ranges = config_mem.configBitRanges
-        used_bit_mask = config_mem.usedBitMask
-
-        # Find which FrameData bits are used (positions of '1' in mask)
-        # The usedBitMask is interpreted right-to-left (little endian)
-        used_framedata_bits = [
-            len(used_bit_mask) - 1 - i
-            for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
-        ]
-
-        # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(
-            used_framedata_bits, config_bit_ranges, strict=True
-        ):
-            key = f"{frame_index}, {framedata_bit_idx}"
-            bit_mapping[key] = config_bit_idx
-
-    # Save bit mapping for cocotb tests to use
-    config_info_file = tmp_path / "config_info.json"
-    with config_info_file.open("w") as f:
-        json.dump(bit_mapping, f, indent=2)
 
     models_source = Path(__file__).parent.parent / "testdata" / f"models{hdl_lang}"
     cocotb_runner(
         sources=[models_source, writer.outFileName],
         hdl_top_level=f"{tile_config.name}_ConfigMem",
         test_module_path=Path(__file__),
+        plusargs=[f"+CONFIG_INFO={config_info}"],
     )
 
 
@@ -252,12 +224,10 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
     configmem_list_data = configmem_list(default_fabric, default_tile)
 
-    # Mock parseConfigMem to return our configmem_list fixture
-    mock_parse = mocker.patch(
+    mocker.patch(
         "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
-        return_value=configmem_list,
+        return_value=configmem_list_data,
     )
-    mock_parse.return_value = configmem_list_data
 
     # Generate the ConfigMem RTL
     generateConfigMem(
@@ -269,33 +239,8 @@ def test_configmem_rtl_with_custom_configmem_simulation(
         max_frame_per_col=default_fabric.maxFramesPerCol,
     )
 
-    bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index
-
-    # Create direct mapping using the parsed ConfigMem objects
-    for config_mem in configmem_list_data:
-        frame_index = config_mem.frameIndex
-        config_bit_ranges = config_mem.configBitRanges
-        used_bit_mask = config_mem.usedBitMask
-
-        # Find which FrameData bits are used (positions of '1' in mask)
-        # The usedBitMask is interpreted right-to-left (little endian)
-        used_framedata_bits = [
-            len(used_bit_mask) - 1 - i
-            for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
-        ]
-
-        # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(
-            used_framedata_bits, config_bit_ranges, strict=True
-        ):
-            key = f"{frame_index}, {framedata_bit_idx}"
-            bit_mapping[key] = config_bit_idx
-
-    # Save bit mapping for cocotb tests to use
-    config_info_file = tmp_path / "config_info.json"
-    with config_info_file.open("w") as f:
-        json.dump(bit_mapping, f, indent=2)
+    config_info = tmp_path / "config_info.json"
+    write_bit_mapping(configmem_list_data, default_fabric.frameBitsPerRow, config_info)
 
     # Set up cocotb simulation and run using the factory fixture
     models_source = Path(__file__).parent.parent / "testdata" / f"models{hdl_lang}"
@@ -303,4 +248,5 @@ def test_configmem_rtl_with_custom_configmem_simulation(
         sources=[models_source, writer.outFileName],
         hdl_top_level=f"{default_tile.name}_ConfigMem",
         test_module_path=Path(__file__),
+        plusargs=[f"+CONFIG_INFO={config_info}"],
     )
