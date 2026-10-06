@@ -161,13 +161,13 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             for i, bel in enumerate(tile.bels):
                 for featureKey, keyDict in bel.belFeatureMap.items():
                     for entry in (k for k in keyDict if isinstance(k, int)):
-                        for v in keyDict[entry]:
-                            curTileMap[f"{string.ascii_uppercase[i]}.{featureKey}"] = {
-                                encodeDict[curBitOffset + v]: keyDict[entry][v]
-                            }
-                            curTileMapNoMask[
-                                f"{string.ascii_uppercase[i]}.{featureKey}"
-                            ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                        feature = f"{string.ascii_uppercase[i]}.{featureKey}"
+                        bits = {
+                            encodeDict[curBitOffset + v]: value
+                            for v, value in keyDict[entry].items()
+                        }
+                        curTileMap[feature] = bits
+                        curTileMapNoMask[feature] = dict(bits)
                         curBitOffset += len(keyDict[entry])
 
             result = tile.switch_matrix.connections
@@ -285,11 +285,11 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                     for entry in keyDict:
                         if not isinstance(entry, int):
                             continue
-                        for v in keyDict[entry]:
-                            for t in (curTileMap, curTileMapNoMask):
-                                t[f"{letter}.{featureKey}"] = {
-                                    st_encode_dict[curBitOffset + v]: keyDict[entry][v]
-                                }
+                        for t in (curTileMap, curTileMapNoMask):
+                            t[f"{letter}.{featureKey}"] = {
+                                st_encode_dict[curBitOffset + v]: value
+                                for v, value in keyDict[entry].items()
+                            }
                         curBitOffset += len(keyDict[entry])
             st_bel_count[bel_coord] = bel_offset + len(super_tile.bels)
 

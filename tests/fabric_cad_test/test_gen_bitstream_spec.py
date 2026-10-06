@@ -336,10 +336,8 @@ def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
 
     expected = {
         "A.F_A": {31: "1"},
-        # Bug: a multi-bit feature keeps only its last bit, because
-        # generateBitstreamSpec reassigns the feature's dict per bit; F_B's
-        # bit 0 ({30: "0"}) is lost.
-        "A.F_B": {29: "1"},
+        # A multi-bit feature keeps every one of its bits.
+        "A.F_B": {30: "0", 29: "1"},
         "A.F_C": {28: "1"},
         "D0.S0": {27: "0"},
         "D1.S0": {27: "1"},
