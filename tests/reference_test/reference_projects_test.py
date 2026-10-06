@@ -13,7 +13,8 @@ import yaml
 from loguru import logger
 
 from fabulous.fabulous_repl.helper import update_project_version
-from fabulous.fabulous_settings import init_context
+from fabulous.fabulous_settings import get_context, init_context
+from tests.reference_test.equivalence import check_rtl_equivalence
 from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
@@ -39,6 +40,7 @@ class ReferenceProject(NamedTuple):
     post_fab_commands: list[dict[str, str]] | None = None
     cleanup_commands: list[dict[str, str]] | None = None
     skip_reason: str | None = None
+    rtl_equivalence: bool = False
 
 
 def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
@@ -71,6 +73,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
                 post_fab_commands=project_data.get("post_fab_commands"),
                 cleanup_commands=project_data.get("cleanup_commands"),
                 skip_reason=project_data.get("skip_reason"),
+                rtl_equivalence=project_data.get("rtl_equivalence", False),
             )
             projects.append(project)
         except KeyError as e:
@@ -120,6 +123,9 @@ def test_reference_project_execution(
     """Test execution of reference projects with run or diff mode."""
     assert ref_project.path.exists(), (
         f"Reference project path does not exist: {ref_project.path}"
+    )
+    assert not ref_project.rtl_equivalence or ref_project.test_mode == "diff", (
+        f"{ref_project.name}: rtl_equivalence needs 'diff' mode"
     )
 
     # Copy project to temporary location
@@ -207,8 +213,12 @@ def test_reference_project_execution(
                 include_patterns = ref_project.include_patterns
             else:
                 logger.info("Using default include patterns for:")
-                include_patterns = ["*.v", "*.sv"]
-                if ref_project.language != "verilog":
+                if ref_project.rtl_equivalence:
+                    # The RTL is checked for equivalence below, not diffed as text.
+                    include_patterns = []
+                elif ref_project.language == "verilog":
+                    include_patterns = ["*.v", "*.sv"]
+                else:
                     include_patterns = ["*.vhd", "*.vhdl"]
                 include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
             logger.info(f"  Patterns: {include_patterns}")
@@ -234,6 +244,29 @@ def test_reference_project_execution(
                 pytest.fail(
                     f"Compare project differences in {ref_project.name}:\n{diff_report}"
                 )
+
+            if ref_project.rtl_equivalence:
+                models_pack = get_context().models_pack
+                assert models_pack is not None, (
+                    f"No models pack configured for {ref_project.name}"
+                )
+                failures = check_rtl_equivalence(
+                    reference=ref_project.path,
+                    regenerated=test_project_path,
+                    models_pack=models_pack.relative_to(test_project_path),
+                    language=ref_project.language,
+                    work_dir=tmp_path / "equivalence",
+                )
+                if failures:
+                    report = "\n".join(
+                        f"  {f.module}: {f.reason}"
+                        + (f": {f.detail}" if f.detail else "")
+                        for f in failures
+                    )
+                    pytest.fail(
+                        f"RTL of {ref_project.name} is not equivalent to the "
+                        f"reference in {len(failures)} modules:\n{report}"
+                    )
 
             logger.info(
                 f"✓ Project {ref_project.name} passed regression testing in 'diff' mode"
