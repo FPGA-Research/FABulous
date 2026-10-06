@@ -805,19 +805,35 @@ class TestGenMacroFullForwarding:
             **expected_kwargs,
         }
 
-    def test_skips_when_pdk_not_set(
-        self, cli: FABulousREPL, mocker: MockerFixture
-    ) -> None:
-        mocker.patch(
-            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=False
-        )
-        full_auto = mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
-        run_cmd(cli, "gen_macro full")
+@pytest.mark.parametrize(
+    ("command", "api_method"),
+    [
+        (f"gen_macro tile {TILE}", "genTileMacro"),
+        ("gen_macro all_tile", "genTileMacro"),
+        ("gen_macro stitch", "fabric_stitching"),
+        ("gen_macro full", "full_fabric_automation"),
+    ],
+    ids=["tile", "all_tile", "stitch", "full"],
+)
+def test_gen_macro_fails_without_pdk(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    command: str,
+    api_method: str,
+) -> None:
+    """Every `gen_macro` step fails without a PDK and hardens nothing."""
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=False
+    )
+    api_mock = mocker.patch.object(cli.fabulousAPI, api_method)
 
-        full_auto.assert_not_called()
-        # bug: the missing PDK is only logged, so the command still exits 0
-        assert cli.exit_code == 0
+    run_cmd(cli, command)
+
+    api_mock.assert_not_called()
+    assert cli.exit_code == 1
+    assert "PDK configuration is not set" in caplog.text
 
 
 class TestGenMacroAllTile:

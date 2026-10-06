@@ -233,11 +233,10 @@ class MacroFlowCommandSet(ReplCommandSet):
         """
         opt_mode, custom_overrides = options.resolve()
         if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "generate tile macros."
+            raise CommandError(
+                "PDK configuration is not set. Set FAB_PDK (and FAB_PDK_ROOT for a "
+                "PDK that ciel does not manage) to generate tile macros."
             )
-            return
 
         self._harden_tile(tile, opt_mode, custom_overrides, io_pin_config=io_pin_config)
 
@@ -307,11 +306,10 @@ class MacroFlowCommandSet(ReplCommandSet):
         """Generate GDSII files for all tiles in the fabric."""
         opt_mode, custom_overrides = options.resolve()
         if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "generate tile macros."
+            raise CommandError(
+                "PDK configuration is not set. Set FAB_PDK (and FAB_PDK_ROOT for a "
+                "PDK that ciel does not manage) to generate tile macros."
             )
-            return
 
         repl = self._cmd
         tiles = sorted(repl.all_tile)
@@ -341,11 +339,10 @@ class MacroFlowCommandSet(ReplCommandSet):
         """Generate GDSII files for the entire fabric."""
         repl = self._cmd
         if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "generate fabric macros."
+            raise CommandError(
+                "PDK configuration is not set. Set FAB_PDK (and FAB_PDK_ROOT for a "
+                "PDK that ciel does not manage) to generate fabric macros."
             )
-            return
 
         tile_macro_root = repl.projectDir / "Tile"
         tile_macro_paths: dict[str, Path] = {}
@@ -407,11 +404,11 @@ class MacroFlowCommandSet(ReplCommandSet):
         """Run the full FABulous eFPGA macro generation flow."""
         repl = self._cmd
         if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "run the full FABulous eFPGA macro generation flow."
+            raise CommandError(
+                "PDK configuration is not set. Set FAB_PDK (and FAB_PDK_ROOT for a "
+                "PDK that ciel does not manage) to run the full FABulous eFPGA "
+                "macro generation flow."
             )
-            return
 
         (repl.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
         tile_opt_config = Path(tile_opt_info) if tile_opt_info else None
