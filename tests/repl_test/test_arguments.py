@@ -1234,6 +1234,7 @@ def test_newer_project_version_blocks_repl(
             ["load_fabric test.csv"],
             id="failing-line-aborts",
         ),
+        pytest.param("hepl\nhelp\n", 1, ["hepl"], id="unknown-command-aborts"),
         pytest.param("", 0, [], id="empty-script"),
     ],
 )
