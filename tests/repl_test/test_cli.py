@@ -280,6 +280,17 @@ def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     assert output_file.exists()
 
 
+def test_gen_io_pin_config_unknown_tile(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unknown tile fails the command and writes no pin config."""
+    run_cmd(cli, "gen_io_pin_config NO_SUCH_TILE")
+
+    assert cli.exit_code == 1
+    assert "Tile NO_SUCH_TILE not found in fabric definition" in caplog.text
+    assert not (cli.projectDir / "Tile" / "NO_SUCH_TILE").exists()
+
+
 def test_gen_macro_tile_with_io_pin_config_skips_generation(
     cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
 ) -> None:
