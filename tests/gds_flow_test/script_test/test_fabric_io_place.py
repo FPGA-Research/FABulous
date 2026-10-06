@@ -173,26 +173,39 @@ def test_offsets_to_correct_die_edge_for_each_side(
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_skips_power_and_ground() -> None:
-    """POWER/GROUND BTerms must not be touched."""
-    pwr = MockBTermIoPlace("VPWR", None, sig_type="POWER")
-    gnd = MockBTermIoPlace("VGND", None, sig_type="GROUND")
+@pytest.mark.parametrize("sig_type", ["POWER", "GROUND"])
+def test_skips_power_and_ground(
+    sig_type: str, pin_placement_recorder: PinPlacementRecorder
+) -> None:
+    """A supply BTerm is skipped even when its net reaches a placeable tile pin."""
+    net = MockNetIoPlace("supply", [_make_iterm(0, 0, "SOUTH")])
+    bterm = MockBTermIoPlace("supply", net, sig_type=sig_type)
 
-    block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [pwr, gnd])
+    block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
     _call_io_place(reader)
 
-    assert pwr.getBPins() == []
-    assert gnd.getBPins() == []
+    assert bterm.getBPins() == []
+    assert pin_placement_recorder.placements == []
 
 
 @pytest.mark.usefixtures("_io_place_setup")
+@pytest.mark.parametrize(
+    ("other_bterm_names", "net_destroyed"),
+    [
+        pytest.param([], True, id="net-left-empty"),
+        pytest.param(["other"], False, id="net-keeps-another-bterm"),
+    ],
+)
 def test_destroys_orphan_bterm_with_no_iterms(
+    other_bterm_names: list[str],
+    net_destroyed: bool,
     mock_odb_io_place: SimpleNamespace,
 ) -> None:
-    """A signal BTerm whose net has no ITerms is destroyed (and so is the net)."""
+    """A BTerm whose net has no ITerms is destroyed; the net only once it is empty."""
     net = MockNetIoPlace("orphan", [])
+    net._bterms = [MockBTermIoPlace(name, net) for name in other_bterm_names]  # noqa: SLF001
     bterm = MockBTermIoPlace("orphan", net)
 
     block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
@@ -200,12 +213,14 @@ def test_destroys_orphan_bterm_with_no_iterms(
 
     _call_io_place(reader)
 
-    assert bterm in mock_odb_io_place.destroyed_bterms
-    assert net in mock_odb_io_place.destroyed_nets
+    assert mock_odb_io_place.destroyed_bterms == [bterm]
+    assert mock_odb_io_place.destroyed_nets == ([net] if net_destroyed else [])
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_leaves_existing_bpins_alone() -> None:
+def test_leaves_existing_bpins_alone(
+    pin_placement_recorder: PinPlacementRecorder,
+) -> None:
     """If a BTerm already has a BPin, io_place skips it without re-stamping."""
     iterm = _make_iterm(0, 0, "SOUTH")
     net = MockNetIoPlace("sig", [iterm])
@@ -218,5 +233,6 @@ def test_leaves_existing_bpins_alone() -> None:
 
     _call_io_place(reader)
 
-    # Still exactly one BPin, no new one was created.
+    # Still exactly one BPin, no new one was created and nothing was stamped.
     assert bterm.getBPins() == [pre_existing]
+    assert pin_placement_recorder.placements == []

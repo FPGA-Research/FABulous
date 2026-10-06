@@ -43,19 +43,22 @@ The `cli` fixture provides a pre-configured instance of `FABulousREPL` for testi
 `run_cmd(cli, command)` runs one REPL command and returns nothing.
 A failing command does not raise: check `cli.exit_code`.
 
-Example usage:
+Assert on what the command produces, not on its log lines.
+A log line such as "generation complete" is written whether or not the artifact was written.
 
 ```python
-def test_cli_command(cli, caplog):
-    run_cmd(cli, "your_command_here")
-    log = normalize(caplog.text)
+def test_gen_top_wrapper(cli: FABulousREPL) -> None:
+    run_cmd(cli, "gen_top_wrapper")
 
-    # check is "something" in first line of log
-    assert "something" in log[0]
-
-    # or can do
-    assert "something" in caplog.text
+    assert cli.exit_code == 0
+    assert (cli.projectDir / "Fabric" / "eFPGA_top.v").stat().st_size > 0
 ```
+
+#### Logs
+
+The `caplog` fixture is wired to loguru and works for REPL commands.
+It does not work for tests that call `fabulous.fabulous.main()`: `main` calls `setup_logger`, which removes every loguru sink including the one `caplog` added.
+Read the stdout sink with `capfd` instead; with `FABULOUS_TESTING` set, records are formatted as `LEVEL: message`.
 
 ### Reference Tests
 

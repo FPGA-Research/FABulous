@@ -1,17 +1,23 @@
 """Tests for tile_io_place module."""
 # ruff: noqa: E402, SLF001, E501, F841
 
+import os
 from decimal import Decimal
+from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import pytest
-from pytest_mock import MockerFixture
+import yaml
+from conftest import MockDie, MockLayer, MockTechIoPlace, PinPlacementRecorder
+from pytest_mock import MockerFixture, MockType
 
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_die_dimension
+from fabulous.fabric_generator.gds_generator.script import tile_io_place
 from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
@@ -24,28 +30,32 @@ if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 
 
-class TestGridToTracks:
-    """Test suite for grid_to_tracks function."""
+def _make_bterms(mocker: MockerFixture, names: list[str]) -> list[MockType]:
+    """Build one mock BTerm per name, in the given order."""
+    bterms = []
+    for name in names:
+        bterm = mocker.Mock()
+        bterm.getName.return_value = name
+        bterms.append(bterm)
+    return bterms
 
-    def test_basic_track_generation(self) -> None:
-        """Test basic track generation with positive step."""
-        tracks = grid_to_tracks(0.0, 5, 100.0)
-        assert tracks == [0.0, 100.0, 200.0, 300.0, 400.0]
 
-    def test_negative_origin(self) -> None:
-        """Test track generation with negative origin."""
-        tracks = grid_to_tracks(-100.0, 3, 50.0)
-        assert tracks == [-100.0, -50.0, 0.0]
-
-    def test_single_track(self) -> None:
-        """Test generation of a single track."""
-        tracks = grid_to_tracks(500.0, 1, 100.0)
-        assert tracks == [500.0]
-
-    def test_tracks_are_sorted(self) -> None:
-        """Test that tracks are returned in sorted order."""
-        tracks = grid_to_tracks(1000.0, 4, -250.0)
-        assert tracks == sorted(tracks)
+@pytest.mark.parametrize(
+    ("origin", "count", "step", "expected"),
+    [
+        pytest.param(0.0, 5, 100.0, [0.0, 100.0, 200.0, 300.0, 400.0], id="basic"),
+        pytest.param(-100.0, 3, 50.0, [-100.0, -50.0, 0.0], id="negative-origin"),
+        pytest.param(500.0, 1, 100.0, [500.0], id="single-track"),
+        pytest.param(
+            1000.0, 4, -250.0, [250.0, 500.0, 750.0, 1000.0], id="negative-step-sorted"
+        ),
+    ],
+)
+def test_grid_to_tracks(
+    origin: float, count: int, step: float, expected: list[float]
+) -> None:
+    """Tracks start at the origin, advance by the step and come back ascending."""
+    assert grid_to_tracks(origin, count, step) == expected
 
 
 class TestEquallySpacedSequence:
@@ -60,8 +70,7 @@ class TestEquallySpacedSequence:
 
         result = equally_spaced_sequence(mock_pins, tracks)
 
-        assert len(result) == 5
-        assert all(result[i][0] == tracks[i] for i in range(5))
+        assert result == list(zip(tracks, mock_pins, strict=True))
 
     def test_pins_less_than_tracks(self, mocker: MockerFixture) -> None:
         """Test even spacing when pins < tracks."""
@@ -72,11 +81,12 @@ class TestEquallySpacedSequence:
 
         result = equally_spaced_sequence(mock_pins, tracks)
 
-        assert len(result) == 3
-        expected_positions = [100.0, 300.0, 500.0]
-
-        # Pins should be evenly distributed and centered
-        assert all(result[i][0] == expected_positions[i] for i in range(3))
+        # Two tracks per pin, the one spare track split evenly at both ends.
+        assert result == [
+            (100.0, mock_pins[0]),
+            (300.0, mock_pins[1]),
+            (500.0, mock_pins[2]),
+        ]
 
     def test_no_pins(self) -> None:
         """Test with no pins."""
@@ -84,7 +94,7 @@ class TestEquallySpacedSequence:
 
         result = equally_spaced_sequence([], tracks)
 
-        assert len(result) == 0
+        assert result == []
 
     def test_with_virtual_pins(self, mocker: MockerFixture) -> None:
         """Test spacing with virtual pins (integers in list)."""
@@ -97,11 +107,8 @@ class TestEquallySpacedSequence:
 
         result = equally_spaced_sequence(mock_pins, tracks)
 
-        # Should have 2 actual pins
-        assert len(result) == 2
-        assert all(not isinstance(p, int) for p in result)
-        expected_positions = [0.0, 600.0]  # Pins should be at these tracks
-        assert all(result[i][0] == expected_positions[i] for i in range(2))
+        # 4 slots over 8 tracks: the 2 virtual slots push pin1 to the 4th slot.
+        assert result == [(0.0, mock_pins[0]), (600.0, mock_pins[2])]
 
     def test_too_many_pins(self, mocker: MockerFixture) -> None:
         """Test error when pins exceed available tracks."""
@@ -143,10 +150,16 @@ class TestSegmentInfo:
             unmatched,
         )
 
-        assert seg_info.side == Side.NORTH
-        assert seg_info.sort_mode == PinSortMode.BUS_MAJOR
-        assert len(seg_info.pin_entries) == 1
-        assert mock_bterm in regex_by_bterm
+        assert seg_info == SegmentInfo(
+            side=Side.NORTH,
+            sort_mode=PinSortMode.BUS_MAJOR,
+            min_distance=None,
+            max_distance=None,
+            reverse_result=False,
+            pin_entries=[mock_bterm],
+        )
+        assert regex_by_bterm == {mock_bterm: "pin.*"}
+        assert unmatched == set()
 
     def test_from_config_with_virtual_pins(self, mocker: MockerFixture) -> None:
         """Test SegmentInfo with virtual pins."""
@@ -175,11 +188,17 @@ class TestSegmentInfo:
             tile_y=1,
         )
 
-        assert seg_info.tile_index == 2
-        assert seg_info.tile_x == 3
-        assert seg_info.tile_y == 1
-        assert 3 in seg_info.pin_entries  # Virtual pin
-        assert seg_info.reverse_result is True
+        assert seg_info == SegmentInfo(
+            side=Side.EAST,
+            sort_mode=PinSortMode.BIT_MINOR,
+            min_distance=1,
+            max_distance=5,
+            reverse_result=True,
+            pin_entries=[mock_bterm1, 3, mock_bterm2],
+            tile_index=2,
+            tile_x=3,
+            tile_y=1,
+        )
 
     def test_actual_pin_count(self, mocker: MockerFixture) -> None:
         """Test actual_pin_count property."""
@@ -195,27 +214,21 @@ class TestSegmentInfo:
         assert seg_info.actual_pin_count == 3
 
     def test_invalid_sort_mode(self) -> None:
-        """Test error on invalid sort mode."""
+        """A sort_mode outside `PinSortMode` fails the enum lookup in `from_config`."""
+        # Segments are built straight from YAML, so sort_mode arrives as a raw
+        # string and is looked up by member name.
+        # Bug: from_config catches ValueError, so its "Invalid sort_mode" message
+        # never fires and the bare KeyError escapes.
         segment_config = PinOrderConfig(
             pins=["pin.*"],
-            sort_mode=PinSortMode.BUS_MAJOR,
+            sort_mode="invalid_mode",
             min_distance=None,
             max_distance=None,
             reverse_result=False,
         )
 
-        # The error comes from trying to convert an invalid string to PinSortMode
-        # Let's modify the config to have an invalid sort_mode string
-        segment_config_dict = {
-            "pins": ["pin.*"],
-            "sort_mode": "invalid_mode",
-            "min_distance": None,
-            "max_distance": None,
-            "reverse_result": False,
-        }
-
         with pytest.raises(KeyError):
-            PinSortMode[segment_config_dict["sort_mode"]]
+            SegmentInfo.from_config(Side.NORTH, segment_config, [], {}, set())
 
     def test_duplicate_regex_match(self, mocker: MockerFixture) -> None:
         """Test error when multiple regexes match same pin."""
@@ -266,12 +279,12 @@ class TestPinPlacementPlan:
         """Test initialization with empty config."""
         plan = PinPlacementPlan({}, [], "none")
 
-        assert len(plan.segments_by_side) == 5  # NORTH, SOUTH, EAST, WEST, ANY
-        assert all(len(segs) == 0 for segs in plan.segments_by_side.values())
+        assert plan.segments_by_side == {side: [] for side in Side}
+        assert plan.tile_counts_by_side == {side: 0 for side in Side}
         assert plan.fabric_dimensions == (1, 1)
 
     def test_init_basic_config(self, mocker: MockerFixture) -> None:
-        """Test initialization with basic tile config."""
+        """A single-tile config yields one segment carrying the matched pins."""
         config = {
             "X0Y0": {
                 "NORTH": [
@@ -285,158 +298,227 @@ class TestPinPlacementPlan:
                 ]
             }
         }
+        mock_clk, mock_rst = _make_bterms(mocker, ["clk", "rst"])
 
-        mock_clk = mocker.Mock()
-        mock_clk.getName.return_value = "clk"
-        mock_rst = mocker.Mock()
-        mock_rst.getName.return_value = "rst"
-        bterms = [mock_clk, mock_rst]
+        plan = PinPlacementPlan(config, [mock_clk, mock_rst], "none")
 
-        plan = PinPlacementPlan(config, bterms, "none")
-
-        assert len(plan.segments_by_side[Side.NORTH]) == 1
-        assert plan.tile_counts_by_side[Side.NORTH] == 1
+        assert plan.segments_by_side == {
+            Side.NORTH: [
+                SegmentInfo(
+                    side=Side.NORTH,
+                    sort_mode=PinSortMode.BUS_MAJOR,
+                    min_distance=None,
+                    max_distance=None,
+                    reverse_result=False,
+                    pin_entries=[mock_clk, mock_rst],
+                    tile_index=0,
+                    tile_x=0,
+                    tile_y=0,
+                )
+            ],
+            Side.SOUTH: [],
+            Side.EAST: [],
+            Side.WEST: [],
+            Side.ANY: [],
+        }
+        assert plan.tile_counts_by_side == {
+            Side.NORTH: 1,
+            Side.SOUTH: 0,
+            Side.EAST: 0,
+            Side.WEST: 0,
+            Side.ANY: 0,
+        }
         assert plan.fabric_dimensions == (1, 1)
 
-    def test_init_multi_tile_config(self, mocker: MockerFixture) -> None:
-        """Test initialization with multiple tiles."""
-        config = {
-            "X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
-            "X1Y0": {"NORTH": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
-            "X2Y1": {"EAST": [{"pins": ["pin2"], "sort_mode": "bus_major"}]},
+    @pytest.mark.parametrize(
+        ("config", "expected_dims", "expected_tiles_by_side"),
+        [
+            pytest.param(
+                {
+                    "X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
+                    "X1Y0": {"NORTH": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
+                    "X2Y1": {"EAST": [{"pins": ["pin2"], "sort_mode": "bus_major"}]},
+                },
+                (3, 2),
+                {Side.NORTH: [(0, 0, 0), (1, 1, 0)], Side.EAST: [(0, 2, 1)]},
+                id="3x2",
+            ),
+            pytest.param(
+                # X2Y0 listed first: segment order must follow the x coordinate.
+                {
+                    "X2Y0": {"NORTH": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
+                    "X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
+                    "X1Y3": {"EAST": [{"pins": ["pin2"], "sort_mode": "bus_major"}]},
+                },
+                (3, 4),
+                {Side.NORTH: [(0, 0, 0), (1, 2, 0)], Side.EAST: [(0, 1, 3)]},
+                id="3x4-unordered",
+            ),
+        ],
+    )
+    def test_init_multi_tile_config(
+        self,
+        mocker: MockerFixture,
+        config: dict,
+        expected_dims: tuple[int, int],
+        expected_tiles_by_side: dict[Side, list[tuple[int, int, int]]],
+    ) -> None:
+        """Fabric size, per-side tile counts and segment tile order follow the keys."""
+        plan = PinPlacementPlan(
+            config, _make_bterms(mocker, ["pin0", "pin1", "pin2"]), "none"
+        )
+
+        assert plan.fabric_dimensions == expected_dims
+        assert plan.tile_counts_by_side == {
+            side: len(expected_tiles_by_side.get(side, [])) for side in Side
         }
-
-        pins = [mocker.Mock(getName=lambda n=f"pin{i}": n) for i in range(3)]
-        for pin in pins:
-            pin.getName.return_value = pin.getName()
-
-        plan = PinPlacementPlan(config, pins, "none")
-
-        assert plan.fabric_dimensions == (3, 2)  # X goes 0-2, Y goes 0-1
-        assert plan.tile_counts_by_side[Side.NORTH] == 2
-        assert plan.tile_counts_by_side[Side.EAST] == 1
+        tiles_by_side = {
+            side: [(seg.tile_index, seg.tile_x, seg.tile_y) for seg in segments]
+            for side, segments in plan.segments_by_side.items()
+            if segments
+        }
+        assert tiles_by_side == expected_tiles_by_side
 
     def test_unmatched_design_pins(self, mocker: MockerFixture) -> None:
         """Test handling of unmatched design pins."""
         config = {"X0Y0": {"NORTH": [{"pins": ["clk"], "sort_mode": "bus_major"}]}}
+        mock_clk, mock_rst = _make_bterms(mocker, ["clk", "rst"])
 
-        mock_clk = mocker.Mock()
-        mock_clk.getName.return_value = "clk"
-        mock_rst = mocker.Mock()
-        mock_rst.getName.return_value = "rst"
-        bterms = [mock_clk, mock_rst]
+        plan = PinPlacementPlan(config, [mock_clk, mock_rst], "none")
 
-        plan = PinPlacementPlan(config, bterms, "none")
+        assert plan.unmatched_design_bterms == {mock_rst}
+        assert plan.unmatched_design_pin_names == {"rst"}
 
-        assert "rst" in plan.unmatched_design_pin_names
+    @pytest.mark.parametrize(
+        ("config_pins", "unmatched_error", "raises"),
+        [
+            pytest.param(["pin0", "ghost"], "unmatched_cfg", True, id="cfg-cfg"),
+            pytest.param(["pin0", "ghost"], "both", True, id="cfg-both"),
+            pytest.param(["pin0", "ghost"], "unmatched_design", False, id="cfg-design"),
+            pytest.param(["pin0", "ghost"], "none", False, id="cfg-none"),
+            pytest.param([], "unmatched_design", True, id="design-design"),
+            pytest.param([], "both", True, id="design-both"),
+            pytest.param([], "unmatched_cfg", False, id="design-cfg"),
+            pytest.param([], "none", False, id="design-none"),
+        ],
+    )
+    def test_unmatched_pins_error_mode(
+        self,
+        mocker: MockerFixture,
+        config_pins: list[str],
+        unmatched_error: str,
+        raises: bool,
+    ) -> None:
+        """Each mode exits with EX_DATAERR only for the mismatch kind it names.
 
-    def test_unmatched_config_pins_error(self) -> None:
-        """Test error on unmatched config pins."""
-        config = {
-            "X0Y0": {"NORTH": [{"pins": ["nonexistent"], "sort_mode": "bus_major"}]}
-        }
+        The design holds only `pin0`. The `cfg-*` rows add the config-only pin
+        `ghost`; the `design-*` rows leave `pin0` out of the config.
+        """
+        config = {"X0Y0": {"NORTH": [{"pins": config_pins, "sort_mode": "bus_major"}]}}
+        bterms = _make_bterms(mocker, ["pin0"])
 
-        with pytest.raises(SystemExit):
-            PinPlacementPlan(config, [], "unmatched_cfg")
+        if raises:
+            with pytest.raises(SystemExit) as exc_info:
+                PinPlacementPlan(config, bterms, unmatched_error)
+            assert exc_info.value.code == os.EX_DATAERR
+        else:
+            PinPlacementPlan(config, bterms, unmatched_error)
 
     def test_boundary_validation(self, mocker: MockerFixture) -> None:
-        """Test that non-boundary tiles cannot have pin configs."""
-        config = {
-            "X0Y0": {
-                "EAST": [{"pins": ["pin0"], "sort_mode": "bus_major"}]
-            },  # X0Y0 East neighbor is X1Y0, which doesn't exist in config
+        """Only boundary sides may carry pins; an inner side is rejected."""
+        boundary_only = {
+            "X0Y0": {"EAST": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
         }
-
-        mock_pin0 = mocker.Mock()
-        mock_pin0.getName.return_value = "pin0"
-
-        # This should work - X0Y0 is on the East boundary
-        plan = PinPlacementPlan(config, [mock_pin0], "none")
+        plan = PinPlacementPlan(boundary_only, _make_bterms(mocker, ["pin0"]), "none")
         assert len(plan.segments_by_side[Side.EAST]) == 1
 
+        # X1Y0 makes X0Y0's EAST side an inner edge of the fabric.
+        inner_side = {
+            "X0Y0": {"EAST": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
+            "X1Y0": {"EAST": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
+        }
+        with pytest.raises(
+            ValueError, match="Tile X0Y0 side EAST is not on the boundary"
+        ):
+            PinPlacementPlan(inner_side, _make_bterms(mocker, ["pin0", "pin1"]), "none")
+
     def test_allocate_tracks_single_tile(self, mocker: MockerFixture) -> None:
-        """Test track allocation for a single tile."""
+        """A 1000-wide tile on a 100 pitch keeps 9 of its 11 tracks after the offset."""
         config = {
             "X0Y0": {"NORTH": [{"pins": ["pin0", "pin1"], "sort_mode": "bus_major"}]}
         }
-
-        pins = [mocker.Mock(getName=lambda n=f"pin{i}": n) for i in range(2)]
-        for pin in pins:
-            pin.getName.return_value = pin.getName()
-
-        plan = PinPlacementPlan(config, pins, "none")
+        plan = PinPlacementPlan(config, _make_bterms(mocker, ["pin0", "pin1"]), "none")
 
         specs = {
             Side.NORTH: (10, 100.0, 0.0, 1000.0),
         }
         plan.allocate_tracks(specs)
 
-        assert len(plan.track_coordinates[Side.NORTH]) == 1
-        assert len(plan.track_coordinates[Side.NORTH][0]) > 0
+        assert plan.track_coordinates[Side.NORTH] == [
+            [200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0]
+        ]
 
     def test_allocate_tracks_multiple_tiles(self, mocker: MockerFixture) -> None:
-        """Test track allocation across multiple tiles."""
+        """Each tile gets the single-tile track set, shifted by its own origin."""
         config = {
             "X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
             "X1Y0": {"NORTH": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
         }
-
-        pins = [mocker.Mock(getName=lambda n=f"pin{i}": n) for i in range(2)]
-        for pin in pins:
-            pin.getName.return_value = pin.getName()
-
-        plan = PinPlacementPlan(config, pins, "none")
+        plan = PinPlacementPlan(config, _make_bterms(mocker, ["pin0", "pin1"]), "none")
 
         specs = {
             Side.NORTH: (20, 100.0, 0.0, 2000.0),
         }
         plan.allocate_tracks(specs)
 
-        assert len(plan.track_coordinates[Side.NORTH]) == 2
+        assert plan.track_coordinates[Side.NORTH] == [
+            [200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0, 1000.0],
+            [1200.0, 1300.0, 1400.0, 1500.0, 1600.0, 1700.0, 1800.0, 1900.0, 2000.0],
+        ]
 
-    def test_ensure_min_distances(self, mocker: MockerFixture) -> None:
-        """Test ensuring minimum distances for segments."""
+    @pytest.mark.parametrize(
+        ("configured", "expected"),
+        [
+            pytest.param(0.5, 1.0, id="raised-to-floor"),
+            pytest.param(None, 1.0, id="unset-takes-floor"),
+            pytest.param(2.0, 2.0, id="larger-kept"),
+        ],
+    )
+    def test_ensure_min_distances(
+        self, mocker: MockerFixture, configured: float | None, expected: float
+    ) -> None:
+        """A segment min_distance is raised to the technology floor, never lowered."""
         config = {
             "X0Y0": {
                 "NORTH": [
-                    {"pins": ["pin0"], "sort_mode": "bus_major", "min_distance": 0.5}
+                    {
+                        "pins": ["pin0"],
+                        "sort_mode": "bus_major",
+                        "min_distance": configured,
+                    }
                 ]
             }
         }
+        plan = PinPlacementPlan(config, _make_bterms(mocker, ["pin0"]), "none")
 
-        mock_pin = mocker.Mock()
-        mock_pin.getName.return_value = "pin0"
+        plan.ensure_min_distances({side: 1.0 for side in Side})
 
-        plan = PinPlacementPlan(config, [mock_pin], "none")
-
-        min_by_side = {side: 1.0 for side in Side}
-        plan.ensure_min_distances(min_by_side)
-
-        assert plan.segments_by_side[Side.NORTH][0].min_distance == 1.0
+        assert plan.segments_by_side[Side.NORTH][0].min_distance == expected
 
     def test_assign_unmatched_pins(self, mocker: MockerFixture) -> None:
-        """Test assigning unmatched pins to segments."""
+        """An unmatched design pin is appended to the least-used segment."""
         config = {"X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]}}
-
-        mock_pin0 = mocker.Mock()
-        mock_pin0.getName.return_value = "pin0"
-        mock_unmatched = mocker.Mock()
-        mock_unmatched.getName.return_value = "unmatched_pin"
+        mock_pin0, mock_unmatched = _make_bterms(mocker, ["pin0", "unmatched_pin"])
 
         plan = PinPlacementPlan(config, [mock_pin0, mock_unmatched], "none")
-
-        assert len(plan.unmatched_design_bterms) == 1
-
         plan.assign_unmatched_pins()
 
-        assert len(plan.unmatched_design_bterms) == 0
-        # Pin should be added to a segment
-        total_pins = sum(
-            len(seg.pin_entries)
-            for segs in plan.segments_by_side.values()
-            for seg in segs
-        )
-        assert total_pins == 2
+        assert plan.segments_by_side[Side.NORTH][0].pin_entries == [
+            mock_pin0,
+            mock_unmatched,
+        ]
+        assert plan.unmatched_design_bterms == set()
+        assert plan.unmatched_design_pin_names == set()
 
 
 class TestSupertileDivisionGridAlignment:
@@ -545,7 +627,7 @@ class TestPinPlacementPlanPrivateMethods:
     """Test suite for PinPlacementPlan private methods."""
 
     def test_group_segments_by_tile(self, mocker: MockerFixture) -> None:
-        """Test _group_segments_by_tile method."""
+        """Segments are keyed by tile index with that tile's coordinates."""
         seg1 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
@@ -571,39 +653,44 @@ class TestPinPlacementPlanPrivateMethods:
 
         result = PinPlacementPlan._group_segments_by_tile([seg1, seg2])
 
-        assert len(result) == 2
-        assert 0 in result
-        assert 1 in result
-        assert result[0][0] == 0  # tile_x
-        assert result[0][1] == 0  # tile_y
+        assert result == {0: (0, 0, [seg1]), 1: (1, 0, [seg2])}
 
-    def test_get_division_index_north_south(self) -> None:
-        """Test _get_division_index for North/South sides."""
-        # For North/South, use X coordinate
+    @pytest.mark.parametrize(
+        ("side", "tile_x", "tile_y", "tile_idx", "num_divisions", "expected"),
+        [
+            pytest.param(Side.NORTH, 2, 0, 0, 5, 2, id="north-uses-x"),
+            pytest.param(Side.SOUTH, 3, 9, 0, 5, 3, id="south-uses-x"),
+            pytest.param(Side.EAST, 0, 1, 0, 4, 2, id="east-inverts-y"),
+            pytest.param(Side.WEST, 0, 1, 0, 4, 2, id="west-inverts-y"),
+            pytest.param(Side.WEST, 0, 0, 0, 4, 3, id="west-top-row-highest"),
+            pytest.param(Side.EAST, 0, 3, 0, 4, 0, id="east-bottom-row-zero"),
+            pytest.param(Side.NORTH, 10, 0, 0, 5, 4, id="clamp-high"),
+            pytest.param(Side.EAST, 0, 6, 0, 4, 0, id="clamp-low"),
+            pytest.param(Side.NORTH, None, 0, 3, 5, 3, id="no-x-uses-tile-idx"),
+            pytest.param(Side.WEST, 0, None, 1, 4, 1, id="no-y-uses-tile-idx"),
+        ],
+    )
+    def test_get_division_index(
+        self,
+        side: Side,
+        tile_x: int | None,
+        tile_y: int | None,
+        tile_idx: int,
+        num_divisions: int,
+        expected: int,
+    ) -> None:
+        """N/S index by x, E/W by inverted y, tile_idx without coordinates, clamped."""
         index = PinPlacementPlan._get_division_index(
-            Side.NORTH, tile_x=2, tile_y=0, tile_idx=0, num_divisions=5
+            side,
+            tile_x=tile_x,
+            tile_y=tile_y,
+            tile_idx=tile_idx,
+            num_divisions=num_divisions,
         )
-        assert index == 2
-
-    def test_get_division_index_east_west(self) -> None:
-        """Test _get_division_index for East/West sides."""
-        # For East/West, use inverted Y coordinate
-        index = PinPlacementPlan._get_division_index(
-            Side.EAST, tile_x=0, tile_y=1, tile_idx=0, num_divisions=4
-        )
-        # Y=1 should map to index 2 (inverted from 4-1)
-        assert index == 2
-
-    def test_get_division_index_clamping(self) -> None:
-        """Test division index clamping."""
-        # Test upper bound clamping
-        index = PinPlacementPlan._get_division_index(
-            Side.NORTH, tile_x=10, tile_y=0, tile_idx=0, num_divisions=5
-        )
-        assert index == 4  # Should be clamped to max
+        assert index == expected
 
     def test_allocate_tracks_for_tile(self, mocker: MockerFixture) -> None:
-        """Test _allocate_tracks_for_tile method."""
+        """28 usable tracks split 2:1 rounds up to 19+10 and trims the first to 18."""
         seg1 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
@@ -628,22 +715,23 @@ class TestPinPlacementPlanPrivateMethods:
             segments=[seg1, seg2],
         )
 
-        assert len(tracks) == 2
-        assert len(tracks[0]) >= 2  # Enough for seg1's pins
-        assert len(tracks[1]) >= 1  # Enough for seg2's pins
+        assert tracks == [
+            [100.0 * i for i in range(2, 20)],
+            [100.0 * i for i in range(20, 30)],
+        ]
 
 
 class TestIntegration:
     """Integration tests for complete pin placement workflow."""
 
-    def test_track_allocation_respects_min_distance(
-        self, mocker: MockerFixture
-    ) -> None:
-        """Test that min_distance filtering works correctly.
+    @staticmethod
+    def _filtered_north_tracks(
+        mocker: MockerFixture, min_distance: float, max_distance: float | None
+    ) -> list[list[float]]:
+        """Return the stride-filtered NORTH tracks for a single three-pin segment.
 
-        The allocate_tracks() method generates raw tracks based on the track grid. The
-        min_distance constraint is then enforced by filtering these tracks with a
-        stride, as done in the io_place() function.
+        The segment spans 10.0 units on a 1.0 track step with a zero origin, so
+        `allocate_tracks` hands the filter the raw tracks 0.0 … 10.0.
         """
         config = {
             "X0Y0": {
@@ -651,8 +739,8 @@ class TestIntegration:
                     {
                         "pins": ["pin0", "pin1", "pin2"],
                         "sort_mode": "bus_major",
-                        "min_distance": 2.5,  # Minimum 2.5 units between pins
-                        "max_distance": None,
+                        "min_distance": min_distance,
+                        "max_distance": max_distance,
                         "reverse_result": False,
                     }
                 ]
@@ -664,88 +752,42 @@ class TestIntegration:
             pin.getName.return_value = pin.getName()
 
         plan = PinPlacementPlan(config, mock_pins, "none")
+        plan.allocate_tracks({Side.NORTH: (11, 1.0, 0.0, 10.0)}, offset=0)
 
-        # Ensure min_distance is set
-        plan.ensure_min_distances({Side.NORTH: 2.5})
-
-        # Allocate tracks with specific parameters
-        specs = {
-            Side.NORTH: (
-                10,
-                1.0,
-                0.0,
-                10.0,
-            ),  # 10 tracks, step=1.0, origin=0, length=10
-        }
-        plan.allocate_tracks(specs, offset=0)
-
-        # Verify tracks were allocated
-        assert len(plan.track_coordinates[Side.NORTH]) == 1
-        raw_tracks = plan.track_coordinates[Side.NORTH][0]
-
-        # Apply min_distance filtering (as done in io_place())
-        segment = plan.segments_by_side[Side.NORTH][0]
-        step = 1.0
-        assert segment.min_distance is not None
-        min_distance = segment.min_distance * 1.0  # Assume dbunits=1 for simplicity
-
-        # Calculate stride based on min_distance
-        import math
-
-        stride = max(1, math.ceil(min_distance / step))
-        filtered_tracks = [raw_tracks[i] for i in range(0, len(raw_tracks), stride)]
-
-        # Verify filtering: with min_distance=2.5 and step=1.0, stride=3
-        # So we get tracks at indices 0, 3, 6, 9
-        assert stride == 3, f"Expected stride=3, got {stride}"
-        assert len(filtered_tracks) == 4, (
-            f"Expected 4 filtered tracks, got {len(filtered_tracks)}"
+        pin_tracks, track_errors = filter_pin_tracks_by_stride_and_distance(
+            plan,
+            step_by_side={side: 1.0 for side in Side},
+            origin_by_side={side: 0.0 for side in Side},
+            micron_in_units=1.0,
         )
 
-        # Verify actual distances between consecutive filtered tracks
-        for i in range(len(filtered_tracks) - 1):
-            distance = abs(filtered_tracks[i + 1] - filtered_tracks[i])
-            assert distance >= min_distance, (
-                f"Distance {distance} < min_distance {min_distance}"
-            )
+        assert track_errors == [], f"filter reported track shortfalls: {track_errors}"
+        return pin_tracks[Side.NORTH]
+
+    def test_track_allocation_respects_min_distance(
+        self, mocker: MockerFixture
+    ) -> None:
+        """min_distance drops raw tracks so consecutive tracks are a stride apart.
+
+        min_distance 2.5 over a 1.0 step gives stride 3, so the raw tracks
+        0.0 … 10.0 collapse to every third one.
+        """
+        tracks = self._filtered_north_tracks(mocker, 2.5, None)
+
+        assert tracks == [[0.0, 3.0, 6.0, 9.0]]
 
     def test_track_allocation_respects_max_distance(
         self, mocker: MockerFixture
     ) -> None:
-        """Test that allocated tracks respect max_distance constraints."""
-        config = {
-            "X0Y0": {
-                "NORTH": [
-                    {
-                        "pins": ["pin0", "pin1", "pin2"],
-                        "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": 5.0,  # Maximum 5.0 units between consecutive pins
-                        "reverse_result": False,
-                    }
-                ]
-            }
-        }
+        """max_distance re-inserts tracks into gaps the stride filter opened up.
 
-        mock_pins = [mocker.Mock(getName=lambda i=i: f"pin{i}") for i in range(3)]
-        for pin in mock_pins:
-            pin.getName.return_value = pin.getName()
+        min_distance 3.0 alone leaves `[0.0, 3.0, 6.0, 9.0]`; a max_distance of
+        2.0 caps each gap at two steps, so an interim track is inserted in every
+        three-step gap.
+        """
+        tracks = self._filtered_north_tracks(mocker, 3.0, 2.0)
 
-        plan = PinPlacementPlan(config, mock_pins, "none")
-
-        # Allocate with large track space
-        specs = {
-            Side.NORTH: (100, 1.0, 0.0, 100.0),  # Many tracks available
-        }
-        plan.allocate_tracks(specs)
-
-        tracks = plan.track_coordinates[Side.NORTH][0]
-        assert len(tracks) >= 3
-
-        # Verify max distance is respected
-        for i in range(len(tracks) - 1):
-            distance = abs(tracks[i + 1] - tracks[i])
-            assert distance <= 5.0, f"Distance {distance} > max_distance 5.0"
+        assert tracks == [[0.0, 2.0, 3.0, 5.0, 6.0, 8.0, 9.0]]
 
     @pytest.mark.parametrize(
         ("sort_mode", "expected_order"),
@@ -820,54 +862,95 @@ class TestIntegration:
         pin_names = [p.getName() for p in segment.pin_entries if not isinstance(p, int)]
         assert pin_names == expected_order
 
-    def test_reverse_result_reverses_pin_order(self, mocker: MockerFixture) -> None:
-        """Test that reverse_result actually reverses the pin order."""
-        config = {
-            "X0Y0": {
-                "SOUTH": [
-                    {
-                        "pins": ["pin0", "pin1", "pin2"],
-                        "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": None,
-                        "reverse_result": True,
+    @pytest.mark.parametrize(
+        ("reverse_result", "expected_order"),
+        [
+            pytest.param(False, ["a", "b"], id="in-order"),
+            pytest.param(True, ["b", "a"], id="reversed"),
+        ],
+    )
+    def test_io_place_stamps_pins_in_segment_order(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        mock_odb_io_place: SimpleNamespace,
+        pin_placement_recorder: PinPlacementRecorder,
+        reverse_result: bool,
+        expected_order: list[str],
+    ) -> None:
+        """`io_place` stamps one box per pin on its slot; reverse_result flips the order.
+
+        A 100x100 die with a 1-unit track grid leaves the SOUTH segment tracks 2..100.
+        The 4-unit pin pitch strides them to 2, 6, ..., 98 (25 tracks), and the two
+        pins sit centred on tracks 26 and 74. Each box is the 4-wide pin centred on
+        its track, 10 long from the south die edge.
+        """
+        config = tmp_path / "pins.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "X0Y0": {
+                        "SOUTH": [
+                            {
+                                "pins": ["a", "b"],
+                                "sort_mode": "bus_major",
+                                "reverse_result": reverse_result,
+                            }
+                        ]
                     }
-                ]
-            }
-        }
+                }
+            )
+        )
+        bterms = []
+        for name, io_type in [("a", "INPUT"), ("b", "OUTPUT")]:
+            bterm = mocker.Mock()
+            bterm.getName.return_value = name
+            bterm.getSigType.return_value = "SIGNAL"
+            bterm.getIoType.return_value = io_type
+            bterm.getBPins.return_value = []
+            bterms.append(bterm)
+        h_layer = MockLayer(width=2, name="H")
+        v_layer = MockLayer(width=2, name="V")
+        track_grid = SimpleNamespace(
+            getGridPatternX=lambda _i: (0, 101, 1),
+            getGridPatternY=lambda _i: (0, 101, 1),
+        )
+        reader = SimpleNamespace(
+            dbunits=1.0,
+            name="tile",
+            tech=MockTechIoPlace(h_layer, v_layer),
+            block=SimpleNamespace(
+                getBTerms=lambda: bterms,
+                getDieArea=lambda: MockDie(0, 0, 100, 100),
+                findTrackGrid=lambda _layer: track_grid,
+            ),
+        )
+        mocker.patch.object(tile_io_place, "odb", mock_odb_io_place)
+        utl = mocker.patch.object(tile_io_place, "utl")
 
-        mock_pins = []
-        for i in range(3):
-            pin = mocker.Mock()
-            pin.getName.return_value = f"pin{i}"
-            mock_pins.append(pin)
+        tile_io_place.io_place.callback.__wrapped__(
+            reader=reader,
+            config=str(config),
+            ver_layer="V",
+            hor_layer="H",
+            ver_width_mult=2,
+            hor_width_mult=2,
+            hor_length=10,
+            ver_length=10,
+            hor_extension=0,
+            ver_extension=0,
+            unmatched_error="both",
+            verbose=False,
+        )
 
-        plan = PinPlacementPlan(config, mock_pins, "none")
-
-        segments = plan.segments_by_side[Side.SOUTH]
-        segment = segments[0]
-
-        # Verify reverse_result is set
-        assert segment.reverse_result is True
-
-    def test_multi_tile_fabric_dimensions(self, mocker: MockerFixture) -> None:
-        """Test fabric dimensions are calculated correctly for multi-tile configs."""
-        config = {
-            "X0Y0": {"NORTH": [{"pins": ["pin0"], "sort_mode": "bus_major"}]},
-            "X2Y0": {"NORTH": [{"pins": ["pin1"], "sort_mode": "bus_major"}]},
-            "X1Y3": {"EAST": [{"pins": ["pin2"], "sort_mode": "bus_major"}]},
-        }
-
-        mock_pins = []
-        for i in range(3):
-            pin = mocker.Mock()
-            pin.getName.return_value = f"pin{i}"
-            mock_pins.append(pin)
-
-        plan = PinPlacementPlan(config, mock_pins, "none")
-
-        # Fabric should be (3, 4) because X goes 0-2 and Y goes 0-3
-        assert plan.fabric_dimensions == (3, 4)
+        assert pin_placement_recorder.placements == [
+            (expected_order[0], v_layer, 24, 0, 28, 10),
+            (expected_order[1], v_layer, 72, 0, 76, 10),
+        ]
+        assert utl.metric_integer.call_args_list == [
+            mocker.call("design__io__count__input", 1),
+            mocker.call("design__io__count__output", 1),
+        ]
 
     def test_multi_segment_per_tile(self, mocker: MockerFixture) -> None:
         """Test handling of multiple segments on the same tile side."""
@@ -880,28 +963,19 @@ class TestIntegration:
                 ]
             }
         }
+        mock_clk, mock_rst, mock_data1, mock_data0 = _make_bterms(
+            mocker, ["clk", "rst", "data1", "data0"]
+        )
 
-        mock_clk = mocker.Mock()
-        mock_clk.getName.return_value = "clk"
-        mock_rst = mocker.Mock()
-        mock_rst.getName.return_value = "rst"
-        mock_data0 = mocker.Mock()
-        mock_data0.getName.return_value = "data0"
-        mock_data1 = mocker.Mock()
-        mock_data1.getName.return_value = "data1"
+        plan = PinPlacementPlan(
+            config, [mock_clk, mock_rst, mock_data1, mock_data0], "none"
+        )
 
-        bterms = [mock_clk, mock_rst, mock_data0, mock_data1]
-
-        plan = PinPlacementPlan(config, bterms, "none")
-
-        # Should have 3 segments on NORTH side
-        segments = plan.segments_by_side[Side.NORTH]
-        assert len(segments) == 3
-
-        # Verify each segment has correct pins
-        assert len(segments[0].pin_entries) == 1  # clk
-        assert len(segments[1].pin_entries) == 1  # rst
-        assert len(segments[2].pin_entries) == 2  # data0, data1
+        assert [seg.pin_entries for seg in plan.segments_by_side[Side.NORTH]] == [
+            [mock_clk],
+            [mock_rst],
+            [mock_data0, mock_data1],
+        ]
 
 
 class TestNormalTileSupertilePinAlignment:
@@ -912,15 +986,6 @@ class TestNormalTileSupertilePinAlignment:
     track count is not 2x the single-tile count, so naive integer division loses tracks
     per division.
     """
-
-    @staticmethod
-    def _make_bterms(mocker: MockerFixture, names: list[str]) -> list:
-        bterms = []
-        for name in names:
-            bt = mocker.Mock()
-            bt.getName.return_value = name
-            bterms.append(bt)
-        return bterms
 
     @pytest.mark.parametrize(
         ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
@@ -957,12 +1022,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["nA0", "nA1"]),
+            _make_bterms(mocker, ["nA0", "nA1"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["sA0", "sA1", "sB0", "sB1"]),
+            _make_bterms(mocker, ["sA0", "sA1", "sB0", "sB1"]),
             "none",
         )
 
@@ -984,10 +1049,9 @@ class TestNormalTileSupertilePinAlignment:
             f"[{label}] Bottom row tracks differ: "
             f"normal={normal_tracks[0]} vs super={super_tracks[1]}"
         )
-        # Top division must have the same track count
-        assert len(normal_tracks[0]) == len(super_tracks[0]), (
-            f"[{label}] Track count differs: "
-            f"normal={len(normal_tracks[0])} vs super_top={len(super_tracks[0])}"
+        # Top division is the normal tile shifted up by one tile height
+        assert super_tracks[0] == [t + tile_height for t in normal_tracks[0]], (
+            f"[{label}] Top row tracks differ from the shifted normal tile"
         )
 
     @pytest.mark.parametrize(
@@ -1026,12 +1090,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0", "n1"]),
+            _make_bterms(mocker, ["n0", "n1"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5"]),
+            _make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5"]),
             "none",
         )
 
@@ -1054,13 +1118,12 @@ class TestNormalTileSupertilePinAlignment:
             f"[{label}] Bottom row coordinates differ: "
             f"normal={normal_tracks[0]} vs super_bottom={super_tracks[2]}"
         )
-        # All divisions must have the same track count
-        normal_track_count = len(normal_tracks[0])
-        for i, st in enumerate(super_tracks):
-            assert len(st) == normal_track_count, (
-                f"[{label}] Division {i} track count {len(st)} != "
-                f"normal tile {normal_track_count}"
-            )
+        # Every division is the normal tile shifted by its row offset
+        assert super_tracks == [
+            [t + 2 * tile_height for t in normal_tracks[0]],
+            [t + tile_height for t in normal_tracks[0]],
+            normal_tracks[0],
+        ], f"[{label}] Divisions differ from the shifted normal tile"
 
     @pytest.mark.parametrize(
         ("origin", "step", "tile_width", "normal_count", "super_count", "label"),
@@ -1093,12 +1156,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0", "n1"]),
+            _make_bterms(mocker, ["n0", "n1"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            _make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
             "none",
         )
 
@@ -1120,9 +1183,8 @@ class TestNormalTileSupertilePinAlignment:
             f"[{label}] X0 tracks differ: "
             f"normal={normal_tracks[0]} vs super={super_tracks[0]}"
         )
-        assert len(normal_tracks[0]) == len(super_tracks[1]), (
-            f"[{label}] X1 track count differs: "
-            f"normal={len(normal_tracks[0])} vs super_x1={len(super_tracks[1])}"
+        assert super_tracks[1] == [t + tile_width for t in normal_tracks[0]], (
+            f"[{label}] X1 tracks differ from the shifted normal tile"
         )
 
     @pytest.mark.parametrize(
@@ -1158,12 +1220,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0"]),
+            _make_bterms(mocker, ["n0"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1"]),
+            _make_bterms(mocker, ["s0", "s1"]),
             "none",
         )
 
@@ -1178,15 +1240,42 @@ class TestNormalTileSupertilePinAlignment:
         super_tracks = plan_super.track_coordinates[Side.WEST]
 
         assert len(normal_tracks) == 1
-        assert len(super_tracks) == 2
+        assert super_tracks == [
+            [t + tile_height for t in normal_tracks[0]],
+            normal_tracks[0],
+        ], f"[{label}] Divisions differ from the shifted normal tile"
 
-        # Track counts per division must match the normal tile
-        normal_track_count = len(normal_tracks[0])
-        for i, st in enumerate(super_tracks):
-            assert len(st) == normal_track_count, (
-                f"[{label}] Division {i} track count {len(st)} != "
-                f"normal tile {normal_track_count}"
-            )
+    @pytest.mark.xfail(
+        strict=True,
+        reason="_allocate_tracks_for_tile keeps one track at origin + offset * step "
+        "even when the tile has fewer tracks than the offset, so the pin lands "
+        "outside the tile",
+    )
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height"),
+        [
+            pytest.param(60.0, 68.0, 136.0, id="tiny-on-pitch"),
+            pytest.param(34.0, 68.0, 68.0, id="one-track-on-pitch"),
+            pytest.param(34.0, 68.0, 102.0, id="small-off-pitch"),
+        ],
+    )
+    def test_minimal_tile_tracks_stay_inside_tile(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_height: float,
+    ) -> None:
+        """Every allocated track of a tile lies within the tile's own height."""
+        plan = PinPlacementPlan(
+            {"X0Y0": {"EAST": [{"pins": ["n0"], "sort_mode": "bus_major"}]}},
+            _make_bterms(mocker, ["n0"]),
+            "none",
+        )
+        plan.allocate_tracks({Side.EAST: (0, step, origin, tile_height)})
+
+        (tracks,) = plan.track_coordinates[Side.EAST]
+        assert [t for t in tracks if not 0 <= t <= tile_height] == []
 
     def test_uneven_pin_counts_across_subtiles(self, mocker: MockerFixture) -> None:
         """Sub-tiles with different pin counts must still get equal track allocation.
@@ -1213,12 +1302,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0", "n1", "n2", "n3"]),
+            _make_bterms(mocker, ["n0", "n1", "n2", "n3"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5", "s6"]),
+            _make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5", "s6"]),
             "none",
         )
 
@@ -1229,12 +1318,11 @@ class TestNormalTileSupertilePinAlignment:
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
 
-        # Both divisions must get the same number of tracks as the normal tile
-        normal_track_count = len(normal_tracks[0])
-        for i, st in enumerate(super_tracks):
-            assert len(st) == normal_track_count, (
-                f"Division {i} track count {len(st)} != normal tile {normal_track_count}"
-            )
+        # Both divisions get the normal tile's tracks whatever their pin count
+        assert super_tracks == [
+            [t + tile_height for t in normal_tracks[0]],
+            normal_tracks[0],
+        ]
 
     def test_multiple_segments_per_subtile(self, mocker: MockerFixture) -> None:
         """Sub-tiles with multiple segments on the same side must align.
@@ -1267,12 +1355,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["route0", "route1", "frame0"]),
+            _make_bterms(mocker, ["route0", "route1", "frame0"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["sr0", "sr1", "sf0", "sr2", "sr3", "sf1"]),
+            _make_bterms(mocker, ["sr0", "sr1", "sf0", "sr2", "sr3", "sf1"]),
             "none",
         )
 
@@ -1287,20 +1375,12 @@ class TestNormalTileSupertilePinAlignment:
         assert len(normal_tracks) == 2
         assert len(super_tracks) == 4
 
-        # Total tracks allocated to each division must match normal tile total
-        normal_total = sum(len(t) for t in normal_tracks)
-        # super_tracks[0:2] = Y0 (top), super_tracks[2:4] = Y1 (bottom)
-        super_bottom_total = sum(len(t) for t in super_tracks[2:4])
-        super_top_total = sum(len(t) for t in super_tracks[0:2])
-
-        assert super_bottom_total == normal_total, (
-            f"Bottom division total tracks {super_bottom_total} != "
-            f"normal tile total {normal_total}"
-        )
-        assert super_top_total == normal_total, (
-            f"Top division total tracks {super_top_total} != "
-            f"normal tile total {normal_total}"
-        )
+        # super_tracks[0:2] = Y0 (top), super_tracks[2:4] = Y1 (bottom); each
+        # division splits its tracks between its segments like the normal tile.
+        assert super_tracks[2:4] == normal_tracks
+        assert super_tracks[0:2] == [
+            [t + tile_height for t in segment] for segment in normal_tracks
+        ]
 
     @pytest.mark.parametrize(
         ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
@@ -1334,12 +1414,12 @@ class TestNormalTileSupertilePinAlignment:
 
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0", "n1"]),
+            _make_bterms(mocker, ["n0", "n1"]),
             "none",
         )
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            _make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
             "none",
         )
 
@@ -1353,12 +1433,10 @@ class TestNormalTileSupertilePinAlignment:
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
 
-        normal_track_count = len(normal_tracks[0])
-        for i, st in enumerate(super_tracks):
-            assert len(st) == normal_track_count, (
-                f"[{label}] Division {i} track count {len(st)} != "
-                f"normal tile {normal_track_count}"
-            )
+        assert super_tracks == [
+            [t + tile_height for t in normal_tracks[0]],
+            normal_tracks[0],
+        ], f"[{label}] Divisions differ from the shifted normal tile"
 
     @pytest.mark.parametrize(
         ("origin", "step", "tile_height", "stride", "label"),
@@ -1413,7 +1491,7 @@ class TestNormalTileSupertilePinAlignment:
         }
         plan_normal = PinPlacementPlan(
             normal_config,
-            self._make_bterms(mocker, ["n0", "n1"]),
+            _make_bterms(mocker, ["n0", "n1"]),
             "none",
         )
         plan_normal.allocate_tracks(
@@ -1444,7 +1522,7 @@ class TestNormalTileSupertilePinAlignment:
         }
         plan_super = PinPlacementPlan(
             super_config,
-            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            _make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
             "none",
         )
         plan_super.allocate_tracks(
@@ -1526,7 +1604,7 @@ class TestNormalTileSupertilePinAlignment:
             },
         }
         pin_names = [f"{letter}{i}" for letter in "abc" for i in range(5)]
-        plan = PinPlacementPlan(config, self._make_bterms(mocker, pin_names), "none")
+        plan = PinPlacementPlan(config, _make_bterms(mocker, pin_names), "none")
 
         track_count = int((tile_width - origin) / step) + 1
         plan.allocate_tracks({Side.SOUTH: (track_count, step, origin, tile_width)})
@@ -1577,28 +1655,4 @@ class TestNormalTileSupertilePinAlignment:
                 f"cross-segment spacing violation between filtered "
                 f"track {i}={side_tracks[i]} and {i + 1}={side_tracks[i + 1]}: "
                 f"Δ={delta} != expected {expected_spacing}"
-            )
-
-    @pytest.mark.parametrize("num_divisions", [2, 3, 4])
-    def test_division_index_symmetry_east_west(self, num_divisions: int) -> None:
-        """EAST and WEST sides must produce the same division index for the same
-        tile_y."""
-        for tile_y in range(num_divisions):
-            east_idx = PinPlacementPlan._get_division_index(
-                Side.EAST,
-                tile_x=0,
-                tile_y=tile_y,
-                tile_idx=0,
-                num_divisions=num_divisions,
-            )
-            west_idx = PinPlacementPlan._get_division_index(
-                Side.WEST,
-                tile_x=0,
-                tile_y=tile_y,
-                tile_idx=0,
-                num_divisions=num_divisions,
-            )
-            assert east_idx == west_idx, (
-                f"tile_y={tile_y}, num_divisions={num_divisions}: "
-                f"EAST={east_idx} != WEST={west_idx}"
             )

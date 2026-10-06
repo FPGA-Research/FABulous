@@ -153,7 +153,7 @@ def test_load_unknown_cell_function_raises(tmp_path: Path) -> None:
         "pdk::sky130A:\n  cells:\n    not_a_function:\n      - cell: x\n",
     )
 
-    with pytest.raises(ValueError, match="StdCellLibrary"):
+    with pytest.raises(ValueError, match=r"cells\.not_a_function"):
         StdCellLibrary.load(tmp_path, "sky130A")
 
 

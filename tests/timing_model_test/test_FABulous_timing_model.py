@@ -578,18 +578,22 @@ def test_cad_tools_success(
 
     assert isinstance(tools["synth_tool"], FakeYosys)
     assert isinstance(tools["sta_tool"], FakeOpenSta)
-
-    assert calls["yosys"]["verilog_files"] == [tmp_path / "rtl.v"]
-    assert calls["yosys"]["liberty_files"] == [tmp_path / "lib.lib"]
-    assert calls["yosys"]["top_name"] == "TILE_A"
-    assert calls["yosys"]["synth_executable"] == "yosys"
-    assert calls["yosys"]["is_gate_level"] is False
-    assert calls["yosys"]["debug"] is True
-    assert calls["yosys"]["flat"] is False
-
-    assert calls["opensta"]["sta_executable"] == "opensta"
-    assert calls["opensta"]["spef_files"] is None
-    assert calls["opensta"]["debug"] is True
+    assert calls == {
+        "yosys": {
+            "verilog_files": [tmp_path / "rtl.v"],
+            "liberty_files": [tmp_path / "lib.lib"],
+            "top_name": "TILE_A",
+            "synth_executable": "yosys",
+            "techmap_files": [tmp_path / "techmap.v"],
+            "tiehi_cell_and_port": "TIEHI Y",
+            "tielo_cell_and_port": "TIELO Y",
+            "min_buf_cell_and_ports": "BUF A Y",
+            "is_gate_level": False,
+            "debug": True,
+            "flat": False,
+        },
+        "opensta": {"sta_executable": "opensta", "spef_files": None, "debug": True},
+    }
 
 
 # `TimingModelConfig` rejects these values; `model_copy` skips validation to reach

@@ -81,17 +81,26 @@ class TestFABulousDetailedRoutingTimed:
 
         timer.return_value.cancel.assert_called_once_with()
 
-    def test_success_passes_popen_callable(self, mocker: MockerFixture) -> None:
-        """On success the result is returned and a _popen_callable kwarg is injected."""
-        super_run = mocker.patch.object(
-            OpenROAD.DetailedRouting, "run", return_value=({}, {})
+    def test_success_spawns_in_new_session_with_timer(
+        self, mocker: MockerFixture, popen: MockType, timer: MockType
+    ) -> None:
+        """OpenROAD runs as a session leader under a started, then cancelled, timer."""
+
+        def _route(*_args: object, **kwargs: object) -> tuple[dict, dict]:
+            proc = kwargs["_popen_callable"](["openroad", "-exit"], stdout=1)
+            assert proc is popen.return_value
+            timer.return_value.cancel.assert_not_called()
+            return {"view": "data"}, {"metric": 1}
+
+        mocker.patch.object(OpenROAD.DetailedRouting, "run", side_effect=_route)
+
+        result = _make_step().run(mocker.MagicMock())
+
+        assert result == ({"view": "data"}, {"metric": 1})
+        popen.assert_called_once_with(
+            ["openroad", "-exit"], stdout=1, start_new_session=True
         )
-
-        step = FABulousDetailedRoutingTimed.__new__(FABulousDetailedRoutingTimed)
-        step.config = {"FABULOUS_DRT_TIMEOUT": 600}
-        state = mocker.MagicMock()
-
-        result = step.run(state)
-
-        assert result == ({}, {})
-        assert "_popen_callable" in super_run.call_args.kwargs
+        assert timer.call_args.args[0] == 600
+        assert timer.return_value.daemon is True
+        timer.return_value.start.assert_called_once_with()
+        timer.return_value.cancel.assert_called_once_with()

@@ -82,9 +82,10 @@ class TestFABulousFabricSchema:
         }
         assert underlying_names <= plugin_names
 
-    def test_subclass_of_underlying_flow(self) -> None:
-        """Wrapper inherits `run()` / step substitutions from the real flow."""
-        assert issubclass(FABulousFabric, FABulousFabricMacroFlow)
+    def test_runs_the_underlying_flow(self) -> None:
+        """Wrapper reuses `run()` and the substituted steps of the real flow."""
+        assert FABulousFabric.run is FABulousFabricMacroFlow.run
+        assert FABulousFabric.Steps == FABulousFabricMacroFlow.Steps
 
     def test_fabulous_fabric_config_accepts_dir_resolver_list(
         self, tmp_path: Path
@@ -187,31 +188,30 @@ class TestBuildMacros:
 class TestCollectFabricVerilog:
     """`_collect_fabric_verilog` finds the fabric-level `*.v` files."""
 
-    def test_finds_fabric_name_prefixed_verilog(self, tmp_path: Path) -> None:
-        target: Path = tmp_path / "MyFab.v"
-        target.write_text("", encoding="utf-8")
+    @pytest.mark.parametrize(
+        ("present", "expected"),
+        [
+            pytest.param(["MyFab.v"], ["MyFab.v"], id="fabric_name"),
+            pytest.param(["fabric.v"], ["fabric.v"], id="generic_fabric_v"),
+            # `MyFab.v` is also returned by the `*.v` glob but listed once.
+            pytest.param(["other.v", "MyFab.v"], ["MyFab.v", "other.v"], id="dedup"),
+            pytest.param(
+                ["other.v", "fabric.v", "MyFab.v"],
+                ["MyFab.v", "fabric.v", "other.v"],
+                id="named_candidates_first",
+            ),
+        ],
+    )
+    def test_collects_fabric_verilog(
+        self, tmp_path: Path, present: list[str], expected: list[str]
+    ) -> None:
+        """`<fabric>.v` then `fabric.v` lead, other `*.v` follow, each once."""
+        for name in present:
+            (tmp_path / name).write_text("", encoding="utf-8")
 
         result: list[Path] = _collect_fabric_verilog(tmp_path, "MyFab")
 
-        assert result[0].resolve() == target.resolve()
-
-    def test_finds_generic_fabric_v(self, tmp_path: Path) -> None:
-        target: Path = tmp_path / "fabric.v"
-        target.write_text("", encoding="utf-8")
-
-        result: list[Path] = _collect_fabric_verilog(tmp_path, "MyFab")
-
-        assert any(p.resolve() == target.resolve() for p in result)
-
-    def test_dedupes_overlapping_candidates(self, tmp_path: Path) -> None:
-        """A file matching multiple globs should appear only once."""
-        # `{fabric_name}.v` is also returned by the `*.v` glob.
-        (tmp_path / "MyFab.v").write_text("", encoding="utf-8")
-        (tmp_path / "other.v").write_text("", encoding="utf-8")
-
-        result: list[Path] = _collect_fabric_verilog(tmp_path, "MyFab")
-
-        assert len(result) == len(set(result))
+        assert result == [(tmp_path / name).resolve() for name in expected]
 
     def test_raises_when_no_verilog_found(self, tmp_path: Path) -> None:
         with pytest.raises(FlowException, match="No fabric Verilog found"):
@@ -260,7 +260,7 @@ class TestFABulousFabricInitAdapter:
         # DESIGN_NAME defaulted from fabric.name because config omitted it.
         assert flow.config["DESIGN_NAME"] == "MyFab"
         # VERILOG_FILES was populated by the fabric-Verilog collector.
-        assert any(str(p).endswith("MyFab.v") for p in flow.config["VERILOG_FILES"])
+        assert flow.config["VERILOG_FILES"] == [str((tmp_path / "MyFab.v").resolve())]
 
     def test_init_respects_user_supplied_design_name(
         self, mocker: MockerFixture, tmp_path: Path
@@ -290,7 +290,8 @@ class TestFABulousFabricInitAdapter:
             pdk_root=str(tmp_path / "pdk"),
         )
 
-        assert flow.config["DESIGN_NAME"] == "CustomName"
+        # The user's DESIGN_NAME renames the parsed fabric itself.
+        assert flow.fabric.name == "CustomName"
 
     def test_init_raises_on_missing_fabric_csv(
         self, mocker: MockerFixture, tmp_path: Path
@@ -403,7 +404,7 @@ class TestAutoDiscoveryIncludesSuperTiles:
         FABulousFabric(
             config={
                 "FABULOUS_FABRIC_CONFIG": [str(fabric_csv)],
-                "FABULOUS_TILE_LIBRARY": str(tmp_path),
+                "FABULOUS_TILE_LIBRARY": [str(tmp_path / "lib")],
                 "DESIGN_DIR": str(tmp_path),
             },
             design_dir=str(tmp_path),
@@ -411,9 +412,6 @@ class TestAutoDiscoveryIncludesSuperTiles:
             pdk_root=str(tmp_path / "pdk"),
         )
 
-        passed_names = discover.call_args.args[0]
-        # Super-tile name resolved, standalone tile resolved, sub-tile excluded
-        # (its macro is hardened under the super-tile name, not on its own).
-        assert "DSP" in passed_names
-        assert "LUT4AB" in passed_names
-        assert "DSP_top" not in passed_names
+        # Standalone tile, then super-tile; the sub-tile is excluded because its
+        # macro is hardened under the super-tile name, not on its own.
+        discover.assert_called_once_with(["LUT4AB", "DSP"], [tmp_path / "lib"])

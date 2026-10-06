@@ -1,9 +1,12 @@
 """Unit tests for the Port class hierarchy introduced by the bel/port migration."""
 
+import random
+
 import pytest
 
 from fabulous.fabric_definition.define import (
     IO,
+    Direction,
     FeatureType,
     FeatureValue,
     Side,
@@ -26,15 +29,26 @@ class TestPort:
         with pytest.raises(ValueError, match="Width must be greater than 0"):
             Port(name="A", io_direction=IO.INPUT, width=0)
 
-    def test_bad_io_direction_raises(self) -> None:
-        """A non-IO io_direction is rejected."""
-        with pytest.raises(TypeError):
-            Port(name="A", io_direction="INPUT", width=1)
-
-    def test_non_string_name_raises(self) -> None:
-        """A non-string name is rejected."""
-        with pytest.raises(TypeError):
-            Port(name=123, io_direction=IO.INPUT, width=1)
+    @pytest.mark.parametrize(
+        ("overrides", "match"),
+        [
+            pytest.param(
+                {"io_direction": "INPUT"},
+                "io_direction must be an instance of IO",
+                id="io_direction",
+            ),
+            pytest.param({"name": 123}, "name must be a string", id="name"),
+            pytest.param({"is_clock": "yes"}, "is_clock must be a bool", id="is_clock"),
+            pytest.param(
+                {"is_global": "yes"}, "is_global must be a bool", id="is_global"
+            ),
+        ],
+    )
+    def test_wrong_type_raises(self, overrides: dict, match: str) -> None:
+        """Each constructor argument of the wrong type is named in the error."""
+        kwargs = {"name": "A", "io_direction": IO.INPUT, "width": 1} | overrides
+        with pytest.raises(TypeError, match=match):
+            Port(**kwargs)
 
     @pytest.mark.parametrize(
         ("io_direction", "is_input", "is_output", "is_inout"),
@@ -81,78 +95,62 @@ class TestPort:
         assert p1 == p1
         assert hash(p1) == id(p1)
 
-    def test_serialize(self) -> None:
-        """Serialization contains name, io_direction value, width and net info."""
-        port = Port(name="A", io_direction=IO.OUTPUT, width=2)
-        assert port.serialize() == {
-            "name": "A",
-            "io_direction": IO.OUTPUT.value,
-            "width": 2,
-            "is_clock": False,
-            "is_global": False,
-            "net": "",
-        }
-
-
-class TestPortClockFields:
-    """Tests for the clock and net metadata carried by every Port."""
-
-    def test_defaults_are_a_local_non_clock_port(self) -> None:
-        """A Port is a non-clock, non-global port on the global net by default."""
-        port = Port(name="A", io_direction=IO.INPUT, width=1)
-        assert port.is_clock is False
-        assert port.is_global is False
-        assert port.net == ""
-
-    def test_user_clock_fields(self) -> None:
-        """The global user clock is described by the base Port fields."""
-        port = Port(
-            name="UserCLK",
-            io_direction=IO.INPUT,
-            width=1,
-            is_clock=True,
-            is_global=True,
-        )
-        assert port.is_clock is True
-        assert port.is_global is True
-        assert port.net == ""
-
-    def test_local_clock_on_a_named_net(self) -> None:
-        """A locally generated clock names the net it drives."""
-        port = Port(
-            name="clk2",
-            io_direction=IO.INPUT,
-            width=1,
-            is_clock=True,
-            net="dsp",
-        )
-        assert port.is_clock is True
-        assert port.is_global is False
-        assert port.net == "dsp"
-
-    @pytest.mark.parametrize("field", ["is_clock", "is_global"])
-    def test_non_bool_flag_raises(self, field: str) -> None:
-        """A non-bool clock flag is rejected."""
-        with pytest.raises(TypeError, match=f"{field} must be a bool"):
-            Port(name="A", io_direction=IO.INPUT, width=1, **{field: "yes"})
-
-    def test_serialize_includes_clock_fields(self) -> None:
-        """Serialization carries is_clock, is_global and net."""
-        port = Port(
-            name="clk_fast",
-            io_direction=IO.INPUT,
-            width=1,
-            is_clock=True,
-            net="fast",
-        )
-        assert port.serialize() == {
-            "name": "clk_fast",
-            "io_direction": IO.INPUT.value,
-            "width": 1,
-            "is_clock": True,
-            "is_global": False,
-            "net": "fast",
-        }
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            pytest.param(
+                {"name": "A", "io_direction": IO.OUTPUT, "width": 2},
+                {
+                    "name": "A",
+                    "io_direction": "OUTPUT",
+                    "width": 2,
+                    "is_clock": False,
+                    "is_global": False,
+                    "net": "",
+                },
+                id="local_non_clock_default",
+            ),
+            pytest.param(
+                {
+                    "name": "UserCLK",
+                    "io_direction": IO.INPUT,
+                    "width": 1,
+                    "is_clock": True,
+                    "is_global": True,
+                },
+                {
+                    "name": "UserCLK",
+                    "io_direction": "INPUT",
+                    "width": 1,
+                    "is_clock": True,
+                    "is_global": True,
+                    "net": "",
+                },
+                id="global_user_clock",
+            ),
+            pytest.param(
+                {
+                    "name": "clk_fast",
+                    "io_direction": IO.INPUT,
+                    "width": 1,
+                    "is_clock": True,
+                    "net": "fast",
+                },
+                {
+                    "name": "clk_fast",
+                    "io_direction": "INPUT",
+                    "width": 1,
+                    "is_clock": True,
+                    "is_global": False,
+                    "net": "fast",
+                },
+                id="local_clock_on_named_net",
+            ),
+        ],
+    )
+    def test_serialize(self, kwargs: dict, expected: dict) -> None:
+        """Serialization carries the name, direction, width and clock/net metadata."""
+        assert Port(**kwargs).serialize() == expected
 
 
 class TestBelPort:
@@ -163,66 +161,138 @@ class TestBelPort:
         port = BelPort(name="sig", io_direction=IO.INPUT, width=1, prefix="lut_")
         assert port.name == "lut_sig"
 
-    def test_external_and_control_flags(self) -> None:
-        """External and control flags are exposed verbatim."""
-        port = BelPort(
-            name="io",
-            io_direction=IO.OUTPUT,
-            width=1,
-            prefix="",
-            external=True,
-            control=False,
-        )
-        assert port.external is True
-        assert port.control is False
-
     def test_expand_uses_prefixed_name(self) -> None:
         """Expansion uses the prefixed name."""
         port = BelPort(name="sig", io_direction=IO.INPUT, width=1, prefix="lut_")
         assert port.expand() == ["lut_sig"]
 
-    def test_clock_fields_reach_the_base_port(self) -> None:
-        """Clock metadata passed to a BelPort is stored on the base Port."""
-        port = BelPort(
-            name="UserCLK",
-            io_direction=IO.INPUT,
-            width=1,
-            is_clock=True,
-            net="UserCLK",
-        )
-        assert port.is_clock is True
-        assert port.is_global is False
-        assert port.net == "UserCLK"
-
-    def test_serialize_includes_belport_fields(self) -> None:
-        """Serialization adds prefix, external and control."""
-        port = BelPort(name="sig", io_direction=IO.INPUT, width=1, prefix="lut_")
-        data = port.serialize()
-        assert data["name"] == "lut_sig"
-        assert data["prefix"] == "lut_"
-        assert data["external"] is False
-        assert data["control"] is False
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            pytest.param(
+                {"name": "sig", "io_direction": IO.INPUT, "width": 1, "prefix": "lut_"},
+                {
+                    "name": "lut_sig",
+                    "io_direction": "INPUT",
+                    "width": 1,
+                    "is_clock": False,
+                    "is_global": False,
+                    "net": "",
+                    "prefix": "lut_",
+                    "external": False,
+                    "control": False,
+                },
+                id="defaults",
+            ),
+            pytest.param(
+                {
+                    "name": "io",
+                    "io_direction": IO.OUTPUT,
+                    "width": 2,
+                    "external": True,
+                    "control": False,
+                },
+                {
+                    "name": "io",
+                    "io_direction": "OUTPUT",
+                    "width": 2,
+                    "is_clock": False,
+                    "is_global": False,
+                    "net": "",
+                    "prefix": "",
+                    "external": True,
+                    "control": False,
+                },
+                id="external",
+            ),
+            pytest.param(
+                {
+                    "name": "en",
+                    "io_direction": IO.INPUT,
+                    "width": 1,
+                    "external": False,
+                    "control": True,
+                },
+                {
+                    "name": "en",
+                    "io_direction": "INPUT",
+                    "width": 1,
+                    "is_clock": False,
+                    "is_global": False,
+                    "net": "",
+                    "prefix": "",
+                    "external": False,
+                    "control": True,
+                },
+                id="control",
+            ),
+            pytest.param(
+                {
+                    "name": "UserCLK",
+                    "io_direction": IO.INPUT,
+                    "width": 1,
+                    "is_clock": True,
+                    "net": "UserCLK",
+                },
+                {
+                    "name": "UserCLK",
+                    "io_direction": "INPUT",
+                    "width": 1,
+                    "is_clock": True,
+                    "is_global": False,
+                    "net": "UserCLK",
+                    "prefix": "",
+                    "external": False,
+                    "control": False,
+                },
+                id="clock_fields_reach_base_port",
+            ),
+        ],
+    )
+    def test_serialize(self, kwargs: dict, expected: dict) -> None:
+        """Serialization adds prefix, external and control to the base fields."""
+        assert BelPort(**kwargs).serialize() == expected
 
 
 class TestConfigPort:
     """Tests for ConfigPort."""
 
-    def test_defaults(self) -> None:
-        """Features default to empty and feature_type to ENUMERATE."""
-        port = ConfigPort(name="cfg", io_direction=IO.INPUT, width=8)
-        assert port.features == []
-        assert port.feature_type == FeatureType.ENUMERATE
-
-    def test_custom_features(self) -> None:
-        """Custom features are stored as given."""
-        features = [FeatureValue("INIT", 0), FeatureValue("MODE", None)]
-        port = ConfigPort(
-            name="cfg",
-            io_direction=IO.INPUT,
-            width=2,
-            features=features,
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_extra"),
+        [
+            pytest.param(
+                {},
+                {"features": [], "feature_type": "ENUMERATE"},
+                id="defaults",
+            ),
+            pytest.param(
+                {
+                    "features": [FeatureValue("INIT", 0), FeatureValue("MODE", None)],
+                    "feature_type": FeatureType.INIT,
+                },
+                {
+                    "features": [FeatureValue("INIT", 0), FeatureValue("MODE", None)],
+                    "feature_type": "INIT",
+                },
+                id="custom_features",
+            ),
+        ],
+    )
+    def test_serialize(self, kwargs: dict, expected_extra: dict) -> None:
+        """Serialization adds the features and the feature encoding."""
+        port = ConfigPort(name="cfg", io_direction=IO.INPUT, width=2, **kwargs)
+        assert (
+            port.serialize()
+            == {
+                "name": "cfg",
+                "io_direction": "INPUT",
+                "width": 2,
+                "is_clock": False,
+                "is_global": False,
+                "net": "",
+            }
+            | expected_extra
         )
-        assert port.features == features
 
 
 class TestSlicedPort:
@@ -249,13 +319,20 @@ class TestSlicedPort:
         parent = SlicedPort(original, high=5, low=2)
         assert SlicedPort(parent, high=2, low=1).expand() == ["bus[3]", "bus[4]"]
 
-    def test_serialize_carries_high_and_low(self) -> None:
-        """Serialization records the endpoints separately."""
+    def test_serialize(self) -> None:
+        """Serialization carries the original's name and direction plus the range."""
         original = BelPort(name="bus", io_direction=IO.OUTPUT, width=8)
-        data = SlicedPort(original, high=6, low=4).serialize()
-        assert data["high"] == 6
-        assert data["low"] == 4
-        assert data["original_port"] == "bus"
+        assert SlicedPort(original, high=6, low=4).serialize() == {
+            "name": "bus",
+            "io_direction": "OUTPUT",
+            "width": 3,
+            "is_clock": False,
+            "is_global": False,
+            "net": "",
+            "high": 6,
+            "low": 4,
+            "original_port": "bus",
+        }
 
     @pytest.mark.parametrize(
         ("high", "low", "match"),
@@ -304,35 +381,53 @@ class TestSharedPort:
 class TestTilePort:
     """Tests for TilePort ordering and construction."""
 
-    def test_construct_with_side(self) -> None:
-        """A TilePort exposes its side of the tile."""
+    def test_serialize(self) -> None:
+        """An unattached port serializes its side, wire fields and no owning tile."""
         port = TilePort(
-            name="N1", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
+            name="N2BEG",
+            io_direction=IO.OUTPUT,
+            width=4,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.NORTH,
+            source_name="N2BEG",
+            x_offset=1,
+            y_offset=-2,
+            destination_name="N2END",
+            wire_count=2,
         )
-        assert port.side_of_tile == Side.NORTH
+        assert port.serialize() == {
+            "name": "N2BEG",
+            "io_direction": "OUTPUT",
+            "width": 4,
+            "is_clock": False,
+            "is_global": False,
+            "net": "",
+            "side_of_tile": "N",
+            "term": False,
+            "tile": None,
+            "wire_direction": "NORTH",
+            "source_name": "N2BEG",
+            "x_offset": 1,
+            "y_offset": -2,
+            "destination_name": "N2END",
+            "wire_count": 2,
+        }
 
-    def test_ordering_by_side(self) -> None:
-        """Ports are ordered by tile side (north before east)."""
-        north = TilePort(
-            name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        east = TilePort(
-            name="e", io_direction=IO.INPUT, width=1, side_of_tile=Side.EAST
-        )
-        assert north < east
-        assert east > north
+    def test_sort_orders_by_side_then_io(self) -> None:
+        """Sorting follows [N, E, S, W, ANY] by side, then [out, in, inout]."""
+        sides = [Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST, Side.ANY]
+        ios = [IO.OUTPUT, IO.INPUT, IO.INOUT]
+        ports = [
+            TilePort(name=f"{s}_{io.value}", io_direction=io, width=1, side_of_tile=s)
+            for s in sides
+            for io in ios
+        ]
+        shuffled = ports.copy()
+        random.Random(0).shuffle(shuffled)
 
-    def test_ordering_by_io_within_side(self) -> None:
-        """Within a side, outputs are ordered before inputs."""
-        out = TilePort(
-            name="o", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        inp = TilePort(
-            name="i", io_direction=IO.INPUT, width=1, side_of_tile=Side.NORTH
-        )
-        assert out < inp
-        assert out <= inp
-        assert inp >= out
+        assert [(p.side_of_tile, p.io_direction) for p in sorted(shuffled)] == [
+            (s, io) for s in sides for io in ios
+        ]
 
     def test_comparison_with_non_tileport_raises(self) -> None:
         """Ordering is only defined against another TilePort."""
@@ -341,10 +436,3 @@ class TestTilePort:
         )
         with pytest.raises(TypeError, match="Cannot compare"):
             port < 1  # noqa: B015
-
-    def test_tile_back_reference_defaults_to_none(self) -> None:
-        """An unattached port has no owning tile."""
-        port = TilePort(
-            name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        assert port.tile is None

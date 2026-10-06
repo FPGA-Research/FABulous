@@ -138,29 +138,40 @@ def test_find_verilog_modules_regex(
     assert vg.find_verilog_modules_regex(name_pattern) == expected
 
 
-def test_find_instance_paths_by_regex_matches_recursive_paths(
+@pytest.mark.parametrize(
+    ("inst_regex", "filter_regex", "expected"),
+    [
+        (
+            r"u_",
+            None,
+            [
+                "u_mid",
+                "u_mid/u_leaf1",
+                "u_mid/u_leaf1/leafbuf",
+                "u_mid/u_nand1",
+                "u_leaf2",
+                "u_leaf2/leafbuf",
+                "u_buf0",
+                "u_buf1",
+                "u_dangle",
+            ],
+        ),
+        (
+            r"u_",
+            r"leaf",
+            ["u_mid/u_leaf1", "u_mid/u_leaf1/leafbuf", "u_leaf2", "u_leaf2/leafbuf"],
+        ),
+        (r"leafbuf$", None, ["u_mid/u_leaf1/leafbuf", "u_leaf2/leafbuf"]),
+    ],
+    ids=["recursive_paths", "with_filter", "leaf_only"],
+)
+def test_find_instance_paths_by_regex(
     vg: VerilogGateLevelTimingGraph,
+    inst_regex: str,
+    filter_regex: str | None,
+    expected: list[str],
 ) -> None:
-    paths = vg.find_instance_paths_by_regex(r"u_")
-    assert "u_mid" in paths
-    assert "u_mid/u_leaf1" in paths
-    assert "u_mid/u_leaf1/leafbuf" in paths
-    assert "u_mid/u_nand1" in paths
-    assert "u_leaf2" in paths
-    assert "u_leaf2/leafbuf" in paths
-    assert "u_buf0" in paths
-    assert "u_buf1" in paths
-
-
-def test_find_instance_paths_by_regex_with_filter(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    paths = vg.find_instance_paths_by_regex(r"u_", filter_regex=r"leaf")
-    assert "u_mid/u_leaf1" in paths
-    assert "u_mid/u_leaf1/leafbuf" in paths
-    assert "u_leaf2" in paths
-    assert "u_leaf2/leafbuf" in paths
-    assert "u_buf0" not in paths
+    assert vg.find_instance_paths_by_regex(inst_regex, filter_regex) == expected
 
 
 def test_find_instances_with_all_nets(
@@ -261,14 +272,29 @@ def test_get_instance_pins_nested(
     assert vg.get_instance_pins("u_mid/u_nand1") == ["A", "B", "Y"]
 
 
-def test_get_module_instance_nets_top(
+@pytest.mark.parametrize(
+    ("module_name", "expected"),
+    [
+        (
+            "Top",
+            {
+                "u_mid": ["IN1", "IN2", "n_top"],
+                "u_leaf2": ["n_top", "n_mid", "IN1"],
+                "u_buf0": ["n_mid", "OUT1"],
+                "u_buf1": ["IN2", "OUT2"],
+                "u_dangle": ["IN2", "n_nc"],
+            },
+        ),
+        ("LeafWrap", {"leafbuf": ["IN", "OUT"]}),
+    ],
+    ids=["top", "commented_leaf_module"],
+)
+def test_get_module_instance_nets(
     vg: VerilogGateLevelTimingGraph,
+    module_name: str,
+    expected: dict[str, list[str]],
 ) -> None:
-    result = vg.get_module_instance_nets("Top")
-    assert result["u_mid"] == ["IN1", "IN2", "n_top"]
-    assert result["u_leaf2"] == ["n_top", "n_mid", "IN1"]
-    assert result["u_buf0"] == ["n_mid", "OUT1"]
-    assert result["u_buf1"] == ["IN2", "OUT2"]
+    assert vg.get_module_instance_nets(module_name) == expected
 
 
 def test_get_module_instance_nets_missing_module(

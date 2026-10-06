@@ -1,84 +1,61 @@
-"""Tests for the generic-style switch-matrix multiplexer path.
+"""Netlist checks of the switch-matrix muxes for both multiplexer styles.
 
-A generic mux selects a source by indexing the `{portName}_input` vector with
-the relevant `ConfigBits`. That vector must be driven from the connection list
-(reversed, so `input[i]` is `connections[i]`); otherwise the mux indexes an
-undriven wire. These tests run the real generation path over a default-project
-tile and assert every declared input vector is driven.
+Each multi-input mux must take `connections[port][k]` on data input `k` and
+read its select from the config bits the bitstream spec assigns it: muxes take
+consecutive `ConfigBits` slices of `ceil(log2(n))` bits in connection order.
+The generated matrix of a default-project tile is elaborated with Yosys, so an
+undriven input vector, a reordered input or a shifted select slice all fail.
 """
 
-import re
 from collections.abc import Callable
 
-from fabulous.fabric_definition.define import MultiplexerStyle
+import pytest
+
+from fabulous.fabric_definition.define import SWITCH_MATRIX_CONSTANTS, MultiplexerStyle
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
-
-_INPUT_DECL = re.compile(r"\b(\w+)_input\s*;")
-_INPUT_ASSIGN = re.compile(r"assign\s+(\w+)_input\s*=")
+from tests.fabric_gen_test.conftest import Netlist, cus_mux_stubs, mux_wiring
 
 
-def _generate(
-    tile: Tile,
-    writer: CodeGenerator,
+@pytest.mark.parametrize("style", [MultiplexerStyle.CUSTOM, MultiplexerStyle.GENERIC])
+def test_mux_inputs_and_selects_follow_connections(
     style: MultiplexerStyle,
-) -> str:
-    """Generate the switch-matrix HDL for `tile` and return it."""
-    genTileSwitchMatrix(writer, tile, False, multiplexer_style=style)
-    return writer.outFileName.read_text()
+    switch_matrix_tile: Tile,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+    elaborate: Callable[..., Netlist],
+) -> None:
+    """Every mux selects `connections[port][k]` with its own config-bit slice."""
+    writer = code_generator_factory(".v", f"{switch_matrix_tile.name}_switch_matrix")
+    genTileSwitchMatrix(writer, switch_matrix_tile, False, multiplexer_style=style)
+    net = elaborate(writer.outFileName.read_text() + cus_mux_stubs())
 
+    def source_net(name: str) -> int | str:
+        if name in SWITCH_MATRIX_CONSTANTS:
+            return "0" if name.startswith("GND") else "1"
+        (bit,) = net.port_net(name)
+        return bit
 
-class TestGenericMultiplexerInputVector:
-    """Generic-style muxes must drive every declared `{portName}_input` vector."""
+    config_bits = net.port_net("ConfigBits")
+    config_bits_n = net.port_net("ConfigBits_N")
+    position = 0
+    checked = 0
+    for port, sources in switch_matrix_tile.switch_matrix.connections.items():
+        if len(sources) < 2:
+            continue
+        width = (len(sources) - 1).bit_length()
+        wiring = mux_wiring(net, port)
 
-    def test_every_generic_input_vector_is_driven(
-        self,
-        switch_matrix_tile: Tile,
-        code_generator_factory: Callable[[str, str], CodeGenerator],
-    ) -> None:
-        """Each `_input` vector declared for a generic mux is also assigned.
+        expected = [source_net(s) for s in sources]
+        # A custom mux pads its unused data inputs with GND0.
+        padding = ["0"] * (len(wiring.inputs) - len(expected))
+        assert wiring.inputs == expected + padding, port
+        assert wiring.selects == config_bits[position : position + width], port
+        if wiring.selects_n:
+            assert wiring.selects_n == config_bits_n[position : position + width]
 
-        The undriven-input regression declared the vector but never assigned
-        it, leaving the mux indexing a floating wire. Every declared vector
-        must have a matching `assign`.
-        """
-        hdl = _generate(
-            switch_matrix_tile,
-            code_generator_factory(".v", "generic"),
-            MultiplexerStyle.GENERIC,
-        )
+        position += width
+        checked += 1
 
-        declared = set(_INPUT_DECL.findall(hdl))
-        assigned = set(_INPUT_ASSIGN.findall(hdl))
-        # The tile must actually exercise the mux path, otherwise this is vacuous.
-        assert declared, "expected at least one configurable mux in the tile"
-        assert declared == assigned, (
-            f"input vectors declared but not driven: {sorted(declared - assigned)}"
-        )
-
-    def test_generic_matches_custom_input_drive(
-        self,
-        switch_matrix_tile: Tile,
-        code_generator_factory: Callable[[str, str], CodeGenerator],
-    ) -> None:
-        """Generic and custom styles drive the same set of `_input` vectors.
-
-        The first generation rewrites the `.list` matrix to `.csv` in place;
-        the second reads that `.csv`, so both styles see identical connections.
-        """
-        custom_hdl = _generate(
-            switch_matrix_tile,
-            code_generator_factory(".v", "custom"),
-            MultiplexerStyle.CUSTOM,
-        )
-        generic_hdl = _generate(
-            switch_matrix_tile,
-            code_generator_factory(".v", "generic"),
-            MultiplexerStyle.GENERIC,
-        )
-
-        custom_assigns = set(_INPUT_ASSIGN.findall(custom_hdl))
-        generic_assigns = set(_INPUT_ASSIGN.findall(generic_hdl))
-        assert custom_assigns
-        assert custom_assigns == generic_assigns
+    assert checked, "the tile has no multi-input mux to check"
+    assert position == len(config_bits)

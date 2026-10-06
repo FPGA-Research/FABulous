@@ -16,6 +16,8 @@ optimisation pipeline, so any drift in their semantics propagates silently.
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
@@ -26,20 +28,25 @@ from tests.fabric_definition.conftest import make_empty_tile, make_side_port
 class TestSuperTileLayout:
     """Geometric properties — independent of the constituent tiles' ports."""
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="SuperTile.__iter__ yields (row, column) as (x, y), transposed "
+        "against Fabric.__iter__ and get_ports_around_tile",
+    )
     def test_iter_yields_only_non_none_tiles_with_xy(self) -> None:
-        # Layout:
-        #   row0: T00, None
-        #   row1: None, T11
-        # __iter__ uses (row_index, col_index) as (x, y) per the implementation.
-        t00 = make_empty_tile("T00")
-        t11 = make_empty_tile("T11")
+        # Asymmetric layout so a transposed (x, y) is observable:
+        #   row0: A, B, None
+        #   row1: None, None, C
+        a = make_empty_tile("A")
+        b = make_empty_tile("B")
+        c = make_empty_tile("C")
         st = SuperTile(
             name="ST",
             tileDir=Path(),
-            tiles=[t00, t11],
-            tileMap=[[t00, None], [None, t11]],
+            tiles=[a, b, c],
+            tileMap=[[a, b, None], [None, None, c]],
         )
-        assert list(st) == [((0, 0), t00), ((1, 1), t11)]
+        assert list(st) == [((0, 0), a), ((1, 0), b), ((2, 1), c)]
 
     def test_max_width_uses_widest_row(self) -> None:
         t = make_empty_tile("T")

@@ -62,51 +62,63 @@ class TestPinOrderConfig:
         assert result is config
         assert config.pins == ["a", "b", "c"]
 
-    def test_to_dict_basic(self) -> None:
-        """Test to_dict serialization with basic values."""
-        config = PinOrderConfig()
-        config(["pin1", "pin2"])
-
-        result = config.to_dict()
-
-        assert result["min_distance"] is None
-        assert result["max_distance"] is None
-        assert result["pins"] == ["pin1", "pin2"]
-        assert result["sort_mode"] == str(PinSortMode.BUS_MAJOR)
-        assert result["reverse_result"] is False
-
-    def test_to_dict_with_custom_values(self) -> None:
-        """Test to_dict serialization with custom values."""
-        config = PinOrderConfig(
-            min_distance=5,
-            max_distance=50,
-            sort_mode=PinSortMode.BIT_MINOR,
-            reverse_result=True,
-        )
-        config(["a", "b"])
-
-        result = config.to_dict()
-
-        assert result["min_distance"] == 5
-        assert result["max_distance"] == 50
-        assert result["pins"] == ["a", "b"]
-        assert result["reverse_result"] is True
-
-    def test_to_dict_empty_pins(self) -> None:
-        """Test to_dict with no pins bound."""
-        config = PinOrderConfig()
-        result = config.to_dict()
-
-        assert result["pins"] == []
-
-    def test_to_dict_integer_pins(self) -> None:
-        """Test to_dict with integer pin values."""
-        config = PinOrderConfig()
-        config([1, 2, 3])
-
-        result = config.to_dict()
-
-        assert result["pins"] == [1, 2, 3]
+    @pytest.mark.parametrize(
+        ("config", "expected"),
+        [
+            pytest.param(
+                PinOrderConfig(),
+                {
+                    "min_distance": None,
+                    "max_distance": None,
+                    "pins": [],
+                    "sort_mode": "bus_major",
+                    "reverse_result": False,
+                },
+                id="defaults_no_pins",
+            ),
+            pytest.param(
+                PinOrderConfig()(["pin1", "pin2"]),
+                {
+                    "min_distance": None,
+                    "max_distance": None,
+                    "pins": ["pin1", "pin2"],
+                    "sort_mode": "bus_major",
+                    "reverse_result": False,
+                },
+                id="defaults_with_pins",
+            ),
+            pytest.param(
+                PinOrderConfig(
+                    min_distance=5,
+                    max_distance=50,
+                    sort_mode=PinSortMode.BIT_MINOR,
+                    reverse_result=True,
+                )(["a", "b"]),
+                {
+                    "min_distance": 5,
+                    "max_distance": 50,
+                    "pins": ["a", "b"],
+                    "sort_mode": "bit_minor",
+                    "reverse_result": True,
+                },
+                id="custom_values",
+            ),
+            pytest.param(
+                PinOrderConfig()([1, 2, 3]),
+                {
+                    "min_distance": None,
+                    "max_distance": None,
+                    "pins": [1, 2, 3],
+                    "sort_mode": "bus_major",
+                    "reverse_result": False,
+                },
+                id="integer_pins",
+            ),
+        ],
+    )
+    def test_to_dict(self, config: PinOrderConfig, expected: dict) -> None:
+        """Every field is serialised, the sort mode as its string value."""
+        assert config.to_dict() == expected
 
 
 class TestSerializeTilePorts:
@@ -214,6 +226,29 @@ class TestSerializeTilePorts:
             ["P_ext_in", "P_ext_out"],
         ]
 
+    def test_serialize_tile_ports_uses_tile_pin_order_config(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Routing and BEL entries take the tile's per-side ordering constraints;
+        clock and frame entries use the defaults."""
+        tile = make_empty_tile(
+            "T",
+            ports=[_port("S2BEG", Side.SOUTH)],
+            pinOrderConfig={side: PinOrderConfig(min_distance=7) for side in Side},
+        )
+        tile.bels = [mocker.MagicMock(externalInput=["ext_in"], externalOutput=[])]
+
+        result = _serialize_tile_ports(tile)
+
+        assert [
+            (entry["pins"], entry["min_distance"]) for entry in result["SOUTH"]
+        ] == [
+            ([r"S2BEG\[\d+\]"], 7),
+            (["UserCLK"], None),
+            ([r"FrameStrobe\[\d+\]"], None),
+            (["ext_in"], 7),
+        ]
+
     def test_serialize_tile_ports_empty_port_regex(self, mocker: MockerFixture) -> None:
         """A port with an empty regex is dropped, the frame signals stay."""
         tile = mocker.MagicMock(spec=Tile)
@@ -292,14 +327,13 @@ class TestSerializeSupertilePorts:
     def test_serialize_supertile_ports_empty_port_lists(
         self, mocker: MockerFixture
     ) -> None:
-        """Test handling of empty port lists."""
-        supertile = mocker.MagicMock()
+        """A sub-tile reported with no port lists gets no entry at all."""
+        supertile = mocker.MagicMock(spec=SuperTile)
         supertile.bels = []
-        supertile.get_ports_around_tile.return_value = {}
+        supertile.tileMap = [[_subtile(mocker)]]
+        supertile.get_ports_around_tile.return_value = {"0,0": []}
 
-        result = _serialize_supertile_ports(supertile)
-
-        assert result == {}
+        assert _serialize_supertile_ports(supertile) == {}
 
     def test_frame_signals_on_perimeter_sides_without_routing_ports(
         self, mocker: MockerFixture
@@ -367,9 +401,8 @@ class TestSerializeSupertilePorts:
 
         result = _serialize_supertile_ports(supertile)
 
-        # Should handle None tile gracefully
-        if "X0Y0" in result:
-            assert all(not config for config in result["X0Y0"].values())
+        # The entry is still emitted, but no port lands on a missing tile.
+        assert result == {"X0Y0": {"NORTH": [], "EAST": [], "SOUTH": [], "WEST": []}}
 
 
 def _load_pins(outfile: Path) -> dict[str, dict[str, list[list[str]]]]:
@@ -450,111 +483,88 @@ class TestGenerateIOPinOrderConfig:
 
         assert _load_pins(outfile) == {"X0Y0": expected}
 
+    @pytest.mark.parametrize(
+        ("use_fabric", "external_side_kwargs", "expected"),
+        [
+            pytest.param(
+                False,
+                {},
+                {
+                    "NORTH": [
+                        ["Tile_X0Y0_UserCLKo"],
+                        [r"Tile_X0Y0_FrameStrobe_O\[\d+\]"],
+                    ],
+                    "EAST": [[r"Tile_X0Y0_FrameData_O\[\d+\]"]],
+                    "SOUTH": [
+                        ["Tile_X0Y0_UserCLK"],
+                        [r"Tile_X0Y0_FrameStrobe\[\d+\]"],
+                        ["ext_in"],
+                    ],
+                    "WEST": [[r"Tile_X0Y0_FrameData\[\d+\]"]],
+                },
+                id="no_fabric_default_south",
+            ),
+            pytest.param(
+                False,
+                {"external_port_side": Side.EAST},
+                {
+                    "NORTH": [
+                        ["Tile_X0Y0_UserCLKo"],
+                        [r"Tile_X0Y0_FrameStrobe_O\[\d+\]"],
+                    ],
+                    "EAST": [[r"Tile_X0Y0_FrameData_O\[\d+\]"], ["ext_in"]],
+                    "SOUTH": [["Tile_X0Y0_UserCLK"], [r"Tile_X0Y0_FrameStrobe\[\d+\]"]],
+                    "WEST": [[r"Tile_X0Y0_FrameData\[\d+\]"]],
+                },
+                id="no_fabric_explicit_east",
+            ),
+            # The fabric places the supertile at (2, 0) on its EAST border and
+            # feeds UserCLK from the WEST.
+            pytest.param(
+                True,
+                {},
+                {
+                    "NORTH": [[r"Tile_X0Y0_FrameStrobe_O\[\d+\]"]],
+                    "EAST": [
+                        ["Tile_X0Y0_UserCLKo"],
+                        [r"Tile_X0Y0_FrameData_O\[\d+\]"],
+                        ["ext_in"],
+                    ],
+                    "SOUTH": [[r"Tile_X0Y0_FrameStrobe\[\d+\]"]],
+                    "WEST": [["Tile_X0Y0_UserCLK"], [r"Tile_X0Y0_FrameData\[\d+\]"]],
+                },
+                id="fabric_border_and_clock_side",
+            ),
+        ],
+    )
     def test_generate_io_pin_order_config_supertile(
-        self, mocker: MockerFixture, tmp_path: Path
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        use_fabric: bool,
+        external_side_kwargs: dict[str, Side],
+        expected: dict[str, list[list[str]]],
     ) -> None:
-        """Test generation for a SuperTile."""
-        # Create mock supertile
+        """A 1x1 supertile with one BEL: every side is perimeter, and the BEL
+        side comes from the fabric border when a fabric is given."""
         mock_supertile = mocker.MagicMock(spec=SuperTile)
         mock_supertile.bels = []
-
-        # Simple tilemap
-        mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
-            Side.NORTH: PinOrderConfig(),
-            Side.EAST: PinOrderConfig(),
-            Side.SOUTH: PinOrderConfig(),
-            Side.WEST: PinOrderConfig(),
-        }
-        mock_tile.bels = []
-
-        mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.get_ports_around_tile.return_value = {}
-
-        outfile = tmp_path / "test_supertile_config.yaml"
-
-        generate_IO_pin_order_config(mock_supertile, outfile)
-
-        assert outfile.exists()
-
-    def test_generate_io_pin_order_config_supertile_uses_fabric_border_side(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """SuperTile subtile sides come from fabric placement when given."""
-        mock_supertile = mocker.MagicMock(spec=SuperTile)
-        mock_supertile.bels = []
-
-        mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
-            Side.NORTH: PinOrderConfig(),
-            Side.EAST: PinOrderConfig(),
-            Side.SOUTH: PinOrderConfig(),
-            Side.WEST: PinOrderConfig(),
-        }
-        bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
-        mock_tile.bels = [bel]
-
-        mock_supertile.tileMap = [[mock_tile]]
+        sub_tile = _subtile(mocker)
+        sub_tile.bels = [mocker.MagicMock(externalInput=["ext_in"], externalOutput=[])]
+        mock_supertile.tileMap = [[sub_tile]]
         mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
-
-        mock_fabric = mocker.MagicMock(spec=Fabric)
-        mock_fabric.find_tile_positions.return_value = [(2, 0)]
-        mock_fabric.determine_border_side.return_value = Side.EAST
-
+        fabric: Fabric | None = None
+        if use_fabric:
+            fabric = mocker.MagicMock(spec=Fabric)
+            fabric.userCLKSide = Side.WEST
+            fabric.find_tile_positions.return_value = [(2, 0)]
+            fabric.determine_border_side.side_effect = lambda x, y: {
+                (2, 0): Side.EAST
+            }.get((x, y))
         outfile = tmp_path / "test_config.yaml"
 
         generate_IO_pin_order_config(
-            mock_supertile,
-            outfile,
-            fabric=mock_fabric,
+            mock_supertile, outfile, fabric=fabric, **external_side_kwargs
         )
 
-        with outfile.open() as f:
-            config = yaml.safe_load(f)
-
-        east_configs = config["X0Y0"]["EAST"]
-        pin_lists = [c["pins"] for c in east_configs]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "ext_in" in all_pins
-
-    def test_generate_io_pin_order_config_supertile_without_fabric(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Test SuperTile generation without fabric placement context."""
-        mock_supertile = mocker.MagicMock(spec=SuperTile)
-        mock_supertile.bels = []
-
-        mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
-            Side.NORTH: PinOrderConfig(),
-            Side.EAST: PinOrderConfig(),
-            Side.SOUTH: PinOrderConfig(),
-            Side.WEST: PinOrderConfig(),
-        }
-        bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
-        mock_tile.bels = [bel]
-
-        mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
-
-        outfile = tmp_path / "test_config.yaml"
-
-        generate_IO_pin_order_config(
-            mock_supertile,
-            outfile,
-            external_port_side=Side.EAST,
-        )
-
-        with outfile.open() as f:
-            config = yaml.safe_load(f)
-
-        east_configs = config["X0Y0"]["EAST"]
-        pin_lists = [c["pins"] for c in east_configs]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "ext_in" in all_pins
+        assert _load_pins(outfile) == {"X0Y0": expected}

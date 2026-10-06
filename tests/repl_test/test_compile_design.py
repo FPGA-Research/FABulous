@@ -74,65 +74,42 @@ def test_compile_design_task_dispatch(
         assert "taskfile" not in call.kwargs
 
 
-def test_compile_design_task_vars(
+def test_compile_design_task_call(
     compile_cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
-    """Verify all expected task variables are passed with correct values."""
-    design_file = compile_cli.projectDir / "user_design" / "my_design.v"
+    """A full compile runs `build-test-design` in Test/ with every task variable.
+
+    The FASM, bitstream and nextpnr log paths default to siblings of the JSON
+    netlist, which defaults to the first design file's stem.
+    """
+    user_design = compile_cli.projectDir / "user_design"
+    design_file = user_design / "my_design.v"
     mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
-    task_vars = mock_run_task.call_args.args[2]
-
-    assert task_vars["DESIGN"] == "my_design"
-    assert task_vars["TOP_WRAPPER"] == "top_wrapper"
-    assert str(design_file) in task_vars["DESIGN_FILES"]
-    assert task_vars["JSON_FILE"].endswith(".json")
-    assert task_vars["FASM_FILE"].endswith(".fasm")
-    assert task_vars["BIN_FILE"].endswith(".bin")
-    assert task_vars["LOG_FILE"].endswith("_npnr_log.txt")
-    assert task_vars["YOSYS_PATH"] == "/usr/bin/yosys"
-    assert task_vars["NEXTPNR_PATH"] == "/usr/bin/nextpnr-generic"
-    assert task_vars["FAB_PROJ_ROOT"] == str(compile_cli.projectDir)
-    assert "top_wrapper.v" in task_vars["TOP_WRAPPER_FILE"]
-    assert task_vars["SYNTH_EXTRA_ARGS"] == ""
-    assert task_vars["YOSYS_EXTRA_ARGS"] == ""
-    assert task_vars["NEXTPNR_EXTRA_ARGS"] == ""
-
-
-def test_compile_design_default_paths_chain_from_json(
-    compile_cli: FABulousREPL, mocker: MockerFixture
-) -> None:
-    """Verify FASM/BIN/LOG default paths are derived from JSON_FILE."""
-    design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
-
-    run_cmd(compile_cli, f"compile_design {design_file}")
-
-    task_vars = mock_run_task.call_args.args[2]
-    json_path = Path(task_vars["JSON_FILE"])
-    assert Path(task_vars["FASM_FILE"]) == json_path.with_suffix(".fasm")
-    assert Path(task_vars["BIN_FILE"]) == json_path.with_suffix(".fasm").with_suffix(
-        ".bin"
+    mock_run_task.assert_called_once_with(
+        "build-test-design",
+        compile_cli.projectDir / "Test",
+        {
+            "YOSYS_PATH": "/usr/bin/yosys",
+            "NEXTPNR_PATH": "/usr/bin/nextpnr-generic",
+            "FAB_PROJ_ROOT": str(compile_cli.projectDir),
+            "DESIGN": "my_design",
+            "TOP_WRAPPER": "top_wrapper",
+            "DESIGN_FILES": str(design_file),
+            "TOP_WRAPPER_FILE": str(user_design / "top_wrapper.v"),
+            "JSON_FILE": str(user_design / "my_design.json"),
+            "FASM_FILE": str(user_design / "my_design.fasm"),
+            "BIN_FILE": str(user_design / "my_design.bin"),
+            "LOG_FILE": str(user_design / "my_design_npnr_log.txt"),
+            "SYNTH_EXTRA_ARGS": "",
+            "YOSYS_EXTRA_ARGS": "",
+            "NEXTPNR_EXTRA_ARGS": "",
+            # the cli fixture enables debug
+            "NEXTPNR_VERBOSE": "--verbose",
+        },
     )
-    assert (
-        Path(task_vars["LOG_FILE"])
-        == json_path.parent / f"{json_path.stem}_npnr_log.txt"
-    )
-
-
-def test_compile_design_task_dir(
-    compile_cli: FABulousREPL, mocker: MockerFixture
-) -> None:
-    """Verify run_task is called with Test as the task directory."""
-    design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
-
-    run_cmd(compile_cli, f"compile_design {design_file}")
-
-    task_dir = mock_run_task.call_args.args[1]
-    assert task_dir == compile_cli.projectDir / "Test"
 
 
 def test_compile_design_extra_args(
@@ -231,10 +208,10 @@ def test_compile_design_output_override(
 
 
 @pytest.mark.parametrize(
-    ("flag", "expected_in_args"),
+    ("flag", "expected_command"),
     [
-        ("--yosys-synth-help", "help synth_fabulous"),
-        ("--nextpnr-help", "--help"),
+        ("--yosys-synth-help", ["/usr/bin/yosys", "-p", "help synth_fabulous"]),
+        ("--nextpnr-help", ["/usr/bin/nextpnr-generic", "--help"]),
     ],
     ids=["yosys", "nextpnr"],
 )
@@ -242,7 +219,7 @@ def test_compile_design_tool_help(
     compile_cli: FABulousREPL,
     mocker: MockerFixture,
     flag: str,
-    expected_in_args: str,
+    expected_command: list[str],
 ) -> None:
     """Verify --yosys-synth-help and --nextpnr-help call the tool and skip tasks."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
@@ -252,8 +229,7 @@ def test_compile_design_tool_help(
     run_cmd(compile_cli, f"compile_design {design_file} {flag}")
 
     mock_run_task.assert_not_called()
-    mock_subprocess.assert_called_once()
-    assert expected_in_args in mock_subprocess.call_args.args[0]
+    mock_subprocess.assert_called_once_with(expected_command, check=False)
 
 
 def test_compile_design_no_taskfile(
@@ -274,12 +250,15 @@ def test_compile_design_no_taskfile(
 
 
 def test_compile_design_nonexistent_file(
-    compile_cli: FABulousREPL, mocker: MockerFixture
+    compile_cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Verify the command logs an error and does not call run_task for missing files."""
+    """A missing design file is reported and nothing is compiled."""
     mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
     bogus = compile_cli.projectDir / "user_design" / "does_not_exist.v"
 
     run_cmd(compile_cli, f"compile_design {bogus}")
 
     mock_run_task.assert_not_called()
+    assert f"{bogus} does not exist" in caplog.text
+    # bug: the missing file is only logged, so the command still exits 0
+    assert compile_cli.exit_code == 0

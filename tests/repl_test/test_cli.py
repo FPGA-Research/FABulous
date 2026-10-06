@@ -5,19 +5,21 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import subprocess
 import tkinter as tk
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 import pytest
-from pytest_mock import MockerFixture
+from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import CommandError
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
-from fabulous.fabulous_repl.helper import create_project, setup_logger
+from fabulous.fabulous_repl.helper import MAX_BITBYTES, create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 from tests.conftest import (
     normalize_and_check_for_errors,
@@ -28,29 +30,193 @@ from tests.repl_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_cal
 SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
 
 
-def test_load_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test loading fabric from CSV file."""
+DEMO_TILES = [
+    "DSP",
+    "LUT4AB",
+    "N_term_DSP",
+    "N_term_RAM_IO",
+    "N_term_single",
+    "N_term_single2",
+    "RAM_IO",
+    "RegFile",
+    "S_term_DSP",
+    "S_term_RAM_IO",
+    "S_term_single",
+    "S_term_single2",
+    "W_IO",
+]
 
-    run_cmd(cli, "load_fabric")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Loading fabric" in log[0]
-    assert "Complete" in log[-1]
+LUT4AB_TILE_ARTIFACTS = {
+    "Tile/LUT4AB/LUT4AB.v",
+    "Tile/LUT4AB/LUT4AB_ConfigMem.v",
+    "Tile/LUT4AB/LUT4AB_switch_matrix.v",
+}
+
+# LUT4AB ships its ConfigMem csv in the template, so only the other tiles gain one.
+ALL_TILE_ARTIFACTS = LUT4AB_TILE_ARTIFACTS | {
+    "Tile/DSP/DSP.v",
+    "Tile/DSP/DSP_bot/DSP_bot.v",
+    "Tile/DSP/DSP_bot/DSP_bot_ConfigMem.csv",
+    "Tile/DSP/DSP_bot/DSP_bot_ConfigMem.v",
+    "Tile/DSP/DSP_bot/DSP_bot_switch_matrix.v",
+    "Tile/DSP/DSP_top/DSP_top.v",
+    "Tile/DSP/DSP_top/DSP_top_ConfigMem.csv",
+    "Tile/DSP/DSP_top/DSP_top_ConfigMem.v",
+    "Tile/DSP/DSP_top/DSP_top_switch_matrix.v",
+    "Tile/N_term_DSP/N_term_DSP.v",
+    "Tile/N_term_DSP/N_term_DSP_switch_matrix.v",
+    "Tile/N_term_RAM_IO/N_term_RAM_IO.v",
+    "Tile/N_term_RAM_IO/N_term_RAM_IO_switch_matrix.v",
+    "Tile/N_term_single/N_term_single.v",
+    "Tile/N_term_single/N_term_single_switch_matrix.v",
+    "Tile/N_term_single2/N_term_single2.v",
+    "Tile/N_term_single2/N_term_single2_switch_matrix.v",
+    "Tile/RAM_IO/RAM_IO.v",
+    "Tile/RAM_IO/RAM_IO_ConfigMem.csv",
+    "Tile/RAM_IO/RAM_IO_ConfigMem.v",
+    "Tile/RAM_IO/RAM_IO_switch_matrix.v",
+    "Tile/RegFile/RegFile.v",
+    "Tile/RegFile/RegFile_ConfigMem.csv",
+    "Tile/RegFile/RegFile_ConfigMem.v",
+    "Tile/RegFile/RegFile_switch_matrix.v",
+    "Tile/S_term_DSP/S_term_DSP.v",
+    "Tile/S_term_DSP/S_term_DSP_switch_matrix.v",
+    "Tile/S_term_RAM_IO/S_term_RAM_IO.v",
+    "Tile/S_term_RAM_IO/S_term_RAM_IO_switch_matrix.v",
+    "Tile/S_term_single/S_term_single.v",
+    "Tile/S_term_single/S_term_single_switch_matrix.v",
+    "Tile/S_term_single2/S_term_single2.v",
+    "Tile/S_term_single2/S_term_single2_switch_matrix.v",
+    "Tile/W_IO/W_IO.v",
+    "Tile/W_IO/W_IO_ConfigMem.csv",
+    "Tile/W_IO/W_IO_ConfigMem.v",
+    "Tile/W_IO/W_IO_switch_matrix.v",
+}
+
+NPNR_ARTIFACTS = {
+    ".FABulous/bel.txt",
+    ".FABulous/bel.v2.txt",
+    ".FABulous/bel.v3.txt",
+    ".FABulous/pips.txt",
+    ".FABulous/placement_estimate.txt",
+    ".FABulous/template.pcf",
+}
+
+RUN_FAB_ARTIFACTS = (
+    ALL_TILE_ARTIFACTS
+    | NPNR_ARTIFACTS
+    | {
+        ".FABulous/bitStreamSpec.bin",
+        ".FABulous/bitStreamSpec.csv",
+        "Fabric/eFPGA.v",
+        "Fabric/eFPGA_top.v",
+        "eFPGA_geometry.csv",
+    }
+)
 
 
-def test_gen_config_mem(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating configuration memory."""
-    run_cmd(cli, f"gen_config_mem {TILE}")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert f"Generating Config Memory for {TILE}" in log[0]
-    assert "ConfigMem generation complete" in log[-1]
+def project_files(project_dir: Path) -> set[str]:
+    """Return every file under `project_dir` as a posix path relative to it."""
+    return {
+        f.relative_to(project_dir).as_posix()
+        for f in project_dir.rglob("*")
+        if f.is_file()
+    }
 
 
-def test_gen_switch_matrix(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating switch matrix."""
-    run_cmd(cli, f"gen_switch_matrix {TILE}")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert f"Generating switch matrix for {TILE}" in log[0]
-    assert "Switch matrix generation complete" in log[-1]
+@pytest.mark.usefixtures("cli")
+def test_load_fabric() -> None:
+    """`load_fabric` builds the fabric and records every tile that has a directory."""
+    repl = FABulousREPL(
+        "verilog", force=False, interactive=False, verbose=False, debug=True
+    )
+    assert not repl.fabric_loaded
+
+    run_cmd(repl, "load_fabric")
+
+    assert repl.exit_code == 0
+    assert repl.fabric_loaded
+    assert sorted(repl.all_tile) == DEMO_TILES
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_new_files"),
+    [
+        pytest.param(
+            f"gen_config_mem {TILE}",
+            {"Tile/LUT4AB/LUT4AB_ConfigMem.v"},
+            id="config_mem",
+        ),
+        pytest.param(
+            f"gen_switch_matrix {TILE}",
+            {"Tile/LUT4AB/LUT4AB_switch_matrix.v"},
+            id="switch_matrix",
+        ),
+        pytest.param(f"gen_tile {TILE}", LUT4AB_TILE_ARTIFACTS, id="tile"),
+        pytest.param("gen_all_tile", ALL_TILE_ARTIFACTS, id="all_tile"),
+        pytest.param(
+            "gen_fabric", ALL_TILE_ARTIFACTS | {"Fabric/eFPGA.v"}, id="fabric"
+        ),
+        pytest.param("gen_top_wrapper", {"Fabric/eFPGA_top.v"}, id="top_wrapper"),
+        pytest.param("gen_model_npnr", NPNR_ARTIFACTS, id="model_npnr"),
+        pytest.param(
+            "gen_bitStream_spec",
+            {".FABulous/bitStreamSpec.bin", ".FABulous/bitStreamSpec.csv"},
+            id="bitstream_spec",
+        ),
+        pytest.param("run_fab", RUN_FAB_ARTIFACTS, id="run_fab"),
+        pytest.param("run_FABulous_fabric", RUN_FAB_ARTIFACTS, id="deprecated_run_fab"),
+    ],
+)
+def test_generation_command_writes_artifacts(
+    cli: FABulousREPL,
+    caplog: pytest.LogCaptureFixture,
+    command: str,
+    expected_new_files: set[str],
+) -> None:
+    """Each generation command writes exactly its artifacts, all non-empty."""
+    before = project_files(cli.projectDir)
+
+    run_cmd(cli, command)
+
+    normalize_and_check_for_errors(caplog.text)
+    assert cli.exit_code == 0
+    new_files = project_files(cli.projectDir) - before
+    assert new_files == expected_new_files
+    assert all((cli.projectDir / f).stat().st_size > 0 for f in new_files)
+
+
+def test_run_FABulous_fabric_warns_and_forwards_to_run_fab(
+    cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The deprecated alias warns once and runs `run_fab`."""
+    spy = mocker.patch.object(cli, "onecmd_plus_hooks")
+    caplog.clear()
+
+    cli.get_command_func("run_FABulous_fabric")("")
+
+    spy.assert_called_once_with("run_fab")
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings == [
+        "The 'run_FABulous_fabric' command is deprecated. Use 'run_fab' instead."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("padding", "expected_size"),
+    [("", ("3018", "4770")), ("16", ("3562", "7202"))],
+    ids=["default-8", "16"],
+)
+def test_gen_geometry(
+    cli: FABulousREPL, padding: str, expected_size: tuple[str, str]
+) -> None:
+    """The padding argument sets the fabric outline written for FABulator."""
+    run_cmd(cli, f"gen_geometry {padding}".strip())
+
+    assert cli.exit_code == 0
+    rows = (cli.projectDir / "eFPGA_geometry.csv").read_text().splitlines()
+    width, height = expected_size
+    assert rows[5:7] == [f"Width,{width}", f"Height,{height}"]
 
 
 def test_switch_matrix_list_csv_conversion_preserve_order(
@@ -94,22 +260,6 @@ def test_switch_matrix_list_csv_conversion_default(
     assert all(set(back_conns[k]) == set(src_conns[k]) for k in src_conns)
 
 
-def test_gen_tile(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating tile."""
-    run_cmd(cli, f"gen_tile {TILE}")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert f"Generating tile {TILE}" in log[0]
-    assert "Tile generation complete" in log[-1]
-
-
-def test_gen_all_tile(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating all tiles."""
-    run_cmd(cli, "gen_all_tile")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating all tiles" in log[0]
-    assert "All tiles generation complete" in log[-1]
-
-
 def test_gen_tile_aborts_on_sub_command_failure(
     cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
@@ -130,65 +280,6 @@ def test_gen_tile_aborts_on_sub_command_failure(
 
     assert cli.exit_code != 0, "gen_tile must report the failed sub-command"
     gen_config_mem.assert_not_called()
-
-
-def test_gen_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating fabric."""
-    run_cmd(cli, "gen_fabric")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating fabric " in log[0]
-    assert "Fabric generation complete" in log[-1]
-
-
-def test_gen_geometry(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating geometry."""
-    # Test with default padding
-    run_cmd(cli, "gen_geometry")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating geometry" in log[0]
-    assert "geometry generation complete" in log[-2].lower()
-
-    # Test with custom padding
-    run_cmd(cli, "gen_geometry 16")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating geometry" in log[0]
-    assert "can now be imported into fabulator" in log[-1].lower()
-
-
-def test_gen_top_wrapper(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating top wrapper."""
-    run_cmd(cli, "gen_top_wrapper")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating top wrapper" in log[0]
-    assert "Top wrapper generation complete" in log[-1]
-
-
-def test_run_fab(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test running FABulous fabric flow."""
-    run_cmd(cli, "run_fab")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Running FABulous" in log[0]
-    assert "FABulous fabric flow complete" in log[-1]
-
-
-def test_run_FABulous_fabric_deprecated(
-    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Test the deprecated `run_FABulous_fabric` alias delegates to `run_fab`."""
-    run_cmd(cli, "run_FABulous_fabric")
-
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert any("run_fab" in r.message for r in caplog.records)
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "FABulous fabric flow complete" in log[-1]
-
-
-def test_gen_model_npnr(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating nextpnr model."""
-    run_cmd(cli, "gen_model_npnr")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating npnr model" in log[0]
-    assert "Generated npnr model" in log[-1]
 
 
 def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
@@ -244,14 +335,30 @@ def test_gen_macro_tile_without_io_pin_config_generates_for_tile(
 
 
 @pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test running simulation via Taskfile."""
+def test_run_simulation(cli: FABulousREPL) -> None:
+    """The bitstream becomes a hex image and the Taskfile simulation task runs on it."""
+    bitstream = (cli.projectDir / "user_design" / "sequential_16bit_en.bin").resolve()
+
     run_cmd(cli, SIM_CMD)
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
+
+    assert cli.exit_code == 0
+    # the cli fixture enables debug, which run_task forwards as --verbose
+    assert [call[1:] for call in find_task_calls()] == [
+        [
+            "run-simulation",
+            "--verbose",
+            "WAVEFORM_TYPE=fst",
+            "DESIGN=sequential_16bit_en",
+            f"BITSTREAM_BIN={bitstream}",
+        ]
+    ]
+    hex_lines = (
+        (cli.projectDir / "Test" / "build" / "sequential_16bit_en.hex")
+        .read_text()
+        .splitlines()
+    )
+    assert hex_lines[:4] == ["de", "ad", "be", "ef"]
+    assert hex_lines[4:] == ["0"] * (MAX_BITBYTES - 4)
 
 
 @pytest.mark.usefixtures("simulation_mock")
@@ -259,121 +366,113 @@ def test_run_simulation_makefile_fallback(
     cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test simulation falls back to Makefile with deprecation warning."""
-    # Remove Taskfile.yml so it falls back to Makefile
-    (cli.projectDir / "Test" / "Taskfile.yml").unlink()
+    """Without a Taskfile the deprecated Makefile target runs instead."""
+    test_dir = cli.projectDir / "Test"
+    (test_dir / "Taskfile.yml").unlink()
 
-    caplog.clear()
     run_cmd(cli, SIM_CMD)
 
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert any("Simulation finished" in r.message for r in caplog.records)
+    assert cli.exit_code == 0
+    assert find_task_calls() == []
+    run_mock = cast("MockType", subprocess.run)
+    run_mock.assert_called_once_with(
+        ["make", "-C", str(test_dir), "run_simulation"], check=True
+    )
+    assert any(
+        r.levelname == "WARNING" and "Makefiles are deprecated" in r.message
+        for r in caplog.records
+    )
 
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_no_taskfile_no_makefile(
-    cli: FABulousREPL,
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Test simulation errors when neither Taskfile.yml nor Makefile exists."""
-    # Remove both Taskfile.yml and Makefile
+    """With neither a Taskfile nor a Makefile the command fails and runs nothing."""
     test_dir = cli.projectDir / "Test"
     (test_dir / "Taskfile.yml").unlink()
     (test_dir / "Makefile").unlink(missing_ok=True)
 
     run_cmd(cli, SIM_CMD)
-    assert cli.exit_code != 0
+
+    assert cli.exit_code == 1
+    cast("MockType", subprocess.run).assert_not_called()
+    assert f"No Taskfile.yml or Makefile found in {test_dir}" in caplog.text
 
 
 @pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_extra_flags(
+@pytest.mark.parametrize(
+    ("flag", "task_var"),
+    [
+        ("--extra-iverilog-flag=-DSOME_DEFINE", "EXTRA_IVERILOG_FLAGS=-DSOME_DEFINE"),
+        pytest.param(
+            '--extra-iverilog-flag="-DSOME_DEFINE"',
+            "EXTRA_IVERILOG_FLAGS=-DSOME_DEFINE",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    'cmd2 keeps quotes inside a `--flag="value"` token, so the '
+                    "Taskfile variable carries literal quotes"
+                ),
+            ),
+        ),
+        (
+            "--extra-nvc-flag=--ieee-warnings=error",
+            "EXTRA_NVC_FLAGS=--ieee-warnings=error",
+        ),
+        ("--extra-ghdl-flag=--std=08", "EXTRA_GHDL_FLAGS=--std=08"),
+        ("--simulator=iverilog", "SIMULATOR=iverilog"),
+        ("--simulator=xvlog", "SIMULATOR=xvlog"),
+        ("--simulator=nvc", "SIMULATOR=nvc"),
+        ("--simulator=ghdl", "SIMULATOR=ghdl"),
+        ("--simulator=xvhdl", "SIMULATOR=xvhdl"),
+        ("--simulator=auto", "SIMULATOR=auto"),
+        ("-d my_custom_design", "DESIGN=my_custom_design"),
+    ],
+)
+def test_run_simulation_forwards_flag_as_task_var(
     cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
+    flag: str,
+    task_var: str,
 ) -> None:
-    """Test simulation passes extra iverilog flags to Taskfile."""
-    run_cmd(cli, f'{SIM_CMD} --extra-iverilog-flag="-DSOME_DEFINE"')
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
+    """Each `run_simulation` flag reaches the Taskfile as its `KEY=value` variable."""
+    run_cmd(cli, f"{SIM_CMD} {flag}")
 
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("EXTRA_IVERILOG_FLAGS" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_extra_nvc_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --extra-nvc-flag to Taskfile as EXTRA_NVC_FLAGS."""
-    run_cmd(cli, f'{SIM_CMD} --extra-nvc-flag="--ieee-warnings=error"')
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
-
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("EXTRA_NVC_FLAGS" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_simulator_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --simulator to Taskfile as SIMULATOR."""
-    for sim in ("iverilog", "xvlog", "nvc", "ghdl", "xvhdl", "auto"):
-        run_cmd(cli, f"{SIM_CMD} --simulator={sim}")
-        log = normalize_and_check_for_errors(caplog.text)
-        assert "Simulation finished" in log[-1]
-
-        task_cmds = find_task_calls()
-        assert len(task_cmds) >= 1
-        assert any(f"SIMULATOR={sim}" in arg for arg in task_cmds[-1])
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_with_design_flag(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation passes --design flag to Taskfile as DESIGN variable."""
-    run_cmd(cli, f"{SIM_CMD} -d my_custom_design")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Simulation finished" in log[-1]
-
-    task_cmds = find_task_calls()
-    assert len(task_cmds) >= 1
-    assert any("DESIGN=my_custom_design" in arg for arg in task_cmds[-1])
+    assert cli.exit_code == 0
+    assert task_var in find_task_calls()[-1]
 
 
 def test_run_tcl_with_tcl_command(
-    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, tmp_path: Path
+    cli: FABulousREPL, capfd: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """Test running a Tcl script with tcl command."""
-    script_content = '# Dummy Tcl script\nputs "Text from tcl"'
+    """`run_tcl` evaluates the script in the embedded Tcl interpreter."""
     tcl_script_path = tmp_path / "test_script.tcl"
-    with tcl_script_path.open("w") as f:
-        f.write(script_content)
+    tcl_script_path.write_text('# Dummy Tcl script\nputs "Text from tcl"')
 
-    run_cmd(cli, f"run_tcl {str(tcl_script_path)}")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert f"Execute TCL script {str(tcl_script_path)}" in log[0]
-    assert "TCL script executed" in log[-1]
+    run_cmd(cli, f"run_tcl {tcl_script_path}")
+
+    assert cli.exit_code == 0
+    assert "Text from tcl\n" in capfd.readouterr().out
 
 
 def test_run_tcl_with_fabulous_command(
     cli: FABulousREPL, caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
-    """Test running a Tcl script with FABulous command."""
+    """FABulous commands called from Tcl run with their arguments."""
+    top_wrapper = cli.projectDir / "user_design" / "top_wrapper.v"
+    top_wrapper.unlink()
     test_script = tmp_path / "test_script.tcl"
     test_script.write_text(
         "load_fabric\n"
         "gen_user_design_wrapper user_design/sequential_16bit_en.v "
         "user_design/top_wrapper.v\n"
     )
+
     run_cmd(cli, f"run_tcl {test_script}")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Generated user design top wrapper" in log[-2]
-    assert "TCL script executed" in log[-1]
+
+    normalize_and_check_for_errors(caplog.text)
+    assert cli.exit_code == 0
+    assert "sequential_16bit_en " in top_wrapper.read_text()
 
 
 def test_run_fab_sv_extension(
@@ -526,27 +625,50 @@ def test_start_klayout_gui_layer_file(
     assert Path(cmd[cmd.index("-l") + 1]) == expected_layer_file
 
 
-class TestResolveDirectionalFix:
-    """``_resolve_directional_fix`` maps a fix flag onto a directional mode."""
-
-    def test_fix_height_implies_find_min_width(self) -> None:
-        mode, die_area = _resolve_directional_fix(OptMode.NO_OPT, None, Decimal(245))
-        assert mode == OptMode.FIND_MIN_WIDTH
-        assert die_area == [0, 0, Decimal(245), Decimal(245)]
-
-    def test_fix_width_implies_find_min_height(self) -> None:
-        mode, die_area = _resolve_directional_fix(OptMode.NO_OPT, Decimal(246), None)
-        assert mode == OptMode.FIND_MIN_HEIGHT
-        assert die_area == [0, 0, Decimal(246), Decimal(246)]
-
-    def test_fix_height_consistent_with_explicit_mode(self) -> None:
-        mode, _ = _resolve_directional_fix(OptMode.FIND_MIN_WIDTH, None, Decimal(245))
-        assert mode == OptMode.FIND_MIN_WIDTH
-
-    def test_no_fix_flags_passthrough(self) -> None:
-        mode, die_area = _resolve_directional_fix(OptMode.BALANCE, None, None)
-        assert mode == OptMode.BALANCE
-        assert die_area is None
+@pytest.mark.parametrize(
+    ("opt_mode", "fix_width", "fix_height", "expected_mode", "expected_die_area"),
+    [
+        pytest.param(
+            OptMode.NO_OPT,
+            None,
+            Decimal(245),
+            OptMode.FIND_MIN_WIDTH,
+            [0, 0, Decimal(245), Decimal(245)],
+            id="fix-height-implies-find-min-width",
+        ),
+        pytest.param(
+            OptMode.NO_OPT,
+            Decimal(246),
+            None,
+            OptMode.FIND_MIN_HEIGHT,
+            [0, 0, Decimal(246), Decimal(246)],
+            id="fix-width-implies-find-min-height",
+        ),
+        pytest.param(
+            OptMode.FIND_MIN_WIDTH,
+            None,
+            Decimal(245),
+            OptMode.FIND_MIN_WIDTH,
+            [0, 0, Decimal(245), Decimal(245)],
+            id="fix-height-with-matching-mode",
+        ),
+        pytest.param(
+            OptMode.BALANCE, None, None, OptMode.BALANCE, None, id="no-fix-passthrough"
+        ),
+    ],
+)
+def test_resolve_directional_fix(
+    opt_mode: OptMode,
+    fix_width: Decimal | None,
+    fix_height: Decimal | None,
+    expected_mode: OptMode,
+    expected_die_area: list[int | Decimal] | None,
+) -> None:
+    """A fix flag selects the directional mode and a square starting die area."""
+    assert _resolve_directional_fix(opt_mode, fix_width, fix_height) == (
+        expected_mode,
+        expected_die_area,
+    )
 
 
 @pytest.mark.parametrize(
@@ -592,34 +714,32 @@ class TestGenMacroTileFlags:
         mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
         return mocker.patch.object(cli.fabulousAPI, "genTileMacro")
 
-    def test_fix_height_sets_mode_and_die_area(
-        self, cli: FABulousREPL, mocker: MockerFixture
+    @pytest.mark.parametrize(
+        ("flag", "expected_mode", "size"),
+        [
+            ("--fix-height 245", OptMode.FIND_MIN_WIDTH, Decimal(245)),
+            ("--fix-width 246", OptMode.FIND_MIN_HEIGHT, Decimal(246)),
+        ],
+        ids=["fix-height", "fix-width"],
+    )
+    def test_fix_flag_sets_mode_and_die_area(
+        self,
+        cli: FABulousREPL,
+        mocker: MockerFixture,
+        flag: str,
+        expected_mode: OptMode,
+        size: Decimal,
     ) -> None:
         gen_macro = self._patch(cli, mocker)
 
-        run_cmd(cli, f"gen_macro tile {TILE} --fix-height 245")
+        run_cmd(cli, f"gen_macro tile {TILE} {flag}")
 
         kwargs = gen_macro.call_args.kwargs
-        assert kwargs["optimisation"] == OptMode.FIND_MIN_WIDTH
-        overrides = kwargs["custom_config_overrides"]
-        assert overrides["DIE_AREA"] == [0, 0, Decimal(245), Decimal(245)]
-        assert overrides["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH
-
-    def test_fix_width_sets_mode_and_die_area(
-        self, cli: FABulousREPL, mocker: MockerFixture
-    ) -> None:
-        gen_macro = self._patch(cli, mocker)
-
-        run_cmd(cli, f"gen_macro tile {TILE} --fix-width 246")
-
-        kwargs = gen_macro.call_args.kwargs
-        assert kwargs["optimisation"] == OptMode.FIND_MIN_HEIGHT
-        assert kwargs["custom_config_overrides"]["DIE_AREA"] == [
-            0,
-            0,
-            Decimal(246),
-            Decimal(246),
-        ]
+        assert kwargs["optimisation"] == expected_mode
+        assert kwargs["custom_config_overrides"] == {
+            "FABULOUS_OPT_MODE": expected_mode,
+            "DIE_AREA": [0, 0, size, size],
+        }
 
     def test_fix_height_conflicting_mode_aborts(
         self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
@@ -658,38 +778,48 @@ class TestGenMacroFullForwarding:
         )
         return mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
-    def test_forwards_nlp_flags(self, cli: FABulousREPL, mocker: MockerFixture) -> None:
-        full_auto = self._patch(cli, mocker)
-
-        run_cmd(cli, "gen_macro full --nlp-only --nlp-area-margin 0.1")
-
-        full_auto.assert_called_once()
-        kwargs = full_auto.call_args.kwargs
-        assert kwargs["nlp_only"] is True
-        assert kwargs["nlp_area_margin"] == pytest.approx(0.1)
-        assert kwargs["tile_opt_config"] is None
-
-    def test_forwards_defaults(self, cli: FABulousREPL, mocker: MockerFixture) -> None:
-        full_auto = self._patch(cli, mocker)
-
-        run_cmd(cli, "gen_macro full")
-
-        kwargs = full_auto.call_args.kwargs
-        assert kwargs["nlp_only"] is False
-        assert kwargs["nlp_area_margin"] == pytest.approx(0.05)
-        assert kwargs["tile_opt_config"] is None
-
-    def test_forwards_tile_opt_info_as_path(
-        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("flags", "expected_kwargs"),
+        [
+            pytest.param(
+                "",
+                {"tile_opt_config": None, "nlp_only": False, "nlp_area_margin": 0.05},
+                id="defaults",
+            ),
+            pytest.param(
+                "--nlp-only --nlp-area-margin 0.1",
+                {"tile_opt_config": None, "nlp_only": True, "nlp_area_margin": 0.1},
+                id="nlp-flags",
+            ),
+            pytest.param(
+                "--tile-opt-info summary.json",
+                {
+                    "tile_opt_config": Path("summary.json"),
+                    "nlp_only": False,
+                    "nlp_area_margin": 0.05,
+                },
+                id="tile-opt-info",
+            ),
+        ],
+    )
+    def test_forwards_flags(
+        self,
+        cli: FABulousREPL,
+        mocker: MockerFixture,
+        flags: str,
+        expected_kwargs: dict[str, object],
     ) -> None:
         full_auto = self._patch(cli, mocker)
-        summary = tmp_path / "tile_optimisation_summary.json"
-        summary.touch()
 
-        run_cmd(cli, f"gen_macro full --tile-opt-info {summary}")
+        run_cmd(cli, f"gen_macro full {flags}".strip())
 
-        tile_opt_config = full_auto.call_args.kwargs["tile_opt_config"]
-        assert tile_opt_config == Path(summary)
+        full_auto.assert_called_once()
+        macro_dir = cli.projectDir / "Fabric" / "macro"
+        assert full_auto.call_args.args[:2] == (cli.projectDir, macro_dir)
+        assert full_auto.call_args.kwargs == {
+            "base_config_path": cli.projectDir / "Fabric" / "gds_config.yaml",
+            **expected_kwargs,
+        }
 
     def test_skips_when_pdk_not_set(
         self, cli: FABulousREPL, mocker: MockerFixture
@@ -702,6 +832,8 @@ class TestGenMacroFullForwarding:
         run_cmd(cli, "gen_macro full")
 
         full_auto.assert_not_called()
+        # bug: the missing PDK is only logged, so the command still exits 0
+        assert cli.exit_code == 0
 
 
 class TestGenMacroAllTile:
@@ -722,8 +854,8 @@ class TestGenMacroAllTile:
 
         run_cmd(cli, f"gen_macro all_tile {flags}".strip())
 
-        hardened = {call.args[0].name for call in gen_tile_macro_mock.call_args_list}
-        assert hardened == set(cli.all_tile)
+        hardened = [call.args[0].name for call in gen_tile_macro_mock.call_args_list]
+        assert sorted(hardened) == DEMO_TILES
 
     @pytest.mark.parametrize(
         ("flags", "expected_mode", "expected_die_area"),
@@ -749,14 +881,16 @@ class TestGenMacroAllTile:
 
         run_cmd(cli, f"gen_macro all_tile {flags}")
 
-        assert gen_tile_macro_mock.call_count == len(cli.all_tile)
-        for call in gen_tile_macro_mock.call_args_list:
-            assert call.kwargs["optimisation"] == expected_mode
-            overrides = call.kwargs["custom_config_overrides"]
-            if expected_die_area is None:
-                assert overrides is None
-            else:
-                assert overrides["DIE_AREA"] == expected_die_area
+        expected_overrides = (
+            None
+            if expected_die_area is None
+            else {"FABULOUS_OPT_MODE": expected_mode, "DIE_AREA": expected_die_area}
+        )
+        forwarded = [
+            (call.kwargs["optimisation"], call.kwargs["custom_config_overrides"])
+            for call in gen_tile_macro_mock.call_args_list
+        ]
+        assert forwarded == [(expected_mode, expected_overrides)] * len(DEMO_TILES)
 
     @pytest.mark.parametrize(
         "command",

@@ -10,7 +10,6 @@ from dotenv import set_key
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
-from tests.conftest import run_cmd
 
 TILE = "LUT4AB"
 
@@ -141,17 +140,12 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
 def simulation_mock(cli: FABulousREPL, mocker: MockerFixture) -> None:
     """Prepare a CLI instance for simulation tests.
 
-    Mocks subprocess.run, generates the fabric, creates the required design artifacts
-    (.json, .fasm, .bin), and runs bitstream generation.
+    Mocks `subprocess.run` and places a four-byte `0xdeadbeef` bitstream where
+    `compile_design` would write it.
     """
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
-    run_cmd(cli, "run_fab")
-
-    user_design = cli.projectDir / "user_design"
-    for suffix in (".json", ".fasm", ".bin"):
-        (user_design / f"sequential_16bit_en{suffix}").touch()
-
-    run_cmd(cli, "compile_design ./user_design/sequential_16bit_en.v")
+    bitstream = cli.projectDir / "user_design" / "sequential_16bit_en.bin"
+    bitstream.write_bytes(b"\xde\xad\xbe\xef")
 
 
 def find_task_calls() -> list[list[str]]:

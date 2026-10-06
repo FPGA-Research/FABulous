@@ -11,11 +11,11 @@ import json
 from pathlib import Path
 
 import pytest
-import pytest_mock
 from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.yosys_obj import YosysJson
+from fabulous.fabulous_settings import get_context
 
 
 def _module(attributes: dict, cells: dict | None = None) -> dict:
@@ -49,103 +49,71 @@ def _load(mocker: MockerFixture, tmp_path: Path, modules: dict) -> YosysJson:
     return YosysJson(src)
 
 
-@pytest.mark.parametrize(
-    (
-        "suffix",
-        "set_env",
-        "json_text",
-        "vhdl_text",
-        "expected_calls",
-        "expect_substrings",
-    ),
-    [
-        (
-            ".vhdl",
-            {"FAB_PROJ_LANG": "VHDL"},
-            '{"modules": {"test": {}}}',
-            "entity test is end entity;",
-            2,
-            [(0, "ghdl"), (1, "yosys")],
-        ),
-        (
-            ".sv",
-            {},
-            "{}",
-            None,
-            1,
-            [(None, "read_verilog -sv")],
-        ),
-        (
-            ".v",
-            {},
-            "{}",
-            None,
-            1,
-            [(None, "read_verilog")],
-        ),
-    ],
-)
-def test_yosys_json_initialization_parametric(
-    mocker: pytest_mock.MockerFixture,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    suffix: str,
-    set_env: dict[str, str],
-    json_text: str,
-    vhdl_text: str | None,
-    expected_calls: int,
-    expect_substrings: list[tuple[int | None, str]],
-) -> None:
-    """Parametrized test for YosysJson initialization across HDL types."""
-    # Mock external dependencies
-    m = mocker.patch(
-        "subprocess.run",
-        return_value=type(
-            "MockResult",
-            (),
-            {"stdout": "mock output", "stderr": "", "returncode": 0},
-        )(),
+def _yosys_call(mocker: MockerFixture, verilog: Path, json_file: Path) -> object:
+    """Return the expected `subprocess.run` call converting `verilog` to JSON."""
+    return mocker.call(
+        [
+            str(get_context().yosys_path),
+            "-q",
+            f"-p read_verilog -sv {verilog}; hierarchy -auto-top; proc -noopt; "
+            f"write_json -compat-int {json_file}",
+        ],
+        input="",
+        text=True,
+        capture_output=True,
+        check=False,
     )
 
-    # Apply environment if provided (e.g., force VHDL mode)
-    for k, v in (set_env or {}).items():
-        monkeypatch.setenv(k, v)
 
-    # Provide a valid models pack path to satisfy FABulousSettings validation
-    if suffix in {".vhd", ".vhdl"}:
-        mp = tmp_path / "models_pack.vhdl"
-    elif suffix == ".sv":
-        mp = tmp_path / "models_pack.v"  # .v is acceptable for SystemVerilog projects
-    else:
-        mp = tmp_path / "models_pack.v"
-    mp.write_text("// dummy models pack\n")
-    monkeypatch.setenv("FAB_MODELS_PACK", str(mp))
-
-    # Prepare files
-    (tmp_path / "file.json").write_text(json_text)
+@pytest.mark.parametrize("suffix", [".v", ".sv"])
+def test_verilog_is_read_by_yosys_directly(
+    mocker: MockerFixture, tmp_path: Path, suffix: str
+) -> None:
+    """Verilog and SystemVerilog go straight to Yosys, one call, no GHDL."""
+    run = _mock_tools(mocker)
     src = tmp_path / f"file{suffix}"
-    if vhdl_text is not None:
-        src.write_text(vhdl_text)
-    else:
-        src.touch()
+    src.touch()
+    src.with_suffix(".json").write_text('{"modules": {"file": {}}}')
 
-    # Ensure companion json exists for .v as in original test
-    src.with_suffix(".json").touch(exist_ok=True)
+    yosys_json = YosysJson(src)
 
-    # Run
+    assert run.call_args_list == [_yosys_call(mocker, src, src.with_suffix(".json"))]
+    assert list(yosys_json.modules) == ["file"]
+
+
+def test_vhdl_is_elaborated_by_ghdl_then_read_by_yosys(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """VHDL is elaborated to Verilog by GHDL, whose output Yosys then reads."""
+    run = _mock_tools(mocker, stdout="module file; endmodule\n")
+    src = tmp_path / "file.vhdl"
+    src.write_text("entity file is end entity;")
+    src.with_suffix(".json").write_text('{"modules": {"file": {}}}')
+
     YosysJson(src)
 
-    # Assertions
-    assert m.call_count == expected_calls
-    if expected_calls == 1:
-        # Check any-call substrings against the single call args
-        for _, needle in expect_substrings:
-            assert needle in str(m.call_args)
-    else:
-        # Check indexed call substrings
-        for idx, needle in expect_substrings:
-            assert idx is not None
-            assert needle in str(m.call_args_list[idx])
+    ghdl_call = mocker.call(
+        [
+            str(get_context().ghdl_path),
+            "--synth",
+            "--std=08",
+            "--out=verilog",
+            mocker.ANY,  # per-invocation stub package in a temp file
+            str(get_context().models_pack),
+            str(src),
+            "-e",
+            "file",
+        ],
+        input="",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert run.call_args_list == [
+        ghdl_call,
+        _yosys_call(mocker, src.with_suffix(".v"), src.with_suffix(".json")),
+    ]
+    assert src.with_suffix(".v").read_text() == "module file; endmodule\n"
 
 
 def test_yosys_json_file_not_exists(tmp_path: Path) -> None:

@@ -1,11 +1,11 @@
 """Tests for FABulousFabricMacroFlow - Fabric stitching flow.
 
 Tests focus on:
-- Flow initialization and configuration
 - Die area computation
 - Macro overlap validation
 - Tile size validation
 - Row and column size computation
+- Spacing variable types and step substitutions
 """
 
 # ruff: noqa: SLF001
@@ -23,9 +23,14 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
+    FABulousFabricVHDLMacroFlow,
     configs,
-    subs,
 )
+from fabulous.fabric_generator.gds_generator.flows.flow_define import physical_steps
+from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+    FABulousFabricIOPlacement,
+)
+from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import FABulousPDN
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
@@ -100,7 +105,10 @@ class TestComputeDieArea:
 
 
 class TestValidateNoMacroOverlaps:
-    """Tests for _validate_no_macro_overlaps method."""
+    """Tests for _validate_no_macro_overlaps method.
+
+    Every tile is 100 x 100; a placement is `(tile, instance, x, y)`.
+    """
 
     @pytest.fixture
     def flow(self, mocker: MockerFixture) -> MagicMock:
@@ -111,119 +119,62 @@ class TestValidateNoMacroOverlaps:
         )
         return mock_flow
 
-    def test_no_overlaps_single_macro(self, flow: MagicMock) -> None:
-        """Test validation passes with a single macro."""
-        instance: Instance = create_instance(Decimal(0), Decimal(0))
-        macro: Macro = create_macro({"inst1": instance})
-        macros: dict[str, Macro] = {"tile1": macro}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100))
-        }
+    @staticmethod
+    def _macros(placements: list[tuple[str, str, int, int]]) -> dict[str, Macro]:
+        instances: dict[str, dict[str, Instance]] = {}
+        for tile, instance, x, y in placements:
+            instances.setdefault(tile, {})[instance] = create_instance(
+                Decimal(x), Decimal(y)
+            )
+        return {tile: create_macro(insts) for tile, insts in instances.items()}
 
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
+    @pytest.mark.parametrize(
+        "placements",
+        [
+            pytest.param([], id="empty"),
+            pytest.param([("t1", "i1", 0, 0)], id="single"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 200, 0)], id="apart"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 100, 0)], id="x_touching"),
+            pytest.param([("t1", "i1", 0, 0), ("t2", "i2", 0, 100)], id="y_touching"),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 200, 50)], id="y_overlap_only"
+            ),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 50, 200)], id="x_overlap_only"
+            ),
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t1", "i2", 200, 0)], id="same_macro_apart"
+            ),
+        ],
+    )
+    def test_accepts_disjoint_placements(
+        self, flow: MagicMock, placements: list[tuple[str, str, int, int]]
+    ) -> None:
+        """Placements that at most share an edge pass validation."""
+        tile_sizes = {tile: (Decimal(100), Decimal(100)) for tile, *_ in placements}
 
-    def test_no_overlaps_multiple_macros(self, flow: MagicMock) -> None:
-        """Test validation passes with non-overlapping macros."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(0))
+        assert (
+            flow._validate_no_macro_overlaps(flow, self._macros(placements), tile_sizes)
+            is True
+        )
 
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_overlapping_macros_raises_error(self, flow: MagicMock) -> None:
-        """Test validation raises error when macros overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(50), Decimal(50))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
+    @pytest.mark.parametrize(
+        "placements",
+        [
+            pytest.param(
+                [("t1", "i1", 0, 0), ("t2", "i2", 50, 50)], id="different_macros"
+            ),
+            pytest.param([("t1", "i1", 0, 0), ("t1", "i2", 50, 50)], id="same_macro"),
+        ],
+    )
+    def test_rejects_overlapping_placements(
+        self, flow: MagicMock, placements: list[tuple[str, str, int, int]]
+    ) -> None:
+        """Two instances whose areas intersect fail, whichever macro they belong to."""
+        tile_sizes = {tile: (Decimal(100), Decimal(100)) for tile, *_ in placements}
 
         with pytest.raises(ValueError, match="overlapping macros detected"):
-            flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-
-    def test_adjacent_macros_no_overlap(self, flow: MagicMock) -> None:
-        """Test that adjacent (touching) macros don't count as overlapping."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(100), Decimal(0))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_multiple_instances_in_same_macro(self, flow: MagicMock) -> None:
-        """Test validation with multiple instances in the same macro."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(0))
-
-        macro: Macro = create_macro({"inst1": instance1, "inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100))
-        }
-
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_y_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in Y but not X don't overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(200), Decimal(50))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in Y (0-100 and 50-150) but not in X
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_x_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in X but not Y don't overlap."""
-        instance1: Instance = create_instance(Decimal(0), Decimal(0))
-        instance2: Instance = create_instance(Decimal(50), Decimal(200))
-
-        macro1: Macro = create_macro({"inst1": instance1})
-        macro2: Macro = create_macro({"inst2": instance2})
-
-        macros: dict[str, Macro] = {"tile1": macro1, "tile2": macro2}
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in X (0-100 and 50-150) but not in Y
-        result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
+            flow._validate_no_macro_overlaps(flow, self._macros(placements), tile_sizes)
 
     def test_instance_without_location(self, flow: MagicMock) -> None:
         """Test handling of instance without location set."""
@@ -249,11 +200,6 @@ class TestValidateNoMacroOverlaps:
 
         # Should not raise - just logs error
         result: bool = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_empty_macros_dict(self, flow: MagicMock) -> None:
-        """Test with empty macros dictionary."""
-        result: bool = flow._validate_no_macro_overlaps(flow, {}, {})
         assert result is True
 
 
@@ -331,7 +277,7 @@ class TestValidateTileSizes:
 
 
 class TestComputeRowAndColumnSizes:
-    """Tests for _compute_row_and_column_sizes method."""
+    """Tests for _compute_row_and_column_sizes method on real fabrics."""
 
     @pytest.fixture
     def flow(self, mocker: MockerFixture) -> MagicMock:
@@ -420,15 +366,6 @@ class TestComputeRowAndColumnSizes:
             flow._compute_row_and_column_sizes(flow, fabric, tile_sizes)
 
 
-class TestFlowConfiguration:
-    """Tests for flow configuration and class attributes."""
-
-    def test_flow_has_substitutions(self) -> None:
-        """Test that flow has expected substitutions."""
-        assert "OpenROAD.STAPrePNR*" in subs
-        assert subs["OpenROAD.STAPrePNR*"] is None
-
-
 class TestSpacingVariableTypes:
     """Type-system checks for the Union-typed spacing variables.
 
@@ -507,20 +444,40 @@ class TestSpacingVariableTypes:
 
 
 class TestFlowSubstitutions:
-    """Tests for the flow's step substitutions."""
+    """The class-level `Substitutions` reach `Steps` on both HDL variants."""
 
-    def test_io_placement_substitution(self) -> None:
-        """Test IO placement substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
-            FABulousFabricIOPlacement,
-        )
+    # Placement, timing repair and STA steps a macro-only fabric must not run.
+    REMOVED_STEP_IDS: frozenset[str] = frozenset(
+        {
+            "OpenROAD.CutRows",
+            "OpenROAD.TapEndcapInsertion",
+            "OpenROAD.STAPrePNR",
+            "OpenROAD.STAMidPNR",
+            "OpenROAD.STAPostPNR",
+            "OpenROAD.GeneratePDN",
+            "Odb.CustomIOPlacement",
+            "Odb.ApplyDEFTemplate",
+            "OpenROAD.GlobalPlacement",
+            "Odb.ManualGlobalPlacement",
+            "OpenROAD.DetailedPlacement",
+            "OpenROAD.RepairDesignPostGPL",
+            "OpenROAD.RepairDesignPostGRT",
+            "OpenROAD.RepairAntennas",
+            "OpenROAD.ResizerTimingPostCTS",
+            "OpenROAD.ResizerTimingPostGRT",
+            "OpenROAD.RCX",
+            "OpenROAD.IRDropReport",
+        }
+    )
 
-        assert subs["Odb.CustomIOPlacement"] == FABulousFabricIOPlacement
+    @pytest.mark.parametrize(
+        "flow_cls", [FABulousFabricMacroFlow, FABulousFabricVHDLMacroFlow]
+    )
+    def test_substituted_steps(self, flow_cls: type[FABulousFabricMacroFlow]) -> None:
+        """Removed steps are gone and the IO placer / PDN are the FABulous ones."""
+        assert {step.id for step in physical_steps} >= self.REMOVED_STEP_IDS
 
-    def test_pdn_substitution(self) -> None:
-        """Test PDN substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
-            FABulousPDN,
-        )
+        step_ids: set[str] = {step.id for step in flow_cls.Steps}
 
-        assert subs["OpenROAD.GeneratePDN"] == FABulousPDN
+        assert step_ids.isdisjoint(self.REMOVED_STEP_IDS)
+        assert {FABulousFabricIOPlacement, FABulousPDN} <= set(flow_cls.Steps)

@@ -96,14 +96,29 @@ def test_delay_type_all_modes_without_nominal(
     assert tg.delay_type(delay_paths, kind) == expected
 
 
-def test_delay_type_nominal_shortcut_uses_max_of_nominal_min_and_max() -> None:
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        (DelayType.MAX_ALL, 8.0),
+        pytest.param(
+            DelayType.MIN_ALL,
+            2.0,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="delay_type returns the nominal max for every kind",
+            ),
+        ),
+    ],
+)
+def test_delay_type_nominal_overrides_fast_and_slow(
+    kind: DelayType, expected: float
+) -> None:
     delay_paths = {
         "nominal": {"min": 2.0, "max": 8.0},
         "fast": {"min": 100.0, "max": 200.0},
         "slow": {"min": 300.0, "max": 400.0},
     }
-    assert tg.delay_type(delay_paths, DelayType.MIN_ALL) == 8.0
-    assert tg.delay_type(delay_paths, DelayType.MAX_ALL) == 8.0
+    assert tg.delay_type(delay_paths, kind) == expected
 
 
 def test_delay_type_missing_values_are_treated_as_zero() -> None:
@@ -113,9 +128,7 @@ def test_delay_type_missing_values_are_treated_as_zero() -> None:
     }
     assert tg.delay_type(delay_paths, DelayType.MIN_ALL) == 0.0
     assert tg.delay_type(delay_paths, DelayType.MAX_ALL) == 2.5
-    assert (
-        tg.delay_type(delay_paths, DelayType.AVG_ALL) == (0.0 + 1.5 + 2.5 + 0.0) / 4.0
-    )
+    assert tg.delay_type(delay_paths, DelayType.AVG_ALL) == 1.0
 
 
 def test_delay_type_unknown_kind_raises_value_error() -> None:

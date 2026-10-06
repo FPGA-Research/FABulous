@@ -1,9 +1,7 @@
 """Tests for odb_power module - validates coordinate transformation and geometry."""
 
-import sys
 from enum import Enum
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import pytest
 
@@ -28,6 +26,8 @@ class GeometryRecorder:
         self.bboxes: list[
             tuple[str, FakeMetalLayersEnum, int, int, int, int]
         ] = []  # bterm, layer, x1, y1, x2, y2
+        self.bterms: list[FakeBTerm] = []
+        self.bpins: list[FakeBPin] = []
 
 
 class FakeGeometry:
@@ -87,8 +87,8 @@ class FakeMTerm:
     def getMPins(self) -> list[FakeMPin]:
         return self._mpins
 
-    def getSigType(self) -> list[FakeMPin]:
-        return self._mpins
+    def getSigType(self) -> str:
+        return self._mtype
 
 
 class FakeMaster:
@@ -166,22 +166,24 @@ class FakeBTerm:
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self._type = None
+        self._type: str | None = None
+        self._io_type: str | None = None
+        self._special = False
 
     def getName(self) -> str:
         return self._name
 
     def setIoType(self, io_type: str) -> None:
-        pass
+        self._io_type = io_type
 
     def setSigType(self, sig_type: str | None) -> None:
         self._type = sig_type
 
-    def getSigType(self) -> str:
+    def getSigType(self) -> str | None:
         return self._type
 
     def setSpecial(self) -> None:
-        pass
+        self._special = True
 
 
 class FakeBPin:
@@ -189,7 +191,7 @@ class FakeBPin:
 
     def __init__(self, bterm: FakeBTerm) -> None:
         self._bterm = bterm
-        self._status = None
+        self._status: str | None = None
 
     def setPlacementStatus(self, status: str) -> None:
         self._status = status
@@ -228,16 +230,20 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
         return net
 
     def dbBTerm_create(_net: FakeNet, name: str) -> FakeBTerm:
-        return FakeBTerm(name)
+        bterm = FakeBTerm(name)
+        recorder.bterms.append(bterm)
+        return bterm
 
     def dbBPin_create(bterm: FakeBTerm) -> FakeBPin:
-        return FakeBPin(bterm)
+        bpin = FakeBPin(bterm)
+        recorder.bpins.append(bpin)
+        return bpin
 
-    def dbSWire_create(net: FakeNet, mode: str) -> Mock:
-        return Mock(net=net, mode=mode)
+    def dbSWire_create(net: FakeNet, mode: str) -> SimpleNamespace:
+        return SimpleNamespace(net=net, mode=mode)
 
     def dbSBox_create(
-        wire: Mock,
+        wire: SimpleNamespace,
         _layer: FakeMetalLayersEnum,
         x1: int,
         y1: int,
@@ -295,22 +301,14 @@ def test_power_transforms_coordinates_correctly() -> None:
     )
 
 
-def test_power_handles_multiple_instances(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that power() processes multiple instances correctly."""
+def test_power_handles_multiple_instances() -> None:
+    """Every instance's supply pins become wire and pin boxes at its own offset."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
 
-    # Create two instances at different locations
-    vpwr_geom = FakeGeometry(0, 0, 50, 50)
-    vgnd_geom = FakeGeometry(0, 0, 50, 50)
-
-    vpwr_mpin = FakeMPin([vpwr_geom])
-    vgnd_mpin = FakeMPin([vgnd_geom])
-    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
-    vgnd_mterm = FakeMTerm("VGND", [vgnd_mpin], "GROUND")
+    vpwr_mterm = FakeMTerm("VPWR", [FakeMPin([FakeGeometry(0, 0, 50, 50)])], "POWER")
+    vgnd_mterm = FakeMTerm("VGND", [FakeMPin([FakeGeometry(0, 0, 50, 50)])], "GROUND")
     master = FakeMaster([vpwr_mterm, vgnd_mterm])
-
     inst1 = FakeInst("tile_0", (0, 0), master)
     inst2 = FakeInst("tile_1", (100, 100), master)
 
@@ -318,84 +316,104 @@ def test_power_handles_multiple_instances(monkeypatch: pytest.MonkeyPatch) -> No
     propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
     propagate_supply_net(fake_odb, reader, supply_name="VGND", supply_type="GROUND")
 
-    # Should have 2 VPWR boxes (one per instance) and 2 VGND boxes
-    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
-    vgnd_sboxes = [box for box in recorder.sboxes if box[0] == "VGND"]
-
-    assert len(vpwr_sboxes) == 2, "Should create SBox for each instance's VPWR"
-    assert len(vgnd_sboxes) == 2, "Should create SBox for each instance's VGND"
-
-    # Verify first instance (at origin)
-    assert (FakeMetalLayersEnum.METAL1, 0, 0, 50, 50) in [
-        box[1:] for box in vpwr_sboxes
+    expected = [
+        ("VPWR", FakeMetalLayersEnum.METAL1, 0, 0, 50, 50),
+        ("VPWR", FakeMetalLayersEnum.METAL1, 100, 100, 150, 150),
+        ("VGND", FakeMetalLayersEnum.METAL1, 0, 0, 50, 50),
+        ("VGND", FakeMetalLayersEnum.METAL1, 100, 100, 150, 150),
     ]
-    # Verify second instance (offset by 100, 100)
-    assert (FakeMetalLayersEnum.METAL1, 100, 100, 150, 150) in [
-        box[1:] for box in vpwr_sboxes
-    ]
+    assert recorder.sboxes == expected
+    assert recorder.bboxes == expected
 
 
-def test_power_handles_multiple_geometries_per_pin(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("geometries", "expected"),
+    [
+        pytest.param(
+            [
+                FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1),
+                FakeGeometry(20, 20, 30, 30, techLayer=FakeMetalLayersEnum.METAL2),
+                FakeGeometry(40, 40, 50, 50, techLayer=FakeMetalLayersEnum.METAL3),
+            ],
+            [
+                ("VPWR", FakeMetalLayersEnum.METAL1, 5, 7, 15, 17),
+                ("VPWR", FakeMetalLayersEnum.METAL2, 25, 27, 35, 37),
+                ("VPWR", FakeMetalLayersEnum.METAL3, 45, 47, 55, 57),
+            ],
+            id="distinct-boxes",
+        ),
+        pytest.param(
+            # One bbox on three layers, as in a via stack: no box may be merged.
+            [
+                FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1),
+                FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL2),
+                FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL3),
+            ],
+            [
+                ("VPWR", FakeMetalLayersEnum.METAL1, 5, 7, 15, 17),
+                ("VPWR", FakeMetalLayersEnum.METAL2, 5, 7, 15, 17),
+                ("VPWR", FakeMetalLayersEnum.METAL3, 5, 7, 15, 17),
+            ],
+            id="stacked-layers",
+        ),
+    ],
+)
+def test_power_copies_every_geometry_with_its_layer(
+    geometries: list[FakeGeometry],
+    expected: list[tuple[str, FakeMetalLayersEnum, int, int, int, int]],
 ) -> None:
-    """Test that power() creates boxes for all geometries in a pin."""
+    """Each shape of a supply pin becomes one wire box and one pin box on its layer."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
 
-    # Create pin with multiple geometry shapes
-    geom1 = FakeGeometry(0, 0, 10, 10)
-    geom2 = FakeGeometry(20, 20, 30, 30)
-    geom3 = FakeGeometry(40, 40, 50, 50)
-
-    vpwr_mpin = FakeMPin([geom1, geom2, geom3])
-    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
-    master = FakeMaster([vpwr_mterm])
-    inst = FakeInst("tile_0", (0, 0), master)
+    vpwr_mterm = FakeMTerm("VPWR", [FakeMPin(geometries)], "POWER")
+    inst = FakeInst("tile_0", (5, 7), FakeMaster([vpwr_mterm]))
 
     reader = FakeReader([inst])
     propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
 
-    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
-    assert len(vpwr_sboxes) == 3, "Should create SBox for each geometry"
-
-    # Verify all three geometries are present
-    coords = [box[1:] for box in vpwr_sboxes]
-    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
-    assert (FakeMetalLayersEnum.METAL1, 20, 20, 30, 30) in coords
-    assert (FakeMetalLayersEnum.METAL1, 40, 40, 50, 50) in coords
+    assert recorder.sboxes == expected
+    assert recorder.bboxes == expected
 
 
-def test_power_creates_nets_and_bterms_correctly(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that power() creates VPWR/VGND nets and bterms with correct properties."""
+def test_power_creates_nets_and_bterms_correctly() -> None:
+    """A missing supply net is created special; its top-level pin is INOUT and FIRM."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
+    reader = FakeReader([])
 
-    # Create instance with both VPWR and VGND
-    vpwr_geom = FakeGeometry(0, 0, 10, 10)
-    vgnd_geom = FakeGeometry(0, 0, 10, 10)
-    vpwr_mpin = FakeMPin([vpwr_geom])
-    vgnd_mpin = FakeMPin([vgnd_geom])
-    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
-    vgnd_mterm = FakeMTerm("VGND", [vgnd_mpin], "GROUND")
-    master = FakeMaster([vpwr_mterm, vgnd_mterm])
-    inst = FakeInst("tile_0", (0, 0), master)
-
-    reader = FakeReader([inst])
     propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
     propagate_supply_net(fake_odb, reader, supply_name="VGND", supply_type="GROUND")
 
-    # Verify nets were created
-    vpwr_net = reader.block.findNet("VPWR")
-    vgnd_net = reader.block.findNet("VGND")
+    nets = [reader.block.findNet("VPWR"), reader.block.findNet("VGND")]
+    assert [(n.getName(), n.getSigType(), n._special) for n in nets] == [  # noqa: SLF001
+        ("VPWR", "POWER", True),
+        ("VGND", "GROUND", True),
+    ]
+    assert [
+        (b.getName(), b._io_type, b.getSigType(), b._special)  # noqa: SLF001
+        for b in recorder.bterms
+    ] == [("VPWR", "INOUT", "POWER", True), ("VGND", "INOUT", "GROUND", True)]
+    assert [(p._bterm, p._status) for p in recorder.bpins] == [  # noqa: SLF001
+        (recorder.bterms[0], "FIRM"),
+        (recorder.bterms[1], "FIRM"),
+    ]
 
-    assert vpwr_net is not None, "VPWR net should be created"
-    assert vgnd_net is not None, "VGND net should be created"
-    assert vpwr_net.getSigType() == "POWER", "VPWR should have POWER signal type"
-    assert vgnd_net.getSigType() == "GROUND", "VGND should have GROUND signal type"
+
+def test_power_reuses_existing_supply_net() -> None:
+    """An existing supply net is reused as-is and its type flows to the new pin."""
+    recorder = GeometryRecorder()
+    fake_odb = make_fake_odb_with_geometry(recorder)
+    reader = FakeReader([])
+    existing = FakeNet("VPWR")
+    existing.setSigType("ANALOG")
+    reader.block._add_net(existing)  # noqa: SLF001
+
+    propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
+
+    assert reader.block.findNet("VPWR") is existing
+    assert (existing.getSigType(), existing._special) == ("ANALOG", False)  # noqa: SLF001
+    assert [b.getSigType() for b in recorder.bterms] == ["ANALOG"]
 
 
 def test_power_connects_iterms_to_nets() -> None:
@@ -441,65 +459,3 @@ def test_power_handles_empty_block() -> None:
     assert reader.block.findNet("VGND") is not None
     assert len(recorder.sboxes) == 0, "No SBoxes should be created for empty block"
     assert len(recorder.bboxes) == 0, "No BBoxes should be created for empty block"
-
-
-def test_power_handles_multiple_metal_layers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that power() creates boxes for all geometries in a pin."""
-    recorder = GeometryRecorder()
-    fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
-
-    # Create pin with multiple geometry shapes
-    geom1 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1)
-    geom2 = FakeGeometry(20, 20, 30, 30, techLayer=FakeMetalLayersEnum.METAL2)
-    geom3 = FakeGeometry(40, 40, 50, 50, techLayer=FakeMetalLayersEnum.METAL3)
-
-    vpwr_mpin = FakeMPin([geom1, geom2, geom3])
-    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
-    master = FakeMaster([vpwr_mterm])
-    inst = FakeInst("tile_0", (0, 0), master)
-
-    reader = FakeReader([inst])
-    propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
-
-    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
-    assert len(vpwr_sboxes) == 3, "Should create SBox for each geometry"
-
-    # Verify all three geometries are present
-    coords = [box[1:] for box in vpwr_sboxes]
-    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
-    assert (FakeMetalLayersEnum.METAL2, 20, 20, 30, 30) in coords
-    assert (FakeMetalLayersEnum.METAL3, 40, 40, 50, 50) in coords
-
-
-def test_power_handles_stacked_metal_layers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test that power() creates boxes for all geometries in a pin."""
-    recorder = GeometryRecorder()
-    fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
-
-    # Create pin with multiple geometry shapes
-    geom1 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1)
-    geom2 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL2)
-    geom3 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL3)
-
-    vpwr_mpin = FakeMPin([geom1, geom2, geom3])
-    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
-    master = FakeMaster([vpwr_mterm])
-    inst = FakeInst("tile_0", (0, 0), master)
-
-    reader = FakeReader([inst])
-    propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
-
-    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
-    assert len(vpwr_sboxes) == 3, "Should create SBox for each geometry"
-
-    # Verify all three geometries are present
-    coords = [box[1:] for box in vpwr_sboxes]
-    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
-    assert (FakeMetalLayersEnum.METAL2, 0, 0, 10, 10) in coords
-    assert (FakeMetalLayersEnum.METAL3, 0, 0, 10, 10) in coords

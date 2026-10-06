@@ -65,7 +65,7 @@ class PinPlacementRecorder:
 class MockBPinIoPlace:
     """Mock ODB boundary pin for IO place tests."""
 
-    def __init__(self, bterm_name: str | None = None) -> None:
+    def __init__(self, bterm_name: str) -> None:
         self.status: str | None = None
         self.bterm_name = bterm_name
 
@@ -323,17 +323,15 @@ def mock_odb_io_place(pin_placement_recorder: PinPlacementRecorder) -> SimpleNam
 
     def dbBox_create(
         bpin: MockBPinIoPlace,
-        layer: object,
+        layer: str,
         x1: int,
         y1: int,
         x2: int,
         y2: int,
     ) -> None:
-        layer_name = layer.getName() if hasattr(layer, "getName") else str(layer)
-        if isinstance(bpin, MockBPinIoPlace) and bpin.bterm_name:
-            pin_placement_recorder.placements.append(
-                (bpin.bterm_name, layer_name, x1, y1, x2, y2)
-            )
+        pin_placement_recorder.placements.append(
+            (bpin.bterm_name, layer, x1, y1, x2, y2)
+        )
 
     destroyed_bterms: list[MockBTermIoPlace] = []
     destroyed_nets: list[MockNetIoPlace] = []

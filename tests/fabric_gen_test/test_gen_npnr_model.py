@@ -10,6 +10,8 @@ from fabulous.fabric_cad.gen_npnr_model import (
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
+_TIMING_PREFIXES = ("Delay,", "SetupHold,", "ClkToOut,", "Clock,")
+
 
 def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
     """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
@@ -41,9 +43,14 @@ def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
     assert "GlobalClk\n" in belv2
     assert "GlobalClk," not in belv2
 
-    # v2 must not contain any timing lines.
-    for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
-        assert keyword not in belv2
+    # v3 is v2 plus timing arcs: dropping the arcs and the clock arrival time
+    # must give v2 back line for line.
+    structural_v3 = [
+        line.replace("GlobalClk,1.0", "GlobalClk")
+        for line in belv3.splitlines()
+        if not line.startswith(_TIMING_PREFIXES)
+    ]
+    assert structural_v3 == belv2.splitlines()
 
 
 def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
@@ -56,10 +63,9 @@ def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
     bel.belFeatureMap = {}
     bel.withUserCLK = False
 
-    _, _, v3_lines, _ = belLines(bel, "A", 0, 0)
+    _, v2_lines, v3_lines, _ = belLines(bel, "A", 0, 0)
 
-    for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
-        assert not any(line.startswith(keyword) for line in v3_lines)
+    assert v3_lines == v2_lines
 
 
 def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
@@ -104,18 +110,20 @@ def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
 def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(
     cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
-    """bel.v3's BEL-internal timing arcs stay fixed regardless of pip delay.
+    """bel.v3 stays identical when a delay model supplies real pip delays.
 
     LUT/FF/carry timing is a property of the standard cell's implementation,
     physically unrelated to interconnect (pip) delay - a supplied
-    delay_model's real pip delay must NOT change bel.v3's arc values.
+    delay_model's real pip delay must NOT change bel.v3, while it does reach
+    the pips.
     """
     fake_model = mocker.Mock()
     fake_model.pip_delay.return_value = 6.0
+    fabric = cli.fabulousAPI.fabric
 
-    _, _, _, belv3, _ = genNextpnrModel(cli.fabulousAPI.fabric, fake_model)
+    pips_default, _, _, belv3_default, _ = genNextpnrModel(fabric)
+    pips_timed, _, _, belv3_timed, _ = genNextpnrModel(fabric, fake_model)
 
-    assert "Delay,I0,O,3.0,FF=0" in belv3
-    assert "Delay,Ci,Co,0.2,Ci/Co?" in belv3
-    assert "SetupHold,I0,CLK,2.5,0.1,FF=1" in belv3
-    assert "ClkToOut,Q,CLK,1.0,FF=1" in belv3
+    assert belv3_timed == belv3_default
+    assert ",6.0," in pips_timed
+    assert ",6.0," not in pips_default

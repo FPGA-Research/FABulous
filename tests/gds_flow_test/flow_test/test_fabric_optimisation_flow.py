@@ -122,8 +122,12 @@ class TestValidateProjectDir:
         # Only create tile1, not tile2
         (tile_dir / "tile1").mkdir()
 
-        with pytest.raises(FileNotFoundError, match="Missing tile directories"):
+        with pytest.raises(FileNotFoundError) as exc_info:
             flow._validate_project_dir(flow, tmp_path, mock_fabric)
+
+        assert str(exc_info.value) == (
+            f"Missing tile directories in {tile_dir}:\n  - tile2 (regular Tile)"
+        )
 
     def test_validate_project_dir_with_supertiles(
         self,
@@ -167,8 +171,12 @@ class TestValidateProjectDir:
         tile_dir: Path = tmp_path / "Tile"
         tile_dir.mkdir()
 
-        with pytest.raises(FileNotFoundError, match="SuperTile"):
+        with pytest.raises(FileNotFoundError) as exc_info:
             flow._validate_project_dir(flow, tmp_path, fabric)
+
+        assert str(exc_info.value) == (
+            f"Missing tile directories in {tile_dir}:\n  - SuperTile1 (SuperTile)"
+        )
 
 
 _FLOW_MODULE = "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow"
@@ -213,23 +221,12 @@ class TestRunTileFlowWorker:
         surface with its stack trace.
         """
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.FABulousTileVerilogMacroFlow",
+            f"{_FLOW_MODULE}.FABulousTileVerilogMacroFlow",
             side_effect=ValueError("Test error"),
         )
 
-        tile: MagicMock = mocker.MagicMock()
         with pytest.raises(ValueError, match="Test error"):
-            _run_tile_flow_worker(
-                tile,
-                tmp_path / "io.yaml",
-                OptMode.BALANCE,
-                tmp_path / "base.yaml",
-                tmp_path / "override.yaml",
-                "test_pdk",
-                tmp_path,
-                tmp_path / "models_pack.v",
-                HDLType.VERILOG,
-            )
+            _run_worker(mocker.MagicMock(), tmp_path, HDLType.VERILOG)
 
     def test_worker_recovers_state_on_deferred_flow_error(
         self, mocker: MockerFixture, tmp_path: Path
@@ -262,79 +259,60 @@ class TestRunTileFlowWorker:
         )
         assert pin_min == _PIN_MIN
 
-    def test_worker_returns_state_on_success(
-        self, mocker: MockerFixture, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("hdl_type", "selected", "unused"),
+        [
+            pytest.param(
+                HDLType.VERILOG,
+                "FABulousTileVerilogMacroFlow",
+                "FABulousTileVHDLMacroFlow",
+                id="verilog",
+            ),
+            pytest.param(
+                HDLType.VHDL,
+                "FABulousTileVHDLMacroFlow",
+                "FABulousTileVerilogMacroFlow",
+                id="vhdl",
+            ),
+        ],
+    )
+    def test_worker_builds_flow_and_returns_state(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        hdl_type: HDLType,
+        selected: str,
+        unused: str,
     ) -> None:
-        """Test that worker returns state on successful execution."""
+        """The HDL picks the tile flow, which gets every argument and override."""
         mock_state: MagicMock = mocker.MagicMock()
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
-        mock_flow.config = {
-            "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
-            "FABULOUS_PIN_MIN_HEIGHT": Decimal("10.0"),
-        }
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.FABulousTileVerilogMacroFlow",
-            return_value=mock_flow,
+        mock_flow.config = _PIN_MIN_CONFIG
+        selected_cls: MagicMock = mocker.patch(
+            f"{_FLOW_MODULE}.{selected}", return_value=mock_flow
+        )
+        unused_cls: MagicMock = mocker.patch(f"{_FLOW_MODULE}.{unused}")
+        tile: MagicMock = mocker.MagicMock()
+
+        result: WorkerResult = _run_worker(
+            tile, tmp_path, hdl_type, CUSTOM_KEY="custom_value"
         )
 
-        tile: MagicMock = mocker.MagicMock()
-        result: WorkerResult = _run_tile_flow_worker(
+        assert result == (mock_state, None, _PIN_MIN)
+        selected_cls.assert_called_once_with(
             tile,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
-            tmp_path / "base.yaml",
-            tmp_path / "override.yaml",
-            "test_pdk",
-            tmp_path,
-            tmp_path / "models_pack.v",
-            HDLType.VERILOG,
-        )
-
-        state, error_trace, pin_min = result
-        assert state is mock_state
-        assert error_trace is None
-        assert pin_min is not None
-
-
-class TestWorkerCustomOverrides:
-    """Tests for custom config overrides in worker function."""
-
-    def test_worker_passes_custom_overrides(
-        self, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Test that worker passes custom config overrides to flow."""
-        mock_state: MagicMock = mocker.MagicMock()
-        mock_flow: MagicMock = mocker.MagicMock()
-        mock_flow.start.return_value = mock_state
-        mock_flow.config = {
-            "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
-            "FABULOUS_PIN_MIN_HEIGHT": Decimal("10.0"),
-        }
-        mock_flow_class: MagicMock = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.FABulousTileVerilogMacroFlow",
-            return_value=mock_flow,
-        )
-
-        tile: MagicMock = mocker.MagicMock()
-        _run_tile_flow_worker(
-            tile,
-            tmp_path / "io.yaml",
-            OptMode.BALANCE,
-            tmp_path / "base.yaml",
-            tmp_path / "override.yaml",
-            "test_pdk",
-            tmp_path,
-            tmp_path / "models_pack.v",
-            HDLType.VERILOG,
+            pdk="test_pdk",
+            pdk_root=tmp_path,
+            models_pack_path=tmp_path / "models_pack.v",
+            base_config_path=tmp_path / "base.yaml",
+            override_config_path=tmp_path / "override.yaml",
+            design_dir=None,
             CUSTOM_KEY="custom_value",
         )
-
-        # Check that custom override was passed
-        call_kwargs = mock_flow_class.call_args
-        assert "CUSTOM_KEY" in call_kwargs.kwargs or (
-            len(call_kwargs.args) > 0 and hasattr(call_kwargs, "kwargs")
-        )
+        unused_cls.assert_not_called()
 
 
 def _logged_tokens(info_mock: MagicMock) -> list[list[str]]:
@@ -345,58 +323,60 @@ def _logged_tokens(info_mock: MagicMock) -> list[list[str]]:
 class TestLogNlpSummary:
     """Tests for the _log_nlp_summary static method."""
 
-    def test_logs_table_with_tile_rows_and_utilisation(
-        self, mocker: MockerFixture
+    @pytest.mark.parametrize(
+        ("metrics", "rows", "total"),
+        [
+            pytest.param(
+                {
+                    # nlp__tile__area maps name -> (x0, y0, width, height).
+                    "nlp__tile__area": {
+                        "tile1": (0, 0, 10.0, 20.0),
+                        "tile2": (0, 0, 5.0, 4.0),
+                    },
+                    "nlp__tile__stdcell_area": {"tile1": 100.0, "tile2": 5.0},
+                    "nlp__total__area": 220.0,
+                },
+                [
+                    ["tile1", "10.00", "20.00", "200.00", "50.0%"],
+                    ["tile2", "5.00", "4.00", "20.00", "25.0%"],
+                ],
+                "220.0",
+                id="utilisation",
+            ),
+            pytest.param(
+                {
+                    "nlp__tile__area": {"empty": (0, 0, 0.0, 0.0)},
+                    "nlp__tile__stdcell_area": {"empty": 0.0},
+                    "nlp__total__area": 0,
+                },
+                [["empty", "0.00", "0.00", "0.00", "0.0%"]],
+                "0",
+                id="zero_area_is_zero_util",
+            ),
+        ],
+    )
+    def test_logs_table(
+        self,
+        mocker: MockerFixture,
+        metrics: dict[str, object],
+        rows: list[list[str]],
+        total: str,
     ) -> None:
-        """Each tile produces a row containing its name and a utilisation %."""
-        info_mock = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.info"
-        )
-
+        """One row per tile: width, height, allocated area and utilisation."""
+        info_mock: MagicMock = mocker.patch(f"{_FLOW_MODULE}.info")
         nlp_state: MagicMock = mocker.MagicMock()
-        # nlp__tile__area maps name -> (x0, y0, width, height); util uses w*h.
-        nlp_state.metrics = {
-            "nlp__tile__area": {
-                "tile1": (0, 0, 10.0, 20.0),  # alloc area 200
-                "tile2": (0, 0, 5.0, 4.0),  # alloc area 20
-            },
-            "nlp__tile__stdcell_area": {
-                "tile1": 100.0,  # 50% util
-                "tile2": 5.0,  # 25% util
-            },
-            "nlp__total__area": 220.0,
-        }
+        nlp_state.metrics = metrics
 
         FABulousFabricOptimisationFlow._log_nlp_summary(nlp_state)
 
-        logged = "\n".join(str(call.args[0]) for call in info_mock.call_args_list)
-        assert "tile1" in logged
-        assert "tile2" in logged
-        # tile1: 100/200 -> 50.0%, tile2: 5/20 -> 25.0%
-        assert "50.0%" in logged
-        assert "25.0%" in logged
-        # The width/height columns are derived from dims[2]/dims[3].
-        assert "10.00" in logged
-        assert "20.00" in logged
-
-    def test_handles_zero_allocated_area(self, mocker: MockerFixture) -> None:
-        """A zero-area tile reports 0% utilisation instead of dividing by zero."""
-        info_mock = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.info"
-        )
-
-        nlp_state: MagicMock = mocker.MagicMock()
-        nlp_state.metrics = {
-            "nlp__tile__area": {"empty": (0, 0, 0.0, 0.0)},
-            "nlp__tile__stdcell_area": {"empty": 0.0},
-            "nlp__total__area": 0,
-        }
-
-        FABulousFabricOptimisationFlow._log_nlp_summary(nlp_state)
-
-        logged = "\n".join(str(call.args[0]) for call in info_mock.call_args_list)
-        assert "empty" in logged
-        assert "0.0%" in logged
+        rule: list[str] = ["-" * 64]
+        assert _logged_tokens(info_mock) == [
+            ["Tile", "Width", "Height", "Area", "Util"],
+            rule,
+            *rows,
+            rule,
+            ["Total", "fabric", "area", total],
+        ]
 
 
 class TestRunNlpOnlyEarlyReturn:
@@ -565,7 +545,7 @@ class TestFabricStaysOutOfTheConfig:
         )
 
         assert flow.fabric is fabric
-        assert "FABULOUS_FABRIC" not in flow.config
+        assert all(value is not fabric for value in flow.config.values())
 
     def test_config_survives_the_resolved_json_dump(
         self, mock_pdk_root: dict[str, Any], tmp_path: Path

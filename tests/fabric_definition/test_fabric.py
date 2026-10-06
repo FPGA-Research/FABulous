@@ -16,25 +16,25 @@ class TestFabricValidation:
     """Validate hardcoded bitstream and naming constraints."""
 
     @pytest.mark.parametrize(
-        "overrides",
+        ("rows", "columns"),
         [
-            pytest.param({}, id="defaults"),
-            pytest.param({"numberOfRows": 32}, id="rows_at_boundary"),
-            pytest.param({"numberOfColumns": 32}, id="columns_at_boundary"),
-            pytest.param(
-                {"numberOfRows": 32, "numberOfColumns": 32},
-                id="both_at_boundary",
-            ),
+            pytest.param(15, 15, id="defaults"),
+            pytest.param(32, 15, id="rows_at_boundary"),
+            pytest.param(15, 32, id="columns_at_boundary"),
+            pytest.param(32, 32, id="both_at_boundary"),
         ],
     )
     def test_valid_configurations(
         self,
         make_fabric: Callable[..., Fabric],
-        overrides: dict,
+        rows: int,
+        columns: int,
     ) -> None:
-        fabric = make_fabric(**overrides)
-        for key, value in overrides.items():
-            assert getattr(fabric, key) == value
+        """Grids up to the 32x32 bitstream limit are accepted unchanged."""
+        fabric = make_fabric(numberOfRows=rows, numberOfColumns=columns)
+
+        assert (fabric.numberOfRows, fabric.numberOfColumns) == (rows, columns)
+        assert (fabric.frameBitsPerRow, fabric.maxFramesPerCol) == (32, 20)
 
     @pytest.mark.parametrize(
         ("overrides", "error_match"),

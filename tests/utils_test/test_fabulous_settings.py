@@ -2,6 +2,7 @@
 
 import os
 from collections.abc import Generator
+from importlib.metadata import version as meta_version
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from packaging.version import Version
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_settings import (
     MODELS_PACK_REQUIRED_MODULES,
     FABulousSettings,
@@ -42,36 +44,44 @@ class TestFABulousSettings:
             if key.startswith("FAB_"):
                 monkeypatch.delenv(key, raising=False)
 
-        # Remove any existing project .env file to test defaults
-        project_env = project / ".FABulous" / ".env"
-        if project_env.exists():
-            project_env.unlink()
+        # Remove the project .env file written by create_project to test defaults
+        (project / ".FABulous" / ".env").unlink()
 
-        # Set minimal PATH to avoid system tools
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
-
-        # Mock which to return None (no tools found)
+        # No tool on PATH: every tool path falls back to its executable name
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
         settings = init_context(project)
 
-        # user_config_dir should be created and exist
-        assert settings.user_config_dir.exists()
-        assert settings.user_config_dir.is_dir()
-        assert settings.yosys_path == "yosys"
-        assert settings.nextpnr_path == "nextpnr-generic"
-        assert settings.iverilog_path == "iverilog"
-        assert settings.vvp_path == "vvp"
-        assert settings.klayout_path == "klayout"
-        assert settings.openroad_path == "openroad"
+        assert {
+            "yosys": settings.yosys_path,
+            "sta": settings.opensta_path,
+            "nextpnr-generic": settings.nextpnr_path,
+            "iverilog": settings.iverilog_path,
+            "vvp": settings.vvp_path,
+            "ghdl": settings.ghdl_path,
+            "klayout": settings.klayout_path,
+            "openroad": settings.openroad_path,
+        } == {
+            "yosys": "yosys",
+            "sta": "sta",
+            "nextpnr-generic": "nextpnr-generic",
+            "iverilog": "iverilog",
+            "vvp": "vvp",
+            "ghdl": "ghdl",
+            "klayout": "klayout",
+            "openroad": "openroad",
+        }
         assert settings.proj_dir == project
         assert settings.fabulator_root is None
-        # Note: oss_cad_suite might be set from previous tests or environment
-        assert isinstance(settings.proj_version_created, Version)
-        assert settings.proj_version_created == Version("0.0.1")  # Default value
-        assert isinstance(settings.proj_version, Version)
-        assert settings.proj_lang == "verilog"  # Default value
+        assert settings.oss_cad_suite is None
+        assert settings.proj_version_created == Version("0.0.1")
+        assert settings.proj_version == Version(meta_version("FABulous-FPGA"))
+        assert settings.proj_lang is HDLType.VERILOG
+        # With no FAB_MODELS_PACK, a Verilog project's pack is guessed.
+        assert settings.models_pack == project / "Fabric" / "models_pack.v"
+        assert settings.max_worker == 2
         assert settings.switch_matrix_debug_signal is False
+        assert settings.pdk is None
         assert settings.pdk_root is None
         assert settings.pdk_hash is None
 
@@ -94,11 +104,9 @@ class TestFABulousSettings:
 
         settings = init_context()
 
-        # user_config_dir should be created and exist
-        assert settings.user_config_dir.exists()
-        assert settings.user_config_dir.is_dir()
         assert settings.proj_dir == project
-        assert settings.proj_lang == "vhdl"
+        assert settings.proj_lang is HDLType.VHDL
+        assert settings.models_pack == project / "my_models_pack.vhdl"
         assert settings.switch_matrix_debug_signal is True
         assert settings.proj_version_created == Version("1.2.3")
 
@@ -122,39 +130,45 @@ class TestFABulousSettings:
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """A negative FAB_MAX_WORKER fails validation rather than being normalised."""
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
         monkeypatch.setenv("FAB_MAX_WORKER", "-1")
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
-        with pytest.raises(ValidationError):
+        with pytest.raises(ValidationError, match="max_worker"):
             init_context(project)
 
     def test_initialization_with_tool_paths_found(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, project: Path, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test FABulousSettings initialization when tools are found in PATH."""
-        # Clear all FAB_ environment variables
-        for key in list(os.environ.keys()):
-            if key.startswith("FAB_"):
-                monkeypatch.delenv(key, raising=False)
-
-        # Set minimal PATH to avoid system tools
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
-
-        mock_which = mocker.patch("fabulous.fabulous_settings.which")
-        mock_which.side_effect = lambda tool: {
-            "yosys": "/usr/bin/yosys",
-            "nextpnr-generic": "/usr/bin/nextpnr-generic",
-            "iverilog": "/usr/bin/iverilog",
-            "vvp": "/usr/bin/vvp",
-        }.get(tool)
+        """Every tool path field resolves its own executable through `which`."""
+        # Each tool resolves to a distinct directory, so a field looking up the
+        # wrong executable name lands on the wrong path.
+        tool_bin = tmp_path / "bin"
+        mocker.patch(
+            "fabulous.fabulous_settings.which",
+            side_effect=lambda tool: str(tool_bin / tool / tool),
+        )
 
         settings = init_context(project)
 
-        assert settings.yosys_path == Path("/usr/bin/yosys")
-        assert settings.nextpnr_path == Path("/usr/bin/nextpnr-generic")
-        assert settings.iverilog_path == Path("/usr/bin/iverilog")
-        assert settings.vvp_path == Path("/usr/bin/vvp")
+        assert {
+            "yosys_path": settings.yosys_path,
+            "opensta_path": settings.opensta_path,
+            "nextpnr_path": settings.nextpnr_path,
+            "iverilog_path": settings.iverilog_path,
+            "vvp_path": settings.vvp_path,
+            "ghdl_path": settings.ghdl_path,
+            "klayout_path": settings.klayout_path,
+            "openroad_path": settings.openroad_path,
+        } == {
+            "yosys_path": tool_bin / "yosys" / "yosys",
+            "opensta_path": tool_bin / "sta" / "sta",
+            "nextpnr_path": tool_bin / "nextpnr-generic" / "nextpnr-generic",
+            "iverilog_path": tool_bin / "iverilog" / "iverilog",
+            "vvp_path": tool_bin / "vvp" / "vvp",
+            "ghdl_path": tool_bin / "ghdl" / "ghdl",
+            "klayout_path": tool_bin / "klayout" / "klayout",
+            "openroad_path": tool_bin / "openroad" / "openroad",
+        }
 
     def test_initialization_with_explicit_tool_paths(
         self,
@@ -190,11 +204,17 @@ class TestFABulousSettings:
         assert settings.vvp_path == "vvp"
 
     def test_initialization_with_no_init_called(self, mocker: MockerFixture) -> None:
-        """Test init context in api mode."""
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
+        """Without init_context, get_context builds an unvalidated API-mode context."""
+        mock_which = mocker.patch("fabulous.fabulous_settings.which")
         settings = get_context()
+
+        # No validator runs: tools are not looked up and the cwd, which is not
+        # a FABulous project, is accepted as the project directory.
+        mock_which.assert_not_called()
         assert settings.yosys_path == "yosys"
         assert settings.nextpnr_path == "nextpnr-generic"
+        assert settings.proj_dir == Path.cwd()
+        assert not (Path.cwd() / ".FABulous").exists()
 
     @pytest.mark.parametrize(
         ("configured_pdk", "expected_pdk"),
@@ -235,22 +255,45 @@ class TestFABulousSettings:
 
 
 class TestFieldValidators:
-    """Test cases for field validators in FABulousSettings."""
+    """Field validators, exercised through real `FABulousSettings` validation."""
 
-    def test_validate_proj_lang_verilog(self) -> None:
-        """Test validate_proj_lang validator with verilog."""
-        result = FABulousSettings.validate_proj_lang("verilog")
-        assert result == "verilog"
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            pytest.param("verilog", HDLType.VERILOG, id="verilog"),
+            pytest.param("VHDL", HDLType.VHDL, id="upper_case"),
+            pytest.param(" System_Verilog ", HDLType.SYSTEM_VERILOG, id="padded"),
+            pytest.param(HDLType.VHDL, HDLType.VHDL, id="enum"),
+            *(
+                pytest.param(
+                    alias,
+                    expected,
+                    id=f"alias_{alias}",
+                    marks=pytest.mark.xfail(
+                        strict=True,
+                        reason="validate_proj_lang's alias map is unreachable: "
+                        "pydantic's HDLType enum check rejects the alias first",
+                    ),
+                )
+                for alias, expected in [
+                    ("v", HDLType.VERILOG),
+                    ("sv", HDLType.SYSTEM_VERILOG),
+                    ("vhd", HDLType.VHDL),
+                ]
+            ),
+        ],
+    )
+    def test_proj_lang_normalised(
+        self, project: Path, value: str | HDLType, expected: HDLType
+    ) -> None:
+        """The project language is case- and whitespace-insensitive."""
+        settings = FABulousSettings(proj_dir=project, proj_lang=value)
+        assert settings.proj_lang is expected
 
-    def test_validate_proj_lang_vhdl(self) -> None:
-        """Test validate_proj_lang validator with vhdl."""
-        result = FABulousSettings.validate_proj_lang("vhdl")
-        assert result == "vhdl"
-
-    def test_validate_proj_lang_invalid(self) -> None:
-        """Test validate_proj_lang validator with invalid language."""
-        with pytest.raises(ValueError, match="Invalid project language"):
-            FABulousSettings.validate_proj_lang("python")
+    def test_proj_lang_invalid_rejected(self, project: Path) -> None:
+        """An unknown project language fails validation."""
+        with pytest.raises(ValidationError, match="proj_lang"):
+            FABulousSettings(proj_dir=project, proj_lang="python")
 
     @pytest.mark.parametrize("exists", [False, True], ids=["created", "existing"])
     def test_user_config_dir_is_created(
@@ -266,15 +309,10 @@ class TestFieldValidators:
         assert settings.user_config_dir == config_dir
         assert config_dir.is_dir()
 
-    def test_is_valid_project_dir_with_fabulous_directory(self, tmp_path: Path) -> None:
-        """Test is_valid_project_dir validator with valid FABulous project."""
-        project_dir = tmp_path / "valid_project"
-        project_dir.mkdir()
-        fabulous_dir = project_dir / ".FABulous"
-        fabulous_dir.mkdir()
-
-        result = FABulousSettings.is_valid_project_dir(project_dir)
-        assert result == project_dir
+    def test_proj_dir_is_resolved(self, project: Path) -> None:
+        """A project directory given through `..` is stored resolved."""
+        settings = FABulousSettings(proj_dir=project / ".." / project.name)
+        assert settings.proj_dir == project.resolve()
 
     def test_proj_dir_without_fabulous_directory_rejected(self, tmp_path: Path) -> None:
         """A directory without `.FABulous` is not a FABulous project."""
@@ -301,120 +339,100 @@ class TestFieldValidators:
 class TestModelsPackValidation:
     """Tests for models-pack definition presence checks."""
 
-    @staticmethod
-    def _clear_fab_env(monkeypatch: pytest.MonkeyPatch) -> None:
-        """Remove FAB_* env vars to avoid cross-test leakage."""
-        for key in list(os.environ.keys()):
-            if key.startswith("FAB_"):
-                monkeypatch.delenv(key, raising=False)
-
-    def test_models_pack_missing_required_definitions_warns_verilog(
+    @pytest.mark.parametrize(
+        ("lang", "file_name", "content", "expected_missing"),
+        [
+            pytest.param(
+                "verilog",
+                "models_pack_incomplete.v",
+                "module config_latch(); endmodule\n"
+                "module my_buf(); endmodule\n"
+                "// module clk_buf(); endmodule\n"
+                "/*\nmodule cus_mux41(); endmodule\n*/\n",
+                ["clk_buf", "cus_mux41", "cus_mux21", "cus_mux81", "cus_mux161"],
+                id="verilog_commented_out_modules_missing",
+            ),
+            pytest.param(
+                "vhdl",
+                "my_lib_incomplete.vhdl",
+                "entity CONFIG_LATCH is\n"
+                "end entity CONFIG_LATCH;\n"
+                "entity MY_BUF is\n"
+                "end entity MY_BUF;\n"
+                "-- entity CLK_BUF is\n"
+                "-- end entity CLK_BUF;\n",
+                ["clk_buf", "cus_mux41", "cus_mux21", "cus_mux81", "cus_mux161"],
+                id="vhdl_entities_matched_case_insensitively",
+            ),
+            pytest.param(
+                "verilog",
+                "models_pack_complete.v",
+                "".join(
+                    f"module {module_name}(); endmodule\n"
+                    for module_name in MODELS_PACK_REQUIRED_MODULES
+                ),
+                [],
+                id="verilog_complete",
+            ),
+        ],
+    )
+    def test_missing_definitions_warning(
         self,
         project: Path,
         monkeypatch: pytest.MonkeyPatch,
         mocker: MockerFixture,
         caplog: pytest.LogCaptureFixture,
+        lang: str,
+        file_name: str,
+        content: str,
+        expected_missing: list[str],
     ) -> None:
-        """Warn when a Verilog models-pack misses required module definitions."""
-        self._clear_fab_env(monkeypatch)
+        """Warn with exactly the required definitions a models pack lacks."""
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-
-        models_pack = project / "Fabric" / "models_pack_incomplete.v"
-        models_pack.write_text(
-            "module config_latch(); endmodule\n"
-            "module my_buf(); endmodule\n"
-            "// module clk_buf(); endmodule\n"
-        )
-
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
-        monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
+        models_pack = project / "Fabric" / file_name
+        models_pack.write_text(content)
+        monkeypatch.setenv("FAB_PROJ_LANG", lang)
         monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
 
         settings = init_context(project)
 
-        assert settings.models_pack == models_pack.resolve()
-        assert any(
-            "missing the following models-pack definitions" in r.message
-            and "clk_buf" in r.message
-            for r in caplog.records
+        assert settings.models_pack == models_pack
+        messages = [r.message for r in caplog.records]
+        # Proves the validator ran and was captured, so an empty warning list
+        # below is not vacuous.
+        assert f"Using models pack at: {models_pack}" in messages
+        expected_warnings = (
+            [
+                f"The models pack at '{models_pack}' is missing the following "
+                f"models-pack definitions: {expected_missing}. "
+                "The models pack may be outdated. Update it to a recent "
+                "version from upstream FABulous, or use an older version "
+                "of FABulous."
+            ]
+            if expected_missing
+            else []
         )
-
-    def test_models_pack_missing_required_definitions_warns_vhdl(
-        self,
-        project: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        mocker: MockerFixture,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """Warn when a VHDL models-pack misses required entity definitions."""
-        self._clear_fab_env(monkeypatch)
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-
-        models_pack = project / "Fabric" / "my_lib_incomplete.vhdl"
-        models_pack.write_text(
-            "entity CONFIG_LATCH is\n"
-            "end entity CONFIG_LATCH;\n"
-            "entity MY_BUF is\n"
-            "end entity MY_BUF;\n"
-            "-- entity CLK_BUF is\n"
-            "-- end entity CLK_BUF;\n"
-        )
-
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
-        monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
-        monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
-
-        settings = init_context(project)
-
-        assert settings.models_pack == models_pack.resolve()
-        assert any(
-            "missing the following models-pack definitions" in r.message
-            and "clk_buf" in r.message
-            for r in caplog.records
-        )
-
-    def test_models_pack_with_all_required_definitions_has_no_missing_warning(
-        self,
-        project: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        mocker: MockerFixture,
-        caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        """Do not warn when all required Verilog definitions are present."""
-        self._clear_fab_env(monkeypatch)
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-
-        models_pack = project / "Fabric" / "models_pack_complete.v"
-        models_pack.write_text(
-            "\n".join(
-                f"module {module_name}(); endmodule"
-                for module_name in MODELS_PACK_REQUIRED_MODULES
-            )
-            + "\n"
-        )
-
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
-        monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
-        monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
-
-        settings = init_context(project)
-
-        assert settings.models_pack == models_pack.resolve()
-        assert not any(
-            "missing the following models-pack definitions" in r.message
-            for r in caplog.records
+        assert [m for m in messages if "missing the following" in m] == (
+            expected_warnings
         )
 
 
 class TestContextMethods:
     """Test cases for the new context management methods."""
 
-    def test_init_context_basic(self, project: Path) -> None:
-        """Test basic context initialization."""
+    def test_init_context_basic(self, project: Path, tmp_path: Path) -> None:
+        """A fresh project resolves its own `.FABulous/.env` settings."""
         settings = init_context(project_dir=project)
 
-        assert isinstance(settings, FABulousSettings)
         assert settings.proj_dir == project
+        assert settings.proj_lang is HDLType.VERILOG
+        assert settings.proj_version_created == Version(meta_version("FABulous-FPGA"))
+        # The .env stores "../Fabric/models_pack.v", relative to .FABulous.
+        assert settings.models_pack == project / "Fabric" / "models_pack.v"
+        # A ciel family PDK without FAB_PDK_ROOT is rooted in the ciel home,
+        # which the autouse test environment points at tmp_path/.ciel.
+        assert settings.pdk == "ihp-sg13g2"
+        assert settings.pdk_root == tmp_path / ".ciel" / "ihp-sg13"
 
     def test_init_context_with_global_env_file(
         self, project: Path, tmp_path: Path
@@ -439,17 +457,17 @@ class TestContextMethods:
     def test_init_context_with_project_env_file(
         self, project: Path, tmp_path: Path
     ) -> None:
-        """Test context initialization with project .env file."""
-        # Create project .env file
+        """An explicit project .env overrides the project's own `.FABulous/.env`."""
         project_env = tmp_path / "project.env"
         project_env.touch()
         set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
-        set_key(project_env, "FAB_PROJ_LANG", "verilog")
+        # .FABulous/.env also sets this one, to the installed FABulous version.
+        set_key(project_env, "FAB_PROJ_VERSION_CREATED", "9.9.9")
 
         settings = init_context(project_dir=project, project_dot_env=project_env)
 
         assert settings.switch_matrix_debug_signal is True
-        assert settings.proj_lang == "verilog"
+        assert settings.proj_version_created == Version("9.9.9")
 
     def test_init_context_env_file_precedence(
         self, project: Path, tmp_path: Path
@@ -497,15 +515,17 @@ class TestContextMethods:
         assert settings.proj_lang == "system_verilog"  # From fabulous .env
 
     def test_init_context_missing_env_file_warning(
-        self, project: Path, tmp_path: Path
+        self, project: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Test that missing global .env file produces warning but doesn't fail."""
+        """A missing explicit global .env file is warned about, then ignored."""
         nonexistent_env = tmp_path / "nonexistent.env"
 
-        # This should work without raising an exception
         settings = init_context(project_dir=project, global_dot_env=nonexistent_env)
 
-        assert isinstance(settings, FABulousSettings)
+        assert (
+            f"Explicit Global .env file: {nonexistent_env} is provided, "
+            "but this is not found, this entry is ignored" in caplog.text
+        )
         assert settings.proj_dir == project
 
     def test_init_context_overwrites_existing(
@@ -553,22 +573,19 @@ class TestContextMethods:
     def test_init_context_with_env_var_overrides(
         self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test that environment variables override .env file settings."""
-        # Create .env file
+        """Environment variables override .env values; other .env values apply."""
+        # Neither key is set by the project's own .FABulous/.env, which would
+        # otherwise outrank the global .env and hide the override.
         env_file = tmp_path / "test.env"
         env_file.touch()
-        set_key(env_file, "FAB_PROJ_LANG", "vhdl")
         set_key(env_file, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "false")
-
-        # Set environment variable that should override .env
-        monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
+        set_key(env_file, "FAB_MAX_WORKER", "7")
+        monkeypatch.setenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
 
         settings = init_context(project_dir=project, global_dot_env=env_file)
 
-        # Environment variable should override .env file
-        assert settings.proj_lang == "verilog"
-        # .env file setting should still apply where no env var exists
-        assert settings.switch_matrix_debug_signal is False
+        assert settings.switch_matrix_debug_signal is True
+        assert settings.max_worker == 7
 
     def test_context_with_invalid_env_file_values(
         self, project: Path, tmp_path: Path
@@ -901,14 +918,14 @@ class TestCheckPdkAutoResolution:
                 True,
                 False,
                 "custom_unknown_pdk",
-                "FAB_PDK_ROOT",
+                "is not supported by ciel and FAB_PDK_ROOT is not set",
                 id="pdk_without_root",
             ),
             pytest.param(
                 False,
                 True,
                 "ihp-sg13g2",
-                "FAB_PDK",
+                "FAB_PDK_ROOT is set but FAB_PDK is not",
                 id="root_without_pdk",
             ),
         ],
