@@ -867,13 +867,13 @@ def generateSuperTile(
             if (
                 0 <= y - 1 < len(superTile.tileMap)
                 and superTile.tileMap[y - 1][x] is not None
+                and config_bit_mode == ConfigBitMode.FRAME_BASED
             ):
-                if config_bit_mode == ConfigBitMode.FRAME_BASED:
-                    writer.addConnectionVector(
-                        f"Tile_X{x}Y{y}_FrameStrobe_O",
-                        "MaxFramesPerCol-1",
-                        indentLevel=1,
-                    )
+                writer.addConnectionVector(
+                    f"Tile_X{x}Y{y}_FrameStrobe_O",
+                    "MaxFramesPerCol-1",
+                    indentLevel=1,
+                )
             if (
                 not disable_user_clk
                 and grid_at(superTile.tileMap, x - dx, y - dy) is not None

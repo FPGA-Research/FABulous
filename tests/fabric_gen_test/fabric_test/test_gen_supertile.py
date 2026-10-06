@@ -86,7 +86,10 @@ SHAPES = {
 }
 
 
-def _tile_stub(tile: Tile) -> str:
+def _tile_stub(
+    tile: Tile,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+) -> str:
     """Emit a body-less module matching `tile`'s wrapper-facing interface.
 
     Yosys needs each instantiated sub-tile defined so it can resolve the
@@ -111,11 +114,20 @@ def _tile_stub(tile: Tile) -> str:
     decls += [
         "    input  UserCLK",
         "    output UserCLKo",
-        "    output [19:0] FrameStrobe_O",
-        "    input  [31:0] FrameData",
-        "    input  [19:0] FrameStrobe",
-        "    output [31:0] FrameData_O",
     ]
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        decls += [
+            "    output [19:0] FrameStrobe_O",
+            "    input  [31:0] FrameData",
+            "    input  [19:0] FrameStrobe",
+            "    output [31:0] FrameData_O",
+        ]
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        decls += [
+            "    input  CONFin",
+            "    output CONFout",
+            "    input  CONF_CLK",
+        ]
     body = ",\n".join(decls)
     return (
         f"\nmodule {tile.name} #(parameter [639:0] Emulate_Bitstream=640'b0) (\n"
@@ -164,8 +176,9 @@ def supertile_netlist(
         writer.outFileName = out
         generateSuperTile(writer, st, **kwargs)
         text = out.read_text()
+        mode = kwargs.get("config_bit_mode", ConfigBitMode.FRAME_BASED)
         for tile in {t.name: t for t in tiles}.values():
-            text += _tile_stub(tile)
+            text += _tile_stub(tile, config_bit_mode=mode)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build
@@ -328,6 +341,47 @@ class TestConfigBitMode:
         )
         assert not any("FrameData" in p for p in net.top_port_names())
         assert not any("FrameStrobe" in p for p in net.top_port_names())
+
+
+class TestFlipFlopChainConfClkBraodcast:
+    """In FlopFlopChain mode, CONF_CLK is one global net, not a chain.
+
+    Every tile's `CONF_CLK` input must resolve to the same net as the top-level
+    `CONF_CLK` boundary port.
+    """
+
+    @pytest.mark.parametrize(("rows", "cols"), GRIDS)
+    def test_conf_clk_is_broadcast_to_every_tile(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        rows: int,
+        cols: int,
+    ) -> None:
+        tileMap = grid(rows, cols)
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+        top_conf_clk = net.top_port_net("CONF_CLK")
+
+        for y in range(rows):
+            for x in range(cols):
+                assert net.cell_net(x, y, "CONF_CLK") == top_conf_clk
+
+    @pytest.mark.parametrize("name", sorted(SHAPES))
+    def test_conf_clk_broadcast_irregular_shapes(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+    ) -> None:
+        tileMap = shape(SHAPES[name])
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+        top_conf_clk = net.top_port_net("CONF_CLK")
+
+        for y, row in enumerate(tileMap):
+            for x, t in enumerate(row):
+                if t is None:
+                    continue
+                assert net.cell_net(x, y, "CONF_CLK") == top_conf_clk
 
 
 class TestBelExternalPorts:
