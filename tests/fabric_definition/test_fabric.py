@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from tests.conftest import make_muladd_bel
@@ -124,6 +125,40 @@ class TestFabricValidation:
         tile.bels = [make_muladd_bel([]) for _ in range(num_bels)]
         with expectation:
             make_fabric(tileDic={"test_tile": tile})
+
+
+def test_get_all_unique_bels_one_per_name(make_fabric: Callable[..., Fabric]) -> None:
+    """Every BEL name appears once, as the first instance across the tiles."""
+    lut = Bel(
+        src=Path("LUT4.v"),
+        prefix="L_",
+        module_name="LUT4",
+        internal=[],
+        external=[],
+        configPort=[],
+        sharedPort=[],
+        configBit=0,
+        belMap={},
+        userCLK=False,
+        ports_vectors={},
+        carry={},
+        localShared={},
+    )
+    first_tile = make_empty_tile("FIRST")
+    first_tile.bels = [
+        make_muladd_bel([], prefix="A_"),
+        make_muladd_bel([], prefix="B_"),
+    ]
+    second_tile = make_empty_tile("SECOND")
+    second_tile.bels = [lut, make_muladd_bel([], prefix="C_")]
+    fabric = make_fabric(tileDic={"FIRST": first_tile, "SECOND": second_tile})
+
+    bels = fabric.getAllUniqueBels()
+
+    assert [(bel.prefix, bel.name) for bel in bels] == [
+        ("A_", "MULADD"),
+        ("L_", "LUT4"),
+    ]
 
 
 class TestGetSuperTileContaining:
