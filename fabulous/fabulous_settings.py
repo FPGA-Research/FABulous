@@ -358,33 +358,37 @@ class FABulousSettings(BaseSettings):
     def resolve_tool_paths(
         cls, value: Path | str | None, info: ValidationInfo
     ) -> Path | str:
-        """Resolve tool paths by checking if tools are available in `PATH`.
+        """Resolve a tool to an executable path.
 
-        This method is used as a field validator to automatically resolve tool paths
-        during settings initialization. If a tool path is not explicitly provided,
-        it searches for the tool in the system `PATH`.
+        A value with a directory component is an explicit path and must exist. A
+        bare name, including the default, is looked up on `PATH` under that name.
 
         Parameters
         ----------
         value : Path | str | None
-            The explicitly provided tool path, if any.
+            The explicitly provided tool path or name, if any.
         info : ValidationInfo
             Validation context containing field information.
 
         Returns
         -------
         Path | str
-            The resolved path to the tool if found, tool name otherwise.
+            The resolved path to the tool if found, the default tool name
+            otherwise.
+
+        Raises
+        ------
+        ValueError
+            If an explicit path does not exist, or an explicit non-default name is
+            not found on `PATH`.
 
         Notes
         -----
-        This method logs a warning if a tool is not found in `PATH`, as some
-        features may be unavailable without the tool.
+        This method logs a warning if the default tool is not found in `PATH`, as
+        some features may be unavailable without the tool.
         """
         if isinstance(value, Path):
             return value
-        if isinstance(value, str) and value != "" and Path(value).exists():
-            return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
             "opensta_path": "sta",
@@ -395,17 +399,34 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name)
+        default_tool = tool_map[info.field_name]
+        env_var = f"FAB_{info.field_name.upper()}"
+        tool = value or default_tool
+        if Path(tool).name != tool:
+            if not Path(tool).exists():
+                raise ValueError(
+                    f"{env_var} is set to {tool}, which does not exist. Point it at "
+                    f"an existing executable, or unset it to look up {default_tool} "
+                    "on PATH."
+                )
+            return Path(tool).resolve()
+
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
             return Path(tool_path).resolve()
+        if tool != default_tool:
+            raise ValueError(
+                f"{env_var} is set to {tool}, which is not found on PATH. Add it to "
+                f"PATH, give its full path, or unset {env_var} to look up "
+                f"{default_tool} instead."
+            )
 
         logger.warning(
             f"{tool} not found in PATH during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return tool_map[info.field_name]
+        return default_tool
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:

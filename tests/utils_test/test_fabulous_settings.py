@@ -321,6 +321,52 @@ class TestFieldValidators:
         assert settings.yosys_path == Path("/custom/tool/path")
         assert mocker.call("yosys") not in mock_which.call_args_list
 
+    @pytest.mark.parametrize(
+        ("value", "message"),
+        [
+            pytest.param("missing_dir/yosys", "does not exist", id="missing_path"),
+            pytest.param("not-a-yosys", "not found on PATH", id="unknown_name"),
+        ],
+    )
+    def test_explicit_tool_not_found_rejected(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        value: str,
+        message: str,
+    ) -> None:
+        """An explicit tool that cannot be found fails instead of using the default."""
+        mocker.patch(
+            "fabulous.fabulous_settings.which",
+            side_effect=lambda tool: "/usr/bin/yosys" if tool == "yosys" else None,
+        )
+        monkeypatch.setenv("FAB_YOSYS_PATH", value)
+
+        with pytest.raises(ValidationError, match=f"FAB_YOSYS_PATH is set to {value}"):
+            FABulousSettings(proj_dir=project)
+        with pytest.raises(ValidationError, match=message):
+            FABulousSettings(proj_dir=project)
+
+    def test_explicit_tool_name_looked_up_on_path(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """A bare tool name is looked up on PATH under that name, not the default."""
+        fab_yosys = tmp_path / "bin" / "fab-yosys"
+        mocker.patch(
+            "fabulous.fabulous_settings.which",
+            side_effect=lambda tool: str(fab_yosys) if tool == "fab-yosys" else None,
+        )
+        monkeypatch.setenv("FAB_YOSYS_PATH", "fab-yosys")
+
+        settings = FABulousSettings(proj_dir=project)
+
+        assert settings.yosys_path == fab_yosys
+
 
 class TestModelsPackValidation:
     """Tests for models-pack definition presence checks."""
