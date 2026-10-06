@@ -16,6 +16,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from librelane.flows.flow import FlowError
+from librelane.state.design_format import DesignFormat
+from librelane.state.state import State
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import IO, HDLType, Side
@@ -168,6 +171,35 @@ class TestValidateProjectDir:
             flow._validate_project_dir(flow, tmp_path, fabric)
 
 
+_FLOW_MODULE = "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow"
+_PIN_MIN_CONFIG: dict[str, Decimal] = {
+    "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
+    "FABULOUS_PIN_MIN_HEIGHT": Decimal("20.0"),
+}
+_PIN_MIN: dict[str, float] = {
+    "fabulous__pin_min_width": 10.0,
+    "fabulous__pin_min_height": 20.0,
+}
+
+
+def _run_worker(
+    tile: MagicMock, tmp_path: Path, hdl_type: HDLType, **overrides: object
+) -> WorkerResult:
+    """Call the worker with fixed paths under `tmp_path`."""
+    return _run_tile_flow_worker(
+        tile_type=tile,
+        io_pin_config=tmp_path / "io.yaml",
+        optimisation=OptMode.BALANCE,
+        base_config_path=tmp_path / "base.yaml",
+        override_config_path=tmp_path / "override.yaml",
+        pdk="test_pdk",
+        pdk_root=tmp_path,
+        models_pack=tmp_path / "models_pack.v",
+        hdl_type=hdl_type,
+        **overrides,
+    )
+
+
 class TestRunTileFlowWorker:
     """Tests for _run_tile_flow_worker function."""
 
@@ -203,48 +235,32 @@ class TestRunTileFlowWorker:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """A `FlowError` after the state was saved recovers the on-disk state."""
-        from librelane.flows.flow import FlowError
-
-        recovered_state: MagicMock = mocker.MagicMock()
+        run_dir: Path = tmp_path / "run"
+        step_dir: Path = run_dir / "42-klayout-xor"
+        step_dir.mkdir(parents=True)
+        (step_dir / "state_out.json").write_text(
+            json.dumps({"metrics": {"design__die__bbox": "0 0 30 40"}}),
+            encoding="utf-8",
+        )
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.side_effect = FlowError("deferred errors were encountered")
-        mock_flow.run_dir = str(tmp_path)
-        mock_flow.config = {
-            "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
-            "FABULOUS_PIN_MIN_HEIGHT": Decimal("10.0"),
-        }
+        mock_flow.run_dir = str(run_dir)
+        mock_flow.config = _PIN_MIN_CONFIG
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.FABulousTileVerilogMacroFlow",
-            return_value=mock_flow,
-        )
-        state_file: Path = tmp_path / "state_out.json"
-        state_file.write_text("{}", encoding="utf-8")
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.get_latest_file",
-            return_value=state_file,
-        )
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.State.loads",
-            return_value=recovered_state,
+            f"{_FLOW_MODULE}.FABulousTileVerilogMacroFlow", return_value=mock_flow
         )
 
-        tile: MagicMock = mocker.MagicMock()
-        state, error_trace, pin_min = _run_tile_flow_worker(
-            tile,
-            tmp_path / "io.yaml",
-            OptMode.BALANCE,
-            tmp_path / "base.yaml",
-            tmp_path / "override.yaml",
-            "test_pdk",
-            tmp_path,
-            tmp_path / "models_pack.v",
-            HDLType.VERILOG,
+        state, error_trace, pin_min = _run_worker(
+            mocker.MagicMock(), tmp_path, HDLType.VERILOG
         )
 
-        assert state is recovered_state
+        assert state is not None
+        assert dict(state.metrics) == {"design__die__bbox": "0 0 30 40"}
         assert error_trace is not None
-        assert "deferred errors" in error_trace
-        assert pin_min is not None
+        assert error_trace.splitlines()[-1] == (
+            "librelane.flows.flow.FlowError: deferred errors were encountered"
+        )
+        assert pin_min == _PIN_MIN
 
     def test_worker_returns_state_on_success(
         self, mocker: MockerFixture, tmp_path: Path
@@ -319,6 +335,11 @@ class TestWorkerCustomOverrides:
         assert "CUSTOM_KEY" in call_kwargs.kwargs or (
             len(call_kwargs.args) > 0 and hasattr(call_kwargs, "kwargs")
         )
+
+
+def _logged_tokens(info_mock: MagicMock) -> list[list[str]]:
+    """Split every logged line into tokens so column padding does not matter."""
+    return [str(call.args[0]).split() for call in info_mock.call_args_list]
 
 
 class TestLogNlpSummary:
@@ -453,57 +474,42 @@ class TestRunNlpOnlyEarlyReturn:
 class TestFinaliseFabric:
     """Tests for the post-stitching completeness check and summary."""
 
-    @staticmethod
-    def _fabric(mocker: MockerFixture) -> MagicMock:
-        fabric: MagicMock = mocker.MagicMock()
-        fabric.name = "myfab"
-        fabric.get_all_unique_tiles.return_value = [object(), object()]
-        return fabric
-
-    @staticmethod
-    def _tile_state(mocker: MockerFixture, bbox: str) -> MagicMock:
-        state: MagicMock = mocker.MagicMock()
-        state.metrics = {"design__die__bbox": bbox}
-        return state
-
-    def test_raises_when_no_gds(self, mocker: MockerFixture) -> None:
+    def test_raises_when_no_gds(self) -> None:
         """An incomplete stitch (no GDS) raises rather than reporting success."""
-        final_state: MagicMock = mocker.MagicMock()
-        final_state.get.return_value = None  # no GDS produced
-        final_state.metrics = {}
+        fabric: Fabric = make_fabric_from_grid([[make_empty_tile("LUT")]])
 
         with pytest.raises(RuntimeError, match="no GDS"):
-            FABulousFabricOptimisationFlow._finalise(
-                self._fabric(mocker), final_state, {}
-            )
+            FABulousFabricOptimisationFlow._finalise(fabric, State(), {})
 
     def test_logs_summary_with_per_tile_macro_sizes(
         self, mocker: MockerFixture
     ) -> None:
         """A complete stitch logs the die area and each tile macro's size."""
-        final_state: MagicMock = mocker.MagicMock()
-        final_state.get.return_value = "/runs/final/gds/myfab.gds"
-        final_state.metrics = {"design__die__bbox": "0 0 100 200"}
-        tile_states = {
-            "LUT": self._tile_state(mocker, "0 0 30 40"),
-            "DSP": self._tile_state(mocker, "0 0 50 60"),
+        fabric: Fabric = make_fabric_from_grid(
+            [[make_empty_tile("LUT"), make_empty_tile("DSP")]]
+        )
+        fabric.name = "myfab"
+        final_state = State(
+            {DesignFormat.GDS: "/runs/final/gds/myfab.gds"},
+            metrics={"design__die__bbox": "0 0 100 200"},
+        )
+        tile_states: dict[str, State] = {
+            "LUT": State(metrics={"design__die__bbox": "0 0 30 40"}),
+            "DSP": State(metrics={"design__die__bbox": "0 0 50 60"}),
         }
-        info_mock = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow.info"
-        )
+        info_mock: MagicMock = mocker.patch(f"{_FLOW_MODULE}.info")
 
-        FABulousFabricOptimisationFlow._finalise(
-            self._fabric(mocker), final_state, tile_states
-        )
+        FABulousFabricOptimisationFlow._finalise(fabric, final_state, tile_states)
 
-        # Collapse the column-alignment padding so the assertions aren't brittle.
-        logged = " ".join(
-            " ".join(str(call.args[0]).split()) for call in info_mock.call_args_list
-        )
-        assert "myfab" in logged
-        assert "100.00 x 200.00" in logged  # overall die area w x h
-        assert "LUT 30.00 x 40.00" in logged  # per-macro tile size
-        assert "DSP 50.00 x 60.00" in logged
+        assert _logged_tokens(info_mock) == [
+            ["===", "Fabric", "summary", "==="],
+            ["Fabric", ":", "myfab"],
+            ["Unique", "tile", "types", ":", "2"],
+            ["Die", "area", ":", "100.00", "x", "200.00", "um"],
+            ["Tile", "macro", "sizes:"],
+            ["DSP", "50.00", "x", "60.00", "um"],
+            ["LUT", "30.00", "x", "40.00", "um"],
+        ]
 
 
 def _fabric_with_real_ports() -> Fabric:

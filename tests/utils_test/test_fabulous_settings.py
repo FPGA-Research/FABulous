@@ -252,28 +252,18 @@ class TestFieldValidators:
         with pytest.raises(ValueError, match="Invalid project language"):
             FABulousSettings.validate_proj_lang("python")
 
-    def test_ensure_user_config_dir_creates_directory(self, tmp_path: Path) -> None:
-        """Test ensure_user_config_dir creates directory if it doesn't exist."""
-        config_dir = tmp_path / "config" / "nested"
-        assert not config_dir.exists()
-
-        result = FABulousSettings.ensure_user_config_dir(config_dir)
-
-        assert result == config_dir
-        assert config_dir.exists()
-        assert config_dir.is_dir()
-
-    def test_ensure_user_config_dir_handles_existing_directory(
-        self, tmp_path: Path
+    @pytest.mark.parametrize("exists", [False, True], ids=["created", "existing"])
+    def test_user_config_dir_is_created(
+        self, project: Path, tmp_path: Path, exists: bool
     ) -> None:
-        """Test ensure_user_config_dir validator with existing directory."""
-        config_dir = tmp_path / "existing_config"
-        config_dir.mkdir()
+        """The user config directory is created, parents included, when missing."""
+        config_dir = tmp_path / "config" / "nested"
+        if exists:
+            config_dir.mkdir(parents=True)
 
-        result = FABulousSettings.ensure_user_config_dir(config_dir)
+        settings = FABulousSettings(proj_dir=project, user_config_dir=config_dir)
 
-        assert result == config_dir
-        assert config_dir.exists()
+        assert settings.user_config_dir == config_dir
         assert config_dir.is_dir()
 
     def test_is_valid_project_dir_with_fabulous_directory(self, tmp_path: Path) -> None:
@@ -286,30 +276,26 @@ class TestFieldValidators:
         result = FABulousSettings.is_valid_project_dir(project_dir)
         assert result == project_dir
 
-    def test_is_valid_project_dir_without_fabulous_directory(
-        self, tmp_path: Path
-    ) -> None:
-        """Test is_valid_project_dir validator with directory missing .FABulous."""
+    def test_proj_dir_without_fabulous_directory_rejected(self, tmp_path: Path) -> None:
+        """A directory without `.FABulous` is not a FABulous project."""
         project_dir = tmp_path / "invalid_project"
         project_dir.mkdir()
 
-        with pytest.raises(ValueError, match="is not a FABulous project"):
-            FABulousSettings.is_valid_project_dir(project_dir)
+        with pytest.raises(ValidationError, match="is not a FABulous project"):
+            FABulousSettings(proj_dir=project_dir)
 
+    def test_explicit_tool_path_object_kept_without_lookup(
+        self, project: Path, mocker: MockerFixture
+    ) -> None:
+        """A `Path` tool value is kept as given and never looked up on PATH."""
+        mock_which = mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
-class TestToolPathResolution:
-    """Test cases for tool path resolution validator."""
+        settings = FABulousSettings(
+            proj_dir=project, yosys_path=Path("/custom/tool/path")
+        )
 
-    def test_resolve_tool_paths_explicit_value(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths when value is explicitly provided."""
-        explicit_path = Path("/custom/tool/path")
-        mock_info = mocker.Mock()
-        mock_info.field_name = "yosys_path"
-
-        mock_which = mocker.patch("fabulous.fabulous_settings.which")
-        result = FABulousSettings.resolve_tool_paths(explicit_path, mock_info)
-        assert result == explicit_path
-        mock_which.assert_not_called()
+        assert settings.yosys_path == Path("/custom/tool/path")
+        assert mocker.call("yosys") not in mock_which.call_args_list
 
 
 class TestModelsPackValidation:

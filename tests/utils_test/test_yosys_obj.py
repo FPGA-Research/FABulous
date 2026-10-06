@@ -2,50 +2,51 @@
 
 This module provides comprehensive tests for the Yosys JSON parser, including parsing of
 different HDL formats and netlist analysis methods.
+
+Only `subprocess.run` is mocked: the netlist Yosys would emit is written to the
+companion `.json` file, so `YosysJson` parses real JSON from disk.
 """
 
+import json
 from pathlib import Path
 
 import pytest
 import pytest_mock
+from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.yosys_obj import YosysJson
 
 
-def setup_mocks(
-    monkeypatch: pytest.MonkeyPatch, json_data: dict, tmp_path: Path
-) -> None:
-    """Set up mocks."""
-    monkeypatch.setattr(
+def _module(attributes: dict, cells: dict | None = None) -> dict:
+    """Return a Yosys JSON module entry with the given attributes and cells."""
+    return {
+        "attributes": attributes,
+        "parameter_default_values": {},
+        "ports": {},
+        "cells": cells or {},
+        "memories": {},
+        "netnames": {},
+    }
+
+
+def _mock_tools(mocker: MockerFixture, stdout: str = "") -> MockType:
+    """Mock the external tool process, which always succeeds."""
+    return mocker.patch(
         "subprocess.run",
-        lambda *args, **kwargs: type(  # noqa: ARG005
-            "MockResult",
-            (),
-            {"stdout": "mock output", "stderr": "", "returncode": 0},
-        )(),
+        return_value=mocker.Mock(stdout=stdout, stderr="", returncode=0),
     )
-    monkeypatch.setattr("json.load", lambda _: json_data)
 
-    def mock_open_func(*_args: object, **_kwargs: object) -> object:
-        return type(
-            "MockFile",
-            (),
-            {
-                "__enter__": lambda self: self,
-                "__exit__": lambda _, *_args: None,
-                "read": lambda _: "{}",
-            },
-        )()
 
-    monkeypatch.setattr("builtins.open", mock_open_func)
-
-    # Ensure FABulousSettings validation passes by providing a models pack.
-    # Use tmp_path (pytest-isolated per-test dir) to avoid collisions between
-    # concurrent test workers or users sharing the same machine.
-    tmp_mp = tmp_path / "models_pack.v"
-    tmp_mp.write_text("// test models pack\n")
-    monkeypatch.setenv("FAB_MODELS_PACK", str(tmp_mp))
+def _load(mocker: MockerFixture, tmp_path: Path, modules: dict) -> YosysJson:
+    """Parse a Verilog file whose Yosys netlist holds `modules`."""
+    _mock_tools(mocker)
+    src = tmp_path / "test_file.v"
+    src.touch()
+    src.with_suffix(".json").write_text(
+        json.dumps({"creator": "Yosys 0.33", "modules": modules, "models": {}})
+    )
+    return YosysJson(src)
 
 
 @pytest.mark.parametrize(
@@ -147,194 +148,71 @@ def test_yosys_json_initialization_parametric(
             assert needle in str(m.call_args_list[idx])
 
 
-def test_yosys_json_file_not_exists(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Test YosysJson with unsupported file type."""
-    setup_mocks(monkeypatch, {}, tmp_path)
-    fakePath = tmp_path / "file.txt"
+def test_yosys_json_file_not_exists(tmp_path: Path) -> None:
+    """A missing HDL file is rejected before any tool runs."""
     with pytest.raises(FileNotFoundError, match="does not exist"):
-        YosysJson(fakePath)
+        YosysJson(tmp_path / "file.txt")
 
 
-def test_yosys_json_unsupported_file_type(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_yosys_json_unsupported_file_type(tmp_path: Path) -> None:
     """Test YosysJson with unsupported file type."""
-    setup_mocks(monkeypatch, {}, tmp_path)
-    fakePath = tmp_path / "file.txt"
-    fakePath.touch()
+    fake_path = tmp_path / "file.txt"
+    fake_path.touch()
     with pytest.raises(InvalidFileType, match="Unsupported HDL file type"):
-        YosysJson(fakePath)
+        YosysJson(fake_path)
 
 
-def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Test getTopModule method."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "module1": {
-                "attributes": {"top": 1},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {},
-                "memories": {},
-                "netnames": {},
-            }
-        },
-        "models": {},
-    }
+@pytest.mark.parametrize(
+    ("modules", "expected_name"),
+    [
+        pytest.param({"module1": _module({"top": 1})}, "module1", id="top"),
+        pytest.param(
+            {"blackbox_mod": _module({"blackbox": 1})},
+            "blackbox_mod",
+            id="blackbox_fallback",
+        ),
+        pytest.param(
+            {
+                "blackbox_mod": _module({"blackbox": 1}),
+                "top_mod": _module({"top": 1}),
+            },
+            "top_mod",
+            id="prefers_top_over_earlier_blackbox",
+        ),
+    ],
+)
+def test_get_top_module(
+    mocker: MockerFixture, tmp_path: Path, modules: dict, expected_name: str
+) -> None:
+    """The `top` module wins; a blackbox module is the fallback."""
+    yosys_json = _load(mocker, tmp_path, modules)
 
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
-    module_name, top_module = yosys_json.getTopModule()
+    module_name, module = yosys_json.getTopModule()
 
-    assert "top" in top_module.attributes
-    assert top_module.attributes["top"] == 1
-    assert module_name == "module1"
+    assert module_name == expected_name
+    assert module is yosys_json.modules[expected_name]
 
 
-def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Test getTopModule method."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "module1": {
-                "attributes": {},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {},
-                "memories": {},
-                "netnames": {},
-            }
-        },
-        "models": {},
-    }
-
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
+def test_get_top_module_no_top(mocker: MockerFixture, tmp_path: Path) -> None:
+    """A netlist with neither a top nor a blackbox module has no top module."""
+    yosys_json = _load(mocker, tmp_path, {"module1": _module({})})
     with pytest.raises(ValueError, match="No top module found"):
-        _ = yosys_json.getTopModule()
+        yosys_json.getTopModule()
 
 
-def test_get_top_module_blackbox_fallback(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Test getTopModule falls back to blackbox module when no top module exists."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "blackbox_mod": {
-                "attributes": {"blackbox": 1},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {},
-                "memories": {},
-                "netnames": {},
-            }
-        },
-        "models": {},
-    }
-
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
-    module_name, module = yosys_json.getTopModule()
-
-    assert module_name == "blackbox_mod"
-    assert "blackbox" in module.attributes
-
-
-def test_get_top_module_prefers_top_over_blackbox(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Test getTopModule prefers a top module over a blackbox module."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "blackbox_mod": {
-                "attributes": {"blackbox": 1},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {},
-                "memories": {},
-                "netnames": {},
-            },
-            "top_mod": {
-                "attributes": {"top": 1},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {},
-                "memories": {},
-                "netnames": {},
-            },
-        },
-        "models": {},
-    }
-
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
-    module_name, module = yosys_json.getTopModule()
-
-    assert module_name == "top_mod"
-    assert "top" in module.attributes
-
-
-def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_getNetPortSrcSinks(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test getNetPortSrcSinks method."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "module1": {
-                "attributes": {},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {
-                    "A": {
-                        "hide_name": "",
-                        "attributes": {},
-                        "parameters": {},
-                        "type": "DFF",
-                        "port_directions": {"A": "input", "Y": "output"},
-                        "connections": {
-                            "A": [1],
-                            "Y": [2],
-                        },
-                    },
-                    "B": {
-                        "hide_name": "",
-                        "attributes": {},
-                        "parameters": {},
-                        "type": "DFF",
-                        "port_directions": {"A": "input", "Y": "output"},
-                        "connections": {
-                            "A": [2],
-                            "Y": [3],
-                        },
-                    },
-                },
-                "memories": {},
-                "netnames": {},
-            }
-        },
-        "models": {},
+    dff = {
+        "hide_name": "",
+        "attributes": {},
+        "parameters": {},
+        "type": "DFF",
+        "port_directions": {"A": "input", "Y": "output"},
     }
-
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
+    cells = {
+        "A": dff | {"connections": {"A": [1], "Y": [2]}},
+        "B": dff | {"connections": {"A": [2], "Y": [3]}},
+    }
+    yosys_json = _load(mocker, tmp_path, {"module1": _module({}, cells)})
 
     assert yosys_json.getNetPortSrcSinks(2) == (("A", "Y"), [("B", "A")])

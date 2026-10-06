@@ -16,9 +16,8 @@ optimisation pipeline, so any drift in their semantics propagates silently.
 from decimal import Decimal
 from pathlib import Path
 
-from pytest_mock import MockerFixture
-
 from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from tests.fabric_definition.conftest import make_empty_tile, make_side_port
@@ -73,69 +72,48 @@ class TestSuperTilePortQueries:
     in `get_ports_around_tile` and inner-edges only in `get_internal_connections`.
     """
 
-    def test_single_tile_supertile_has_all_outer_edges(
-        self, mocker: MockerFixture
-    ) -> None:
+    @staticmethod
+    def _four_sided_tile(name: str) -> tuple[Tile, dict[Side, TilePort]]:
+        """Build a real tile with one port on each side, keyed by side."""
+        ports = {
+            side: make_side_port(side, f"{name}_{side}")
+            for side in (Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST)
+        }
+        return make_empty_tile(name, ports=list(ports.values())), ports
+
+    def test_single_tile_supertile_has_all_outer_edges(self) -> None:
         # A 1x1 supertile: every edge is outer, none are internal.
-        tile = mocker.MagicMock(spec=Tile)
-        tile.getNorthSidePorts.return_value = ["N"]
-        tile.getEastSidePorts.return_value = ["E"]
-        tile.getSouthSidePorts.return_value = ["S"]
-        tile.getWestSidePorts.return_value = ["W"]
+        tile, p = self._four_sided_tile("T")
+        st = SuperTile(name="ST", tileDir=Path(), tiles=[tile], tileMap=[[tile]])
 
-        st = SuperTile(
-            name="ST",
-            tileDir=Path(),
-            tiles=[tile],
-            tileMap=[[tile]],
-        )
-
-        ports = st.get_ports_around_tile()
-        # The cell coordinate is "x,y" for col x, row y.
-        assert list(ports.keys()) == ["0,0"]
-        # Every direction should appear exactly once on the only cell.
-        assert ports["0,0"] == [["N"], ["E"], ["S"], ["W"]]
-
-        # No internal connections.
+        assert st.get_ports_around_tile() == {
+            "0,0": [[p[Side.NORTH]], [p[Side.EAST]], [p[Side.SOUTH]], [p[Side.WEST]]]
+        }
         assert st.get_internal_connections() == []
 
-    def test_two_tile_horizontal_splits_outer_and_inner(
-        self, mocker: MockerFixture
-    ) -> None:
-        # Two side-by-side tiles. The left tile's outer edges are N, S, W and
-        # its east edge is internal (faces the right tile); mirror for the
-        # right tile.
-        left = mocker.MagicMock(spec=Tile)
-        left.getNorthSidePorts.return_value = ["LN"]
-        left.getEastSidePorts.return_value = ["LE"]
-        left.getSouthSidePorts.return_value = ["LS"]
-        left.getWestSidePorts.return_value = ["LW"]
-
-        right = mocker.MagicMock(spec=Tile)
-        right.getNorthSidePorts.return_value = ["RN"]
-        right.getEastSidePorts.return_value = ["RE"]
-        right.getSouthSidePorts.return_value = ["RS"]
-        right.getWestSidePorts.return_value = ["RW"]
-
+    def test_l_shape_splits_outer_and_inner_edges(self) -> None:
+        # Layout (the hole at (1, 1) makes B's south and C's east outer edges):
+        #   row0: A, B
+        #   row1: C, None
+        a, pa = self._four_sided_tile("A")
+        b, pb = self._four_sided_tile("B")
+        c, pc = self._four_sided_tile("C")
         st = SuperTile(
-            name="ST",
-            tileDir=Path(),
-            tiles=[left, right],
-            tileMap=[[left, right]],
+            name="ST", tileDir=Path(), tiles=[a, b, c], tileMap=[[a, b], [c, None]]
         )
 
-        ports = st.get_ports_around_tile()
-        # Outer edges: left has N, S, W (no E, since right is east neighbor).
-        assert ports["0,0"] == [["LN"], ["LS"], ["LW"]]
-        # Outer edges: right has N, E, S (no W).
-        assert ports["1,0"] == [["RN"], ["RE"], ["RS"]]
-
-        # Inner connections: left's E side and right's W side.
-        internal = st.get_internal_connections()
-        # Each entry is (ports, x, y); order follows the loop.
-        assert (["LE"], 0, 0) in internal
-        assert (["RW"], 1, 0) in internal
-        assert len(internal) == 2
+        # Keys are "x,y" for column x, row y; edges listed in N, E, S, W order.
+        assert st.get_ports_around_tile() == {
+            "0,0": [[pa[Side.NORTH]], [pa[Side.WEST]]],
+            "1,0": [[pb[Side.NORTH]], [pb[Side.EAST]], [pb[Side.SOUTH]]],
+            "0,1": [[pc[Side.EAST]], [pc[Side.SOUTH]], [pc[Side.WEST]]],
+        }
+        assert st.get_internal_connections() == [
+            ([pa[Side.EAST]], 0, 0),
+            ([pa[Side.SOUTH]], 0, 0),
+            ([pb[Side.WEST]], 1, 0),
+            ([pc[Side.NORTH]], 0, 1),
+        ]
 
 
 class TestSuperTileMinDieArea:

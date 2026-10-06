@@ -200,17 +200,6 @@ def override_config_file(tmp_path: Path) -> Path:
     return config_path
 
 
-@pytest.fixture
-def mock_fabric(mocker: MockerFixture) -> MagicMock:
-    """Create a minimal mock Fabric object for testing."""
-    fabric: MagicMock = mocker.MagicMock()
-    fabric.name = "TestFabric"
-    fabric.numberOfRows = 2
-    fabric.numberOfColumns = 2
-    fabric.superTileDic = {}
-    return fabric
-
-
 def create_macro(instances: dict[str, Instance]) -> Macro:
     """Helper function to create a valid Macro object for testing.
 

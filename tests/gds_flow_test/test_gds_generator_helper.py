@@ -2,12 +2,9 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 from librelane.config.config import Config
-from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.helper import (
     get_layer_info,
@@ -18,83 +15,80 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_up_decimal,
 )
 
+# X and Y pitches differ on every layer, so a lookup of the wrong layer or the
+# wrong cardinal direction changes the result.
+TRACKS_CONTENT = """M1 X 0 0.28
+M1 Y 0 0.34
+M2 X 0.14 0.46
+M2 Y 0 0.56
+"""
+
 
 @pytest.fixture
-def mock_config(mocker: MockerFixture) -> MagicMock:
-    """Create a mock config object."""
-    return mocker.MagicMock(spec=Config)
-
-
-@pytest.fixture
-def sample_tracks_file(tmp_path: Path) -> Path:
+def tracks_file(tmp_path: Path) -> Path:
     """Create a sample FP_TRACKS_INFO file."""
     tracks_file = tmp_path / "tracks.txt"
-    tracks_content = """M1 X 0 0.28
-M1 Y 0 0.28
-M2 X 0.14 0.56
-M2 Y 0 0.56
-M3 X 0 0.28
-M3 Y 0 0.28
-"""
-    tracks_file.write_text(tracks_content)
+    tracks_file.write_text(TRACKS_CONTENT)
     return tracks_file
 
 
-class TestGetLayerInfo:
-    """Tests for get_layer_info function."""
-
-    def test_get_layer_info_basic(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test basic layer info retrieval."""
-        mock_config.__getitem__.side_effect = lambda key: (
-            str(sample_tracks_file) if key == "FP_TRACKS_INFO" else None
-        )
-
-        result = get_layer_info(mock_config)
-
-        assert "M1" in result
-        assert "M2" in result
-        assert "M3" in result
-        assert result["M1"]["X"] == (Decimal(0), Decimal("0.28"))
-        assert result["M1"]["Y"] == (Decimal(0), Decimal("0.28"))
-        assert result["M2"]["X"] == (Decimal("0.14"), Decimal("0.56"))
-
-    def test_get_layer_info_with_empty_lines(
-        self, tmp_path: Path, mock_config: MagicMock
-    ) -> None:
-        """Test layer info retrieval with empty lines."""
-        tracks_file = tmp_path / "tracks_with_empty.txt"
-        tracks_content = "M1 X 0 0.28\n\nM1 Y 0 0.28\n\nM2 X 0.14 0.56\n"
-        tracks_file.write_text(tracks_content)
-        mock_config.__getitem__.side_effect = lambda key: (
-            str(tracks_file) if key == "FP_TRACKS_INFO" else None
-        )
-
-        result = get_layer_info(mock_config)
-
-        assert len(result) == 2
-        assert "M1" in result
-        assert "M2" in result
-
-
-class TestGetPitch:
-    """Tests for get_pitch function."""
-
-    def test_get_pitch_basic(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test basic pitch retrieval."""
-        mock_config.__getitem__.side_effect = lambda key: {
-            "FP_TRACKS_INFO": str(sample_tracks_file),
+def _config(tracks_file: Path, **values: object) -> Config:
+    """Build a real librelane `Config` with M1 vertical and M2 horizontal pins."""
+    return Config(
+        {
+            "FP_TRACKS_INFO": str(tracks_file),
             "IO_PIN_V_LAYER": "M1",
             "IO_PIN_H_LAYER": "M2",
-        }.get(key)
+            **values,
+        }
+    )
 
-        x_pitch, y_pitch = get_pitch(mock_config)
 
-        assert x_pitch == Decimal("0.28")
-        assert y_pitch == Decimal("0.56")
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        pytest.param(
+            TRACKS_CONTENT,
+            {
+                "M1": {
+                    "X": (Decimal(0), Decimal("0.28")),
+                    "Y": (Decimal(0), Decimal("0.34")),
+                },
+                "M2": {
+                    "X": (Decimal("0.14"), Decimal("0.46")),
+                    "Y": (Decimal(0), Decimal("0.56")),
+                },
+            },
+            id="both_directions_per_layer",
+        ),
+        pytest.param(
+            "M1 X 0 0.28\n\nM1 Y 0 0.34\n\nM2 X 0.14 0.46\n",
+            {
+                "M1": {
+                    "X": (Decimal(0), Decimal("0.28")),
+                    "Y": (Decimal(0), Decimal("0.34")),
+                },
+                "M2": {"X": (Decimal("0.14"), Decimal("0.46"))},
+            },
+            id="blank_lines_skipped",
+        ),
+    ],
+)
+def test_get_layer_info(
+    tmp_path: Path,
+    content: str,
+    expected: dict[str, dict[str, tuple[Decimal, Decimal]]],
+) -> None:
+    """Every track line becomes a `(offset, pitch)` entry under its layer."""
+    tracks_file = tmp_path / "tracks.txt"
+    tracks_file.write_text(content)
+
+    assert get_layer_info(_config(tracks_file)) == expected
+
+
+def test_get_pitch(tracks_file: Path) -> None:
+    """X pitch is the V layer's X track, Y pitch the H layer's Y track."""
+    assert get_pitch(_config(tracks_file)) == (Decimal("0.28"), Decimal("0.56"))
 
 
 @pytest.mark.parametrize(
@@ -146,134 +140,80 @@ class TestRoundDieDimension:
 class TestRoundDieArea:
     """Tests for round_die_area function."""
 
-    def test_round_die_area_basic(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
-        """Test basic die area rounding."""
-        mock_config.__getitem__.side_effect = lambda key: {
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-            "IO_PIN_V_LAYER": "M1",
-            "IO_PIN_H_LAYER": "M2",
-            "DIE_AREA": (0, 0, 100, 200),
-            "FABULOUS_TILE_LOGICAL_WIDTH": "10",
-            "FABULOUS_TILE_LOGICAL_HEIGHT": "10",
-        }.get(key)
-        mock_config.get.side_effect = lambda key: {
-            "DIE_AREA": (0, 0, 100, 200),
-        }.get(key)
-        mock_config.copy.side_effect = lambda **kwargs: {
-            **mock_config.__dict__,
-            **kwargs,
-        }
+    def test_round_die_area_basic(self, tracks_file: Path) -> None:
+        """Each logical division of each axis is rounded onto that axis's pitch."""
+        config = _config(
+            tracks_file,
+            DIE_AREA=(0, 0, 100, 200),
+            FABULOUS_TILE_LOGICAL_WIDTH=2,
+            FABULOUS_TILE_LOGICAL_HEIGHT=5,
+        )
 
-        result = round_die_area(mock_config)
+        result = round_die_area(config)
 
-        # Result should have DIE_AREA with rounded dimensions
-        assert result["DIE_AREA"][0] == 0
-        assert result["DIE_AREA"][1] == 0
-        assert result["DIE_AREA"][2] > 100
-        assert result["DIE_AREA"][3] > 200
+        # 100 / 2 = 50 -> 179 * 0.28 = 50.12, x2 -> 100.24
+        # 200 / 5 = 40 -> 72 * 0.56 = 40.32, x5 -> 201.60
+        assert result["DIE_AREA"] == (0, 0, Decimal("100.24"), Decimal("201.60"))
 
-    def test_round_die_area_missing_die_area(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
+    def test_round_die_area_missing_die_area(self, tracks_file: Path) -> None:
         """Test that ValueError is raised when DIE_AREA is missing."""
-        mock_config.__getitem__.side_effect = lambda key: {
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-            "IO_PIN_V_LAYER": "M1",
-            "IO_PIN_H_LAYER": "M2",
-        }.get(key)
-        mock_config.get.return_value = None
-
         with pytest.raises(ValueError, match="DIE_AREA metric not found in state"):
-            round_die_area(mock_config)
+            round_die_area(_config(tracks_file))
 
 
 class TestGetRoutingObstructions:
     """Tests for get_routing_obstructions function."""
 
+    # Half-pitch guard bands on all four edges of the 100 x 200 die, per layer.
+    EDGE_GUARDS: list[tuple[str, Decimal, Decimal, Decimal, Decimal]] = [
+        ("M1", Decimal(0), Decimal("-0.17"), Decimal(100), Decimal(0)),
+        ("M1", Decimal(0), Decimal(200), Decimal(100), Decimal("200.17")),
+        ("M1", Decimal("-0.14"), Decimal(0), Decimal(0), Decimal(200)),
+        ("M1", Decimal(100), Decimal(0), Decimal("100.14"), Decimal(200)),
+        ("M2", Decimal(0), Decimal("-0.28"), Decimal(100), Decimal(0)),
+        ("M2", Decimal(0), Decimal(200), Decimal(100), Decimal("200.28")),
+        ("M2", Decimal("-0.23"), Decimal(0), Decimal(0), Decimal(200)),
+        ("M2", Decimal(100), Decimal(0), Decimal("100.23"), Decimal(200)),
+    ]
+
     @pytest.mark.parametrize(
-        ("custom_obs", "v_layer", "h_layer", "expected_count", "expected_contains"),
+        ("custom_obs", "expected_custom"),
         [
-            pytest.param(
-                None,
-                "M1",
-                "M2",
-                12,
-                [
-                    ("M1", Decimal(0), Decimal("-0.14"), Decimal(100), Decimal(0)),
-                    ("M2", Decimal("-0.28"), Decimal(0), Decimal(0), Decimal(100)),
-                ],
-                id="no_custom_diff_layers",
-            ),
-            pytest.param(
-                None,
-                "M1",
-                "M1",
-                12,
-                [
-                    ("M1", Decimal(0), Decimal("-0.14"), Decimal(100), Decimal(0)),
-                    ("M1", Decimal("-0.14"), Decimal(0), Decimal(0), Decimal(100)),
-                ],
-                id="no_custom_same_layer",
-            ),
+            pytest.param(None, [], id="no_custom"),
             pytest.param(
                 [("M3", 10, 10, 20, 20)],
-                "M1",
-                "M2",
-                13,
                 [("M3", 10, 10, 20, 20)],
-                id="custom_other_layer",
+                id="custom_on_untracked_layer",
             ),
             pytest.param(
                 [("M1", 5, 5, 15, 15)],
-                "M1",
-                "M2",
-                13,
-                [
-                    ("M1", 5, 5, 15, 15),
-                    ("M1", Decimal(0), Decimal("-0.14"), Decimal(100), Decimal(0)),
-                ],
-                id="custom_same_layer",
+                [("M1", 5, 5, 15, 15)],
+                id="custom_on_tracked_layer",
             ),
         ],
     )
-    def test_get_routing_obstructions_logic(
+    def test_get_routing_obstructions(
         self,
-        sample_tracks_file: Path,
-        mock_config: MagicMock,
-        custom_obs: list[tuple[str, Any, Any, Any, Any]] | None,
-        v_layer: str,
-        h_layer: str,
-        expected_count: int,
-        expected_contains: list[tuple[str, Any, Any, Any, Any]],
+        tracks_file: Path,
+        custom_obs: list[tuple[str, int, int, int, int]] | None,
+        expected_custom: list[tuple[str, int, int, int, int]],
     ) -> None:
-        """Streamlined test for various obstruction scenarios."""
-        mock_config.get.return_value = custom_obs
-        mock_config.__getitem__.side_effect = lambda key: {
-            "DIE_AREA": (0, 0, 100, 100),
-            "IO_PIN_V_LAYER": v_layer,
-            "IO_PIN_H_LAYER": h_layer,
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-        }.get(key)
+        """Custom obstructions are kept and every tracked layer gets edge guards."""
+        config = _config(
+            tracks_file, DIE_AREA=(0, 0, 100, 200), ROUTING_OBSTRUCTIONS=custom_obs
+        )
 
-        result = get_routing_obstructions(mock_config)
+        result = get_routing_obstructions(config)
 
-        assert len(result) == expected_count
-        for item in expected_contains:
-            assert item in result
+        assert sorted(result) == sorted(expected_custom + self.EDGE_GUARDS)
 
-    def test_get_routing_obstructions_invalid_format(
-        self, sample_tracks_file: Path, mock_config: MagicMock
-    ) -> None:
+    def test_get_routing_obstructions_invalid_format(self, tracks_file: Path) -> None:
         """Test error handling for invalid obstruction format."""
-        mock_config.get.return_value = [("M1", 10, 10)]  # Missing coords
-        mock_config.__getitem__.side_effect = lambda key: {
-            "DIE_AREA": (0, 0, 100, 100),
-            "IO_PIN_V_LAYER": "M1",
-            "IO_PIN_H_LAYER": "M2",
-            "FP_TRACKS_INFO": str(sample_tracks_file),
-        }.get(key)
+        config = _config(
+            tracks_file,
+            DIE_AREA=(0, 0, 100, 100),
+            ROUTING_OBSTRUCTIONS=[("M1", 10, 10)],
+        )
 
         with pytest.raises(ValueError, match="Invalid obstruction"):
-            get_routing_obstructions(mock_config)
+            get_routing_obstructions(config)

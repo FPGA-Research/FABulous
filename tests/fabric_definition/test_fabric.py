@@ -1,14 +1,14 @@
 """Tests for hardcoded validation checks in Fabric.__post_init__."""
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
+from tests.conftest import make_muladd_bel
 from tests.fabric_definition.conftest import make_empty_tile
 
 
@@ -101,28 +101,29 @@ class TestFabricValidation:
             make_fabric(**overrides)
 
     @pytest.mark.parametrize(
-        ("num_bels", "should_raise"),
+        ("num_bels", "expectation"),
         [
-            pytest.param(26, False, id="bels_at_boundary"),
-            pytest.param(27, True, id="bels_exceed_26"),
-            pytest.param(30, True, id="bels_far_exceed_26"),
+            pytest.param(26, nullcontext(), id="bels_at_boundary"),
+            pytest.param(
+                27,
+                pytest.raises(
+                    ValueError, match="tile test_tile cannot have more than 26 BELs"
+                ),
+                id="bels_exceed_26",
+            ),
         ],
     )
     def test_tile_bel_count(
         self,
         make_fabric: Callable[..., Fabric],
         num_bels: int,
-        should_raise: bool,
+        expectation: AbstractContextManager,
     ) -> None:
-        tile = MagicMock(spec=Tile)
-        tile.name = "test_tile"
-        tile.bels = [MagicMock() for _ in range(num_bels)]
-        if should_raise:
-            with pytest.raises(ValueError, match="cannot have more than 26 BELs"):
-                make_fabric(tileDic={"test_tile": tile})
-        else:
-            fabric = make_fabric(tileDic={"test_tile": tile})
-            assert len(fabric.tileDic["test_tile"].bels) == num_bels
+        """A tile may hold at most 26 BELs, one per BEL naming letter."""
+        tile = make_empty_tile("test_tile")
+        tile.bels = [make_muladd_bel([]) for _ in range(num_bels)]
+        with expectation:
+            make_fabric(tileDic={"test_tile": tile})
 
 
 class TestGetSuperTileContaining:
