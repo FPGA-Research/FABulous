@@ -16,6 +16,8 @@ optimisation pipeline, so any drift in their semantics propagates silently.
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
@@ -113,6 +115,58 @@ class TestSuperTilePortQueries:
             ([pa[Side.SOUTH]], 0, 0),
             ([pb[Side.WEST]], 1, 0),
             ([pc[Side.NORTH]], 0, 1),
+        ]
+
+    @pytest.mark.parametrize(
+        ("layout", "outer", "inner"),
+        [
+            pytest.param(
+                ["A", "BC"],
+                {"0,0": "NEW", "0,1": "SW", "1,1": "NES"},
+                [("A", "S"), ("B", "N"), ("B", "E"), ("C", "W")],
+                id="short_top_row",
+            ),
+            pytest.param(
+                ["AB", "C"],
+                {"0,0": "NW", "1,0": "NES", "0,1": "ESW"},
+                [("A", "E"), ("A", "S"), ("B", "W"), ("C", "N")],
+                id="short_bottom_row",
+            ),
+        ],
+    )
+    def test_ragged_rows_treat_missing_cells_as_holes(
+        self,
+        layout: list[str],
+        outer: dict[str, str],
+        inner: list[tuple[str, str]],
+    ) -> None:
+        """A cell past the end of a shorter row faces an outer edge, like a hole.
+
+        `layout` rows name one tile per character; `outer` and `inner` list the
+        sides (`N`, `E`, `S`, `W`) each tile exposes in N, E, S, W order.
+        """
+        sides = {"N": Side.NORTH, "E": Side.EAST, "S": Side.SOUTH, "W": Side.WEST}
+        tiles: dict[str, Tile] = {}
+        ports: dict[str, dict[Side, TilePort]] = {}
+        coords: dict[str, tuple[int, int]] = {}
+        for y, row in enumerate(layout):
+            for x, name in enumerate(row):
+                tiles[name], ports[name] = self._four_sided_tile(name)
+                coords[name] = (x, y)
+        st = SuperTile(
+            name="ST",
+            tileDir=Path(),
+            tiles=list(tiles.values()),
+            tileMap=[[tiles[name] for name in row] for row in layout],
+        )
+        name_at = {f"{x},{y}": name for name, (x, y) in coords.items()}
+
+        assert st.get_ports_around_tile() == {
+            key: [[ports[name_at[key]][sides[s]]] for s in edge_sides]
+            for key, edge_sides in outer.items()
+        }
+        assert st.get_internal_connections() == [
+            ([ports[name][sides[s]]], *coords[name]) for name, s in inner
         ]
 
 

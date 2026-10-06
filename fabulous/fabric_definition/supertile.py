@@ -74,15 +74,27 @@ class SuperTile:
                 if self.tileMap[y][x] is None:
                     continue
                 ports[f"{x},{y}"] = []
-                if y - 1 < 0 or self.tileMap[y - 1][x] is None:
+                if not self._has_tile(x, y - 1):
                     ports[f"{x},{y}"].append(tile.getNorthSidePorts())
-                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] is None:
+                if not self._has_tile(x + 1, y):
                     ports[f"{x},{y}"].append(tile.getEastSidePorts())
-                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] is None:
+                if not self._has_tile(x, y + 1):
                     ports[f"{x},{y}"].append(tile.getSouthSidePorts())
-                if x - 1 < 0 or self.tileMap[y][x - 1] is None:
+                if not self._has_tile(x - 1, y):
                     ports[f"{x},{y}"].append(tile.getWestSidePorts())
         return ports
+
+    def _has_tile(self, x: int, y: int) -> bool:
+        """Return whether local cell `(x, y)` holds a tile.
+
+        Rows of `tileMap` may differ in length, so a cell beyond the end of its
+        own row is empty.
+        """
+        return (
+            0 <= y < len(self.tileMap)
+            and 0 <= x < len(self.tileMap[y])
+            and self.tileMap[y][x] is not None
+        )
 
     def __iter__(self) -> Generator[tuple[tuple[int, int], Tile], None, None]:
         """Iterate over all sub-tiles in the supertile as `((x, y), tile)`."""
@@ -105,25 +117,13 @@ class SuperTile:
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
-                if (
-                    0 <= y - 1 < len(self.tileMap)
-                    and self.tileMap[y - 1][x] is not None
-                ):
+                if self._has_tile(x, y - 1):
                     internalConnections.append((tile.getNorthSidePorts(), x, y))
-                if (
-                    0 <= x + 1 < len(self.tileMap[0])
-                    and self.tileMap[y][x + 1] is not None
-                ):
+                if self._has_tile(x + 1, y):
                     internalConnections.append((tile.getEastSidePorts(), x, y))
-                if (
-                    0 <= y + 1 < len(self.tileMap)
-                    and self.tileMap[y + 1][x] is not None
-                ):
+                if self._has_tile(x, y + 1):
                     internalConnections.append((tile.getSouthSidePorts(), x, y))
-                if (
-                    0 <= x - 1 < len(self.tileMap[0])
-                    and self.tileMap[y][x - 1] is not None
-                ):
+                if self._has_tile(x - 1, y):
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
 
