@@ -169,18 +169,7 @@ def test_nix_env_shell_and_execvp(
     ("flag", "env"),
     [
         pytest.param(["--no-check"], {}, id="flag"),
-        pytest.param(
-            [],
-            {"FAB_NIX_NO_CHECK": "1"},
-            id="setting",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "nix-env skips init_context, and the api_mode context only "
-                    "copies FAB_NIX_SHELL, so the nix_no_check setting is never read"
-                ),
-            ),
-        ),
+        pytest.param([], {"FAB_NIX_NO_CHECK": "1"}, id="setting"),
     ],
 )
 def test_nix_env_no_check(

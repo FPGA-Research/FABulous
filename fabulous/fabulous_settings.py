@@ -20,6 +20,7 @@ from loguru import logger
 from packaging.version import Version
 from pydantic import (
     Field,
+    TypeAdapter,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -570,8 +571,13 @@ def init_context(
 
     if api_mode:
         logger.debug("API mode: skipping all validation")
+        # model_construct reads no environment, so the settings that work outside
+        # a project are parsed here with pydantic's own coercion.
         return FABulousSettings.model_construct(
             nix_shell=os.environ.get("FAB_NIX_SHELL"),
+            nix_no_check=TypeAdapter(bool).validate_python(
+                os.environ.get("FAB_NIX_NO_CHECK", False)
+            ),
         )
 
     # 1. User config .env file (global)
