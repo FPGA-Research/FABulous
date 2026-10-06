@@ -11,6 +11,7 @@ from cmd2 import Cmd, with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
+from fabulous.custom_exception import CommandError
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
     CMD_GUI,
@@ -192,23 +193,19 @@ class SetupCommandSet(ReplCommandSet):
         dst_dir = resolve_tile(dst_tile, tile_dir)
 
         if not src_dir.is_dir():
-            logger.error(f"Tile '{src_tile}' not found at {src_dir}")
-            return
+            raise CommandError(f"Tile '{src_tile}' not found at {src_dir}")
         if not (src_dir / f"{src_dir.name}.csv").exists():
-            logger.error(
+            raise CommandError(
                 f"'{src_tile}' at {src_dir} is not a valid FABulous tile"
                 f" (missing {src_dir.name}.csv)"
             )
-            return
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", dst_dir.name):
-            logger.error(
+            raise CommandError(
                 f"'{dst_tile}' is not a valid tile name"
                 " (must start with a letter, contain only letters, digits, underscores)"
             )
-            return
         if dst_dir.exists():
-            logger.error(f"Destination '{dst_tile}' already exists at {dst_dir}")
-            return
+            raise CommandError(f"Destination '{dst_tile}' already exists at {dst_dir}")
 
         clone_tile_directory(src_dir, dst_dir, src_dir.name, dst_dir.name)
         logger.info(f"Cloned tile '{src_tile}' -> '{dst_tile}'")
