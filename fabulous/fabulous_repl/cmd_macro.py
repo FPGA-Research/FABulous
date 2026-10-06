@@ -261,14 +261,18 @@ class MacroFlowCommandSet(ReplCommandSet):
         io_pin_config : Path | None
             Pin order file to use as-is. Defaults to None, which generates the
             tile's pin order from the fabric structure.
+
+        Raises
+        ------
+        CommandError
+            If the tile has no directory under `Tile/` or is not in the fabric.
         """
         repl = self._cmd
         tile_dir = repl.projectDir / "Tile" / tile
         pin_order_file = tile_dir / f"{tile}_io_pin_order.yaml"
 
         if not tile_dir.exists():
-            logger.error(f"Tile directory {tile_dir} does not exist")
-            return
+            raise CommandError(f"Tile directory {tile_dir} does not exist")
 
         if not io_pin_config:
             if tile_obj := repl.fabulousAPI.getTile(tile):
@@ -276,8 +280,7 @@ class MacroFlowCommandSet(ReplCommandSet):
             else:
                 super_tile = repl.fabulousAPI.getSuperTile(tile)
                 if super_tile is None:
-                    logger.error(f"Tile {tile} not found in fabric definition")
-                    return
+                    raise CommandError(f"Tile {tile} not found in fabric definition")
                 repl.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
         else:
             pin_order_file = io_pin_config.resolve()
