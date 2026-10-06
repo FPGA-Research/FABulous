@@ -100,14 +100,10 @@ def test_delay_type_all_modes_without_nominal(
     ("kind", "expected"),
     [
         (DelayType.MAX_ALL, 8.0),
-        pytest.param(
-            DelayType.MIN_ALL,
-            2.0,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="delay_type returns the nominal max for every kind",
-            ),
-        ),
+        (DelayType.MIN_ALL, 2.0),
+        (DelayType.AVG_ALL, 5.0),
+        (DelayType.MIN_FAST, 2.0),
+        (DelayType.MAX_SLOW, 8.0),
     ],
 )
 def test_delay_type_nominal_overrides_fast_and_slow(
