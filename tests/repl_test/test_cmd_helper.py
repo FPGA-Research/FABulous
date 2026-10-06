@@ -64,13 +64,10 @@ def test_print_bel_not_found(
 
 
 def test_tile_completer_returns_tile_names(cli: FABulousREPL) -> None:
-    """The tile completer offers the fabric's tile names, reaching app state via _cmd.
-
-    Supertiles (`DSP`) are offered as their sub-tiles only, although print_tile
-    accepts the supertile name too.
-    """
+    """The tile completer offers every tile and supertile name, via _cmd."""
     names = _complete_names(cli, "print_tile", "tile")
     assert sorted(names) == [
+        "DSP",
         "DSP_bot",
         "DSP_top",
         "LUT4AB",

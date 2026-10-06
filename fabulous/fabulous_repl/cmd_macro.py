@@ -211,10 +211,10 @@ class MacroFlowCommandSet(ReplCommandSet):
         tile: Annotated[
             str,
             Argument(
-                help_text="A tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                help_text="A tile or supertile",
+                # a supertile's sub-tiles have no `Tile/<name>` directory of
+                # their own, so only the hardenable names are offered
+                completer=lambda self: self._cmd.all_tile,
             ),
         ],
         options: TileHardeningOptions,

@@ -982,7 +982,10 @@ class TestGenMacroAllTile:
 
 
 def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
-    """The tile completer still reaches app state from inside the subparser."""
+    """The tile completer offers exactly the tiles `gen_macro all_tile` hardens.
+
+    It reaches app state via _cmd from inside the subparser.
+    """
     parser = cli.command_parsers.get(cli.do_gen_macro)
     subparsers = next(a for a in parser._actions if a.dest == "subcommand")  # noqa: SLF001
     tile_action = next(
@@ -994,7 +997,7 @@ def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
 
     names = list(tile_action.get_completer()(cmd_set))
 
-    assert TILE in names
+    assert sorted(names) == DEMO_TILES
 
 
 @pytest.mark.parametrize(
