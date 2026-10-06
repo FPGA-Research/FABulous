@@ -550,6 +550,11 @@ end process;
         -------
         int
             1 if the component uses configuration bits; 0 otherwise.
+
+        Raises
+        ------
+        ValueError
+            If the file has no `entity ... end entity` block.
         """
         configPortUsed = 0
         with Path(fileName).open() as f:
@@ -562,13 +567,18 @@ end process;
             if result.group(1) == "0":
                 configPortUsed = 0
 
-        if result := re.search(
+        entity = re.search(
             r"^entity.*?end entity.*?;", data, flags=re.MULTILINE | re.DOTALL
-        ):
-            result = result.group(0)
-            result = result.replace("entity", "component")
+        )
+        if entity is None:
+            raise ValueError(
+                f"{fileName} has no `entity ... end entity` block to declare as a "
+                "component; check that the file holds the VHDL entity it is "
+                "expected to define."
+            )
+        component = entity.group(0).replace("entity", "component")
         resultList = []
-        for i in result.splitlines():
+        for i in component.splitlines():
             if "attribute" not in i:
                 resultList.append(i)
 
