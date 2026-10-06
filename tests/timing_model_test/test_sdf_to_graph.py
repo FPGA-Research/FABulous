@@ -470,10 +470,6 @@ def test_path_to_nearest_target_sentinel_ignores_missing_target_nodes(
     assert closest == "D"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the sentinel edge from a missing target adds that target to the graph",
-)
 def test_path_to_nearest_target_sentinel_leaves_graph_nodes_unchanged(
     sdf_graph: SDFTimingGraph,
 ) -> None:
