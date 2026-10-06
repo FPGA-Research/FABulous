@@ -316,33 +316,31 @@ class FABulousSettings(BaseSettings):
 
     @field_validator("proj_lang", mode="before")
     @classmethod
-    def parse_proj_lang(cls, value: str | HDLType) -> str | HDLType:
-        """Parse project language from string or HDLType enum."""
-        if isinstance(value, HDLType):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower()
-        raise ValueError("Project language must be a string or HDLType enum")
+    def parse_proj_lang(cls, value: str | HDLType) -> HDLType:
+        """Normalise the project language to `HDLType`, accepting aliases.
 
-    @field_validator("proj_lang", mode="after")
-    @classmethod
-    def validate_proj_lang(cls, value: str | HDLType) -> HDLType:
-        """Validate and normalise the project language to HDLType enum."""
+        This runs before pydantic's enum check, which would otherwise reject the
+        `v`, `sv` and `vhd` aliases.
+        """
         if isinstance(value, HDLType):
             return value
-        key = value.strip().upper()
-        # Allow common aliases
-        alias_map = {
-            "VERILOG": "VERILOG",
-            "V": "VERILOG",
-            "SYSTEM_VERILOG": "SYSTEM_VERILOG",
-            "SV": "SYSTEM_VERILOG",
-            "VHDL": "VHDL",
-            "VHD": "VHDL",
+        aliases = {
+            "verilog": HDLType.VERILOG,
+            "v": HDLType.VERILOG,
+            "system_verilog": HDLType.SYSTEM_VERILOG,
+            "sv": HDLType.SYSTEM_VERILOG,
+            "vhdl": HDLType.VHDL,
+            "vhd": HDLType.VHDL,
         }
-        if key not in alias_map:
-            raise ValueError(f"Invalid project language: {value}")
-        return HDLType[alias_map[key]]
+        if isinstance(value, str):
+            key = value.strip().lower()
+            if key in aliases:
+                return aliases[key]
+            raise ValueError(
+                f"Invalid project language {value!r}, expected one of: "
+                f"{', '.join(aliases)}"
+            )
+        raise ValueError("Project language must be a string or HDLType enum")
 
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(

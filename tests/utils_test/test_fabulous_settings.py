@@ -264,23 +264,9 @@ class TestFieldValidators:
             pytest.param("VHDL", HDLType.VHDL, id="upper_case"),
             pytest.param(" System_Verilog ", HDLType.SYSTEM_VERILOG, id="padded"),
             pytest.param(HDLType.VHDL, HDLType.VHDL, id="enum"),
-            *(
-                pytest.param(
-                    alias,
-                    expected,
-                    id=f"alias_{alias}",
-                    marks=pytest.mark.xfail(
-                        strict=True,
-                        reason="validate_proj_lang's alias map is unreachable: "
-                        "pydantic's HDLType enum check rejects the alias first",
-                    ),
-                )
-                for alias, expected in [
-                    ("v", HDLType.VERILOG),
-                    ("sv", HDLType.SYSTEM_VERILOG),
-                    ("vhd", HDLType.VHDL),
-                ]
-            ),
+            pytest.param("v", HDLType.VERILOG, id="alias_v"),
+            pytest.param("sv", HDLType.SYSTEM_VERILOG, id="alias_sv"),
+            pytest.param("vhd", HDLType.VHDL, id="alias_vhd"),
         ],
     )
     def test_proj_lang_normalised(
