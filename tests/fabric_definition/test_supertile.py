@@ -16,8 +16,6 @@ optimisation pipeline, so any drift in their semantics propagates silently.
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
-
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
@@ -28,11 +26,6 @@ from tests.fabric_definition.conftest import make_empty_tile, make_side_port
 class TestSuperTileLayout:
     """Geometric properties — independent of the constituent tiles' ports."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="SuperTile.__iter__ yields (row, column) as (x, y), transposed "
-        "against Fabric.__iter__ and get_ports_around_tile",
-    )
     def test_iter_yields_only_non_none_tiles_with_xy(self) -> None:
         # Asymmetric layout so a transposed (x, y) is observable:
         #   row0: A, B, None
