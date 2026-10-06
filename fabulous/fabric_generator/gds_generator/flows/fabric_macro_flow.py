@@ -427,7 +427,6 @@ class FABulousFabricMacroFlow(Classic):
 
     def _validate_tile_sizes(
         self,
-        fabric: Fabric,
         tile_sizes: dict[str, tuple[Decimal, Decimal]],
         pitch_x: Decimal,
         pitch_y: Decimal,
@@ -435,14 +434,13 @@ class FABulousFabricMacroFlow(Classic):
         """Validate tile and supertile sizes are aligned to the routing pitch grid.
 
         This checks that each tile's width is a multiple of min_pitch_x and
-        each tile's height is a multiple of min_pitch_y. Also validates supertiles.
+        each tile's height is a multiple of min_pitch_y.
 
         Parameters
         ----------
-        fabric : Fabric
-            The fabric object with supertile information.
         tile_sizes : dict[str, tuple[Decimal, Decimal]]
-            Dictionary mapping tile names to their sizes (width, height).
+            Dictionary mapping tile and supertile names to their sizes
+            (width, height).
         pitch_x : Decimal
             Pitch for horizontal (X) direction.
         pitch_y : Decimal
@@ -485,13 +483,6 @@ class FABulousFabricMacroFlow(Classic):
 
         for tile_name, (width, height) in tile_sizes.items():
             check_multiple(tile_name, width, height)
-
-        # Also validate supertiles
-        for supertile_name, _ in fabric.superTileDic.items():
-            if supertile_name not in tile_sizes:
-                continue
-            width, height = tile_sizes[supertile_name]
-            check_multiple(supertile_name, width, height)
 
         if tile_size_errors:
             err("Tile sizes validation failed:")
@@ -549,7 +540,7 @@ class FABulousFabricMacroFlow(Classic):
 
         # Validate that all tile sizes are pitch-aligned
         info("Validating tile sizes are aligned to pitch grid...")
-        self._validate_tile_sizes(self.fabric, self.tile_sizes, pitch_x, pitch_y)
+        self._validate_tile_sizes(self.tile_sizes, pitch_x, pitch_y)
 
         # Use rounded left/bottom and original right/top for initial calculation
         halo_spacing = (halo_left, halo_bottom, halo_right, halo_top)

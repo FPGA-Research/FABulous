@@ -11,7 +11,7 @@ Tests focus on:
 # ruff: noqa: SLF001
 
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -19,7 +19,6 @@ from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
@@ -32,6 +31,9 @@ from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
 )
 from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import FABulousPDN
 from tests.conftest import make_empty_tile, make_fabric_from_grid
+
+if TYPE_CHECKING:
+    from fabulous.fabric_definition.fabric import Fabric
 
 
 def _tile(name: str) -> Tile:
@@ -217,11 +219,6 @@ class TestValidateTileSizes:
         mock_flow._validate_tile_sizes = FABulousFabricMacroFlow._validate_tile_sizes
         return mock_flow
 
-    @pytest.fixture
-    def fabric(self) -> Fabric:
-        """A real one-row fabric holding `tile1` and `tile2`."""
-        return make_fabric_from_grid([[_tile("tile1"), _tile("tile2")]])
-
     @pytest.mark.parametrize(
         ("tile_sizes", "pitch_x", "pitch_y"),
         [
@@ -245,16 +242,12 @@ class TestValidateTileSizes:
     def test_accepts_pitch_aligned_sizes(
         self,
         flow: MagicMock,
-        fabric: Fabric,
         tile_sizes: dict[str, tuple[Decimal, Decimal]],
         pitch_x: Decimal,
         pitch_y: Decimal,
     ) -> None:
         """Widths on the X pitch and heights on the Y pitch pass."""
-        assert (
-            flow._validate_tile_sizes(flow, fabric, tile_sizes, pitch_x, pitch_y)
-            is True
-        )
+        assert flow._validate_tile_sizes(flow, tile_sizes, pitch_x, pitch_y) is True
 
     @pytest.mark.parametrize(
         "tile_sizes",
@@ -266,14 +259,32 @@ class TestValidateTileSizes:
     def test_rejects_misaligned_sizes(
         self,
         flow: MagicMock,
-        fabric: Fabric,
         tile_sizes: dict[str, tuple[Decimal, Decimal]],
     ) -> None:
         """A width off the X pitch or a height off the Y pitch fails."""
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, fabric, tile_sizes, Decimal(50), Decimal(30)
-            )
+            flow._validate_tile_sizes(flow, tile_sizes, Decimal(50), Decimal(30))
+
+    def test_reports_each_misaligned_size_once(
+        self, flow: MagicMock, mocker: MockerFixture
+    ) -> None:
+        """A misaligned tile and a misaligned supertile are each logged once."""
+        err = mocker.patch(
+            "fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow.err"
+        )
+        tile_sizes = {
+            "tile1": (Decimal(75), Decimal(90)),
+            "ST": (Decimal(100), Decimal(75)),
+        }
+
+        with pytest.raises(ValueError, match="Tile size validation failed"):
+            flow._validate_tile_sizes(flow, tile_sizes, Decimal(50), Decimal(30))
+
+        assert [c.args[0] for c in err.call_args_list] == [
+            "Tile sizes validation failed:",
+            "  tile1: width 75 not aligned to 50 (remainder: 50)",
+            "  ST: height 75 not aligned to 30 (remainder: 50)",
+        ]
 
 
 class TestComputeRowAndColumnSizes:
