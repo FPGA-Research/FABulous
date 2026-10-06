@@ -256,7 +256,28 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 f"MaxFramesPerCol*{x}",
             )
 
-    instantiatedPosition = []
+    # A supertile is instantiated once, at its anchor (the first non-NULL child
+    # in row-major order). Child offsets are local tileMap coordinates, so they
+    # are measured from the placement's tileMap origin, which is not the anchor
+    # when the top-left tileMap cell is NULL.
+    placement_at_anchor: dict[tuple[int, int], tuple[int, int, SuperTile]] = {}
+    covered_cells: set[tuple[int, int]] = set()
+    for base_fx, base_fy, placed in fabric.iter_super_tile_placements():
+        cells = [
+            (base_fx + lx, base_fy + ly)
+            for ly, st_row in enumerate(placed.tileMap)
+            for lx, st_tile in enumerate(st_row)
+            if st_tile is not None
+        ]
+        if overlap := covered_cells.intersection(cells):
+            raise ValueError(
+                f"Supertile {placed.name} placed at X{base_fx}Y{base_fy} overlaps "
+                f"another supertile placement at {sorted(overlap)}; the fabric "
+                "layout cannot be split into disjoint supertile placements."
+            )
+        covered_cells.update(cells)
+        placement_at_anchor[cells[0]] = (base_fx, base_fy, placed)
+
     # Tile instantiations
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
@@ -266,19 +287,24 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if tile is None:
                 continue
 
-            if (x, y) in instantiatedPosition:
+            # (base_x, base_y) is the grid position of local offset (0, 0).
+            if (x, y) in placement_at_anchor:
+                base_x, base_y, superTile = placement_at_anchor[(x, y)]
+            elif (x, y) in covered_cells:
                 continue
+            elif tile.partOfSuperTile:
+                raise ValueError(
+                    f"Tile {tile.name} at X{x}Y{y} belongs to a supertile, but no "
+                    "complete placement of that supertile's tileMap covers it. "
+                    "Place the whole supertile in the fabric, or use a tile that is "
+                    "not part of a supertile."
+                )
+            else:
+                base_x, base_y = x, y
 
-            # instantiate super tile when encountered
             # get all the ports of the tile. If is a super tile, we loop over the
             # tile map and find all the offset of the subtile, and all their related
             # ports.
-            if tile.partOfSuperTile:
-                for k, v in fabric.superTileDic.items():
-                    if tile.name in [i.name for i in v.tiles]:
-                        superTile = fabric.superTileDic[k]
-                        break
-
             if superTile:
                 ports_around = superTile.get_ports_around_tile()
                 cord = [
@@ -287,8 +313,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 ]
                 for i, j in cord:
                     tileLocationOffset.append((int(i), int(j)))
-                    instantiatedPosition.append((x + int(i), y + int(j)))
-                    superTileLoc.append((x + int(i), y + int(j)))
+                    superTileLoc.append((base_x + int(i), base_y + int(j)))
             else:
                 tileLocationOffset.append((0, 0))
 
@@ -296,7 +321,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # use the offset to find all the related tile input, output signal
             # if is a normal tile then the offset is (0, 0)
             for i, j in tileLocationOffset:
-                here = fabric.tile[y + j][x + i]
+                here = fabric.tile[base_y + j][base_x + i]
                 in_super = here.partOfSuperTile
 
                 def _local_names(
@@ -312,7 +337,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
                 for get_side_ports, dx, dy in _SIDE_INPUT_CONNECTIONS:
-                    neighbor_x, neighbor_y = x + i + dx, y + j + dy
+                    neighbor_x, neighbor_y = base_x + i + dx, base_y + j + dy
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
                     localPorts = _local_names(get_side_ports(here, IO.INPUT))
@@ -346,7 +371,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                 portsPairs.append(
                                     (
                                         f"Tile_X{int(i)}Y{int(j)}_{port.name}",
-                                        f"Tile_X{x + int(i)}Y{y + int(j)}_{port.name}",
+                                        f"Tile_X{base_x + int(i)}Y{base_y + int(j)}"
+                                        f"_{port.name}",
                                     )
                                 )
             else:
@@ -360,12 +386,12 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 indentLevel=0,
             )
             for i, j in tileLocationOffset:
-                for b in fabric.tile[y + j][x + i].bels:
+                for b in fabric.tile[base_y + j][base_x + i].bels:
                     for p in b.externalInput:
-                        portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
+                        portsPairs.append((p, f"Tile_X{base_x + i}Y{base_y + j}_{p}"))
 
                     for p in b.externalOutput:
-                        portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
+                        portsPairs.append((p, f"Tile_X{base_x + i}Y{base_y + j}_{p}"))
 
                     if not fabric.disableUserCLK:
                         for p in b.sharedPort:
@@ -401,8 +427,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
-                        px = x + i + dx
-                        py = y + j + dy
+                        px = base_x + i + dx
+                        py = base_y + j + dy
                         if grid_at(fabric.tile, px, py) is None:
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
@@ -413,11 +439,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                         # UserCLKo signal: only a boundary port when the
                         # consumer is outside the supertile
-                        sx = x + i - dx
-                        sy = y + j - dy
+                        sx = base_x + i - dx
+                        sy = base_y + j - dy
                         if (sx, sy) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
+                                (
+                                    f"{pre}UserCLKo",
+                                    f"Tile_X{base_x + i}Y{base_y + j}_UserCLKo",
+                                )
                             )
 
             if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -427,8 +456,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     if superTile:
                         pre = f"Tile_X{i}Y{j}_"
 
-                    supertile_x = x + i
-                    supertile_y = y + j
+                    supertile_x = base_x + i
+                    supertile_y = base_y + j
 
                     # Connect the FrameData port to the previous tiles'
                     # (to the west of it) FrameData_O signals.
@@ -544,11 +573,11 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if superTile:
                 name = superTile.name
                 for i, j in tileLocationOffset:
-                    if (y + j) not in (0, fabric.numberOfRows - 1):
+                    if (base_y + j) not in (0, fabric.numberOfRows - 1):
                         emulateParamPairs.append(
                             (
                                 f"Tile_X{i}Y{j}_Emulate_Bitstream",
-                                f"`Tile_X{x + i}Y{y + j}_Emulate_Bitstream",
+                                f"`Tile_X{base_x + i}Y{base_y + j}_Emulate_Bitstream",
                             )
                         )
             else:

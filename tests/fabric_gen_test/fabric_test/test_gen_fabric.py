@@ -178,6 +178,85 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     assert anchors == [(0, 0, supertile)]
 
 
+def _supertile_children(tmp_path: Path, names: str) -> list[Tile]:
+    """Build one empty child tile per character of `names`, marked as subtiles."""
+    tiles = [make_empty_tile(n, tileDir=tmp_path, pinOrderConfig={}) for n in names]
+    for tile in tiles:
+        tile.partOfSuperTile = True
+    return tiles
+
+
+def test_supertile_with_null_top_left_wired_from_tilemap_origin(
+    tmp_path: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+    elaborate: Callable[..., Netlist],
+) -> None:
+    """Child offsets are measured from the tileMap origin, not from the anchor.
+
+    With the top-left tileMap cell NULL the wrapper is instantiated once at its
+    first non-NULL child X1Y0, while its children stay at X1Y0, X0Y1 and X1Y1.
+    """
+    a, b, c = _supertile_children(tmp_path, "ABC")
+    tile_map: list[list[Tile | None]] = [[None, a], [b, c]]
+    supertile = SuperTile(
+        name="ST", tileDir=tmp_path, tiles=[a, b, c], tileMap=tile_map
+    )
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=tile_map,
+        numberOfRows=2,
+        numberOfColumns=2,
+        superTileDic={"ST": supertile},
+        name="test_fabric",
+    )
+    st_writer = code_generator_factory(".v", "ST")
+    generateSuperTile(st_writer, supertile)
+    writer = code_generator_factory(".v", "test_fabric")
+    generateFabric(writer, fabric)
+    net = elaborate(
+        "\n".join(
+            [writer.outFileName.read_text(), st_writer.outFileName.read_text()]
+            + [tile_stub(t) for t in (a, b, c)]
+        )
+    )
+
+    assert net.cell_names() == {"Tile_X1Y0_ST"}
+    frame_data = net.port_net("FrameData")
+    frame_strobe = net.port_net("FrameStrobe")
+    expected = {
+        "Tile_X1Y0_FrameData": frame_data[0:32],
+        "Tile_X0Y1_FrameData": frame_data[32:64],
+        "Tile_X0Y1_FrameStrobe": frame_strobe[0:20],
+        "Tile_X1Y1_FrameStrobe": frame_strobe[20:40],
+        "Tile_X0Y1_UserCLK": net.port_net("UserCLK"),
+        "Tile_X1Y1_UserCLK": net.port_net("UserCLK"),
+    }
+    for port, bits in expected.items():
+        assert net.cell_net("Tile_X1Y0_ST", port) == bits, port
+
+
+def test_truncated_supertile_rejected(
+    tmp_path: Path,
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """A subtile with no complete supertile placement around it fails loudly."""
+    a, b = _supertile_children(tmp_path, "AB")
+    supertile = SuperTile(name="ST", tileDir=tmp_path, tiles=[a, b], tileMap=[[a], [b]])
+    t = mk_tile("T")
+    # A sits on the bottom edge, so the B below it falls off the grid.
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=[[t, t], [t, a]],
+        numberOfRows=2,
+        numberOfColumns=2,
+        superTileDic={"ST": supertile},
+    )
+
+    with pytest.raises(ValueError, match=r"Tile A at X1Y1 .* no complete placement"):
+        generateFabric(code_generator_factory(".v", "test_fabric"), fabric)
+
+
 @pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
 def test_user_clk_chains_from_side(
     side: Side,
