@@ -26,6 +26,7 @@ skip cleanly when it is absent.
 """
 
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -331,7 +332,9 @@ class TestClockMode:
 
 
 class TestConfigBitMode:
-    """`FLIPFLOP_CHAIN` has no frame-based configuration interface."""
+    """`FLIPFLOP_CHAIN` has no frame-based configuration interface
+    and `FRAME_BASED` has no flipflop chain configuration interface.
+    """
 
     def test_flipflop_chain_has_no_frame_ports(
         self, supertile_netlist: Callable[..., GridConnectivity]
@@ -341,6 +344,12 @@ class TestConfigBitMode:
         )
         assert not any("FrameData" in p for p in net.top_port_names())
         assert not any("FrameStrobe" in p for p in net.top_port_names())
+
+    def test_frame_based_has_no_flipflop_chain_ports(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        net = supertile_netlist(grid(1, 2), config_bit_mode=ConfigBitMode.FRAME_BASED)
+        assert not any("CONF" in p for p in net.top_port_names())
 
 
 class TestFlipFlopChainConfClkBraodcast:
@@ -382,6 +391,77 @@ class TestFlipFlopChainConfClkBraodcast:
                 if t is None:
                     continue
                 assert net.cell_net(x, y, "CONF_CLK") == top_conf_clk
+
+
+class TestFlipFlopChainSingleTile:
+    """A 1x1 FF-mode supertile is a transparent wrapper around one tile."""
+
+    def test_conf_in_reaches_tile_and_conf_out_reaches_boundary(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        net = supertile_netlist(
+            grid(1, 1), config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN
+        )
+        assert net.cell_net(0, 0, "CONFin") == net.top_port_net("CONFin")
+        assert net.cell_net(0, 0, "CONFout") == net.top_port_net("CONFout")
+
+
+class TestFlipFlopChainConnectivity:
+    """In FlipFlopChain mode, CONFin/CONFout form one row-major chain.
+
+    The top-level `CONFin` feeds the first occupied tile in row-major order;
+    each tile's `CONFout` feeds the next occupied tile's `CONFin`; the last
+    tile's `CONFout` drives the top-level `CONFout`. Holes are skipped, but
+    the chain continues across them.
+    """
+
+    @staticmethod
+    def _chain_order(tileMap: list[list[Tile | None]]) -> list[tuple[int, int]]:
+        """Occupied cells in the same row-major order generateSuperTile uses."""
+        return [
+            (x, y)
+            for y, row in enumerate(tileMap)
+            for x, tile in enumerate(row)
+            if tile is not None
+        ]
+
+    def _check(self, net: GridConnectivity, tileMap: list[list[Tile | None]]) -> None:
+        chain = self._chain_order(tileMap)
+        assert chain, "test grid must have at least one occupied cell"
+
+        first_x, first_y = chain[0]
+        last_x, last_y = chain[-1]
+
+        # Boundary -> first tile.
+        assert net.cell_net(first_x, first_y, "CONFin") == net.top_port_net("CONFin")
+
+        # Tile -> tile, in row-major order.
+        for (px, py), (cx, cy) in pairwise(chain):
+            assert net.cell_net(px, py, "CONFout") == net.cell_net(cx, cy, "CONFin")
+
+        # Last tile -> boundary.
+        assert net.cell_net(last_x, last_y, "CONFout") == net.top_port_net("CONFout")
+
+    @pytest.mark.parametrize(("rows", "cols"), GRIDS)
+    def test_rectangular_grids(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        rows: int,
+        cols: int,
+    ) -> None:
+        tileMap = grid(rows, cols)
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+        self._check(net, tileMap)
+
+    @pytest.mark.parametrize("name", sorted(SHAPES))
+    def test_irregular_shapes(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+    ) -> None:
+        tileMap = shape(SHAPES[name])
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+        self._check(net, tileMap)
 
 
 class TestBelExternalPorts:
