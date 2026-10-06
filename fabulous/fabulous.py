@@ -208,14 +208,14 @@ def common_options(
         ),
     ] = None,
     verbose: Annotated[
-        int,
+        int | None,
         typer.Option(
             "--verbose",
             "-v",
             count=True,
             help="Show detailed log information",
         ),
-    ] = 0,
+    ] = None,
     debug: Annotated[
         bool | None,
         typer.Option(
@@ -236,7 +236,7 @@ def common_options(
 ) -> None:
     """Provide common options for all FABulous commands."""
     setup_logger(
-        verbose,
+        verbose or 0,
         debug or False,
         log_file=log_file or Path(),
     )
@@ -257,6 +257,8 @@ def common_options(
             project_dir=resolved_dir,
             global_dot_env=global_dot_env,
             project_dot_env=project_dot_env,
+            verbose=verbose,
+            debug=debug,
         )
     except ValidationError as e:
         _log_settings_validation_error(e, resolved_dir)
@@ -929,8 +931,10 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     common_options(
         ctx=typer.Context(get_command(app)),
         project_dir=project_dir if args.project_dir else None,
-        verbose=args.verbose,
-        debug=args.debug,
+        # argparse reports an absent flag as False, which would override the
+        # FAB_VERBOSE/FAB_DEBUG settings
+        verbose=args.verbose or None,
+        debug=args.debug or None,
         log_file=args.log,
         global_dot_env=args.globalDotEnv,
         project_dot_env=args.projectDotEnv,

@@ -444,13 +444,6 @@ def test_debug_mode(
     assert any(line.startswith("DEBUG: ") for line in out_lines) is debug_records
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "common_options hands -v/--debug only to setup_logger; start_cmd reads "
-        "verbose/debug from get_context(), which only sees FAB_VERBOSE/FAB_DEBUG"
-    ),
-)
 @pytest.mark.parametrize(
     ("flag", "expected"),
     [

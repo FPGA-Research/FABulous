@@ -533,6 +533,8 @@ def init_context(
     global_dot_env: Path | None = None,
     project_dot_env: Path | None = None,
     api_mode: bool = False,
+    verbose: int | None = None,
+    debug: bool | None = None,
 ) -> FABulousSettings:
     """Initialize the global FABulous context with settings.
 
@@ -549,6 +551,12 @@ def init_context(
         Path to a project-specific .env file (if any)
     api_mode: bool
         If True, skips all validation for API mode
+    verbose : int | None
+        Verbosity given on the command line. Defaults to None, which leaves it to
+        `FAB_VERBOSE`.
+    debug : bool | None
+        Debug mode given on the command line. Defaults to None, which leaves it to
+        `FAB_DEBUG`.
 
     Returns
     -------
@@ -604,12 +612,19 @@ def init_context(
                 "but this is not found, this entry is ignored"
             )
 
+    # Init kwargs outrank every env source, so command-line flags win.
+    cli_flags: dict[str, int | bool] = {}
+    if verbose is not None:
+        cli_flags["verbose"] = verbose
+    if debug is not None:
+        cli_flags["debug"] = debug
+
     if project_dir:
         _context_instance = FABulousSettings(
-            proj_dir=project_dir, _env_file=tuple(env_files)
+            proj_dir=project_dir, _env_file=tuple(env_files), **cli_flags
         )
     else:
-        _context_instance = FABulousSettings(_env_file=tuple(env_files))
+        _context_instance = FABulousSettings(_env_file=tuple(env_files), **cli_flags)
 
     return _context_instance
 
