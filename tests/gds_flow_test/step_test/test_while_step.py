@@ -3,14 +3,20 @@
 import pytest
 from librelane.common import GenericDict
 from librelane.config.config import Config
+from librelane.config.variable import Variable
 from librelane.state.state import State
 from librelane.steps.step import Step
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
+    TileAreaOptimisation,
+)
 from fabulous.fabric_generator.gds_generator.steps.while_step import (
     _SUBSTITUTE_STEPS_VAR,
     WhileStep,
 )
+
+_RUN_INNER_VAR = Variable("TEST_RUN_INNER", bool, "Gates Test.Inner.", default=True)
 
 
 class CustomError(Exception):
@@ -232,3 +238,104 @@ class TestWhileStep:
             warning_list_ref=[],
         )
         assert final == payload
+
+
+class TestWhileStepGating:
+    """Loop-body steps honour `gating_config_vars` like a SequentialFlow."""
+
+    @pytest.mark.parametrize(
+        ("run_inner", "expected_starts"),
+        [
+            pytest.param(True, 1, id="enabled"),
+            pytest.param(False, 0, id="disabled"),
+        ],
+    )
+    def test_gated_step_runs_only_when_enabled(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mocker: MockerFixture,
+        tmp_path,  # noqa: ANN001
+        run_inner: bool,
+        expected_starts: int,
+    ) -> None:
+        """A loop-body step whose gating variable is False is skipped."""
+
+        class GatedWhileStep(WhileStep):
+            Steps = [_InnerStep]  # noqa: RUF012
+            outputs = []  # noqa: RUF012
+            config_vars = [_RUN_INNER_VAR]  # noqa: RUF012
+            gating_config_vars = {"Test.Inner": ["TEST_RUN_INNER"]}  # noqa: RUF012
+            max_iterations = 1
+
+        config = Config(dict(mock_config, TEST_RUN_INNER=run_inner))
+        inner_start = mocker.patch.object(_InnerStep, "start", return_value=mock_state)
+        mocker.patch.object(Config, "dumps", return_value="{}")
+        mocker.patch("pathlib.Path.write_text")
+
+        step = GatedWhileStep(config)
+        step.config = config
+        step.step_dir = str(tmp_path)
+        step.toolbox = mocker.MagicMock()
+        step.name = "GatedWhileStep"
+
+        step.run(mock_state)
+
+        assert inner_start.call_count == expected_starts
+
+    @pytest.mark.parametrize(
+        ("config_vars", "gating", "message"),
+        [
+            pytest.param(
+                [],
+                {"Test.Inner": ["TEST_RUN_INNER"]},
+                "Gating variable 'TEST_RUN_INNER' for step 'Test.Inner' is not in "
+                "the config_vars",
+                id="undeclared_variable",
+            ),
+            pytest.param(
+                [Variable("TEST_RUN_INNER", int, "Not a bool.", default=1)],
+                {"Test.Inner": ["TEST_RUN_INNER"]},
+                "Gating variable 'TEST_RUN_INNER' in '.*' is not a bool",
+                id="non_bool_variable",
+            ),
+            pytest.param(
+                [_RUN_INNER_VAR],
+                {"Test.Missing": ["TEST_RUN_INNER"]},
+                "Gated step 'Test.Missing' is not in the Steps",
+                id="unknown_step",
+            ),
+        ],
+    )
+    def test_invalid_gating_is_rejected_at_class_creation(
+        self,
+        config_vars: list[Variable],
+        gating: dict[str, list[str]],
+        message: str,
+    ) -> None:
+        """A gating entry that could never be honoured fails when the class is made."""
+        bad_config_vars = config_vars
+        bad_gating = gating
+        with pytest.raises(TypeError, match=message):
+
+            class _BadGating(WhileStep):
+                Steps = [_InnerStep]  # noqa: RUF012
+                outputs = []  # noqa: RUF012
+                config_vars = bad_config_vars
+                gating_config_vars = bad_gating
+
+    def test_tile_area_optimisation_declares_its_gating_variables(self) -> None:
+        """The gating variables survive the step's config filtering."""
+        declared = {variable.name for variable in TileAreaOptimisation.config_vars}
+        gating_names = {
+            name
+            for names in TileAreaOptimisation.gating_config_vars.values()
+            for name in names
+        }
+
+        assert TileAreaOptimisation.gating_config_vars == {
+            "OpenROAD.TapEndcapInsertion": ["RUN_TAP_ENDCAP_INSERTION"],
+            "OpenROAD.CTS": ["RUN_CTS"],
+            "OpenROAD.RepairAntennas": ["RUN_ANTENNA_REPAIR"],
+        }
+        assert gating_names <= declared

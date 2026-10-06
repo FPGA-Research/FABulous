@@ -9,7 +9,7 @@ from typing import Optional
 from librelane.common.misc import slugify
 from librelane.config.variable import Variable
 from librelane.flows.flow import FlowProgressBar
-from librelane.logging.logger import warn
+from librelane.logging.logger import info, warn
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
@@ -29,9 +29,17 @@ _SUBSTITUTE_STEPS_VAR = Variable(
 
 
 class WhileStep(Step):
-    """A step that runs a sub-step repeatedly while a condition is met."""
+    """A step that runs a sub-step repeatedly while a condition is met.
+
+    `gating_config_vars` maps a loop-body step id to boolean config variables, as
+    `SequentialFlow.gating_config_vars` does for a flow: the step is skipped when
+    any of them is False. The variables must be in `config_vars`, since a step's
+    config only keeps the variables it declares.
+    """
 
     Steps: list[type[Step]]
+
+    gating_config_vars: dict[str, list[str]] = {}  # noqa: RUF012
 
     max_iterations: int = 10
 
@@ -75,6 +83,26 @@ class WhileStep(Step):
             config_var_dict.update({v.name: v for v in Self.config_vars})
         config_var_dict.setdefault(_SUBSTITUTE_STEPS_VAR.name, _SUBSTITUTE_STEPS_VAR)
         Self.config_vars = list(config_var_dict.values())
+
+        step_ids = {step.id for step in Self.Steps}
+        for step_id, variable_names in Self.gating_config_vars.items():
+            if step_id not in step_ids:
+                raise TypeError(
+                    f"Gated step '{step_id}' is not in the Steps of "
+                    f"'{Self.__qualname__}'"
+                )
+            for variable_name in variable_names:
+                variable = config_var_dict.get(variable_name)
+                if variable is None:
+                    raise TypeError(
+                        f"Gating variable '{variable_name}' for step '{step_id}' is "
+                        f"not in the config_vars of '{Self.__qualname__}'"
+                    )
+                if variable.type is not bool:
+                    raise TypeError(
+                        f"Gating variable '{variable_name}' in "
+                        f"'{Self.__qualname__}' is not a bool"
+                    )
 
     def condition(self, _state: State) -> bool:
         """Return true if the condition is met and keep the loop going."""
@@ -134,6 +162,17 @@ class WhileStep(Step):
             full_iter_completed = False
             # loop body
             for si, cStep in enumerate(loop_steps):
+                gated_off = [
+                    variable_name
+                    for variable_name in self.gating_config_vars.get(cStep.id, [])
+                    if not self.config[variable_name]
+                ]
+                if gated_off:
+                    info(
+                        f"Gating variables {gated_off} for step '{cStep.id}' set to "
+                        "False, the step will be skipped."
+                    )
+                    continue
                 step = cStep(self.config, current_state)
                 try:
                     self._current_iter_dir = Path(self.step_dir) / f"iter_{i}"
