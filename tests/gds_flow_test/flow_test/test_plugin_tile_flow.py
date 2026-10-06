@@ -295,7 +295,13 @@ class TestFABulousTileRunAdapter:
         mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(20))
         mock_tile.name = "LUT4AB"
         mock_tile.tileDir = tile_dir / "LUT4AB.csv"
-        mock_tile.bels = [mocker.MagicMock(src=bel_src), mocker.MagicMock(src=bel_src)]
+        # Two BELs reach one primitive through different relative paths.
+        mock_tile.bels = [
+            mocker.MagicMock(src=bel_src),
+            mocker.MagicMock(
+                src=tmp_path / "primitives" / ".." / "primitives" / "LC.v"
+            ),
+        ]
         mock_tile.globalConfigBits = 0
 
         init_ctx = mocker.patch.object(plugin_tile_flow, "init_context")

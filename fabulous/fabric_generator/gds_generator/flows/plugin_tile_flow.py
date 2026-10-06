@@ -164,8 +164,10 @@ class FABulousTile(SequentialFlow):
                     concrete_tile_dir / f"{concrete_tile.name}_ConfigMem.v",
                 ]
             )
+            # Resolved so one file reached through different relative paths
+            # (`..` segments in BEL paths) is deduplicated below.
             for bel in concrete_tile.bels:
-                file_list.append(str(bel.src))
+                file_list.append(str(bel.src.resolve()))
 
         file_list.extend(str(f) for f in generated_files if f.exists())
         file_list = list(dict.fromkeys(file_list))

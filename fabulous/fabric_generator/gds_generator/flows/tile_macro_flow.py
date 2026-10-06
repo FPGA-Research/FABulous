@@ -111,8 +111,10 @@ class FABulousTileMacroFlow(SequentialFlow):
         file_list: list[str] = []
         if self._models_pack_first:
             file_list.append(str(models_pack.resolve()))
+        # Resolved so one file reached through different relative paths (`..`
+        # segments in BEL paths) is listed once.
         file_list += [
-            str(f)
+            str(f.resolve())
             for pattern in self._hdl_glob_patterns
             for f in tile_type.tileDir.parent.glob(pattern)
             if "macro" not in f.parts
@@ -126,7 +128,7 @@ class FABulousTileMacroFlow(SequentialFlow):
             for sub_tile in tile_type.tiles:
                 bels.extend(sub_tile.bels)
         for bel in bels:
-            if (bel_path := str(bel.src)) not in file_list:
+            if (bel_path := str(bel.src.resolve())) not in file_list:
                 file_list.append(bel_path)
 
         # Determine logical dimensions

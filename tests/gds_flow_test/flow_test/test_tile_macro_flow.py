@@ -534,6 +534,13 @@ class TestFABulousTileVerilogMacroFlowInit:
             str(bel_src),
         ]
 
+    @pytest.mark.parametrize(
+        "second_src_parts",
+        [
+            pytest.param(("SRAM.v",), id="same_path"),
+            pytest.param(("..", "fabulous", "SRAM.v"), id="through_parent_dir"),
+        ],
+    )
     def test_verilog_files_include_subtile_bel_source(
         self,
         mock_supertile: MagicMock,
@@ -541,19 +548,24 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
         tmp_path: Path,
         mocker: MockerFixture,
+        second_src_parts: tuple[str, ...],
     ) -> None:
         """SuperTile sub-tile BEL sources are added to VERILOG_FILES once.
 
         SuperTile BELs live on the constituent sub-tiles rather than the
         wrapper, so collection must descend into `SuperTile.tiles`; two
-        sub-tiles sharing a primitive contribute it once.
+        sub-tiles sharing a primitive contribute it once, also when they
+        reach it through different relative paths.
         """
-        bel_src: Path = tmp_path / "primitives" / "SRAM" / "fabulous" / "SRAM.v"
-        bel_src.parent.mkdir(parents=True)
+        bel_dir: Path = tmp_path / "primitives" / "SRAM" / "fabulous"
+        bel_src: Path = bel_dir / "SRAM.v"
+        bel_dir.mkdir(parents=True)
         bel_src.write_text("module SRAM(); endmodule")
         mock_supertile.tiles = [
             mocker.MagicMock(bels=[mocker.MagicMock(src=bel_src)]),
-            mocker.MagicMock(bels=[mocker.MagicMock(src=bel_src)]),
+            mocker.MagicMock(
+                bels=[mocker.MagicMock(src=bel_dir.joinpath(*second_src_parts))]
+            ),
         ]
 
         flow: FABulousTileVerilogMacroFlow = self._create_flow(
