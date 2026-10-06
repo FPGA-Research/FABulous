@@ -3,115 +3,72 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx import timing_graph as tg
-from fabulous.fabric_cad.timing_model.models import DelayType, SDFCellType
+from fabulous.fabric_cad.timing_model.models import Component, DelayType, SDFCellType
+
+# IN -> U1 (BUF) -> U2 (DFF) -> OUT, with rise/fall triple pairs, a single
+# (nominal) triple, and a setup/hold check pair on the flip-flop.
+SDF_TEXT = """(DELAYFILE
+(SDFVERSION "3.0")
+(DESIGN "top")
+(DIVIDER /)
+(TIMESCALE 1ns)
+(CELL
+ (CELLTYPE "top")
+ (INSTANCE)
+ (DELAY
+  (ABSOLUTE
+   (INTERCONNECT IN U1/A (0.010::0.020) (0.030::0.040))
+   (INTERCONNECT U1/Y U2/D (0.050::0.060))
+   (INTERCONNECT U2/Q OUT (0.070::0.080) (0.090::0.100))
+  )
+ )
+)
+(CELL
+ (CELLTYPE "BUF_X1")
+ (INSTANCE U1)
+ (DELAY
+  (ABSOLUTE
+   (IOPATH A Y (0.100::0.200) (0.300::0.400))
+  )
+ )
+)
+(CELL
+ (CELLTYPE "DFF_X1")
+ (INSTANCE U2)
+ (DELAY
+  (ABSOLUTE
+   (IOPATH (posedge CLK) Q (0.500::0.600) (0.700::0.800))
+  )
+ )
+ (TIMINGCHECK
+  (SETUP D (posedge CLK) (0.110::0.120))
+  (HOLD D (posedge CLK) (0.130::0.140))
+ )
+)
+)
+"""
 
 
-def make_component_data(
-    *,
-    ctype: str,
-    from_pin: str,
-    to_pin: str,
-    delay_paths: dict[str, dict[str, float | None]],
-    is_timing_check: bool = False,
-    is_timing_env: bool = False,
-    is_absolute: bool = True,
-    is_incremental: bool = False,
-    is_cond: bool = False,
-    cond_equation: str | None = None,
-    from_pin_edge: str | None = None,
-    to_pin_edge: str | None = None,
-) -> dict[str, object]:
-    return {
-        "type": ctype,
-        "from_pin": from_pin,
-        "to_pin": to_pin,
-        "delay_paths": delay_paths,
-        "is_timing_check": is_timing_check,
-        "is_timing_env": is_timing_env,
-        "is_absolute": is_absolute,
-        "is_incremental": is_incremental,
-        "is_cond": is_cond,
-        "cond_equation": cond_equation,
-        "from_pin_edge": from_pin_edge,
-        "to_pin_edge": to_pin_edge,
-    }
+def _summary(component: Component) -> tuple[object, ...]:
+    """Project a component onto the fields `parse_sdf` derives itself."""
+    return (
+        component.c_type,
+        component.connection_string,
+        component.cell_name,
+        component.from_cell_instance,
+        component.from_cell_pin,
+        component.to_cell_instance,
+        component.to_cell_pin,
+        component.delay,
+        component.is_one_cell_instance,
+    )
 
 
-def fake_sdf_data_with_divider() -> dict[str, object]:
-    return {
-        "header": {"divider": "/"},
-        "cells": {
-            "BUF_X1": {
-                "U1": {
-                    "IOPATH A Y": make_component_data(
-                        ctype="iopath",
-                        from_pin="A",
-                        to_pin="Y",
-                        delay_paths={
-                            "fast": {"min": 1.0, "max": 2.0},
-                            "slow": {"min": 3.0, "max": 4.0},
-                        },
-                        is_absolute=True,
-                    ),
-                    "INTERCONNECT U1/Y U2/A": make_component_data(
-                        ctype="interconnect",
-                        from_pin="U1/Y",
-                        to_pin="U2/A",
-                        delay_paths={
-                            "fast": {"min": 0.1, "max": 0.2},
-                            "slow": {"min": 0.3, "max": 0.4},
-                        },
-                        is_incremental=True,
-                    ),
-                }
-            },
-            "DFF_X1": {
-                "U2": {
-                    "IOPATH D Q": make_component_data(
-                        ctype="iopath",
-                        from_pin="D",
-                        to_pin="Q",
-                        delay_paths={
-                            "nominal": {"min": 5.0, "max": 7.5},
-                        },
-                        is_timing_check=False,
-                    ),
-                    "INTERCONNECT U2/Q OUT": make_component_data(
-                        ctype="interconnect",
-                        from_pin="U2/Q",
-                        to_pin="OUT",
-                        delay_paths={
-                            "fast": {"min": None, "max": 0.6},
-                            "slow": {"min": 0.7, "max": None},
-                        },
-                        is_cond=True,
-                        cond_equation="EN == 1'b1",
-                    ),
-                }
-            },
-        },
-    }
-
-
-def fake_sdf_data_without_divider() -> dict[str, object]:
-    return {
-        "header": {},
-        "cells": {
-            "INV_X1": {
-                "U3": {
-                    "IOPATH A Y": make_component_data(
-                        ctype="iopath",
-                        from_pin="A",
-                        to_pin="Y",
-                        delay_paths={
-                            "fast": {"min": 0.9, "max": 1.1},
-                            "slow": {"min": 1.2, "max": 1.4},
-                        },
-                    )
-                }
-            }
-        },
-    }
+@pytest.fixture
+def sdf_file(tmp_path: Path) -> Path:
+    path = tmp_path / "top.sdf"
+    path.write_text(SDF_TEXT)
+    return path
 
 
 @pytest.mark.parametrize(
@@ -180,180 +137,130 @@ def test_split_instance_pin_without_hierarchy() -> None:
 
 
 def test_parse_sdf_extracts_header_cells_instances_and_components(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    sdf_file: Path,
 ) -> None:
-    sdf_file = tmp_path / "test.sdf"
-    sdf_file.write_text("dummy sdf content")
-
-    monkeypatch.setattr(
-        tg.sdfparse,
-        "parse",
-        lambda _text: fake_sdf_data_with_divider(),
-    )
-
     result = tg.parse_sdf(sdf_file, DelayType.MAX_ALL)
 
     assert result.hier_sep == "/"
-    assert result.header_info == {"divider": "/"}
-    assert result.sdf_data == fake_sdf_data_with_divider()
-    assert result.cells == ["BUF_X1", "DFF_X1"]
-
-    assert set(result.instances.keys()) == {"U1", "U2"}
-    assert len(result.io_paths) == 2
-    assert len(result.interconnects) == 2
-    assert result.nx_graph.number_of_nodes() == 0
+    assert result.header_info == {
+        "sdfversion": "3.0",
+        "design": "top",
+        "divider": "/",
+        "timescale": "1ns",
+    }
+    assert result.cells == ["top", "BUF_X1", "DFF_X1"]
     assert result.nx_graph.number_of_edges() == 0
 
-    iopath_u1 = result.io_paths[0]
-    assert iopath_u1.c_type == SDFCellType.IOPATH
-    assert iopath_u1.cell_name == "BUF_X1"
-    assert iopath_u1.connection_string == "IOPATH A Y"
-    assert iopath_u1.from_cell_instance == "U1"
-    assert iopath_u1.to_cell_instance == "U1"
-    assert iopath_u1.from_cell_pin == "A"
-    assert iopath_u1.to_cell_pin == "Y"
-    assert iopath_u1.delay == 4.0
-    assert iopath_u1.is_one_cell_instance is True
-    assert iopath_u1.is_timing_check is False
-    assert iopath_u1.is_timing_env is False
-    assert iopath_u1.is_absolute is True
-    assert iopath_u1.is_incremental is False
-    assert iopath_u1.is_cond is False
-    assert iopath_u1.cond_equation is None
-
-    inter_u1_u2 = result.interconnects[0]
-    assert inter_u1_u2.c_type == SDFCellType.INTERCONNECT
-    assert inter_u1_u2.cell_name == "BUF_X1"
-    assert inter_u1_u2.from_cell_instance == "U1"
-    assert inter_u1_u2.to_cell_instance == "U2"
-    assert inter_u1_u2.from_cell_pin == "Y"
-    assert inter_u1_u2.to_cell_pin == "A"
-    assert inter_u1_u2.delay == 0.4
-    assert inter_u1_u2.is_one_cell_instance is False
-    assert inter_u1_u2.is_incremental is True
-
-    inter_u2_out = result.interconnects[1]
-    assert inter_u2_out.from_cell_instance == "U2"
-    assert inter_u2_out.to_cell_instance == ""
-    assert inter_u2_out.from_cell_pin == "Q"
-    assert inter_u2_out.to_cell_pin == "OUT"
-    assert inter_u2_out.delay == 0.7
-    assert inter_u2_out.is_cond is True
-    assert inter_u2_out.cond_equation == "EN == 1'b1"
-
-    assert len(result.instances["U1"]) == 1
-    assert len(result.instances["U2"]) == 1
-    assert result.instances["U1"][0].c_type == SDFCellType.IOPATH
-    assert result.instances["U2"][0].c_type == SDFCellType.IOPATH
-    assert result.instances["U2"][0].delay == 7.5
+    iopath, wire = SDFCellType.IOPATH, SDFCellType.INTERCONNECT
+    assert [_summary(c) for c in result.io_paths] == [
+        (iopath, "iopath_A_Y", "BUF_X1", "U1", "A", "U1", "Y", 0.4, True),
+        (iopath, "iopath_CLK_Q", "DFF_X1", "U2", "CLK", "U2", "Q", 0.8, True),
+        # setup and hold each become a zero-delay D -> CLK arc
+        (iopath, "CLK_D", "DFF_X1", "U2", "D", "U2", "CLK", 0.0, True),
+        (iopath, "CLK_D", "DFF_X1", "U2", "D", "U2", "CLK", 0.0, True),
+    ]
+    assert [_summary(c) for c in result.interconnects] == [
+        (wire, "interconnect_IN_U1/A", "top", "", "IN", "U1", "A", 0.04, False),
+        (wire, "interconnect_U1/Y_U2/D", "top", "U1", "Y", "U2", "D", 0.06, False),
+        (wire, "interconnect_U2/Q_OUT", "top", "U2", "Q", "", "OUT", 0.1, False),
+    ]
+    assert {
+        name: [_summary(c) for c in comps] for name, comps in result.instances.items()
+    } == {
+        "U1": [(iopath, "iopath_A_Y", "BUF_X1", "U1", "A", "U1", "Y", 0.4, True)],
+        "U2": [
+            (iopath, "iopath_CLK_Q", "DFF_X1", "U2", "CLK", "U2", "Q", 0.8, True),
+            (
+                SDFCellType.SETUP,
+                "setup_CLK_D",
+                "DFF_X1",
+                "U2",
+                "CLK",
+                "U2",
+                "D",
+                0.12,
+                True,
+            ),
+            (
+                SDFCellType.HOLD,
+                "hold_CLK_D",
+                "DFF_X1",
+                "U2",
+                "CLK",
+                "U2",
+                "D",
+                0.14,
+                True,
+            ),
+        ],
+    }
+    # the synthesised arc carries the check's flags but no delay data of its own
+    setup_arc = result.io_paths[2]
+    assert setup_arc.delay_paths is None
+    assert setup_arc.is_timing_check is True
+    assert setup_arc.is_absolute is False
+    assert setup_arc.from_pin_edge is None
+    assert result.io_paths[1].from_pin_edge == "posedge"
 
 
 def test_parse_sdf_defaults_to_slash_when_header_has_no_divider(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sdf_file = tmp_path / "test_no_divider.sdf"
-    sdf_file.write_text("dummy sdf content")
-
-    monkeypatch.setattr(
-        tg.sdfparse, "parse", lambda _text: fake_sdf_data_without_divider()
+    sdf_file = tmp_path / "no_divider.sdf"
+    sdf_file.write_text(
+        '(DELAYFILE (SDFVERSION "3.0") (DESIGN "top")\n'
+        '(CELL (CELLTYPE "INV_X1") (INSTANCE U3)\n'
+        " (DELAY (ABSOLUTE (IOPATH A Y (0.9::1.1) (1.2::1.4))))))\n"
     )
 
     result = tg.parse_sdf(sdf_file, DelayType.MIN_FAST)
 
     assert result.hier_sep == "/"
-    assert result.header_info == {}
-    assert result.cells == ["INV_X1"]
-    assert list(result.instances.keys()) == ["U3"]
-    assert len(result.io_paths) == 1
-    assert len(result.interconnects) == 0
-    assert result.io_paths[0].delay == 0.9
+    assert "divider" not in result.header_info
+    assert [_summary(c) for c in result.io_paths] == [
+        (SDFCellType.IOPATH, "iopath_A_Y", "INV_X1", "U3", "A", "U3", "Y", 0.9, True)
+    ]
+    assert result.interconnects == []
 
 
 def test_gen_timing_digraph_builds_expected_edges_and_attributes(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    sdf_file: Path,
 ) -> None:
-    sdf_file = tmp_path / "graph.sdf"
-    sdf_file.write_text("dummy sdf content")
-
-    monkeypatch.setattr(
-        tg.sdfparse,
-        "parse",
-        lambda _text: fake_sdf_data_with_divider(),
-    )
-
     result = tg.gen_timing_digraph(sdf_file, DelayType.MAX_ALL)
 
-    graph = result.nx_graph
-
-    assert isinstance(graph, tg.nx.DiGraph)
-    assert graph.number_of_edges() == 4
-
-    assert graph.has_edge("U1/A", "U1/Y")
-    assert graph.has_edge("U1/Y", "U2/A")
-    assert graph.has_edge("U2/D", "U2/Q")
-    assert graph.has_edge("U2/Q", "OUT")
-
-    edge_u1_iopath = graph["U1/A"]["U1/Y"]
-    assert edge_u1_iopath["weight"] == 4.0
-    assert edge_u1_iopath["component"].c_type == SDFCellType.IOPATH
-    assert edge_u1_iopath["component"].connection_string == "IOPATH A Y"
-
-    edge_inter = graph["U1/Y"]["U2/A"]
-    assert edge_inter["weight"] == 0.4
-    assert edge_inter["component"].c_type == SDFCellType.INTERCONNECT
-    assert edge_inter["component"].from_cell_instance == "U1"
-    assert edge_inter["component"].to_cell_instance == "U2"
-
-    edge_u2_iopath = graph["U2/D"]["U2/Q"]
-    assert edge_u2_iopath["weight"] == 7.5
-
-    edge_out = graph["U2/Q"]["OUT"]
-    assert edge_out["weight"] == 0.7
-    assert edge_out["component"].to_cell_instance == ""
+    assert sorted(result.nx_graph.edges(data="weight")) == [
+        ("IN", "U1/A", 0.04),
+        ("U1/A", "U1/Y", 0.4),
+        ("U1/Y", "U2/D", 0.06),
+        ("U2/CLK", "U2/Q", 0.8),
+        ("U2/D", "U2/CLK", 0.0),
+        ("U2/Q", "OUT", 0.1),
+    ]
+    edge_components = {
+        (u, v): component for u, v, component in result.nx_graph.edges(data="component")
+    }
+    assert edge_components[("U1/A", "U1/Y")] is result.io_paths[0]
+    assert edge_components[("U1/Y", "U2/D")] is result.interconnects[1]
 
 
 def test_gen_timing_digraph_uses_header_separator_for_node_names(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sdf_file = tmp_path / "graph_sep.sdf"
-    sdf_file.write_text("dummy sdf content")
-
-    data = {
-        "header": {"divider": "|"},
-        "cells": {
-            "BUF_X1": {
-                "U1": {
-                    "IOPATH A Y": make_component_data(
-                        ctype="iopath",
-                        from_pin="A",
-                        to_pin="Y",
-                        delay_paths={
-                            "fast": {"min": 1.0, "max": 2.0},
-                            "slow": {"min": 3.0, "max": 4.0},
-                        },
-                    ),
-                    "INTERCONNECT U1|Y U2|A": make_component_data(
-                        ctype="interconnect",
-                        from_pin="U1|Y",
-                        to_pin="U2|A",
-                        delay_paths={
-                            "fast": {"min": 0.1, "max": 0.2},
-                            "slow": {"min": 0.3, "max": 0.4},
-                        },
-                    ),
-                }
-            }
-        },
-    }
-
-    monkeypatch.setattr(tg.sdfparse, "parse", lambda _text: data)
+    sdf_file = tmp_path / "dot_divider.sdf"
+    sdf_file.write_text(
+        SDF_TEXT.replace("(DIVIDER /)", "(DIVIDER .)")
+        .replace("U1/", "U1.")
+        .replace("U2/", "U2.")
+    )
 
     result = tg.gen_timing_digraph(sdf_file, DelayType.MAX_ALL)
 
-    assert result.hier_sep == "|"
-    assert result.nx_graph.has_edge("U1|A", "U1|Y")
-    assert result.nx_graph.has_edge("U1|Y", "U2|A")
+    assert result.hier_sep == "."
+    assert sorted(result.nx_graph.edges) == [
+        ("IN", "U1.A"),
+        ("U1.A", "U1.Y"),
+        ("U1.Y", "U2.D"),
+        ("U2.CLK", "U2.Q"),
+        ("U2.D", "U2.CLK"),
+        ("U2.Q", "OUT"),
+    ]
