@@ -396,6 +396,8 @@ class FABulousFabricOptimisationFlow(Flow):
                     "design__instance__area__stdcell",
                     "design__instance__utilization__stdcell",
                     "fabulous__clean_probes",
+                    "pdk__site_width",
+                    "pdk__site_height",
                 )
                 metrics_dict = {
                     k: v for k in metric_keys if (v := state.metrics.get(k)) is not None

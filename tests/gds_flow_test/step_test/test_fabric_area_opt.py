@@ -10,10 +10,12 @@ correct algorithm so that regression cannot reappear unnoticed.
 # ruff: noqa: SLF001
 
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
 import pytest
+from librelane.flows.flow import FlowException
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -232,11 +234,15 @@ class TestParseTileFields:
                 "fabulous__pin_min_width": "12.5",
                 "fabulous__pin_min_height": 7.0,
                 "design__instance__area__stdcell": "999",
+                "pdk__site_width": 0.46,
+                "pdk__site_height": "2.72",
             }
         )
         assert out["fabulous__pin_min_width"] == 12.5
         assert out["fabulous__pin_min_height"] == 7.0
         assert out["design__instance__area__stdcell"] == 999.0
+        assert out["pdk__site_width"] == 0.46
+        assert out["pdk__site_height"] == 2.72
 
     def test_optional_fields_omitted_when_none(self) -> None:
         # Explicitly None scalars must not appear in the output.
@@ -276,6 +282,54 @@ class TestParseTileFields:
                     "design__core__bbox": "0 0 1 1",
                 }
             )
+
+
+class TestSiteDimensions:
+    """The NLP grid is the placement site the tile runs measured."""
+
+    @staticmethod
+    def _site(width: float, height: float) -> dict[str, float]:
+        return {"pdk__site_width": width, "pdk__site_height": height}
+
+    def test_returns_the_shared_site_size(self) -> None:
+        metrics = {
+            OptMode.BALANCE: {"LUT": self._site(0.46, 2.72)},
+            OptMode.FIND_MIN_WIDTH: {
+                "LUT": self._site(0.46, 2.72),
+                "IO": self._site(0.46, 2.72),
+            },
+        }
+
+        assert FabricAreaOptimisation._site_dimensions(metrics) == (
+            Decimal("0.46"),
+            Decimal("2.72"),
+        )
+
+    @pytest.mark.parametrize(
+        ("metrics", "message"),
+        [
+            pytest.param(
+                {OptMode.BALANCE: {"LUT": {"design__die__bbox": [0, 0, 1, 1]}}},
+                "rerun without TILE_OPT_INFO",
+                id="no_site_size",
+            ),
+            pytest.param(
+                {
+                    OptMode.BALANCE: {
+                        "LUT": {"pdk__site_width": 0.46, "pdk__site_height": 2.72},
+                        "IO": {"pdk__site_width": 0.48, "pdk__site_height": 3.78},
+                    }
+                },
+                "report different placement site sizes",
+                id="conflicting_site_sizes",
+            ),
+        ],
+    )
+    def test_rejects_missing_or_conflicting_site_size(
+        self, metrics: dict[OptMode, dict[str, dict]], message: str
+    ) -> None:
+        with pytest.raises(FlowException, match=message):
+            FabricAreaOptimisation._site_dimensions(metrics)
 
 
 class TestLoadTileMetricsFromJson:

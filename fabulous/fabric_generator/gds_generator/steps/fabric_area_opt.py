@@ -646,7 +646,8 @@ class FabricAreaOptimisation(Step):
              Parsed fields including:
              - "design__die__bbox": [x0, y0, x1, y1]
              - "design__core__bbox": [x0, y0, x1, y1]
-             - Optional scalar fields like "fabulous__pin_min_width"
+             - Optional scalar fields like "fabulous__pin_min_width" and
+               "pdk__site_width"
 
         Raises
         ------
@@ -672,6 +673,8 @@ class FabricAreaOptimisation(Step):
             "fabulous__pin_min_width",
             "fabulous__pin_min_height",
             "design__instance__area__stdcell",
+            "pdk__site_width",
+            "pdk__site_height",
         ):
             if data.get(key) is not None:
                 result[key] = float(data[key])
@@ -681,6 +684,55 @@ class FabricAreaOptimisation(Step):
                 [float(v) for v in bbox] for bbox in probes_raw
             ]
         return result
+
+    @staticmethod
+    def _site_dimensions(
+        tile_metrics: dict[OptMode, dict[str, dict[str, Any]]],
+    ) -> tuple[Decimal, Decimal]:
+        """Return the placement site (width, height) the tile runs measured.
+
+        Every tile run executes `ExtractPDKInfo`, so each successful tile
+        entry carries `pdk__site_width` and `pdk__site_height`; one PDK gives
+        one site size across all of them.
+
+        Parameters
+        ----------
+        tile_metrics : dict[OptMode, dict[str, dict[str, Any]]]
+            Parsed per-mode, per-tile metrics of the exploration runs.
+
+        Returns
+        -------
+        tuple[Decimal, Decimal]
+            The site width and height in µm.
+
+        Raises
+        ------
+        FlowException
+            If no tile entry carries the site size, or two entries disagree.
+        """
+        site_sizes = {
+            (
+                Decimal(str(metrics["pdk__site_width"])),
+                Decimal(str(metrics["pdk__site_height"])),
+            )
+            for tiles in tile_metrics.values()
+            for metrics in tiles.values()
+            if "pdk__site_width" in metrics and "pdk__site_height" in metrics
+        }
+        if not site_sizes:
+            raise FlowException(
+                "No tile entry in TILE_OPT_INFO carries pdk__site_width and "
+                "pdk__site_height. Tile optimisation info written before these "
+                "were recorded cannot be reused; rerun without TILE_OPT_INFO to "
+                "regenerate it."
+            )
+        if len(site_sizes) > 1:
+            raise FlowException(
+                f"Tile runs in TILE_OPT_INFO report different placement site "
+                f"sizes {sorted(site_sizes)}; all tiles must use one PDK site."
+            )
+        (site_size,) = site_sizes
+        return site_size
 
     @classmethod
     def _load_tile_metrics_from_json(
@@ -727,7 +779,7 @@ class FabricAreaOptimisation(Step):
 
         return valid_data, all_data
 
-    def run(self, state_in: State, **_kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:
+    def run(self, state_in: State, **_kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:  # noqa: ARG002
         """Solve NLP problem for optimal tile dimensions."""
         info("Formulating NLP problem using pymoo...")
         if self.config["TILE_OPT_INFO"] is None:
@@ -750,8 +802,7 @@ class FabricAreaOptimisation(Step):
             fabric, valid_metrics, all_metrics, area_margin=area_margin
         )
 
-        x_pitch = Decimal(state_in.metrics.get("pdk__site_width", 0.5))
-        y_pitch = Decimal(state_in.metrics.get("pdk__site_height", 0.5))
+        x_pitch, y_pitch = self._site_dimensions(valid_metrics)
 
         n_row_vars = len(set(problem.row_groups.values()))
 
