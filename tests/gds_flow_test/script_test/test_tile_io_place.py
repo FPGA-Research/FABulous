@@ -558,17 +558,19 @@ class TestSupertileDivisionGridAlignment:
 
     # Sizings that DO trigger the bug: width is a multiple of step but not of
     # num_divisions * step, so at least one division origin is off-grid. Covers
-    # odd column counts (3, 6, 7), realistic sky130 pitches (340, 460), a tiny
-    # tile, and the 2-column edge that only breaks for an odd-grid-multiple pitch.
+    # odd column counts (3, 6, 7), realistic sky130 pitches (340, 460), the
+    # smallest such tile, and the 2-column edge that only breaks for an
+    # odd-grid-multiple pitch. Every division spans at least two steps, so it
+    # keeps a pin track past the two reserved offset tracks.
     OFFGRID_SIZINGS = [
         pytest.param(3, 100.0, 1000.0, id="3col_step100"),
-        pytest.param(3, 100.0, 100.0, id="3col_tiny"),
+        pytest.param(3, 100.0, 700.0, id="3col_smallest"),
         pytest.param(3, 340.0, 3400.0, id="3col_step340"),
         pytest.param(3, 460.0, 4600.0, id="3col_step460"),
-        pytest.param(6, 100.0, 1000.0, id="6col_step100"),
-        pytest.param(7, 100.0, 1000.0, id="7col_step100"),
+        pytest.param(6, 100.0, 1300.0, id="6col_step100"),
+        pytest.param(7, 100.0, 1500.0, id="7col_step100"),
         pytest.param(7, 460.0, 10000.0, id="7col_step460"),
-        pytest.param(2, 15.0, 45.0, id="2col_oddpitch"),
+        pytest.param(2, 15.0, 75.0, id="2col_oddpitch"),
     ]
 
     # Sizings where the bug never manifests (width already divides evenly into
@@ -1243,12 +1245,6 @@ class TestNormalTileSupertilePinAlignment:
             normal_tracks[0],
         ], f"[{label}] Divisions differ from the shifted normal tile"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="_allocate_tracks_for_tile keeps one track at origin + offset * step "
-        "even when the tile has fewer tracks than the offset, so the pin lands "
-        "outside the tile",
-    )
     @pytest.mark.parametrize(
         ("origin", "step", "tile_height"),
         [
@@ -1264,16 +1260,23 @@ class TestNormalTileSupertilePinAlignment:
         step: float,
         tile_height: float,
     ) -> None:
-        """Every allocated track of a tile lies within the tile's own height."""
+        """A tile with no track past the reserved offset gets no pin track, so
+        the pin shortage check reports it instead of a track outside the tile."""
         plan = PinPlacementPlan(
             {"X0Y0": {"EAST": [{"pins": ["n0"], "sort_mode": "bus_major"}]}},
             _make_bterms(mocker, ["n0"]),
             "none",
         )
         plan.allocate_tracks({Side.EAST: (0, step, origin, tile_height)})
+        plan.ensure_min_distances({Side.EAST: 0.0})
+        _, track_errors = filter_pin_tracks_by_stride_and_distance(
+            plan, {Side.EAST: step}, {Side.EAST: origin}, 1.0
+        )
 
-        (tracks,) = plan.track_coordinates[Side.EAST]
-        assert [t for t in tracks if not 0 <= t <= tile_height] == []
+        assert plan.track_coordinates[Side.EAST] == [[]]
+        assert track_errors == [
+            {"side": Side.EAST, "shortage": 1, "step": step, "min_distance": 0.0}
+        ]
 
     def test_uneven_pin_counts_across_subtiles(self, mocker: MockerFixture) -> None:
         """Sub-tiles with different pin counts must still get equal track allocation.

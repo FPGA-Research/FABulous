@@ -769,8 +769,11 @@ class PinPlacementPlan:
                 slices.append((start, size))
                 start += size
         else:
+            # With fewer tracks than segments some segments get none; the pin
+            # shortage check then reports the die-size increase needed.
+            min_size = 1 if available_tracks >= num_segments else 0
             fractional = [c / total * available_tracks for c in counts]
-            sizes = [max(1, int(math.ceil(fraction))) for fraction in fractional]
+            sizes = [max(min_size, int(math.ceil(fraction))) for fraction in fractional]
             delta = available_tracks - sum(sizes)
 
             while delta > 0:
@@ -780,16 +783,12 @@ class PinPlacementPlan:
                     sizes[idx] += 1
                     delta -= 1
             while delta < 0:
-                reduced = False
                 for idx in range(num_segments):
                     if delta == 0:
                         break
-                    if sizes[idx] > 1:
+                    if sizes[idx] > min_size:
                         sizes[idx] -= 1
                         delta += 1
-                        reduced = True
-                if not reduced:
-                    break
 
             start = 0
             slices = []
@@ -798,6 +797,9 @@ class PinPlacementPlan:
                 start += size
 
         for start_idx, size in slices:
+            if size == 0:
+                tracks_container.append([])
+                continue
             start_coord = origin + (start_idx + offset) * step
             tracks_container.append(grid_to_tracks(start_coord, size, step))
 
