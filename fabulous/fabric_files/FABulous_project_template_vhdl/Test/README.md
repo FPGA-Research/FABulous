@@ -31,3 +31,26 @@ Other useful make targets are:
 - `make run_GTKWave` to run the GTKWave waveform viewer with the generated simulation waveform
 
 Take a look into the Makefile to build your own flow.
+
+## Simulating with Vivado xsim
+
+`task run-simulation SIMULATOR=xvhdl` runs the same testbench under AMD
+Vivado's xsim, and `task fab-sim SIMULATOR=xvhdl` wraps it in the full
+build-fabric, build-design, simulate, clean cycle. It needs `xvhdl`, `xelab`
+and `xsim` on `PATH` from a Vivado installation.
+
+xvhdl analyses the fabric as VHDL-2008, the same standard nvc and ghdl are
+given, so this is a second opinion on the generated VHDL rather than a
+stricter one. The analysis order is the same as the nvc path, since a design
+unit has to reach the library before anything that instantiates it.
+
+Two behaviours are worth knowing. The run produces no waveform, because the
+testbench has no dump mechanism of its own and xsim takes no equivalent of
+nvc's `-w`; use the nvc or ghdl path when a waveform is wanted. And a mismatch
+between the fabric and the golden reference is reported at severity error,
+which leaves xsim's exit status at 0, so the task greps its log for that report
+instead of trusting the status.
+
+If `xelab` stops at `cannot find crt1.o`, its linker is not picking up the host
+C runtime; point it at the directory holding those objects, for example
+`LIBRARY_PATH=/usr/lib/x86_64-linux-gnu task run-simulation SIMULATOR=xvhdl`.

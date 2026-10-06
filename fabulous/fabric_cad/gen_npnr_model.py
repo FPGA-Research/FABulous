@@ -31,6 +31,11 @@ IO_SETUP = 2.5
 IO_HOLD = 0.1
 IO_CLK_TO_OUT = 2.5
 
+# Clock arrival time (ns) at a flop, written per BEL in bel.v3.txt. Identical
+# everywhere until characterisation exists, so zero skew: only differences
+# between flops produce skew.
+CLOCK_DELAY = 1.0
+
 # Base delay (ns) for nextpnr's placement heuristic (placement_estimate.txt).
 # Static until a real timing model exists; reproduces nextpnr's old default.
 BASE_DELAY_DEFAULT = 3.0
@@ -43,6 +48,11 @@ CARRY_PREDICT_DELAY = 0.5
 
 # Arbitrary placeholder pip delay used when no delay_model is supplied.
 DUMMY_PIP_DELAY = 8
+
+# Nanoseconds per unit of the pips.txt delay column. 0.05 reproduces nextpnr's
+# historical hardcoded factor; a delay_model emitting real nanoseconds would
+# set this to 1.0.
+PIP_DELAY_SCALE = 0.05
 
 # Representative per-type timing arcs for nextpnr's placement estimate.
 # Static while every instance of a type shares these constants (I0-I3 LUT4);
@@ -73,6 +83,7 @@ PLACEMENT_ESTIMATE_TEXT: str = (
             f"delayEpsilon={DELAY_EPSILON}",
             f"ripupPenalty={RIPUP_PENALTY}",
             f"carryPredictDelay={CARRY_PREDICT_DELAY}",
+            f"pipDelayScale={PIP_DELAY_SCALE}",
             "BelBegin,FABULOUS_LC",
             *LC_ESTIMATE_LINES,
             "BelEnd",
@@ -175,7 +186,8 @@ def belLines(
                 if p.startswith("O") and p[1:].isdigit():
                     lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")
         if bel.withUserCLK:
-            lines.append("GlobalClk")
+            # only v3 carries the arrival time; v2 uses nextpnr's default
+            lines.append(f"GlobalClk,{CLOCK_DELAY}" if timing else "GlobalClk")
         lines.append("BelEnd")
         return lines
 

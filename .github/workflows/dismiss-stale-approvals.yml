@@ -13,7 +13,25 @@ jobs:
   dismiss-stale-approvals:
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        if: github.actor == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Skipped only for the pushes `dependabot-auto-merge.yml` re-approves, so
+      # this mirrors its `github.actor` guard rather than testing the pull
+      # request author: a human pushing to a Dependabot branch gets no
+      # re-approval and must still invalidate the old one. Its approval races
+      # this job, which dismisses on a pull request's first run because no
+      # baseline artifact exists yet. Major updates are never re-approved, so
+      # they keep the dismissal.
       - name: Dismiss stale pull request approvals
+        if: |
+          github.actor != 'dependabot[bot]' ||
+          steps.meta.outputs.dependency-group == 'major' ||
+          steps.meta.outputs.update-type == 'version-update:semver-major'
         uses: withgraphite/dismiss-stale-approvals@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

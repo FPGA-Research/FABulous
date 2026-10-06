@@ -4,7 +4,7 @@
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS    ?= -q -n
-SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
+SPHINXBUILD   ?= uv run --directory . --locked --quiet sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
 PACKAGEDIR    = ../FABulous
@@ -25,12 +25,13 @@ help:
 # Setup uv environment and install dependencies
 setup:
 	@echo "Setting up uv environment for documentation..."
-	uv sync
-	@echo "Installing FABulous package in editable mode..."
-	uv pip install -e ..
+	uv sync --locked
 	@echo "Documentation environment ready!"
 
 # Build HTML documentation
+# -W matches Read the Docs' fail_on_warning, so a warning fails here first. It
+# stays off livehtml, where a warning mid-edit would kill the reload server.
+html: SPHINXOPTS += -W --keep-going
 html: setup
 	@echo "Building final HTML documentation..."
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
@@ -53,7 +54,7 @@ serve:
 # Live reload development server
 livehtml: setup
 	@echo "Starting live documentation server..."
-	uv run --directory . sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
+	uv run --directory . --locked sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
 
 # Clean build directory and generated API docs
 clean:

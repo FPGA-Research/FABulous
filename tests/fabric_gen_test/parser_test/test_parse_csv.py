@@ -1,10 +1,18 @@
 """Tests for parsing tile port lines from CSV fabric definitions."""
 
+from pathlib import Path
+
 import pytest
 
-from fabulous.custom_exception import InvalidPortType
+from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
 from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_port_line,
+    parseFabricCSV,
+    parseSupertilesCSV,
+    parseTilesCSV,
+)
+from fabulous.fabulous_settings import init_context
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
 DIRECTIONAL_CASES = [
@@ -126,3 +134,100 @@ class TestPortNameTrailingDigit:
     def test_valid_names_do_not_raise(self, line: str) -> None:
         ports, _ = parse_port_line(line)
         assert ports
+
+
+class TestUserCLKDirection:
+    """`UserCLKDirection` in the Parameters block sets `Fabric.userCLKSide`."""
+
+    @staticmethod
+    def _set_direction(project: Path, value: str) -> Path:
+        csv = project / "fabric.csv"
+        csv.write_text(
+            csv.read_text().replace(
+                "ParametersBegin,", f"ParametersBegin,\nUserCLKDirection,{value},", 1
+            )
+        )
+        return csv
+
+    @pytest.mark.parametrize(
+        ("value", "side"),
+        [
+            ("S2N", Side.SOUTH),
+            ("N2S", Side.NORTH),
+            ("W2E", Side.WEST),
+            ("E2W", Side.EAST),
+        ],
+    )
+    def test_direction_maps_to_entry_side(
+        self, project: Path, value: str, side: Side
+    ) -> None:
+        init_context(project)
+        fabric = parseFabricCSV(str(self._set_direction(project, value)))
+        assert fabric.userCLKSide is side
+
+    def test_default_is_south(self, project: Path) -> None:
+        init_context(project)
+        assert parseFabricCSV(str(project / "fabric.csv")).userCLKSide is Side.SOUTH
+
+    def test_invalid_direction_raises(self, project: Path) -> None:
+        init_context(project)
+        with pytest.raises(InvalidFabricParameter, match="UP"):
+            parseFabricCSV(str(self._set_direction(project, "UP")))
+
+
+@pytest.mark.parametrize("prefix", ["", "MUL_"])
+def test_supertile_bel_add_as_custom_prim(project: Path, prefix: str) -> None:
+    """A supertile BEL flagged `ADD_AS_CUSTOM_PRIM` lands in `custom_prims.v`."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "ST.csv"
+    csv.write_text(
+        "SuperTILE,ST\nNull\n"
+        f"BEL,./DSP_bot/MULADD.v,{prefix},ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
+    )
+
+    (supertile,) = parseSupertilesCSV(csv, {})
+
+    assert supertile.bels[0].prefix == prefix
+    assert "module MULADD" in prims.read_text()
+
+
+def test_tile_prefix_add_as_custom_prim_warns(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a tile BEL's prefix field warns and still applies."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "DSP_bot" / "DSP_bot.csv"
+    csv.write_text(
+        csv.read_text().replace(
+            "BEL,./MULADD.v,", "BEL,./MULADD.v,ADD_AS_CUSTOM_PRIM", 1
+        )
+    )
+
+    (tile,) = parseTilesCSV(csv)[0]
+
+    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
+    assert tile.bels[0].prefix == ""
+    assert "module MULADD" in prims.read_text()
+
+
+def test_supertile_prefix_add_as_custom_prim_warns(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a supertile BEL's prefix field warns and applies."""
+    init_context(project)
+    prims = project / "user_design" / "custom_prims.v"
+    prims.unlink(missing_ok=True)
+    csv = project / "Tile" / "DSP" / "ST.csv"
+    csv.write_text(
+        "SuperTILE,ST\nNull\nBEL,./DSP_bot/MULADD.v,ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
+    )
+
+    (supertile,) = parseSupertilesCSV(csv, {})
+
+    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
+    assert supertile.bels[0].prefix == ""
+    assert "module MULADD" in prims.read_text()

@@ -32,15 +32,26 @@ runs:
           const labels = process.env.ISSUE_LABELS.split(',').map(l => l.trim());
           const searchLabel = labels[0];
 
-          const issues = await github.rest.issues.listForRepo({
+          // Titles carry no date, so a repeat failure matches the still-open issue
+          // and is recorded as a comment on it rather than a new issue.
+          const openIssues = await github.paginate(github.rest.issues.listForRepo, {
             owner: context.repo.owner,
             repo: context.repo.repo,
             state: 'open',
-            labels: [searchLabel],
+            labels: searchLabel,
             per_page: 100
           });
+          const existing = openIssues.find(i => !i.pull_request && i.title === title);
 
-          if (!issues.data.find(i => i.title === title)) {
+          if (existing) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existing.number,
+              body: body
+            });
+            console.log(`Issue #${existing.number} still open, added a comment: ${title}`);
+          } else {
             const created = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -49,6 +60,4 @@ runs:
               labels: labels
             });
             console.log(`Created issue #${created.data.number}: ${title}`);
-          } else {
-            console.log('Issue already exists, skipping creation');
           }

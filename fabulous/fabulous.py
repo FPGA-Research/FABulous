@@ -425,7 +425,7 @@ def nix_env_cmd(
     """
     # Check nix is installed
     if not shutil.which("nix"):
-        logger.error("Nix is not installed. Run `FABulous install-nix` to install it.")
+        logger.error("Nix is not installed. Run `FABulous install nix` to install it.")
         raise typer.Exit(1)
 
     # Resolve flake directory

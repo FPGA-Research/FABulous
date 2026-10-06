@@ -12,7 +12,7 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 ## How to Work in This Repo
 
 - **Python deps: `uv`.** Run `uv sync` after pulling; add deps with `uv add` (`--group dev` for dev-only). Never hand-edit `uv.lock`. Run commands as `uv run <cmd>` or activate `.venv/`.
-- **EDA toolchain: Nix.** `flake.nix` pins Yosys, nextpnr, OpenROAD, GHDL, Librelane, etc. The **GDS / ASIC flow** (anything under `gds_flow_test`, `librelane_plugin_fabulous`, or `fabulous/fabric_generator/gds_generator`) requires the Nix shell — `nix develop` first, when inside the shell you will not need `uv`. Don't try to substitute system installs of these tools; CI uses Nix and version drift will burn you.
+- **EDA toolchain: Nix.** `flake.nix` pins Yosys, nextpnr, OpenROAD, GHDL, Librelane, etc. The **GDS / ASIC flow** (anything under `tests/gds_flow_test`, `librelane_plugin_fabulous`, or `fabulous/fabric_generator/gds_generator`) requires the Nix shell — `nix develop` first, when inside the shell you will not need `uv`. Don't try to substitute system installs of these tools; CI uses Nix and version drift will burn you.
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`.
 
@@ -46,12 +46,12 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - Mark slow tests `@pytest.mark.slow` so default `task test` stays fast.
 - Prefer real in-memory fabric fixtures over heavy mocks.
 - `cocotb` is available for RTL-level verification, not for Python logic.
-- Try to reuse fixture as much as possible.
-- Try to parameterize the test if possible.
+- Reuse the fixtures in `tests/conftest.py` before writing new ones.
+- Parameterize tests with `pytest.mark.parametrize` so a new case is one more entry.
 - You can run `task test -- -p8` to run the test in parallel with 8 thread.
 
 ## House Rules
 
-- Don't edit the symlinked agent files (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.github/copilot-instructions.md`) — edit `AGENTS.md`.
-- Don't add new top-level packages without a clear home in the layout above.
+- Don't edit the symlinked agent files (`CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`) — edit `AGENTS.md`.
+- Put new modules in an existing `fabulous/` subpackage; add a new subpackage or top-level directory only when none fits.
 - When in doubt, read `Taskfile.yml`, `pyproject.toml`, and `tests/conftest.py` — they encode the live conventions. The Sphinx docs under `docs/` cover user-facing flow.

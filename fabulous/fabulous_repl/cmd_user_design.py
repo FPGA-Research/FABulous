@@ -51,6 +51,7 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
 
 _SCL_BY_PDK: dict[str, str] = {
     "ihp-sg13g2": "sg13g2_stdcell",
+    "ihp-sg13cmos5l": "sg13cmos5l_stdcell",
     "sky130A": "sky130_fd_sc_hd",
     "gf180mcuD": "gf180mcu_fd_sc_mcu7t5v0",
 }
@@ -171,7 +172,7 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
     fabric_netlists = sorted(macro_root.rglob("*.nl.v"))
     if not fabric_netlists:
         raise FileNotFoundError(
-            f"No fabric netlist under {macro_root}. Run `gen_fabric_macro` "
+            f"No fabric netlist under {macro_root}. Run `gen_macro stitch` "
             "against the project before gate-level simulation."
         )
     if len(fabric_netlists) > 1:
@@ -182,7 +183,7 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
     if not tile_netlists:
         raise FileNotFoundError(
             f"No tile netlists under {project / 'Tile'}/*/macro/final_views/nl/. "
-            "Run `gen_all_tile_macros` first."
+            "Run `gen_macro all_tile` first."
         )
 
     # Behavioural wrapper Verilog directly under Fabric/ (not the macro/ tree).
@@ -583,12 +584,15 @@ class UserDesignCommandSet(ReplCommandSet):
             ),
         ] = "",
         simulator: Annotated[
-            Literal["nvc", "ghdl", "auto", ""],
+            Literal["iverilog", "xvlog", "nvc", "ghdl", "xvhdl", "auto", ""],
             Option(
                 "--simulator",
                 "-s",
                 help_text=(
-                    "VHDL simulator to use: nvc, ghdl, or auto (default: auto-detect)"
+                    "Simulator backend: iverilog or xvlog for Verilog projects, "
+                    "nvc, ghdl, xvhdl or auto for VHDL ones. xvlog/xvhdl name the "
+                    "two AMD Vivado xsim front ends. Unset leaves the project "
+                    "Taskfile to choose: iverilog for Verilog, auto for VHDL"
                 ),
             ),
         ] = "",
@@ -624,7 +628,7 @@ class UserDesignCommandSet(ReplCommandSet):
                     "Gate-level (mixed-level) simulation: keep the behavioural "
                     "wrapper but swap the fabric core for the hardened post-PnR "
                     "netlist. Verilog only; the project must have been run "
-                    "through `gen_fabric_macro`."
+                    "through `gen_macro stitch`."
                 ),
             ),
         ] = False,

@@ -95,9 +95,9 @@ the design the FABulous GDS-FLOW must be run before the timing model,
 that means in our example:
 
 ```bash
-gen_all_tile_macros
+gen_macro all_tile
 # or
-gen_fabric_macro
+gen_macro stitch
 ```
 
 Then we can run:

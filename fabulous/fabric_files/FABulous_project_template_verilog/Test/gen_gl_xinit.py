@@ -40,10 +40,11 @@ import sys
 from pathlib import Path
 
 # Active-low async reset pin to look for, per PDK. Presence is decided per
-# instance: IHP maps to a resettable cell (sg13g2_dfrbpq, RESET_B); sky130 / gf180
+# instance: IHP maps to a resettable cell (sg13*_dfrbpq, RESET_B); sky130 / gf180
 # map to resetless DFFs, cleared by depositing Q instead.
 _RESET_PIN_BY_PDK: dict[str, str] = {
     "ihp-sg13g2": "RESET_B",
+    "ihp-sg13cmos5l": "RESET_B",
     "sky130A": "RESET_B",
     "gf180mcuD": "RN",
 }

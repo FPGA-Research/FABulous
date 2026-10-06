@@ -26,11 +26,23 @@ jobs:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
+      # A merge group formed by a `GITHUB_TOKEN` enqueue dispatches no workflow
+      # run, so the required `all-clean` check never reports and the entry is
+      # evicted after the queue's four-hour check timeout. A user token is a
+      # different identity and does dispatch. A Dependabot run reads only the
+      # Dependabot secret store, so `AUTO_MERGE_TOKEN` has to live there. The
+      # guard exists because `gh` on an empty token advises `github.token`,
+      # which is the identity that dispatches nothing.
       - name: Enable auto-merge for non-major updates
         if: |
           steps.meta.outputs.dependency-group != 'major' &&
           steps.meta.outputs.update-type != 'version-update:semver-major'
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::AUTO_MERGE_TOKEN is empty. Add it to the Dependabot secret store, not the Actions one."
+            exit 1
+          fi
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}

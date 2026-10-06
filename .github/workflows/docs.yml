@@ -1,0 +1,25 @@
+name: Build the documentation
+
+# Driven by ci.yml.
+on:
+  workflow_call:
+
+# Pinned, else this inherits ci.yml's ceiling (the union of all its callees).
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      # setuptools_scm reads tags to derive the version shown in the sidebar.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      # Read the Docs installs docs/uv.lock and builds with fail_on_warning, so
+      # this is the same environment and the same -W as the published site.
+      - name: Build the HTML documentation
+        run: make -C docs clean html

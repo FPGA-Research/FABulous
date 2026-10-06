@@ -252,12 +252,12 @@ class TestSupertileDieAreaGridAlignment:
 
 
 class TestRunUserFixedSmartInit:
-    """``run`` smart-init for directional modes with a user-locked axis.
+    """``run`` smart-init when the user has supplied a DIE_AREA.
 
-    When ``FABULOUS_IGNORE_DEFAULT_DIE_AREA`` is False the user has supplied a
-    DIE_AREA whose non-minimised axis must be held constant, while the minimised
-    axis is seeded from the synthesised instance area so the bracket search
-    starts somewhere feasible.
+    When ``FABULOUS_IGNORE_DEFAULT_DIE_AREA`` is False the user DIE_AREA reaches
+    this step. Directional modes hold its non-minimised axis constant and seed the
+    minimised axis from the synthesised instance area so the bracket search starts
+    somewhere feasible; BALANCE/LARGE keep it as the floor both axes grow from.
     """
 
     def _prepare(
@@ -345,6 +345,37 @@ class TestRunUserFixedSmartInit:
 
         with pytest.raises(FlowException):
             step.run(mock_state)
+
+    @pytest.mark.parametrize("opt_mode", [OptMode.BALANCE, OptMode.LARGE])
+    def test_non_directional_keeps_user_die_area_as_floor(
+        self,
+        mocker: MockerFixture,
+        mock_config: Config,
+        mock_state: State,
+        opt_mode: OptMode,
+    ) -> None:
+        # A tile holding a hard macro reports a small stdcell instance area, so
+        # the square smart-init seed lands far below the user DIE_AREA. The user
+        # value must survive as the starting area.
+        step = self._prepare(
+            mocker,
+            mock_config.copy(
+                FABULOUS_OPT_MODE=opt_mode,
+                FABULOUS_PIN_MIN_WIDTH=Decimal(10),
+                FABULOUS_PIN_MIN_HEIGHT=Decimal(10),
+            ),
+            (Decimal(0), Decimal(0), Decimal(800), Decimal(800)),
+        )
+        mock_state.metrics["design__instance__area"] = 5000
+
+        step.run(mock_state)
+
+        assert step.config["DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal(800),
+            Decimal(800),
+        )
 
 
 class TestOptModeMissing:

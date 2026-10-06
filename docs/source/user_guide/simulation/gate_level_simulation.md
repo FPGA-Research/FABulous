@@ -30,8 +30,8 @@ From a fresh project the full path is:
 
 ```text
 run_FABulous_fabric                                  # 1. generate the fabric HDL
-gen_all_tile_macros --parallel
-gen_fabric_macro                                     # 2. harden it (long; see fabric_gds.md)
+gen_macro all_tile --parallel
+gen_macro stitch                                     # 2. harden it (long; see fabric_gds.md)
 compile_design ./user_design/<design>.v              # 3. build a bitstream
 run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
 ```
@@ -71,12 +71,13 @@ run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
    Source resolution fails with a clear error if the layout is incomplete.
 
 3. **PDK standard-cell models**, auto-resolved (best-effort) from `FAB_PDK`. The
-   library is hard-coded in `_SCL_BY_PDK` (`cmd_user_design.py`) for the three
+   library is hard-coded in `_SCL_BY_PDK` (`cmd_user_design.py`) for the
    PDKs FABulous hardens for:
 
    | PDK | Standard-cell library |
    |---|---|
    | `ihp-sg13g2` | `sg13g2_stdcell` |
+   | `ihp-sg13cmos5l` | `sg13cmos5l_stdcell` |
    | `sky130A` | `sky130_fd_sc_hd` |
    | `gf180mcuD` | `gf180mcu_fd_sc_mcu7t5v0` |
 

@@ -2,11 +2,13 @@
 
 import json
 from collections import defaultdict
+from concurrent.futures import Future
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.flow import FlowException
 from librelane.logging.logger import info, warn
@@ -582,17 +584,16 @@ class FabricAreaOptimisation(Step):
     id = "FABulous.FabricAreaOptimisation"
     name = "FABulous Fabric Area optimisation"
 
+    # A constructor argument, not a config variable: librelane dumps every
+    # config value to JSON and cannot encode a `Fabric`.
+    fabric: Fabric
+
     config_vars = [
         Variable(
             "TILE_OPT_INFO",
             Optional[Path],  # noqa: UP045 librelane issue
             description="Tile optimisation information dictionary or path to JSON file",
             default=None,
-        ),
-        Variable(
-            "FABULOUS_FABRIC",
-            Fabric,
-            description="Fabric configuration object",
         ),
         Variable(
             "FABULOUS_PROJ_DIR",
@@ -614,6 +615,17 @@ class FabricAreaOptimisation(Step):
         DesignFormat.LIB,
         DesignFormat.DEF,
     ]
+
+    def __init__(
+        self,
+        config: Config,
+        state_in: State | Future[State],
+        *,
+        fabric: Fabric,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
+        super().__init__(config, state_in, **kwargs)
+        self.fabric = fabric
 
     @staticmethod
     def _parse_tile_fields(data: dict) -> dict[str, Any]:
@@ -722,7 +734,7 @@ class FabricAreaOptimisation(Step):
             raise FlowException(
                 "Values of TILE_OPT_INFO should have been set when calling this step."
             )
-        fabric: Fabric = self.config["FABULOUS_FABRIC"]
+        fabric: Fabric = self.fabric
 
         if isinstance(self.config["TILE_OPT_INFO"], Path):
             valid_metrics, all_metrics = self._load_tile_metrics_from_json(

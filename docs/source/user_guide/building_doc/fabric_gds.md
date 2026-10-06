@@ -18,11 +18,24 @@ To take advantage of fabric stitching, there are two limitations to the tile phy
 Once the [prerequisites](#prerequisites) are met (Nix environment and a PDK), the quickest way to get a plain GDS is to harden every tile with no size optimisation and stitch them together:
 
 ```bash
-fabulous> gen_all_tile_macros
-fabulous> gen_fabric_macro
+fabulous> gen_macro all_tile
+fabulous> gen_macro stitch
 ```
 
 This uses the default `no_opt` mode, so each tile takes the `DIE_AREA` from its `gds_config.yaml` as-is. For automatically optimised tile sizes, use the [Full Automated Flow](#full-automated-flow) instead.
+:::
+
+:::{admonition} Renamed commands
+:class: note
+
+The macro commands are now subcommands of `gen_macro`. The old names still run, printing a deprecation warning and forwarding their arguments unchanged.
+
+| Old command                | Replacement              |
+| -------------------------- | ------------------------ |
+| `gen_tile_macro <tile>`    | `gen_macro tile <tile>`  |
+| `gen_all_tile_macros`      | `gen_macro all_tile`     |
+| `gen_fabric_macro`         | `gen_macro stitch`       |
+| `run_FABulous_eFPGA_macro` | `gen_macro full`         |
 :::
 
 (prerequisites)=
@@ -52,7 +65,7 @@ This sets up all EDA tools (Yosys, NextPNR, OpenROAD, GHDL, etc.) and verifies t
 
 ### Install PDK
 
-To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
+To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `ihp-sg13cmos5l`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
 
 For details on how the PDK is resolved and when manual configuration is needed, see the [PDK Resolution Logic](#pdk-resolution-logic) section.
 
@@ -74,17 +87,17 @@ For any other PDK, you will need to bring up the PDK to be supported by librelan
 To convert a tile into a GDSII file, run the following command:
 
 ```bash
-fabulous> gen_tile_macro <tile_name>
+fabulous> gen_macro tile <tile_name>
 ```
 
 This will generate the tile GDS for you under the tile macro folder (`<project>/Tile/<tile_name>/macro/`).
 
 ### Command Options
 
-The `gen_tile_macro` command supports an optimisation flag:
+The `gen_macro tile` command supports an optimisation flag:
 
 ```bash
-fabulous> gen_tile_macro <tile_name> --optimise [mode]
+fabulous> gen_macro tile <tile_name> --optimise [mode]
 ```
 
 Where `[mode]` is one of the optimisation modes described in the [Tile Size optimisation](#tile-size-optimisation) section. If `--optimise` is provided without a mode, `balance` is used by default.
@@ -92,9 +105,9 @@ Where `[mode]` is one of the optimisation modes described in the [Tile Size opti
 To generate all tiles at once:
 
 ```bash
-fabulous> gen_all_tile_macros
-fabulous> gen_all_tile_macros --parallel      # Run in parallel for faster compilation
-fabulous> gen_all_tile_macros --optimise      # With optimisation (balance mode)
+fabulous> gen_macro all_tile
+fabulous> gen_macro all_tile --parallel      # Run in parallel for faster compilation
+fabulous> gen_macro all_tile --optimise      # With optimisation (balance mode)
 ```
 
 ### Tile Config
@@ -178,7 +191,7 @@ data_bus[1]  # Index 1 second (different bus)
 Once all the tiles are compiled to GDS format with correct sizing, we then can stitch them together. This can be done by using the following command:
 
 ```bash
-fabulous>gen_fabric_macro
+fabulous>gen_macro stitch
 ```
 
 And the full fabric will be stitched together.
@@ -201,7 +214,7 @@ Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric
 For a fully automated flow that handles tile size optimisation and fabric stitching, use:
 
 ```bash
-fabulous> run_FABulous_eFPGA_macro
+fabulous> gen_macro full
 ```
 
 :::{note}
@@ -236,7 +249,7 @@ The automated flow is designed for **fast bring-up of a custom fabric with custo
 
 If you instead need **fine control**, for example you are iterating on a single tile, or some tiles are already hardened, the manual per-tile flow gives more predictable, repeatable results. A good greedy recipe that gets close to the automated result is:
 
-1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_tile_macro <tile> --optimise balance`.
+1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_macro tile <tile> --optimise balance`.
 2. For the **other tiles in the same row**, fix their height to the majority tile's height and optimise width only (`find_min_width`).
 3. For **tiles at the edge** of a row or column, fix the width and optimise height only (`find_min_height`).
 
@@ -252,7 +265,7 @@ This pre-hardened-macro path through the automated flow has not been tested yet.
 
 In the manual flow, harden the macro tile with fixed dimensions (`FABULOUS_OPT_MODE: no_opt` and an explicit `DIE_AREA`), then size the remaining tiles around it. Because tiles in a row must share a height (and tiles in a column a width) for seamless stitching, match the macro height to the majority tile height. As there are usually more logic tiles than macro tiles, matching the macro to the logic tile (rather than the reverse) wastes the least area. If a single tile height cannot fit the macro, model it as a [supertile](#stitching-the-tiles) spanning two or more tile heights and adjust the width accordingly.  For the general mechanism of integrating macros into a LibreLane run, see the [LibreLane macro guide](https://librelane.readthedocs.io/en/latest/usage/using_macros.html).
 
-The `io_pin_order.yaml` for each tile is generated during `gen_tile_macro` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+The `io_pin_order.yaml` for each tile is generated during `gen_macro tile` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
 
 (tile-size-optimisation)=
 
@@ -280,12 +293,25 @@ The GDS flow includes an iterative optimisation process to find the minimum viab
 
 If no feasible solution can be found after all iterations, the flow will raise an error and stop the generation.
 
+### Providing a Starting Die Area
+
+The optimisation only ever grows the die, so the area it starts from matters. A `DIE_AREA` set in the tile's `gds_config.yaml` is used as that starting area in every optimisation mode:
+
+- `find_min_width` / `find_min_height` lock the axis that is not being minimised to the provided value.
+- `balance` / `large` grow both axes from the provided value.
+
+Both axes of the provided `DIE_AREA` must still clear the minimum needed to place the tile's IO pins, otherwise the flow raises an error. Set `FABULOUS_IGNORE_DEFAULT_DIE_AREA: true` to discard the provided value and let the flow size the tile from scratch.
+
+:::{note}
+Without a provided `DIE_AREA`, the automatic starting area is derived from the IO pin count and the stdcell area reported by synthesis. Neither accounts for a hard macro instantiated in the tile, so a tile containing a macro (for example an SRAM) starts far too small and the optimisation cannot grow enough to reach a solution. For those tiles, set a `DIE_AREA` that already fits the macro.
+:::
+
 ### Related Variables
 
 - `FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT`: Sites to increase width per iteration (default: 4)
 - `FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT`: Sites to increase height per iteration (default: 1)
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
-- `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
+- `FABULOUS_IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores the provided `DIE_AREA` and starts from the area calculated by the flow (default: `false`)
 
 ## Output Structure
 

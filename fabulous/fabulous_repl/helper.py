@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tarfile
 from collections.abc import Callable
-from concurrent import futures
 from importlib import resources
 from importlib.metadata import version
 from importlib.resources.abc import Traversable
@@ -55,8 +54,8 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     debug : bool
         If True, sets log level to `DEBUG`, otherwise sets to `INFO`.
     log_file : Path
-        Path to log file. If provided, logs will be written to file instead of stdout.
-        Default is `Path()`, which results in logging to stdout.
+        Path to log file. If provided, a second sink writes the same records to that
+        file. Default is `Path()`, which adds no file sink.
 
     Notes
     -----
@@ -106,18 +105,15 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     # Determine the log level for the sink
     log_level_to_set = "DEBUG" if debug else "INFO"
 
-    # Add logger to write logs to stdout using the custom formatter
+    # colorize is left to loguru, which resolves the markup to escape codes only
+    # when the sink is a tty, so a redirected stdout and the log file stay plain.
+    logger.add(
+        sys.stdout, format=custom_format_function, level=log_level_to_set, catch=False
+    )
+
     if log_file != Path():
         logger.add(
             log_file, format=custom_format_function, level=log_level_to_set, catch=False
-        )
-    else:
-        logger.add(
-            sys.stdout,
-            format=custom_format_function,
-            level=log_level_to_set,
-            colorize=True,
-            catch=False,
         )
 
 
@@ -221,6 +217,38 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     )
 
 
+def _resolve_task_binary() -> Path:
+    """Locate the `task` (go-task) binary shipped with FABulous.
+
+    Returns
+    -------
+    Path
+        Path to the `task` executable.
+
+    Raises
+    ------
+    EnvironmentNotSet
+        If the `task` binary can be found neither next to the running
+        interpreter nor on ``PATH``.
+    """
+    # go-task-bin drops `task` into the environment's script directory, which is
+    # not on PATH when FABulous is installed with `uv tool install`, so look
+    # beside the interpreter before falling back to PATH.
+    script_dir = Path(sys.executable).parent
+    local = shutil.which("task", path=str(script_dir))
+    if local:
+        return Path(local)
+
+    on_path = shutil.which("task")
+    if on_path is None:
+        raise EnvironmentNotSet(
+            "The 'task' command (go-task) was found neither in the Python "
+            f"environment ({script_dir}) nor on PATH. It ships with FABulous; "
+            "reinstall with 'uv tool install FABulous-FPGA'."
+        )
+    return Path(on_path)
+
+
 def run_task(
     task_name: str,
     task_dir: Path,
@@ -243,20 +271,8 @@ def run_task(
     taskfile : str | None
         Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
         When None, ``task`` uses its default lookup (``Taskfile.yml``).
-
-    Raises
-    ------
-    EnvironmentNotSet
-        If the ``task`` binary is not found on ``PATH``.
     """
-    if shutil.which("task") is None:
-        raise EnvironmentNotSet(
-            "The 'task' command (go-task) is not found on PATH. "
-            "It ships with FABulous; reinstall with "
-            "'uv tool install FABulous-FPGA'."
-        )
-
-    cmd: list[str] = ["task", task_name]
+    cmd: list[str] = [str(_resolve_task_binary()), task_name]
     if taskfile:
         cmd.extend(["--taskfile", taskfile])
     if verbose:
@@ -696,61 +712,6 @@ class CommandPipeline:
                     raise PipelineCommandError(error_message)
 
         return self.final_exit_code == 0
-
-    def execute_parallel(self) -> bool:
-        """Execute all steps in the pipeline concurrently using threads.
-
-        If any command fails (raises or sets a non-zero exit code), a
-        PipelineCommandError is raised (unless `force` is True).
-        """
-        # Use ThreadPoolExecutor because the REPL instance cannot be pickled for
-        # ProcessPoolExecutor; thread-based concurrency is sufficient here since
-        # the heavy work (GDS generation) likely releases the GIL via I/O or
-        # underlying C extensions.
-        with futures.ThreadPoolExecutor(max_workers=self.repl.max_job) as executor:
-            future_map: dict[futures.Future, tuple[str, str]] = {
-                executor.submit(self._run_command_threadsafe, command): (
-                    command,
-                    error_message,
-                )
-                for command, error_message in self.steps
-            }
-
-            for future in futures.as_completed(future_map):
-                cmd, err_msg = future_map[future]
-                if future.exception() is not None:
-                    exc = future.exception()
-                    # try to extract exit_code when available,
-                    # otherwise set generic code
-                    self.final_exit_code = getattr(exc, "exit_code", 1)
-                    logger.error(
-                        f"Command '{cmd}' execution failed with exception: {exc}"
-                    )
-                    if not self.force:
-                        raise PipelineCommandError(err_msg)
-                else:
-                    # If the callable ran without raising, check the REPL exit code
-                    # that the command may have set.
-                    if self.repl.exit_code != 0:
-                        self.final_exit_code = self.repl.exit_code
-                        logger.error(
-                            f"Command '{cmd}' execution failed with exit code "
-                            f"{self.final_exit_code}"
-                        )
-                        if not self.force:
-                            raise PipelineCommandError(err_msg)
-
-        return self.final_exit_code == 0
-
-    def _run_command_threadsafe(self, command: str) -> None:
-        """Run a REPL command in a thread.
-
-        Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so
-        the caller can handle them.
-        """
-        # Run the command on the REPL instance. onecmd_plus_hooks will set
-        # `self.repl.exit_code` appropriately.
-        self.repl.onecmd_plus_hooks(command)
 
     def get_exit_code(self) -> int:
         """Get the final exit code from pipeline execution."""

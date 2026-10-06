@@ -33,14 +33,16 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.3.1",
   'PyYAML>=6.0.0',
-  "librelane>=3.0.0",
+  # Every PyPI librelane up to 3.1.0.dev3 pins ciel<3, so a non-uv install
+  # fails at resolution until 3.1.0 ships. See the librelane uv source.
+  "librelane>=3.1.0.dev3",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
   "numpy>=2.5.1",
   "dill>=0.4.0",
   "networkx>=3.6.1",
   "sdf-timing",
-  "ciel>=2.4.0",
+  "ciel>=3.0.0",
   "go-task-bin>=3.40.0",
   "jinja2>=3.1.6",
 ]
@@ -64,7 +66,7 @@ local_scheme = "node-and-date"
 # Version stamped into git-less builds (Nix, sdist) where setuptools_scm cannot
 # read a git tag. release-please bumps this to the release version inside the
 # release PR via the toml extra-files updater in release-please-config.json.
-fallback_version = "2.1.0"
+fallback_version = "2.2.0"
 
 [tool.setuptools.packages.find]
 include = ["fabulous*", "fabulous_nix*", "librelane_plugin_fabulous*"]
@@ -77,7 +79,9 @@ build_py = "build_hooks.BuildPyWithFabulousNix"
 fabulous = ["**/*"]
 
 [tool.interrogate]
-ignore-init-method = false
+# pydoclint (DOC301) rejects `__init__` docstrings, so requiring them here
+# would make the two hooks contradict each other.
+ignore-init-method = true
 ignore-init-module = false
 ignore-magic = false
 ignore-semiprivate = false
@@ -174,6 +178,10 @@ FABulous-bit-gen = "FABulous_bit_gen"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
+# ihp-sg13cmos5l needs ciel 3, which no librelane release supports yet. This is
+# the dev commit that enabled the variant; flake.nix pins the same rev. Drop
+# both pins, and the dependabot ignores, once librelane 3.1.0 is on PyPI.
+librelane = { git = "https://github.com/librelane/librelane.git", rev = "aaf7a938766e0708ca894776d81e2c2cfb12b7e7" }
 
 [tool.uv.extra-build-dependencies]
 sdf-timing = ["vcs-versioning"]

@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pdk: [ihp-sg13g2, sky130A, gf180mcuD]
+        pdk: [ihp-sg13g2, ihp-sg13cmos5l, sky130A, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -40,7 +40,7 @@ jobs:
             echo 'PDK set to: ${{ matrix.pdk }}'
             cat test_project/.FABulous/.env
             FABulous --project-dir test_project run 'run_fab'
-            FABulous --project-dir test_project run 'gen_all_tile_macros' > tile_hardening_output.txt 2>&1
+            FABulous --project-dir test_project run 'gen_macro all_tile' > tile_hardening_output.txt 2>&1
           "
 
       - name: Verify tile manufacturability
@@ -111,10 +111,9 @@ jobs:
             TILE_OUTPUT=$(tail -100 tile_hardening_output.txt)
           fi
 
-          DATE=$(date -u +%Y-%m-%d)
           PDK="${{ matrix.pdk }}"
 
-          echo "title=Tile Hardening CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
+          echo "title=Tile Hardening CI Failed - ${PDK}" >> "$GITHUB_OUTPUT"
 
           {
             echo 'body<<ISSUE_BODY_EOF'
@@ -161,7 +160,7 @@ jobs:
 
       # skipping sky130A for now since it will get kill by github
       matrix:
-        pdk: [ihp-sg13g2, gf180mcuD]
+        pdk: [ihp-sg13g2, ihp-sg13cmos5l, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -182,7 +181,7 @@ jobs:
         run: |
           nix develop --command bash -c "
             set -e
-            FABulous --project-dir test_project run 'gen_fabric_macro' > fabric_stitching_output.txt 2>&1
+            FABulous --project-dir test_project run 'gen_macro stitch' > fabric_stitching_output.txt 2>&1
           "
 
       - name: Verify fabric manufacturability
@@ -285,10 +284,9 @@ jobs:
             GL_OUTPUT=$(tail -60 gl_sim_output.txt)
           fi
 
-          DATE=$(date -u +%Y-%m-%d)
           PDK="${{ matrix.pdk }}"
 
-          echo "title=Fabric Stitching / GL Sim CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
+          echo "title=Fabric Stitching / GL Sim CI Failed - ${PDK}" >> "$GITHUB_OUTPUT"
 
           {
             echo 'body<<ISSUE_BODY_EOF'

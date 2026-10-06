@@ -164,5 +164,8 @@ def find_task_calls() -> list[list[str]]:
     return [
         c.args[0]
         for c in mock.call_args_list
-        if c.args and isinstance(c.args[0], list | tuple) and c.args[0][0] == "task"
+        # run_task invokes the resolved absolute path, not a bare "task"
+        if c.args
+        and isinstance(c.args[0], list | tuple)
+        and Path(c.args[0][0]).stem == "task"
     ]

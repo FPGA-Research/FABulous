@@ -52,6 +52,12 @@ pdk::ihp-sg13g2:
 
   DIODE_CELL: "sg13g2_antennanp/A"
 
+pdk::ihp-sg13cmos5l:
+  # Routing; TopMetal1 is left to the fabric PDN
+  RT_MAX_LAYER: Metal4
+
+  DIODE_CELL: "sg13cmos5l_antennanp/A"
+
 pdk::gf180mcuD:
   # Routing
   RT_MAX_LAYER: Metal4

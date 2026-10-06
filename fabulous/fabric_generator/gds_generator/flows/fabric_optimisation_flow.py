@@ -14,9 +14,10 @@ import traceback
 from decimal import Decimal
 from itertools import product
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from librelane.common.misc import get_latest_file
+from librelane.config.config import AnyConfigs
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
@@ -180,9 +181,24 @@ class FABulousFabricOptimisationFlow(Flow):
     4. Stitches all tiles into final fabric with minimal area
     """
 
+    # A constructor argument, not a config variable: `Flow.start` dumps every
+    # config value to `resolved.json`, and librelane's encoder handles only
+    # dataclasses, which the `TilePort`s a fabric holds are not.
+    fabric: Fabric
+
     Steps = [ExtractPDKInfo, FabricAreaOptimisation]
 
     config_vars = configs
+
+    def __init__(
+        self,
+        config: AnyConfigs,
+        *,
+        fabric: Fabric,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
+        super().__init__(config, **kwargs)
+        self.fabric = fabric
 
     @staticmethod
     def _log_nlp_summary(nlp_state: State) -> None:
@@ -435,7 +451,7 @@ class FABulousFabricOptimisationFlow(Flow):
         FlowException
             When NLP optimisation step fails.
         """
-        fabric: Fabric = self.config["FABULOUS_FABRIC"]
+        fabric: Fabric = self.fabric
         proj_dir: Path = Path(self.config["FABULOUS_PROJ_DIR"])
         self.progress_bar.set_max_stage_count(4)
 
@@ -457,7 +473,10 @@ class FABulousFabricOptimisationFlow(Flow):
         nlp_config: Config = self.config.copy(FABULOUS_PROJ_DIR=proj_dir)
 
         nlp_step: FabricAreaOptimisation = FabricAreaOptimisation(
-            nlp_config, id="SolveNLPoptimisation", state_in=initial_state
+            nlp_config,
+            id="SolveNLPoptimisation",
+            state_in=initial_state,
+            fabric=fabric,
         )
         try:
             nlp_state: State = self.start_step(nlp_step)
