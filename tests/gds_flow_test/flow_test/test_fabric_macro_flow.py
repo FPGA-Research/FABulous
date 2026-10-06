@@ -237,6 +237,12 @@ class TestValidateTileSizes:
                 Decimal(0),
                 id="zero_pitch_skips_check",
             ),
+            pytest.param(
+                {"tile1": (Decimal("100.00005"), Decimal("89.99995"))},
+                Decimal(50),
+                Decimal(30),
+                id="within_tolerance",
+            ),
         ],
     )
     def test_accepts_pitch_aligned_sizes(
@@ -254,6 +260,12 @@ class TestValidateTileSizes:
         [
             pytest.param({"tile1": (Decimal(75), Decimal(90))}, id="width_off_grid"),
             pytest.param({"tile1": (Decimal(100), Decimal(75))}, id="height_off_grid"),
+            pytest.param(
+                {"tile1": (Decimal("100.001"), Decimal(90))}, id="width_one_dbu_over"
+            ),
+            pytest.param(
+                {"tile1": (Decimal(100), Decimal("89.999"))}, id="height_one_dbu_under"
+            ),
         ],
     )
     def test_rejects_misaligned_sizes(
@@ -282,8 +294,8 @@ class TestValidateTileSizes:
 
         assert [c.args[0] for c in err.call_args_list] == [
             "Tile sizes validation failed:",
-            "  tile1: width 75 not aligned to 50 (remainder: 50)",
-            "  ST: height 75 not aligned to 30 (remainder: 50)",
+            "  tile1: width 75 not aligned to 50 (remainder: 25)",
+            "  ST: height 75 not aligned to 30 (remainder: 15)",
         ]
 
 

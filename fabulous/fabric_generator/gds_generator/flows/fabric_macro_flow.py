@@ -34,6 +34,10 @@ from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
 )
 from fabulous.fabulous_settings import get_context
 
+# In µm, as are tile sizes and pitches. A tenth of a 1000 DBU/µm database unit,
+# so a misalignment of one DBU is still rejected.
+PITCH_ALIGNMENT_TOLERANCE = Decimal("0.0001")
+
 subs = {
     "OpenROAD.CutRows": None,
     "OpenROAD.TapEndcapInsertion": None,
@@ -458,31 +462,19 @@ class FABulousFabricMacroFlow(Classic):
         """
         tile_size_errors: list[str] = []
 
-        def check_multiple(tile_name: str, width: Decimal, height: Decimal) -> None:
-            # Existing pitch alignment check (rounded division -> check fractional part)
-            if pitch_x != 0:
-                width_remainder = str(round(width / pitch_x, 2))[-2:]
-            else:
-                width_remainder = "00"
-
-            if pitch_y != 0:
-                height_remainder = str(round(height / pitch_y, 2))[-2:]
-            else:
-                height_remainder = "00"
-
-            if width_remainder != "00":
-                tile_size_errors.append(
-                    f"{tile_name}: width {width} not aligned to {pitch_x} "
-                    f"(remainder: {width_remainder})"
-                )
-            if height_remainder != "00":
-                tile_size_errors.append(
-                    f"{tile_name}: height {height} not aligned to {pitch_y} "
-                    f"(remainder: {height_remainder})"
-                )
-
         for tile_name, (width, height) in tile_sizes.items():
-            check_multiple(tile_name, width, height)
+            for axis, size, pitch in (
+                ("width", width, pitch_x),
+                ("height", height, pitch_y),
+            ):
+                if pitch == 0:
+                    continue
+                remainder = size % pitch
+                if min(remainder, pitch - remainder) > PITCH_ALIGNMENT_TOLERANCE:
+                    tile_size_errors.append(
+                        f"{tile_name}: {axis} {size} not aligned to {pitch} "
+                        f"(remainder: {remainder})"
+                    )
 
         if tile_size_errors:
             err("Tile sizes validation failed:")
