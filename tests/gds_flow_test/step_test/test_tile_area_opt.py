@@ -403,44 +403,45 @@ class TestOptModeMissing:
 class TestDirectionalHelpers:
     """``_is_directional`` and ``_directional_target`` drive bracket-based search."""
 
-    def test_is_directional_true_for_min_width_and_min_height(
-        self, mock_config: Config
+    @pytest.mark.parametrize(
+        ("mode", "directional"),
+        [
+            (OptMode.FIND_MIN_WIDTH, True),
+            (OptMode.FIND_MIN_HEIGHT, True),
+            (OptMode.BALANCE, False),
+            (OptMode.LARGE, False),
+            (OptMode.NO_OPT, False),
+        ],
+    )
+    def test_is_directional(
+        self, mock_config: Config, mode: OptMode, directional: bool
     ) -> None:
-        for mode in (OptMode.FIND_MIN_WIDTH, OptMode.FIND_MIN_HEIGHT):
-            cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
-            step = TileAreaOptimisation(cfg)
-            step.config = cfg
-            assert step._is_directional() is True
-
-    def test_is_directional_false_for_balance_and_no_opt(
-        self, mock_config: Config
-    ) -> None:
-        for mode in (OptMode.BALANCE, OptMode.LARGE, OptMode.NO_OPT):
-            cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
-            step = TileAreaOptimisation(cfg)
-            step.config = cfg
-            assert step._is_directional() is False
-
-    def test_directional_target_returns_w_for_find_min_width(
-        self, mock_config: Config
-    ) -> None:
-        cfg = mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_WIDTH)
+        """Only the two FIND_MIN modes run the bracket search."""
+        cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
         step = TileAreaOptimisation(cfg)
         step.config = cfg
-        # die_area is (x0, y0, w, h); FIND_MIN_WIDTH targets w.
-        assert step._directional_target(
-            (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
-        ) == Decimal("12.5")
+        assert step._is_directional() is directional
 
-    def test_directional_target_returns_h_for_find_min_height(
-        self, mock_config: Config
+    @pytest.mark.parametrize(
+        ("mode", "expected"),
+        [
+            (OptMode.FIND_MIN_WIDTH, Decimal("12.5")),
+            (OptMode.FIND_MIN_HEIGHT, Decimal("99.9")),
+        ],
+    )
+    def test_directional_target(
+        self, mock_config: Config, mode: OptMode, expected: Decimal
     ) -> None:
-        cfg = mock_config.copy(FABULOUS_OPT_MODE=OptMode.FIND_MIN_HEIGHT)
+        """die_area is (x0, y0, w, h); FIND_MIN_WIDTH targets w, FIND_MIN_HEIGHT h."""
+        cfg = mock_config.copy(FABULOUS_OPT_MODE=mode)
         step = TileAreaOptimisation(cfg)
         step.config = cfg
-        assert step._directional_target(
-            (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
-        ) == Decimal("99.9")
+        assert (
+            step._directional_target(
+                (Decimal(0), Decimal(0), Decimal("12.5"), Decimal("99.9"))
+            )
+            == expected
+        )
 
 
 class TestComputeNewDimensions:

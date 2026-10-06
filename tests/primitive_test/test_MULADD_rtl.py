@@ -205,112 +205,58 @@ async def setup_dut(dut: MULADDProtocol) -> None:
     await Timer(Decimal(1), "ns")  # Small delay for signal propagation
 
 
+async def check_operand_register_select(
+    dut: MULADDProtocol,
+    operand: LogicObject,
+    config_bit: int,
+    q_latched: int,
+    q_live: int,
+) -> None:
+    """Assert `Q` reads the latched `operand` with `config_bit` set, else the live one.
+
+    With A=3, B=4 and C=10 as the other operands and ConfigBits[3]/[5] clear,
+    `Q = OPA * OPB + OPC`, so `q_latched` is `Q` computed with the latched 7 and
+    `q_live` with the live 5.
+    """
+    await setup_dut(dut)
+    dut.A.value = 3
+    dut.B.value = 4
+    dut.C.value = 10
+    dut.ConfigBits.value = config_bit
+    operand.value = 7
+    await RisingEdge(dut.UserCLK)
+    # Change the live input without a clock edge, so only the register holds 7.
+    operand.value = 5
+    await Timer(Decimal(2), "ps")
+    assert int(dut.Q.value) == q_latched
+
+    dut.ConfigBits.value = 0
+    await Timer(Decimal(2), "ps")
+    assert int(dut.Q.value) == q_live
+
+
 @cocotb.test
 async def cocotb_test_muladd_configbit0_a_register(dut: MULADDProtocol) -> None:
-    """Test ConfigBits[0] - A register functionality with proper cocotb timing."""
-    await setup_dut(dut)
-
-    # Create cocotb-aware software model for comparison
-    model = MULADDModel(dut.UserCLK)
-
-    # Test without A register (ConfigBits[0] = 0) - direct A input
-    model.ConfigBits = 0b000000  # A_reg_data = 0
-    dut.ConfigBits.value = 0b000000
-    model.A = 5
-    dut.A.value = 5
-    await RisingEdge(dut.UserCLK)  # Clock to load A_reg_data
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    # Verify A_reg_data updates regardless of ConfigBits[0]
-    assert dut.A_reg_data.value == model.A_reg_data
-
-    # Test with A register (ConfigBits[0] = 1) - registered A input
-    model.ConfigBits = 0b000001  # A_reg = 1
-    dut.ConfigBits.value = 0b000001
-    model.A = 7
-    dut.A.value = 7
-    await RisingEdge(dut.UserCLK)  # Clock to load A_reg_data
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.A_reg_data.value == model.A_reg_data
-    # Change A input to verify register is being used
-    model.A = 3
-    dut.A.value = 3
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
-    # The output should use the registered value (7), not the new input (3)
-    assert dut.A_reg_data.value == model.A_reg_data, (
-        f"Registered A mode failed: Expected Q = {model.Q}, got {dut.Q.value}"
+    """ConfigBits[0] selects the registered A over the live A."""
+    await check_operand_register_select(
+        dut, dut.A, BIT_0, q_latched=7 * 4 + 10, q_live=5 * 4 + 10
     )
 
 
 @cocotb.test
 async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
-    """Test ConfigBits[1] - B register functionality with proper cocotb timing."""
-    await setup_dut(dut)
-
-    # Create cocotb-aware software model for comparison
-    model = MULADDModel(dut.UserCLK)
-
-    # Test without B register (ConfigBits[1] = 0) - direct B input
-    model.ConfigBits = 0b000000  # B_reg = 0
-    dut.ConfigBits.value = 0b000000
-    model.B = 6
-    dut.B.value = 6
-    await RisingEdge(dut.UserCLK)  # Clock to load B_reg
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    # Verify B_reg updates regardless of ConfigBits[1]
-    assert dut.B_reg_data.value == model.B_reg_data
-
-    # Test with B register (ConfigBits[1] = 1) - registered B input
-    model.ConfigBits = 0b000010  # B_reg = 1
-    dut.ConfigBits.value = 0b000010
-    model.B = 9  # Load register with 9
-    dut.B.value = 9
-    await RisingEdge(dut.UserCLK)  # Clock to load B_reg
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.B_reg_data.value == model.B_reg_data
-    # Change B input to verify register is being used
-    model.B = 2
-    dut.B.value = 2
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
-    # The output should use the registered value (9), not the new input (2)
-    assert dut.B_reg_data.value == model.B_reg_data, (
-        f"Registered B mode failed: Expected B_reg = {model.B_reg_data}, "
-        f"got {dut.B_reg_data.value}"
+    """ConfigBits[1] selects the registered B over the live B."""
+    await check_operand_register_select(
+        dut, dut.B, BIT_1, q_latched=3 * 7 + 10, q_live=3 * 5 + 10
     )
 
 
 @cocotb.test
 async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
-    """Test ConfigBits[2] - C register functionality with proper cocotb timing."""
-    await setup_dut(dut)
-
-    # Create cocotb-aware software model for comparison
-    model = MULADDModel(dut.UserCLK)
-
-    # Test without C register (ConfigBits[2] = 0) - direct C input
-    model.ConfigBits = 0b000000  # C_reg = 0
-    dut.ConfigBits.value = 0b000000
-    model.C = 15
-    dut.C.value = 15
-    await RisingEdge(dut.UserCLK)  # Clock to load C_reg
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
-    # Verify C_reg updates regardless of ConfigBits[2]
-    assert dut.C_reg_data.value == model.C_reg_data
-
-    # Test with C register (ConfigBits[2] = 1) - registered C input
-    model.ConfigBits = 0b000100  # C_reg = 1
-    dut.ConfigBits.value = 0b000100
-    model.C = 20  # Load register with 20
-    dut.C.value = 20
-    await RisingEdge(dut.UserCLK)  # Clock to load C_reg
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.C_reg_data.value == model.C_reg_data
-    # Change C input to verify register is being used
-    model.C = 5
-    dut.C.value = 5
-    await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
-    # The output should use the registered value (20), not the new input (5)
-    assert dut.C_reg_data.value == model.C_reg_data
+    """ConfigBits[2] selects the registered C over the live C."""
+    await check_operand_register_select(
+        dut, dut.C, BIT_2, q_latched=3 * 4 + 7, q_live=3 * 4 + 5
+    )
 
 
 @cocotb.test
@@ -455,56 +401,30 @@ async def cocotb_test_muladd_configbit3_accumulator_mode(
 
 @cocotb.test
 async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> None:
-    """Test ConfigBits[4] - Sign extension functionality with proper cocotb timing."""
+    """ConfigBits[4] multiplies A and B as two's-complement, else as unsigned.
+
+    Each operand is negative on its own in one vector and both are negative in
+    another, so dropping the sign extension of either operand changes Q.
+    """
     await setup_dut(dut)
-
-    # Create cocotb-aware software model for comparison
-    model = MULADDModel(dut.UserCLK)
-
-    # Test without sign extension (ConfigBits[4] = 0) - zero extension
-    # 200 * 200 = 40000 = 0x9C40, (unsigned interpretation, since sign
-    # extension is disabled OPA/OPB are simply zero-extended before the
-    # multiply)
-    model.ConfigBits = 0b000000  # signExtension = 0
-    model.A = 200
-    model.B = 200
-    model.C = 0
-    dut.A.value = 200
-    dut.B.value = 200
     dut.C.value = 0
-    dut.ConfigBits.value = 0b000000
 
-    await RisingEdge(dut.UserCLK)
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
+    def signed8(value: int) -> int:
+        return value - 0x100 if value & 0x80 else value
 
-    # Verify zero extension behavior
-    assert dut.Q.value == model.Q, (
-        f"Zero extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
-    )
+    # (A, B): 200 is -56 and 246 is -10 as signed bytes.
+    for a_val, b_val in [(200, 10), (10, 200), (200, 246), (100, 10)]:
+        dut.A.value = a_val
+        dut.B.value = b_val
 
-    # Test with sign extension (ConfigBits[4] = 1)
-    # A=200, B=10 -> product = -560
-    model.A = 200
-    model.B = 10
-    dut.A.value = 200
-    dut.B.value = 10
-    model.ConfigBits = 0b010000  # signExtension = 1
-    dut.ConfigBits.value = 0b010000
+        dut.ConfigBits.value = 0
+        await Timer(Decimal(1), "ps")
+        assert int(dut.Q.value) == a_val * b_val, f"unsigned A={a_val}, B={b_val}"
 
-    await RisingEdge(dut.UserCLK)
-    await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-
-    assert dut.Q.value == model.Q, (
-        f"Sign extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
-    )
-
-    # Verify sign extension actually set the top 4 bits of the 20-bit result
-    result = int(dut.Q.value)
-    actual_top_bits = (result >> 16) & 0xF
-    assert actual_top_bits == 0xF, (
-        f"Sign extension verification failed: Expected top 4 bits = 1111, "
-        f"got {actual_top_bits:04b}"
-    )
+        dut.ConfigBits.value = BIT_4
+        await Timer(Decimal(1), "ps")
+        expected = (signed8(a_val) * signed8(b_val)) & 0xFFFFF
+        assert int(dut.Q.value) == expected, f"signed A={a_val}, B={b_val}"
 
 
 @cocotb.test

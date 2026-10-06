@@ -102,29 +102,21 @@ class TestFABulousSettings:
         assert settings.switch_matrix_debug_signal is True
         assert settings.proj_version_created == Version("1.2.3")
 
-    def test_max_worker_zero_accepted(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+    @pytest.mark.parametrize("max_worker", [0, 4])
+    def test_max_worker_non_negative_accepted(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        max_worker: int,
     ) -> None:
-        """FAB_MAX_WORKER=0 is accepted (the 0->default mapping happens in the pool)."""
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
-        monkeypatch.setenv("FAB_MAX_WORKER", "0")
+        """FAB_MAX_WORKER >= 0 is kept as given (the pool maps 0 to the default)."""
+        monkeypatch.setenv("FAB_MAX_WORKER", str(max_worker))
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
         settings = init_context(project)
 
-        assert settings.max_worker == 0
-
-    def test_max_worker_positive_preserved(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
-    ) -> None:
-        """A positive FAB_MAX_WORKER is kept as the requested worker count."""
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
-        monkeypatch.setenv("FAB_MAX_WORKER", "4")
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-
-        settings = init_context(project)
-
-        assert settings.max_worker == 4
+        assert settings.max_worker == max_worker
 
     def test_max_worker_negative_rejected(
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture

@@ -36,94 +36,60 @@ class TestComputeDieArea:
         mock_flow._compute_die_area = FABulousFabricMacroFlow._compute_die_area
         return mock_flow
 
-    def test_compute_die_area_basic(self, flow: MagicMock) -> None:
-        """Test basic die area computation with no spacing."""
-        row_heights: list[Decimal] = [Decimal(100), Decimal(200)]
-        column_widths: list[Decimal] = [Decimal(150), Decimal(250)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
+    @pytest.mark.parametrize(
+        ("row_heights", "column_widths", "halo", "spacing", "expected"),
+        [
+            pytest.param(
+                [Decimal(100), Decimal(200)],
+                [Decimal(150), Decimal(250)],
+                (Decimal(0), Decimal(0), Decimal(0), Decimal(0)),
+                (Decimal(0), Decimal(0)),
+                (Decimal(400), Decimal(300)),
+                id="no_spacing",
+            ),
+            # width = left + right + 200 = 10 + 30 + 200
+            # height = bottom + top + 100 = 20 + 40 + 100
+            pytest.param(
+                [Decimal(100)],
+                [Decimal(200)],
+                (Decimal(10), Decimal(20), Decimal(30), Decimal(40)),
+                (Decimal(0), Decimal(0)),
+                (Decimal(240), Decimal(160)),
+                id="halo_spacing",
+            ),
+            # Width adds one 5 gap between 2 columns, height two 10 gaps.
+            pytest.param(
+                [Decimal(100), Decimal(100), Decimal(100)],
+                [Decimal(200), Decimal(200)],
+                (Decimal(0), Decimal(0), Decimal(0), Decimal(0)),
+                (Decimal(5), Decimal(10)),
+                (Decimal(405), Decimal(320)),
+                id="tile_spacing",
+            ),
+            pytest.param(
+                [],
+                [],
+                (Decimal(10), Decimal(10), Decimal(10), Decimal(10)),
+                (Decimal(5), Decimal(5)),
+                (Decimal(20), Decimal(20)),
+                id="empty_grid_is_halo_only",
+            ),
+        ],
+    )
+    def test_compute_die_area(
+        self,
+        flow: MagicMock,
+        row_heights: list[Decimal],
+        column_widths: list[Decimal],
+        halo: tuple[Decimal, Decimal, Decimal, Decimal],
+        spacing: tuple[Decimal, Decimal],
+        expected: tuple[Decimal, Decimal],
+    ) -> None:
+        """Die size is the summed rows/columns plus halo and inter-tile spacing."""
+        assert (
+            flow._compute_die_area(flow, row_heights, column_widths, halo, spacing)
+            == expected
         )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(0), Decimal(0))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        assert width == Decimal(400), f"Expected 400, got {width}"
-        assert height == Decimal(300), f"Expected 300, got {height}"
-
-    def test_compute_die_area_with_halo_spacing(self, flow: MagicMock) -> None:
-        """Test die area computation with halo spacing."""
-        row_heights: list[Decimal] = [Decimal(100)]
-        column_widths: list[Decimal] = [Decimal(200)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(10),
-            Decimal(20),
-            Decimal(30),
-            Decimal(40),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(0), Decimal(0))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # width = left + right + sum(widths) = 10 + 30 + 200 = 240
-        # height = bottom + top + sum(heights) = 20 + 40 + 100 = 160
-        assert width == Decimal(240), f"Expected 240, got {width}"
-        assert height == Decimal(160), f"Expected 160, got {height}"
-
-    def test_compute_die_area_with_tile_spacing(self, flow: MagicMock) -> None:
-        """Test die area computation with tile spacing."""
-        row_heights: list[Decimal] = [Decimal(100), Decimal(100), Decimal(100)]
-        column_widths: list[Decimal] = [Decimal(200), Decimal(200)]
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-            Decimal(0),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(5), Decimal(10))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # width = sum(widths) + spacing * (cols - 1) = 400 + 5 * 1 = 405
-        # height = sum(heights) + spacing * (rows - 1) = 300 + 10 * 2 = 320
-        assert width == Decimal(405), f"Expected 405, got {width}"
-        assert height == Decimal(320), f"Expected 320, got {height}"
-
-    def test_compute_die_area_empty_grid(self, flow: MagicMock) -> None:
-        """Test die area computation with empty grid."""
-        row_heights: list[Decimal] = []
-        column_widths: list[Decimal] = []
-        halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = (
-            Decimal(10),
-            Decimal(10),
-            Decimal(10),
-            Decimal(10),
-        )
-        tile_spacing: tuple[Decimal, Decimal] = (Decimal(5), Decimal(5))
-
-        width: Decimal
-        height: Decimal
-        width, height = flow._compute_die_area(
-            flow, row_heights, column_widths, halo_spacing, tile_spacing
-        )
-
-        # Should just be halo spacing with no tiles
-        assert width == Decimal(20), f"Expected 20, got {width}"
-        assert height == Decimal(20), f"Expected 20, got {height}"
 
 
 class TestValidateNoMacroOverlaps:

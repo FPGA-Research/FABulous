@@ -215,37 +215,20 @@ def test_get_cell_instance_missing_instance_raises_keyerror(
         sdf_base.get_cell_instance_components("NO_SUCH_INSTANCE")
 
 
-def test_get_cell_instance_inputs_to_outputs_for_existing_instance(
+@pytest.mark.parametrize(
+    ("instance_name", "expected"),
+    [
+        ("U1", (["A"], ["Y"])),
+        ("NO_SUCH_INSTANCE", ([], [])),
+    ],
+    ids=["iopath_only", "missing_instance"],
+)
+def test_get_cell_instance_input_and_output_pins(
     sdf_base: SDFTimingGraphBase,
+    instance_name: str,
+    expected: tuple[list[str], list[str]],
 ) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
-
-    assert input_pins == ["A"]
-    assert output_pins == ["Y"]
-
-
-def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(
-    sdf_base: SDFTimingGraphBase,
-) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
-
-    assert "A" in input_pins
-    assert "Y" in output_pins
-    assert len(input_pins) == 1
-    assert len(output_pins) == 1
-
-
-def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_prints(
-    sdf_base: SDFTimingGraphBase,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins(
-        "NO_SUCH_INSTANCE"
-    )
-    capsys.readouterr()
-
-    assert input_pins == []
-    assert output_pins == []
+    assert sdf_base.get_cell_instance_input_and_output_pins(instance_name) == expected
 
 
 def test_get_cell_instance_component_by_type_returns_matching_component(

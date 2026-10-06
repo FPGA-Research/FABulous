@@ -198,6 +198,7 @@ def test_compile_design_top_override(
     assert task_vars["TOP_WRAPPER"] == "my_top"
 
 
+@pytest.mark.parametrize("absolute", [False, True], ids=["relative", "absolute"])
 @pytest.mark.parametrize(
     ("flag", "filename", "task_var"),
     [
@@ -208,51 +209,25 @@ def test_compile_design_top_override(
     ],
     ids=["json", "fasm", "bin", "log"],
 )
-def test_compile_design_relative_output_override(
-    compile_cli: FABulousREPL,
-    mocker: MockerFixture,
-    flag: str,
-    filename: str,
-    task_var: str,
-) -> None:
-    """Relative output paths resolve against projectDir."""
-    design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
-
-    run_cmd(compile_cli, f"compile_design {design_file} {flag} {filename}")
-
-    task_vars = mock_run_task.call_args.args[2]
-    expected = (compile_cli.projectDir / filename).resolve()
-    assert task_vars[task_var] == str(expected)
-
-
-@pytest.mark.parametrize(
-    ("flag", "filename", "task_var"),
-    [
-        ("-json", "abs.json", "JSON_FILE"),
-        ("-fasm", "abs.fasm", "FASM_FILE"),
-        ("-bin", "abs.bin", "BIN_FILE"),
-        ("-log", "abs.log", "LOG_FILE"),
-    ],
-    ids=["json", "fasm", "bin", "log"],
-)
-def test_compile_design_absolute_output_override(
+def test_compile_design_output_override(
     compile_cli: FABulousREPL,
     mocker: MockerFixture,
     tmp_path: Path,
     flag: str,
     filename: str,
     task_var: str,
+    absolute: bool,
 ) -> None:
-    """Absolute output paths are preserved unchanged."""
+    """Relative output paths resolve against projectDir; absolute ones are kept."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    abs_path = tmp_path / filename
+    output = tmp_path / filename if absolute else Path(filename)
     mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
-    run_cmd(compile_cli, f"compile_design {design_file} {flag} {abs_path}")
+    run_cmd(compile_cli, f"compile_design {design_file} {flag} {output}")
 
     task_vars = mock_run_task.call_args.args[2]
-    assert task_vars[task_var] == str(abs_path)
+    expected = output if absolute else compile_cli.projectDir / filename
+    assert task_vars[task_var] == str(expected)
 
 
 @pytest.mark.parametrize(

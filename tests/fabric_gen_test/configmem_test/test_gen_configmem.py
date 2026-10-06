@@ -8,9 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -295,86 +293,6 @@ class TestGeneratedConfigMemRTL:
             f"Expected {tile_config.globalConfigBits} config_latch instantiations, "
             f"found {actual_instantiations}"
         )
-
-    def test_configmem_rtl_maps_frame_signals_to_config_bits_correctly(
-        self,
-        default_fabric: Fabric,
-        default_tile: Tile,
-        configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
-        tmp_path: Path,
-        code_generator_factory: Callable[[str, str], CodeGenerator],
-        mocker: MockerFixture,
-    ) -> None:
-        """Test that generated RTL correctly maps FrameData and FrameStrobe to
-        ConfigBits."""
-        # Create code generator
-        writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
-        writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
-
-        # Create CSV file path
-        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
-        csv_path.touch()
-
-        config_memlist_data = configmem_list(default_fabric, default_tile)
-
-        # Mock parseConfigMem to return our configmem_list fixture
-        mock_parse = mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
-        )
-        mock_parse.return_value = config_memlist_data
-
-        # Generate the ConfigMem RTL
-        generateConfigMem(
-            writer,
-            default_tile.name,
-            default_tile.globalConfigBits,
-            csv_path,
-            frame_bits_per_row=default_fabric.frameBitsPerRow,
-            max_frame_per_col=default_fabric.maxFramesPerCol,
-        )
-
-        # Read the generated RTL
-        rtl_content = writer.outFileName.read_text()
-
-        # Verify each frame mapping
-        for config_mem in config_memlist_data:
-            if config_mem.bitsUsedInFrame == 0:
-                continue
-
-            frame_idx = config_mem.frameIndex
-            bit_mask = config_mem.usedBitMask
-            expected_config_bits = config_mem.configBitRanges
-
-            # Check each bit in the frame
-            config_bit_counter = 0
-            for bit_pos in range(len(bit_mask)):
-                if bit_mask[bit_pos] == "1":
-                    # This bit should be connected
-                    frame_data_bit = default_fabric.frameBitsPerRow - 1 - bit_pos
-                    frame_strobe_bit = frame_idx
-                    expected_config_bit = expected_config_bits[config_bit_counter]
-
-                    # Verify the config_latch instantiation exists with correct
-                    # connections
-                    expected_inst_name = (
-                        f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
-                    )
-                    assert expected_inst_name in rtl_content, (
-                        f"Missing config_latch instantiation: {expected_inst_name}"
-                    )
-
-                    # Verify the port connections
-                    connection = (
-                        f"    .D(FrameData[{frame_data_bit}]),\n"
-                        f"    .E(FrameStrobe[{frame_strobe_bit}]),\n"
-                        f"    .Q(ConfigBits[{expected_config_bit}]),\n"
-                        f"    .QN(ConfigBits_N[{expected_config_bit}])"
-                    )
-                    assert connection in rtl_content, (
-                        f"Missing connection {connection} for {expected_inst_name}"
-                    )
-
-                    config_bit_counter += 1
 
 
 def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> None:

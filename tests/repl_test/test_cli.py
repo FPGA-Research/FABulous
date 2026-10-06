@@ -543,26 +543,43 @@ class TestResolveDirectionalFix:
         mode, _ = _resolve_directional_fix(OptMode.FIND_MIN_WIDTH, None, Decimal(245))
         assert mode == OptMode.FIND_MIN_WIDTH
 
-    def test_fix_height_conflicts_with_find_min_height(self) -> None:
-        with pytest.raises(
-            ValueError, match="only valid with --optimise find_min_width"
-        ):
-            _resolve_directional_fix(OptMode.FIND_MIN_HEIGHT, None, Decimal(245))
-
-    def test_fix_width_conflicts_with_balance(self) -> None:
-        with pytest.raises(
-            ValueError, match="only valid with --optimise find_min_height"
-        ):
-            _resolve_directional_fix(OptMode.BALANCE, Decimal(246), None)
-
-    def test_both_fix_flags_raise(self) -> None:
-        with pytest.raises(ValueError, match="only one of"):
-            _resolve_directional_fix(OptMode.NO_OPT, Decimal(246), Decimal(245))
-
     def test_no_fix_flags_passthrough(self) -> None:
         mode, die_area = _resolve_directional_fix(OptMode.BALANCE, None, None)
         assert mode == OptMode.BALANCE
         assert die_area is None
+
+
+@pytest.mark.parametrize(
+    ("opt_mode", "fix_width", "fix_height", "match"),
+    [
+        pytest.param(
+            OptMode.FIND_MIN_HEIGHT,
+            None,
+            Decimal(245),
+            "only valid with --optimise find_min_width",
+            id="fix-height-vs-find-min-height",
+        ),
+        pytest.param(
+            OptMode.BALANCE,
+            Decimal(246),
+            None,
+            "only valid with --optimise find_min_height",
+            id="fix-width-vs-balance",
+        ),
+        pytest.param(
+            OptMode.NO_OPT, Decimal(246), Decimal(245), "only one of", id="both-fixes"
+        ),
+    ],
+)
+def test_resolve_directional_fix_rejects(
+    opt_mode: OptMode,
+    fix_width: Decimal | None,
+    fix_height: Decimal | None,
+    match: str,
+) -> None:
+    """Conflicting fix flags and modes are rejected."""
+    with pytest.raises(ValueError, match=match):
+        _resolve_directional_fix(opt_mode, fix_width, fix_height)
 
 
 class TestGenMacroTileFlags:

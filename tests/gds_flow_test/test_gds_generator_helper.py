@@ -97,50 +97,22 @@ class TestGetPitch:
         assert y_pitch == Decimal("0.56")
 
 
-class TestRoundUpDecimal:
-    """Tests for round_up_decimal function."""
-
-    def test_round_up_decimal_no_remainder(self) -> None:
-        """Test rounding when value is already multiple of pitch."""
-        value = Decimal(10)
-        pitch = Decimal(5)
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal(10)
-
-    def test_round_up_decimal_with_remainder(self) -> None:
-        """Test rounding when value has remainder."""
-        value = Decimal("10.5")
-        pitch = Decimal(5)
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal(15)
-
-    def test_round_up_decimal_small_value(self) -> None:
-        """Test rounding with value smaller than pitch."""
-        value = Decimal(1)
-        pitch = Decimal(5)
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal(5)
-
-    def test_round_up_decimal_zero_pitch(self) -> None:
-        """Test rounding with zero pitch returns original value."""
-        value = Decimal("10.5")
-        pitch = Decimal(0)
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal("10.5")
-
-    def test_round_up_decimal_fractional_pitch(self) -> None:
-        """Test rounding with fractional pitch."""
-        value = Decimal("1.5")
-        pitch = Decimal("0.28")
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal("1.68")
-
-    def test_round_up_decimal_negative_value(self) -> None:
-        """Test rounding with negative value."""
-        value = Decimal("-5.5")
-        pitch = Decimal(5)
-        result = round_up_decimal(value, pitch)
-        assert result == Decimal(-5)
+@pytest.mark.parametrize(
+    ("value", "pitch", "expected"),
+    [
+        pytest.param(Decimal(10), Decimal(5), Decimal(10), id="no_remainder"),
+        pytest.param(Decimal("10.5"), Decimal(5), Decimal(15), id="with_remainder"),
+        pytest.param(Decimal(1), Decimal(5), Decimal(5), id="below_pitch"),
+        pytest.param(Decimal("10.5"), Decimal(0), Decimal("10.5"), id="zero_pitch"),
+        pytest.param(
+            Decimal("1.5"), Decimal("0.28"), Decimal("1.68"), id="fractional_pitch"
+        ),
+        pytest.param(Decimal("-5.5"), Decimal(5), Decimal(-5), id="negative_value"),
+    ],
+)
+def test_round_up_decimal(value: Decimal, pitch: Decimal, expected: Decimal) -> None:
+    """`value` rounds up to the next multiple of `pitch`; zero pitch is a no-op."""
+    assert round_up_decimal(value, pitch) == expected
 
 
 class TestRoundDieDimension:

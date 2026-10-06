@@ -166,19 +166,15 @@ def test_has_path_true_and_false(sdf_graph: SDFTimingGraph) -> None:
     assert sdf_graph.has_path("A", "H") is False
 
 
-def test_single_delay_returns_shortest_weighted_path_and_info(
-    sdf_graph: SDFTimingGraph,
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [("E", 7.0), ("D", 3.0)],
+    ids=["through_lighter_branch", "lower_delay_not_fewer_edges"],
+)
+def test_single_delay_returns_shortest_weighted_path(
+    sdf_graph: SDFTimingGraph, target: str, expected: float
 ) -> None:
-    length = sdf_graph.single_delay("A", "E")
-
-    assert length == 7.0
-
-
-def test_single_delay_prefers_lower_total_delay_not_fewer_edges(
-    sdf_graph: SDFTimingGraph,
-) -> None:
-    length = sdf_graph.single_delay("A", "D")
-    assert length == 3.0
+    assert sdf_graph.single_delay("A", target) == expected
 
 
 def test_single_delay_raises_when_no_path_exists(
@@ -452,28 +448,15 @@ def test_earliest_common_nodes_total_reach_score_tie_break() -> None:
     assert best_cost == 1
 
 
-def test_follow_first_fanout_from_pins_one_hop(
-    sdf_graph: SDFTimingGraph,
+@pytest.mark.parametrize(
+    ("start", "num_follow", "expected"),
+    [("A", 1, "B"), ("A", 3, "E"), ("E", 3, "E"), ("A", 0, "A")],
+    ids=["one_hop", "multiple_hops", "stops_without_successor", "zero_hops"],
+)
+def test_follow_first_fanout_from_pins(
+    sdf_graph: SDFTimingGraph, start: str, num_follow: int, expected: str
 ) -> None:
-    assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=1) == "B"
-
-
-def test_follow_first_fanout_from_pins_multiple_hops(
-    sdf_graph: SDFTimingGraph,
-) -> None:
-    assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=3) == "E"
-
-
-def test_follow_first_fanout_from_pins_stops_when_no_successor(
-    sdf_graph: SDFTimingGraph,
-) -> None:
-    assert sdf_graph.follow_first_fanout_from_pins("E", num_follow=3) == "E"
-
-
-def test_follow_first_fanout_from_pins_zero_hops_returns_same_pin(
-    sdf_graph: SDFTimingGraph,
-) -> None:
-    assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=0) == "A"
+    assert sdf_graph.follow_first_fanout_from_pins(start, num_follow) == expected
 
 
 def test_path_to_nearest_target_sentinel_unweighted_forward(

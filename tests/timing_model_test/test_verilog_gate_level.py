@@ -51,22 +51,15 @@ def test_get_raw_verilog_netlist_data(
     assert vg.get_raw_verilog_netlist_data() == TEST_NETLIST
 
 
-def test_find_verilog_modules_regex_all(
-    vg: VerilogGateLevelTimingGraph,
+@pytest.mark.parametrize(
+    ("name_pattern", "expected"),
+    [(r".*", ["LeafWrap", "Mid", "Top"]), (r"^L", ["LeafWrap"]), (r"^XYZ$", [])],
+    ids=["all", "filtered", "no_match"],
+)
+def test_find_verilog_modules_regex(
+    vg: VerilogGateLevelTimingGraph, name_pattern: str, expected: list[str]
 ) -> None:
-    assert vg.find_verilog_modules_regex(r".*") == ["LeafWrap", "Mid", "Top"]
-
-
-def test_find_verilog_modules_regex_filtered(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    assert vg.find_verilog_modules_regex(r"^L") == ["LeafWrap"]
-
-
-def test_find_verilog_modules_regex_no_match(
-    vg: VerilogGateLevelTimingGraph,
-) -> None:
-    assert vg.find_verilog_modules_regex(r"^XYZ$") == []
+    assert vg.find_verilog_modules_regex(name_pattern) == expected
 
 
 def test_find_instance_paths_by_regex_matches_recursive_paths(

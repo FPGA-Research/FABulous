@@ -70,22 +70,26 @@ pdk::sky130A:
 # --------------------------------- CellSpec ---------------------------------
 
 
-def test_cell_spec_yosys_arg_buffer() -> None:
-    spec = CellSpec(cell="buf_1", input_ports=["A"], output_ports=["X"])
-
-    assert spec.yosys_arg == "buf_1 A X"
-
-
-def test_cell_spec_yosys_arg_tie_cell() -> None:
-    spec = CellSpec(cell="conb_1", output_ports=["HI"])
-
-    assert spec.yosys_arg == "conb_1 HI"
-
-
-def test_cell_spec_yosys_arg_multiple_ports() -> None:
-    spec = CellSpec(cell="mux", input_ports=["S", "A", "B"], output_ports=["Y"])
-
-    assert spec.yosys_arg == "mux S A B Y"
+@pytest.mark.parametrize(
+    ("spec", "expected"),
+    [
+        pytest.param(
+            CellSpec(cell="buf_1", input_ports=["A"], output_ports=["X"]),
+            "buf_1 A X",
+            id="buffer",
+        ),
+        pytest.param(
+            CellSpec(cell="conb_1", output_ports=["HI"]), "conb_1 HI", id="tie_cell"
+        ),
+        pytest.param(
+            CellSpec(cell="mux", input_ports=["S", "A", "B"], output_ports=["Y"]),
+            "mux S A B Y",
+            id="multiple_ports",
+        ),
+    ],
+)
+def test_cell_spec_yosys_arg(spec: CellSpec, expected: str) -> None:
+    assert spec.yosys_arg == expected
 
 
 # ------------------------------ StdCellLibrary ------------------------------

@@ -69,6 +69,7 @@ def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
         ([[0, 0]], False),  # single zero-config row
         ([[1]], True),  # single tile, single bit
         ([[0], [0], [0]], False),  # tall single-column, no config
+        ([[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]], False),  # deep interior
     ],
 )
 def test_border_rows_have_config_bits(
@@ -82,13 +83,6 @@ def test_border_rows_have_config_bits(
 def test_border_rows_have_config_bits_empty_fabric() -> None:
     """An empty tile grid reports no border config bits."""
     fabric = make_fabric_from_grid([])
-    assert border_rows_have_config_bits(fabric) is False
-
-
-def test_border_rows_have_config_bits_interior_ignored() -> None:
-    """Config bits confined to interior rows never flip the flag on."""
-    grid = [[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]]
-    fabric = _fabric_from_bits(grid)
     assert border_rows_have_config_bits(fabric) is False
 
 
