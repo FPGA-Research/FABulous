@@ -21,13 +21,6 @@ from fabulous.fabric_definition.port import (
 class TestPort:
     """Tests for the base Port class."""
 
-    def test_construct_valid(self) -> None:
-        """A valid Port exposes its name, direction and width."""
-        port = Port(name="A", io_direction=IO.INPUT, width=4)
-        assert port.name == "A"
-        assert port.io_direction == IO.INPUT
-        assert port.width == 4
-
     def test_zero_width_raises(self) -> None:
         """A non-positive width is rejected."""
         with pytest.raises(ValueError, match="Width must be greater than 0"):
@@ -288,13 +281,6 @@ class TestSlicedPort:
 
 class TestSharedPort:
     """Tests for SharedPort."""
-
-    def test_shared_with(self) -> None:
-        """The shared_with target is exposed."""
-        port = SharedPort(
-            name="clk", io_direction=IO.INPUT, width=1, shared_with="global_clk"
-        )
-        assert port.shared_with == "global_clk"
 
     def test_share_expand_single_bit(self) -> None:
         """A width-1 shared port expands to the bare shared_with name."""

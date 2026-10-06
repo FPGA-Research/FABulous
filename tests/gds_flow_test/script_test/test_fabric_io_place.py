@@ -12,7 +12,6 @@ The placement rule is decided per BTerm from geometry alone:
   exist, so placement fails loudly instead of emitting an unroutable design.
 """
 
-import contextlib
 from types import SimpleNamespace
 
 import pytest
@@ -45,22 +44,11 @@ def _io_place_setup(
     monkeypatch.setattr(fabric_io_place, "odb", mock_odb_io_place)
 
 
-def _call_io_place(reader: MockReaderIoPlace, monkeypatch: pytest.MonkeyPatch) -> None:
-    from librelane.scripts.odbpy.reader import OdbReader
-
+def _call_io_place(reader: MockReaderIoPlace) -> None:
+    """Call the undecorated `io_place` body; `click_odb` would open a real ODB."""
     from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
-    def _init(self: object, *_a: object, **_k: object) -> None:
-        for attr in dir(reader):
-            if attr.startswith("_"):
-                continue
-            with contextlib.suppress(AttributeError):
-                setattr(self, attr, getattr(reader, attr))
-
-    monkeypatch.setattr(OdbReader, "__init__", _init)
-    fn = fabric_io_place.io_place
-    actual = fn.callback if hasattr(fn, "callback") else fn
-    actual(input_db="x.odb", input_lefs=[], config_path=None, reader=reader)
+    fabric_io_place.io_place.callback.__wrapped__(reader=reader)
 
 
 def _side_geom(side: str, w: int, h: int) -> tuple[int, int, int, int]:
@@ -96,7 +84,7 @@ def _placements_for(recorder: PinPlacementRecorder, name: str) -> list[tuple]:
 
 @pytest.mark.usefixtures("_io_place_setup")
 def test_stamps_in_place_when_pin_flush_with_die_edge(
-    pin_placement_recorder: PinPlacementRecorder, monkeypatch: pytest.MonkeyPatch
+    pin_placement_recorder: PinPlacementRecorder,
 ) -> None:
     """gap == 0: the BPin box coincides with the tile pin (no offset)."""
     # Tile flush with the south die edge: inst_y == die.yMin, so gap == 0.
@@ -107,7 +95,7 @@ def test_stamps_in_place_when_pin_flush_with_die_edge(
     block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     pins = bterm.getBPins()
     assert len(pins) == 1
@@ -118,28 +106,8 @@ def test_stamps_in_place_when_pin_flush_with_die_edge(
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_offsets_pin_to_south_die_edge_when_halo_present(
-    pin_placement_recorder: PinPlacementRecorder, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """gap > 0: the BPin box snaps onto the die edge so the router can reach it."""
-    # Bottom halo of 20: tile inset by 20 from the die bottom.
-    iterm = _make_iterm(0, 20, "SOUTH")
-    net = MockNetIoPlace("sig", [iterm])
-    bterm = MockBTermIoPlace("sig", net)
-
-    block = MockBlockIoPlace(MockDie(0, 0, 200, 150), [bterm])
-    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
-
-    _call_io_place(reader, monkeypatch)
-
-    boxes = _placements_for(pin_placement_recorder, "sig")
-    # Pin geometry translated down by the halo so its south edge lands on y=0.
-    assert boxes == [("sig", "Metal2", 40, 0, 60, 10)]
-
-
-@pytest.mark.usefixtures("_io_place_setup")
 def test_multifanout_places_single_edge_box_with_halo(
-    pin_placement_recorder: PinPlacementRecorder, monkeypatch: pytest.MonkeyPatch
+    pin_placement_recorder: PinPlacementRecorder,
 ) -> None:
     """A multi-sink net with a halo gets exactly one edge box; router fans out."""
     # Two bottom-row tiles both driven by the same fabric clock, south halo 20.
@@ -151,7 +119,7 @@ def test_multifanout_places_single_edge_box_with_halo(
     block = MockBlockIoPlace(MockDie(0, 0, 200, 150), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     boxes = _placements_for(pin_placement_recorder, "UserCLK")
     # One access box on the die edge, taken from the first sink; not one per sink.
@@ -159,9 +127,7 @@ def test_multifanout_places_single_edge_box_with_halo(
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_errors_on_multifanout_without_halo(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_errors_on_multifanout_without_halo() -> None:
     """gap == 0 with multiple sinks has no channel: fail loudly, mention the halo."""
     iterm_a = _make_iterm(0, 0, "SOUTH")
     iterm_b = _make_iterm(100, 0, "SOUTH")
@@ -172,7 +138,7 @@ def test_errors_on_multifanout_without_halo(
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
     with pytest.raises(ValueError, match="halo"):
-        _call_io_place(reader, monkeypatch)
+        _call_io_place(reader)
 
 
 @pytest.mark.usefixtures("_io_place_setup")
@@ -191,7 +157,6 @@ def test_offsets_to_correct_die_edge_for_each_side(
     die: tuple[int, int, int, int],
     expected: tuple[int, int, int, int],
     pin_placement_recorder: PinPlacementRecorder,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The offset is generic: a halo on any side snaps the pin to that die edge."""
     iterm = _make_iterm(inst[0], inst[1], side)
@@ -201,16 +166,14 @@ def test_offsets_to_correct_die_edge_for_each_side(
     block = MockBlockIoPlace(MockDie(*die), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     boxes = _placements_for(pin_placement_recorder, "sig")
     assert boxes == [("sig", "Metal2", *expected)]
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_skips_power_and_ground(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_skips_power_and_ground() -> None:
     """POWER/GROUND BTerms must not be touched."""
     pwr = MockBTermIoPlace("VPWR", None, sig_type="POWER")
     gnd = MockBTermIoPlace("VGND", None, sig_type="GROUND")
@@ -218,7 +181,7 @@ def test_skips_power_and_ground(
     block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [pwr, gnd])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     assert pwr.getBPins() == []
     assert gnd.getBPins() == []
@@ -226,7 +189,7 @@ def test_skips_power_and_ground(
 
 @pytest.mark.usefixtures("_io_place_setup")
 def test_destroys_orphan_bterm_with_no_iterms(
-    mock_odb_io_place: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+    mock_odb_io_place: SimpleNamespace,
 ) -> None:
     """A signal BTerm whose net has no ITerms is destroyed (and so is the net)."""
     net = MockNetIoPlace("orphan", [])
@@ -235,16 +198,14 @@ def test_destroys_orphan_bterm_with_no_iterms(
     block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     assert bterm in mock_odb_io_place.destroyed_bterms
     assert net in mock_odb_io_place.destroyed_nets
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_leaves_existing_bpins_alone(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_leaves_existing_bpins_alone() -> None:
     """If a BTerm already has a BPin, io_place skips it without re-stamping."""
     iterm = _make_iterm(0, 0, "SOUTH")
     net = MockNetIoPlace("sig", [iterm])
@@ -255,7 +216,7 @@ def test_leaves_existing_bpins_alone(
     block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
     reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    _call_io_place(reader, monkeypatch)
+    _call_io_place(reader)
 
     # Still exactly one BPin, no new one was created.
     assert bterm.getBPins() == [pre_existing]

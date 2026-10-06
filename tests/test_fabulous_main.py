@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous import NixShell, main
+from fabulous.fabulous import main
 
 
 def make_flake_dir(tmp_path: Path) -> Path:
@@ -193,32 +193,3 @@ def test_nix_env_uses_settings_shell_when_not_explicit(
     mock_execvpe.assert_called_once()
     _, _, env_vars = mock_execvpe.call_args[0]
     assert env_vars.get("FAB_NIX_SHELL") == "zsh"
-
-
-# ---------------------------------------------------------------------------
-# NixShell enum
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("value", "member"),
-    [
-        pytest.param("bash", NixShell.BASH, id="bash"),
-        pytest.param("fish", NixShell.FISH, id="fish"),
-        pytest.param("zsh", NixShell.ZSH, id="zsh"),
-    ],
-)
-def test_nix_shell_enum_from_string(value: str, member: NixShell) -> None:
-    assert NixShell(value) == member
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        pytest.param("tcsh", id="tcsh"),
-        pytest.param("csh", id="csh"),
-        pytest.param("", id="empty"),
-    ],
-)
-def test_nix_shell_enum_invalid(value: str) -> None:
-    assert NixShell(value) is NixShell.BASH

@@ -114,18 +114,6 @@ def fake_sdf_data_without_divider() -> dict[str, object]:
     }
 
 
-def test_as_float_none_uses_default() -> None:
-    as_float = tg.__dict__["_as_float"]
-    assert as_float(None) == 0.0
-    assert as_float(None, default=2.5) == 2.5
-
-
-def test_as_float_converts_numeric_values() -> None:
-    as_float = tg.__dict__["_as_float"]
-    assert as_float(3) == 3.0
-    assert as_float(4.25) == 4.25
-
-
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [

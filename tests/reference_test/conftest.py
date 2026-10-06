@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabulous_repl.helper import clone_git_repo
-from tests.reference_test.reference_projects_test import load_reference_projects_config
 
 
 # Session-level configuration storage
@@ -22,35 +21,6 @@ class SessionConfig:
 
 # global session config instance
 _session_config = SessionConfig()
-
-
-@pytest.fixture(scope="session")
-def config_path() -> Path:
-    """Get the reference projects config path from session config."""
-    if _session_config.projects_conf is None:
-        raise RuntimeError(
-            "Session config not initialized. This should be set in pytest_configure."
-        )
-    return _session_config.projects_conf
-
-
-@pytest.fixture(scope="session")
-def projects_dir() -> Path:
-    """Get the projects directory from session config."""
-    if _session_config.projects_dir is None:
-        raise RuntimeError(
-            "Session config not initialized. This should be set in pytest_configure."
-        )
-    return _session_config.projects_dir
-
-
-@pytest.fixture
-def reference_projects_config(config_path: Path) -> list:
-    """Load reference projects from config file."""
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-
-    return load_reference_projects_config(config_path)
 
 
 def pytest_configure(config: pytest.Config) -> None:

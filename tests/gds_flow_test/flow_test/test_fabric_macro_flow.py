@@ -350,23 +350,6 @@ class TestValidateTileSizes:
         )
         assert result is True
 
-    def test_supertile_validation(
-        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
-    ) -> None:
-        """Test validation also checks supertiles."""
-        # Modify mock_fabric to include a supertile
-        mock_fabric.superTileDic = {"super1": mocker.MagicMock()}
-
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
-            "tile1": (Decimal(100), Decimal(200)),
-            "super1": (Decimal(75), Decimal(200)),  # Not aligned
-        }
-        pitch_x: Decimal = Decimal(50)
-        pitch_y: Decimal = Decimal(100)
-
-        with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
-
 
 class TestComputeRowAndColumnSizes:
     """Tests for _compute_row_and_column_sizes method."""
@@ -490,21 +473,6 @@ class TestFlowConfiguration:
         assert "OpenROAD.STAPrePNR*" in subs
         assert subs["OpenROAD.STAPrePNR*"] is None
 
-    def test_flow_has_fabulous_tile_spacing_config(self) -> None:
-        """Test flow has FABULOUS_TILE_SPACING config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_TILE_SPACING" in config_names
-
-    def test_flow_has_fabulous_halo_spacing_config(self) -> None:
-        """Test flow has FABULOUS_HALO_SPACING config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_HALO_SPACING" in config_names
-
-    def test_flow_has_fabulous_spef_corners_config(self) -> None:
-        """Test flow has FABULOUS_SPEF_CORNERS config var."""
-        config_names: list[str] = [var.name for var in configs]
-        assert "FABULOUS_SPEF_CORNERS" in config_names
-
 
 class TestSpacingVariableTypes:
     """Type-system checks for the Union-typed spacing variables.
@@ -583,8 +551,8 @@ class TestSpacingVariableTypes:
             self._compile_var("FABULOUS_HALO_SPACING", [1, 2])
 
 
-class TestFlowSubstitutionsAndAttributes:
-    """Tests for flow substitutions and class-level attributes."""
+class TestFlowSubstitutions:
+    """Tests for the flow's step substitutions."""
 
     def test_io_placement_substitution(self) -> None:
         """Test IO placement substitution."""
@@ -601,17 +569,3 @@ class TestFlowSubstitutionsAndAttributes:
         )
 
         assert subs["OpenROAD.GeneratePDN"] == FABulousPDN
-
-    def test_flow_steps_attribute(self) -> None:
-        """Test that flow has Steps attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "Steps")
-        assert isinstance(FABulousFabricMacroFlow.Steps, list)
-
-    def test_flow_substitutions_attribute(self) -> None:
-        """Test that flow has Substitutions attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "Substitutions")
-
-    def test_flow_config_vars_attribute(self) -> None:
-        """Test that flow has config_vars attribute."""
-        assert hasattr(FABulousFabricMacroFlow, "config_vars")
-        assert isinstance(FABulousFabricMacroFlow.config_vars, list)

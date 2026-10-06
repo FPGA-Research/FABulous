@@ -12,10 +12,9 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from librelane.config.config import Config
-from librelane.config.variable import Instance, Macro, Orientation
+from librelane.config.variable import Instance, Macro, Orientation, Variable
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
@@ -112,20 +111,13 @@ def mock_config_load(
             if key not in config_dict:
                 config_dict[key] = value
 
-        # Add default values for FABulous-specific configs (don't override existing)
-        defaults: dict[str, Any] = {
-            "DESIGN_DIR": design_dir,
-            "FABULOUS_IGNORE_DEFAULT_DIE_AREA": False,
-            "ROUTING_OBSTRUCTIONS": None,
-            "FABULOUS_TILE_LOGICAL_WIDTH": 1,
-            "FABULOUS_TILE_LOGICAL_HEIGHT": 1,
-            "FABULOUS_CONFIG_BIT_MODE": ConfigBitMode.FRAME_BASED,
-            "FABULOUS_MULTIPLEXER_STYLE": MultiplexerStyle.CUSTOM,
-        }
-
-        for key, value in defaults.items():
-            if key not in config_dict:
-                config_dict[key] = value
+        # Defaults come from the flow's declared Variables, as in the real
+        # Config.load, so a removed or changed default is visible to the tests.
+        config_dict.setdefault("DESIGN_DIR", design_dir)
+        flow_config_vars: list[Variable] = kwargs["flow_config_vars"]
+        for var in flow_config_vars:
+            if var.default is not None:
+                config_dict.setdefault(var.name, var.default)
 
         return Config(config_dict), design_dir
 

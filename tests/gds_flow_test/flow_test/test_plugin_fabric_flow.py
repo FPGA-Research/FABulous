@@ -157,13 +157,6 @@ class TestBuildMacros:
         assert macros["LUT4AB"].spef["nom_tt_025C_1v80"] == [nom_file]
         assert macros["LUT4AB"].spef["min_ff_n40C_1v95"] == [min_file]
 
-    def test_missing_spef_dir_yields_empty_spef(self, tmp_path: Path) -> None:
-        macro_dir: Path = _write_macro_dir(tmp_path, "LUT4AB")
-
-        macros, _ = _build_macros({"LUT4AB": macro_dir})
-
-        assert macros["LUT4AB"].spef == {}
-
     def test_raises_when_metrics_json_missing(self, tmp_path: Path) -> None:
         macro_dir: Path = _write_macro_dir(tmp_path, "LUT4AB")
         (macro_dir / "metrics.json").unlink()

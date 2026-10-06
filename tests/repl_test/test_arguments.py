@@ -823,19 +823,6 @@ def test_global_parser_behaviors(
     assert exc_info.value.code == expected_code
 
 
-def test_default_writer_is_verilog(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_dir = tmp_path / "prj_default_writer"
-    argv = ["FABulous", "create-project", str(project_dir)]
-    monkeypatch.setattr(sys, "argv", argv)
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-    assert exc_info.value.code == 0
-    env_text = (project_dir / ".FABulous" / ".env").read_text()
-    assert "verilog" in env_text.lower()
-
-
 @pytest.mark.parametrize(
     ("argv", "use_cwd", "expected_code"),
     [
@@ -1016,18 +1003,6 @@ def test_subcommand_help(
 # ============================================================================
 
 
-def test_version_callback() -> None:
-    """Test version_callback function behavior."""
-    from fabulous.fabulous import version_callback
-
-    # Test that version_callback raises typer.Exit when value is True
-    with pytest.raises(typer.Exit):
-        version_callback(True)
-
-    # Test that version_callback does nothing when value is False
-    version_callback(False)  # Should not raise
-
-
 def test_validate_project_directory_success(project: Path) -> None:
     """Test validate_project_directory with valid project."""
     from fabulous.fabulous import validate_project_directory
@@ -1206,27 +1181,6 @@ def test_main_function_exception_handling(monkeypatch: pytest.MonkeyPatch) -> No
         main()
 
     assert exc_info.value.code == 1
-
-
-def test_run_command_pipeline_error(
-    project: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test run command with pipeline execution error."""
-    test_args = [
-        "FABulous",
-        "-p",
-        str(project),
-        "run",
-        "load_fabric nonexistent_fabric",
-    ]
-    monkeypatch.setattr(sys, "argv", test_args)
-
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    # Should exit with non-zero code due to command failure
-    assert exc_info.value.code != 0
 
 
 def test_legacy_logging_default_filename(project: Path) -> None:

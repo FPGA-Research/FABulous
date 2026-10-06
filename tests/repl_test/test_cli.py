@@ -243,19 +243,6 @@ def test_gen_macro_tile_without_io_pin_config_generates_for_tile(
     assert gen_tile_macro_mock.call_args.args[1] == expected_pin_order
 
 
-def test_run_FABulous_bitstream_deprecated(
-    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
-) -> None:
-    """Test the deprecated `run_FABulous_bitstream` delegates to compile_design."""
-    mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
-    run_cmd(cli, "run_fab")
-
-    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
-
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert any("compile_design" in r.message for r in caplog.records)
-
-
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation(
     cli: FABulousREPL,

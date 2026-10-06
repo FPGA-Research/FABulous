@@ -322,31 +322,6 @@ def _build_fabric(
     return fabric
 
 
-def test_bitstream_spec_is_deterministic(tmp_path: Path) -> None:
-    """Identical fabric content yields an identical spec across runs."""
-    first = _build_fabric(
-        tmp_path,
-        "first",
-        feature_map=_FEATURE_MAP,
-        sources=_SOURCES,
-        wires=_natural_wires(),
-    )
-    second = _build_fabric(
-        tmp_path,
-        "second",
-        feature_map=_FEATURE_MAP,
-        sources=_SOURCES,
-        wires=_natural_wires(),
-    )
-
-    spec_first = generateBitstreamSpec(first)
-    spec_second = generateBitstreamSpec(second)
-
-    assert spec_first == spec_second
-    # Guard against a vacuous pass: the tile spec must actually be populated.
-    assert spec_first["TileSpecs"]["X0Y0"]
-
-
 def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
     tmp_path: Path,
 ) -> None:

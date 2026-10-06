@@ -45,9 +45,21 @@ def test_synthesis_translation(
 
 @pytest.mark.parametrize(("command", "args", "expected"), FORWARD_CASES)
 def test_deprecated_forwarding(
-    cli: FABulousREPL, mocker: MockerFixture, command: str, args: str, expected: str
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    command: str,
+    args: str,
+    expected: str,
 ) -> None:
-    """Each deprecated stage command forwards to the matching compile mode."""
+    """Each deprecated stage command warns and forwards to the matching compile mode."""
     spy = mocker.patch.object(cli, "onecmd_plus_hooks")
+    caplog.clear()
+
     cli.get_command_func(command)(args)
+
     spy.assert_called_once_with(expected)
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert f"'{command}' command is deprecated" in warnings[0]
+    assert "'compile_design" in warnings[0]

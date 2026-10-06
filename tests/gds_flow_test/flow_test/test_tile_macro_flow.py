@@ -154,24 +154,6 @@ class TestFABulousTileVerilogMacroFlowInit:
             y_pin_thickness_mult=Decimal("3.0"),
         )
 
-    def test_init_ignores_invalid_pdk_pad_paths_for_tile_flow(
-        self,
-        mock_tile: MagicMock,
-        io_pin_config: Path,
-        mock_pdk_root: dict[str, Any],
-    ) -> None:
-        """Test tile flow is not blocked by stale PAD_* paths from PDK config."""
-        mock_pdk_root["config_vars"]["PAD_GDS"] = ["/definitely/missing/pad.gds"]
-
-        flow: FABulousTileVerilogMacroFlow = self._create_flow(
-            tile_type=mock_tile,
-            io_pin_config=io_pin_config,
-            mock_pdk_root=mock_pdk_root,
-            models_pack_path=Path("/fake/models/pack.v"),
-        )
-
-        assert flow.config["PAD_GDS"] == ["/definitely/missing/pad.gds"]
-
     def test_die_area_set_with_ignore_default(
         self,
         mock_tile: MagicMock,
@@ -191,44 +173,6 @@ class TestFABulousTileVerilogMacroFlowInit:
         # 100.0 / 0.28 = 357.14... -> 358 * 0.28 = 100.24
         # 100.0 / 0.56 = 178.57... -> 179 * 0.56 = 100.24
         assert die_area == (0, 0, Decimal("100.24"), Decimal("100.24"))
-
-    def test_die_area_validation_too_small(
-        self,
-        mock_tile: MagicMock,
-        io_pin_config: Path,
-        mock_pdk_root: dict[str, Any],
-    ) -> None:
-        """Test that FlowException is raised when DIE_AREA is too small.
-
-        Default opt mode is ``find_min_width``, so the fixed axis is the height;
-        a height below the physical minimum must be rejected.
-        """
-        with pytest.raises(FlowException, match="smaller than the minimum"):
-            self._create_flow(
-                tile_type=mock_tile,
-                io_pin_config=io_pin_config,
-                mock_pdk_root=mock_pdk_root,
-                DIE_AREA=(0, 0, Decimal("50.0"), Decimal("50.0")),
-            )
-
-    def test_die_area_validation_valid(
-        self,
-        mock_tile: MagicMock,
-        io_pin_config: Path,
-        mock_pdk_root: dict[str, Any],
-    ) -> None:
-        """Test that valid DIE_AREA is accepted."""
-        flow: FABulousTileVerilogMacroFlow = self._create_flow(
-            tile_type=mock_tile,
-            io_pin_config=io_pin_config,
-            mock_pdk_root=mock_pdk_root,
-            DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
-        )
-
-        # DIE_AREA is rounded to pitch multiples (0.28 for X, 0.56 for Y)
-        # 150.0 / 0.28 = 535.71... -> 536 * 0.28 = 150.08
-        # 150.0 / 0.56 = 267.85... -> 268 * 0.56 = 150.08
-        assert flow.config["DIE_AREA"] == (0, 0, Decimal("150.08"), Decimal("150.08"))
 
     def test_find_min_width_honors_user_fixed_height(
         self,

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
@@ -239,13 +238,6 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
     return rows
 
 
-class ConfigMemConfig(NamedTuple):
-    """Configuration for ConfigMem test scenarios."""
-
-    name: str
-    scenario: str
-
-
 def create_switchmatrix_list(
     file_path: Path,
     connections: list[tuple[str, str]] | None = None,
@@ -263,74 +255,6 @@ def create_switchmatrix_list(
     connections = connections or [("N1BEG0", "E1END0")]
     lines = [f"{src},{dst}" for src, dst in connections]
     file_path.write_text("\n".join(lines) + "\n")
-
-
-def create_switchmatrix_csv(
-    file_path: Path,
-    tile_name: str,
-    destinations: list[str] | None = None,
-    sources: list[str] | None = None,
-) -> None:
-    """Create a valid .csv switch matrix file for testing.
-
-    Parameters
-    ----------
-    file_path : Path
-        The path where the CSV file should be created
-    tile_name : str
-        The name of the tile (used as the top-left cell value)
-    destinations : list[str] | None
-        List of destination port names. Defaults to ["DEST0"]
-    sources : list[str] | None
-        List of source port names. Defaults to ["SRC0"]
-    """
-    destinations = destinations or ["DEST0"]
-    sources = sources or ["SRC0"]
-
-    lines = [f"{tile_name}," + ",".join(destinations)]
-    for src in sources:
-        lines.append(f"{src}," + ",".join(["1"] * len(destinations)))
-
-    file_path.write_text("\n".join(lines) + "\n")
-
-
-@pytest.fixture
-def connections_factory() -> Callable[..., dict[str, list[str]]]:
-    """Factory fixture for creating switch matrix connection dictionaries.
-
-    Returns a factory function that creates connection dictionaries with
-    configurable complexity.
-
-    Usage:
-        connections = connections_factory()  # minimal
-        connections = connections_factory(size="sample")  # typical config
-        connections = connections_factory(custom={"OUT": ["IN1", "IN2"]})
-    """
-
-    def _create(
-        size: str = "minimal",
-        custom: dict[str, list[str]] | None = None,
-    ) -> dict[str, list[str]]:
-        if custom is not None:
-            return custom
-
-        if size == "minimal":
-            return {"E1END0": ["N1BEG0"]}
-
-        if size == "sample":
-            return {
-                "E1END0": ["N1BEG0", "O_A"],
-                "E1END1": ["N1BEG1", "O_B", "VCC", "GND"],
-                "LUT_A": ["N1BEG0"],
-                "LUT_B": ["N1BEG1", "VCC"],
-                "O_A": ["FF_D"],
-                "GND": ["0"],
-                "VCC": ["1"],
-            }
-
-        return {"E1END0": ["N1BEG0"]}
-
-    return _create
 
 
 @pytest.fixture(params=[1, 2, 3, 4, 5], ids=lambda param: f"ConfigMemPattern{param}")
@@ -450,84 +374,6 @@ def code_generator_factory(tmp_path: Path) -> Callable[[str, str], CodeGenerator
         raise ValueError(f"Unsupported extension: {extension}")
 
     return _create_generator
-
-
-@pytest.fixture
-def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
-    """Create cocotb runners for RTL simulation."""
-
-    def _create_runner(
-        sources: list[Path],
-        hdl_top_level: str,
-        test_module_path: Path,
-        plusargs: list[str] | None = None,
-        testcase: str | None = None,
-    ) -> None:
-        lang = set([i.suffix for i in sources])
-
-        if len(lang) > 1:
-            raise ValueError("All source files must have the same HDL language suffix")
-
-        hdl_toplevel_lang = lang.pop()
-        if hdl_toplevel_lang == ".v":
-            sim, test_lang = "icarus", "verilog"
-        elif hdl_toplevel_lang in {".vhd", ".vhdl"}:
-            test_lang = "vhdl"
-            if shutil.which("nvc") is not None:
-                sim = "nvc"
-            elif shutil.which("ghdl") is not None:
-                sim = "ghdl"
-                hdl_top_level = hdl_top_level.lower()
-            else:
-                raise RuntimeError("No VHDL simulator available: install nvc or ghdl.")
-        else:
-            raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
-        runner = get_runner(sim)
-
-        test_dir = tmp_path / "tests"
-        test_dir.mkdir(exist_ok=True)
-
-        shutil.copy(test_module_path, test_dir / test_module_path.name)
-
-        # cocotb_tools.runner exports the parent's sys.path to the simulator
-        # subprocess as PYTHONPATH; prepend test_dir so the copied test module
-        # imports as a top-level module by its stem.
-        monkeypatch.syspath_prepend(str(test_dir))
-
-        build_dir = tmp_path / "cocotb_build"
-        build_kwargs: dict = {
-            "sources": sources,
-            "hdl_toplevel": hdl_top_level,
-            "always": True,
-            "build_dir": build_dir,
-        }
-        if test_lang == "verilog":
-            build_kwargs["timescale"] = ("1ps", "1ps")
-        elif sim == "nvc":
-            build_kwargs["build_args"] = [
-                "--std=2008",
-                "-H",
-                "2g",
-                "-M",
-                "1g",
-                "--ieee-warnings=off",
-            ]
-        runner.build(**build_kwargs)
-
-        if sim == "ghdl":
-            for file in build_dir.iterdir():
-                if file.is_file():
-                    shutil.copy(file, test_dir / file.name)
-
-        runner.test(
-            hdl_toplevel=hdl_top_level,
-            hdl_toplevel_lang=test_lang,
-            test_module=test_module_path.stem,
-            plusargs=plusargs or [],
-            testcase=testcase,
-        )
-
-    return _create_runner
 
 
 class Netlist:

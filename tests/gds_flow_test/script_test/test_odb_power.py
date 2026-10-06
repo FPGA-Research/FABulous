@@ -262,14 +262,11 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
     )
 
 
-def test_power_transforms_coordinates_correctly(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_power_transforms_coordinates_correctly() -> None:
     """Test that power() correctly transforms geometry coordinates by instance
     location."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
 
     # Create instance at (100, 200) with VPWR pin geometry (10, 20, 30, 40)
     vpwr_geom = FakeGeometry(10, 20, 30, 40)
@@ -401,11 +398,10 @@ def test_power_creates_nets_and_bterms_correctly(
     assert vgnd_net.getSigType() == "GROUND", "VGND should have GROUND signal type"
 
 
-def test_power_connects_iterms_to_nets(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_power_connects_iterms_to_nets() -> None:
     """Test that power() connects instance terminals to power nets."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
 
     vpwr_geom = FakeGeometry(0, 0, 10, 10)
     vgnd_geom = FakeGeometry(0, 0, 10, 10)
@@ -431,11 +427,10 @@ def test_power_connects_iterms_to_nets(monkeypatch: pytest.MonkeyPatch) -> None:
     assert vgnd_iterm._net.getName() == "VGND"  # noqa: SLF001
 
 
-def test_power_handles_empty_block(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_power_handles_empty_block() -> None:
     """Test that power() handles blocks with no instances gracefully."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
-    monkeypatch.setitem(sys.modules, "odb", fake_odb)
 
     reader = FakeReader([])  # Empty block
     propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")

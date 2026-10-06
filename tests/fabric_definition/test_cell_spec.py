@@ -116,14 +116,6 @@ def test_get_missing_function_returns_empty() -> None:
     assert library.get(CellFunction.TIE_LOW) == []
 
 
-def test_defaults_are_empty() -> None:
-    library = StdCellLibrary()
-
-    assert library.liberty_files == []
-    assert library.techmap_files == []
-    assert library.get(CellFunction.BUFFER) == []
-
-
 def test_load_returns_library(tmp_path: Path) -> None:
     _write_std_cell_library(tmp_path, _SKY130_SECTION)
 

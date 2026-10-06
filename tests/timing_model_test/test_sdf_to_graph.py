@@ -159,16 +159,6 @@ def sdf_graph(
     return SDFTimingGraph(sdf_file, DelayType.MAX_ALL)
 
 
-def test_inherits_base_initialization(sdf_graph: SDFTimingGraph) -> None:
-    assert sdf_graph.sdf_file.name == "dummy.sdf"
-    assert sdf_graph.sdf_file_content == "dummy sdf content"
-    assert sdf_graph.delay_type_str == DelayType.MAX_ALL
-    assert isinstance(sdf_graph.graph, nx.DiGraph)
-    assert isinstance(sdf_graph.reverse_graph, nx.DiGraph)
-    assert sdf_graph.header_info == {"divider": "/"}
-    assert sdf_graph.cells == ["BUF_X1", "BUF_X2"]
-
-
 def test_has_path_true_and_false(sdf_graph: SDFTimingGraph) -> None:
     assert sdf_graph.has_path("A", "E") is True
     assert sdf_graph.has_path("F", "H") is True

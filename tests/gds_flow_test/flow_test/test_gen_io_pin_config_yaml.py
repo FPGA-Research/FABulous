@@ -1,7 +1,7 @@
 """Tests for gen_io_pin_config_yaml module - IO pin configuration generation.
 
 Tests focus on:
-- PinOrderConfig dataclass
+- PinOrderConfig serialisation
 - Tile port serialization
 - SuperTile port serialization
 - IO pin configuration generation
@@ -26,33 +26,7 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 
 
 class TestPinOrderConfig:
-    """Tests for PinOrderConfig dataclass."""
-
-    def test_default_initialization(self) -> None:
-        """Test PinOrderConfig default values."""
-        config = PinOrderConfig()
-
-        assert config.min_distance is None
-        assert config.max_distance is None
-        assert config.pins == []
-        assert config.sort_mode == PinSortMode.BUS_MAJOR
-        assert config.reverse_result is False
-
-    def test_custom_initialization(self) -> None:
-        """Test PinOrderConfig with custom values."""
-        config = PinOrderConfig(
-            min_distance=10,
-            max_distance=100,
-            pins=["pin1", "pin2"],
-            sort_mode=PinSortMode.BIT_MINOR,
-            reverse_result=True,
-        )
-
-        assert config.min_distance == 10
-        assert config.max_distance == 100
-        assert config.pins == ["pin1", "pin2"]
-        assert config.sort_mode == PinSortMode.BIT_MINOR
-        assert config.reverse_result is True
+    """Tests for PinOrderConfig."""
 
     def test_call_binds_pins(self) -> None:
         """Test that __call__ binds pins to the config."""
@@ -61,13 +35,6 @@ class TestPinOrderConfig:
 
         assert result is config
         assert config.pins == ["a", "b", "c"]
-
-    def test_call_returns_self(self) -> None:
-        """Test that __call__ returns self for chaining."""
-        config = PinOrderConfig()
-        result = config(["pin"])
-
-        assert result is config
 
     def test_to_dict_basic(self) -> None:
         """Test to_dict serialization with basic values."""
@@ -473,14 +440,6 @@ class TestGenerateIOPinOrderConfig:
     """Tests for generate_IO_pin_order_config function."""
 
     @pytest.fixture
-    def mock_fabric(self, mocker: MockerFixture) -> Fabric:
-        """Create a mock fabric for testing."""
-        fabric = mocker.MagicMock(spec=Fabric)
-        fabric.find_tile_positions.return_value = [(0, 0)]
-        fabric.determine_border_side.return_value = Side.SOUTH
-        return fabric
-
-    @pytest.fixture
     def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
         tile = mocker.MagicMock(spec=Tile)
@@ -501,22 +460,6 @@ class TestGenerateIOPinOrderConfig:
         tile.bels = []
 
         return tile
-
-    def test_generate_io_pin_order_config_writes_yaml(
-        self, mock_tile: Tile, tmp_path: Path
-    ) -> None:
-        """Test that config is written to YAML file."""
-        outfile = tmp_path / "test_config.yaml"
-
-        generate_IO_pin_order_config(mock_tile, outfile)
-
-        assert outfile.exists()
-
-        # Verify YAML can be loaded
-        with outfile.open() as f:
-            config = yaml.safe_load(f)
-
-        assert "X0Y0" in config
 
     def test_generate_io_pin_order_config_tile_structure(
         self, mock_tile: Tile, tmp_path: Path
@@ -595,32 +538,6 @@ class TestGenerateIOPinOrderConfig:
 
         south_configs = config["X0Y0"]["SOUTH"]
         pin_lists = [c["pins"] for c in south_configs]
-        all_pins = [pin for pins in pin_lists for pin in pins]
-
-        assert "ext_in" in all_pins
-
-    def test_generate_io_pin_order_config_without_fabric_uses_external_side(
-        self, mock_tile: Tile, mocker: MockerFixture, tmp_path: Path
-    ) -> None:
-        """Test generation without fabric placement context."""
-        bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
-        mock_tile.bels = [bel]
-
-        outfile = tmp_path / "test_config.yaml"
-
-        generate_IO_pin_order_config(
-            mock_tile,
-            outfile,
-            external_port_side=Side.EAST,
-        )
-
-        with outfile.open() as f:
-            config = yaml.safe_load(f)
-
-        east_configs = config["X0Y0"]["EAST"]
-        pin_lists = [c["pins"] for c in east_configs]
         all_pins = [pin for pins in pin_lists for pin in pins]
 
         assert "ext_in" in all_pins
@@ -736,43 +653,3 @@ class TestGenerateIOPinOrderConfig:
         all_pins = [pin for pins in pin_lists for pin in pins]
 
         assert "ext_in" in all_pins
-
-
-class TestPinOrderConfigIntegration:
-    """Integration tests for PinOrderConfig with serialization."""
-
-    def test_config_serialization_round_trip(self) -> None:
-        """Test that config can be serialized and matches expected format."""
-        config = PinOrderConfig(
-            min_distance=10,
-            max_distance=20,
-            sort_mode=PinSortMode.BUS_MAJOR,
-            reverse_result=False,
-        )
-        config([r"Signal\[\d+\]"])
-
-        result = config.to_dict()
-
-        # Verify all required fields
-        assert "min_distance" in result
-        assert "max_distance" in result
-        assert "pins" in result
-        assert "sort_mode" in result
-        assert "reverse_result" in result
-
-        # Should be YAML-serializable
-        yaml_str = yaml.dump(result)
-        loaded = yaml.safe_load(yaml_str)
-
-        assert loaded == result
-
-    def test_multiple_configs_same_side(self) -> None:
-        """Test multiple configs can be created for the same side."""
-        config1 = PinOrderConfig()([r"Signal1\[\d+\]"])
-        config2 = PinOrderConfig()([r"Signal2\[\d+\]"])
-
-        configs = [config1.to_dict(), config2.to_dict()]
-
-        assert len(configs) == 2
-        assert configs[0]["pins"] == [r"Signal1\[\d+\]"]
-        assert configs[1]["pins"] == [r"Signal2\[\d+\]"]

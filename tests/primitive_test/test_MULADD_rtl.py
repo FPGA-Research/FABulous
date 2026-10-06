@@ -2,14 +2,19 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import cocotb
 from cocotb.clock import Clock
 from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
-from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
+# The simulator imports this module too, and tests.conftest pulls in the REPL
+# and tkinter, whose libtcl the simulator process cannot always load.
+if TYPE_CHECKING:
+    from tests.conftest import CocotbRunner
+
+FABRIC_FILES = Path(__file__).parents[2] / "fabulous" / "fabric_files"
 
 
 class MULADDProtocol(Protocol):
@@ -33,18 +38,22 @@ class MULADDProtocol(Protocol):
     ACC: LogicObject  # [19:0] accumulator (handle)
 
 
-def test_MULADD_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
+def test_MULADD_verilog_rtl(cocotb_runner: "CocotbRunner") -> None:
     """Test the MULADD module with Verilog source."""
     cocotb_runner(
-        sources=[VERILOG_SOURCE_PATH / "Tile" / "DSP" / "DSP_bot" / "MULADD.v"],
+        sources=[
+            FABRIC_FILES / "FABulous_project_template_verilog/Tile/DSP/DSP_bot/MULADD.v"
+        ],
         hdl_top_level="MULADD",
         test_module_path=Path(__file__),
     )
 
 
-def test_MULADD_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
+def test_MULADD_vhdl_rtl(cocotb_runner: "CocotbRunner") -> None:
     cocotb_runner(
-        sources=[VHDL_SOURCE_PATH / "Tile" / "DSP" / "DSP_bot" / "MULADD.vhdl"],
+        sources=[
+            FABRIC_FILES / "FABulous_project_template_vhdl/Tile/DSP/DSP_bot/MULADD.vhdl"
+        ],
         hdl_top_level="MULADD",
         test_module_path=Path(__file__),
     )

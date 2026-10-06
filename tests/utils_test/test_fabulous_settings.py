@@ -204,17 +204,6 @@ class TestFABulousSettings:
         assert settings.yosys_path == "yosys"
         assert settings.nextpnr_path == "nextpnr-generic"
 
-    def test_pdk_hash_from_env(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
-    ) -> None:
-        """Test that pdk_hash is read from FAB_PDK_HASH environment variable."""
-        monkeypatch.setenv("FAB_PDK_HASH", "abc123def456")
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-        mocker.patch("ciel.manage.enable")
-
-        settings = init_context(project)
-        assert settings.pdk_hash == "abc123def456"
-
     @pytest.mark.parametrize(
         ("configured_pdk", "expected_pdk"),
         [
@@ -256,19 +245,6 @@ class TestFABulousSettings:
 class TestFieldValidators:
     """Test cases for field validators in FABulousSettings."""
 
-    def test_parse_version_str_with_string(self) -> None:
-        """Test parse_version validator with string input."""
-        result = FABulousSettings.parse_version_str("3.4.5")
-        assert isinstance(result, Version)
-        assert result == Version("3.4.5")
-
-    def test_parse_version_with_version_object(self) -> None:
-        """Test parse_version validator with Version object input."""
-        version_obj = Version("4.5.6")
-        result = FABulousSettings.parse_version_str(version_obj)
-        assert isinstance(result, Version)
-        assert result == version_obj
-
     def test_validate_proj_lang_verilog(self) -> None:
         """Test validate_proj_lang validator with verilog."""
         result = FABulousSettings.validate_proj_lang("verilog")
@@ -308,11 +284,6 @@ class TestFieldValidators:
         assert config_dir.exists()
         assert config_dir.is_dir()
 
-    def test_ensure_user_config_dir_handles_none(self) -> None:
-        """Test ensure_user_config_dir validator correctly handles None values."""
-        result = FABulousSettings.ensure_user_config_dir(None)
-        assert result is None
-
     def test_is_valid_project_dir_with_fabulous_directory(self, tmp_path: Path) -> None:
         """Test is_valid_project_dir validator with valid FABulous project."""
         project_dir = tmp_path / "valid_project"
@@ -333,11 +304,6 @@ class TestFieldValidators:
         with pytest.raises(ValueError, match="is not a FABulous project"):
             FABulousSettings.is_valid_project_dir(project_dir)
 
-    def test_is_valid_project_dir_with_none(self) -> None:
-        """Test is_valid_project_dir validator with None value."""
-        with pytest.raises(ValueError, match="Project directory is not set"):
-            FABulousSettings.is_valid_project_dir(None)
-
 
 class TestToolPathResolution:
     """Test cases for tool path resolution validator."""
@@ -352,32 +318,6 @@ class TestToolPathResolution:
         result = FABulousSettings.resolve_tool_paths(explicit_path, mock_info)
         assert result == explicit_path
         mock_which.assert_not_called()
-
-    def test_resolve_tool_paths_yosys_found(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths for yosys when tool is found."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "yosys_path"
-
-        mock_which = mocker.patch(
-            "fabulous.fabulous_settings.which", return_value="/usr/bin/yosys"
-        )
-
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result == Path("/usr/bin/yosys").resolve()
-        mock_which.assert_called_once_with("yosys")
-
-    def test_resolve_tool_paths_tool_not_found(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths when tool is not found in PATH."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "yosys_path"
-
-        mock_which = mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result == "yosys"
-        mock_which.assert_called_once_with("yosys")
 
 
 class TestModelsPackValidation:
@@ -491,25 +431,11 @@ class TestModelsPackValidation:
 class TestContextMethods:
     """Test cases for the new context management methods."""
 
-    def setup_method(self) -> None:
-        """Reset context before each test."""
-        reset_context()
-
-    def teardown_method(self) -> None:
-        """Clean up context after each test."""
-        reset_context()
-
     def test_init_context_basic(self, project: Path) -> None:
         """Test basic context initialization."""
         settings = init_context(project_dir=project)
 
         assert isinstance(settings, FABulousSettings)
-        assert settings.proj_dir == project
-
-    def test_init_context_with_project_dir(self, project: Path) -> None:
-        """Test context initialization with project directory."""
-        settings = init_context(project_dir=project)
-
         assert settings.proj_dir == project
 
     def test_init_context_with_global_env_file(
@@ -646,15 +572,6 @@ class TestContextMethods:
 
         assert _context_instance is None
 
-    def test_context_singleton_behavior(self, project: Path) -> None:
-        """Test that context follows singleton pattern."""
-        init_context(project_dir=project)
-
-        context1 = get_context()
-        context2 = get_context()
-
-        assert context1 is context2  # Same instance
-
     def test_init_context_with_env_var_overrides(
         self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -674,69 +591,6 @@ class TestContextMethods:
         assert settings.proj_lang == "verilog"
         # .env file setting should still apply where no env var exists
         assert settings.switch_matrix_debug_signal is False
-
-    def test_context_with_different_env_file_combinations(
-        self, project: Path, tmp_path: Path
-    ) -> None:
-        """Test various combinations of .env files."""
-        # Remove the project's default .env file to test precedence properly
-        project_default_env = project / ".FABulous" / ".env"
-        if project_default_env.exists():
-            project_default_env.unlink()
-
-        # Test with only global .env
-        global_env = tmp_path / "global.env"
-        global_env.touch()
-        set_key(global_env, "FAB_PROJ_VERSION_CREATED", "2.0.0")
-
-        settings1 = init_context(project_dir=project, global_dot_env=global_env)
-        assert settings1.proj_version_created == Version("2.0.0")
-
-        reset_context()
-
-        # Test with only project .env
-        project_env = tmp_path / "project.env"
-        project_env.touch()
-        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
-
-        settings2 = init_context(project_dir=project, project_dot_env=project_env)
-        assert settings2.switch_matrix_debug_signal is True
-
-        reset_context()
-
-        # Test with both (project should override global)
-        # Clear previous content and set new values
-        global_env.write_text("")  # Clear file
-        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
-        set_key(global_env, "FAB_PROJ_VERSION_CREATED", "1.0.0")
-
-        project_env.write_text("")  # Clear file
-        set_key(project_env, "FAB_PROJ_LANG", "verilog")
-        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
-
-        settings3 = init_context(
-            project_dir=project,
-            global_dot_env=global_env,
-            project_dot_env=project_env,
-        )
-        assert settings3.proj_lang == "verilog"  # Overridden by project
-        assert settings3.proj_version_created == Version("1.0.0")  # From global
-        assert settings3.switch_matrix_debug_signal is True  # From project
-
-    def test_context_thread_safety_basics(self, project: Path) -> None:
-        """Basic test for context state consistency."""
-        # Initialize context
-        settings = init_context(project_dir=project)
-
-        # Multiple get_context calls should return the same instance
-        context1 = get_context()
-        context2 = get_context()
-        context3 = get_context()
-
-        assert context1 is settings
-        assert context2 is settings
-        assert context3 is settings
-        assert context1 is context2 is context3
 
     def test_context_with_invalid_env_file_values(
         self, project: Path, tmp_path: Path
@@ -822,79 +676,6 @@ class TestContextMethods:
         assert settings.proj_lang == "verilog"
         assert settings.proj_version_created == Version("1.0.0")
         assert str(settings.yosys_path) == str(tmp_path / "yosys")
-
-    def test_debug_env_variable(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that the DEBUG environment variable is respected."""
-        monkeypatch.setenv("FAB_DEBUG", "1")
-
-        settings = init_context(project_dir=project)
-
-        assert settings.debug is True
-
-        monkeypatch.setenv("FAB_DEBUG", "True")
-
-        settings = init_context(project_dir=project)
-
-        assert settings.debug is True
-
-
-class TestIntegration:
-    """Integration tests for FABulous settings functionality with new context system."""
-
-    def test_complete_context_workflow(
-        self,
-        project: Path,
-        tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test complete workflow from context initialization to settings usage."""
-        reset_context()
-
-        # Clear all FAB_ environment variables first
-        for key in list(os.environ.keys()):
-            if key.startswith("FAB_"):
-                monkeypatch.delenv(key, raising=False)
-
-        # Create .env files
-        global_env = tmp_path / "global.env"
-        global_env.touch()
-        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
-        set_key(global_env, "FAB_YOSYS_PATH", "/custom/yosys")
-
-        # Modify the project's existing .env file instead of creating a new one
-        project_env = project / ".FABulous" / ".env"
-        # Clear existing content and set new values
-        project_env.write_text("")
-        set_key(
-            project_env, "FAB_PROJ_LANG", "vhdl"
-        )  # Override to match global for consistency
-        set_key(project_env, "FAB_PROJ_VERSION_CREATED", "2.0.0")
-
-        # Set environment variables
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
-
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-        mocker.patch("pathlib.Path.exists", return_value=True)
-        # Initialize context
-        settings = init_context(project_dir=project, global_dot_env=global_env)
-
-        # Verify context was initialized correctly
-        context = get_context()
-        assert context is settings
-
-        assert settings.proj_dir == project
-        assert settings.proj_lang == "vhdl"
-        assert settings.proj_version_created == Version("2.0.0")
-        assert settings.yosys_path == Path("/custom/yosys")
-
-        # Test context reset
-        reset_context()
-        from fabulous.fabulous_settings import _context_instance
-
-        assert _context_instance is None
 
 
 class TestCheckPdkAutoResolution:

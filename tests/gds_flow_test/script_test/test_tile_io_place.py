@@ -1,14 +1,12 @@
 """Tests for tile_io_place module."""
 # ruff: noqa: E402, SLF001, E501, F841
 
-import sys
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
 
-# Mock external dependencies BEFORE importing the module under test
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
@@ -24,13 +22,6 @@ from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
 
 if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
-
-
-@pytest.fixture(autouse=True)
-def mock_modules(mocker: MockerFixture) -> None:
-    sys.modules["odb"] = mocker.MagicMock()
-    sys.modules["openroad"] = mocker.MagicMock()
-    sys.modules["utl"] = mocker.MagicMock()
 
 
 class TestGridToTracks:
@@ -540,26 +531,14 @@ class TestSupertileDivisionGridAlignment:
         step: float,
         raw_width: float,
     ) -> None:
-        # The bug: the raw (unrounded) width places at least one pin off-grid...
+        # The bug: the raw (unrounded) width places at least one pin off-grid;
+        # test_round_die_dimension_keeps_every_division_on_grid covers the fix.
         raw_tracks = [
             t
             for tracks in self._division_tracks(mocker, num_divisions, step, raw_width)
             for t in tracks
         ]
         assert any(t % self.MANUFACTURING_GRID != 0 for t in raw_tracks)
-
-        # ...and the rounded width removes every off-grid pin.
-        fixed_width = float(
-            round_die_dimension(Decimal(raw_width), Decimal(step), num_divisions)
-        )
-        fixed_tracks = [
-            t
-            for tracks in self._division_tracks(
-                mocker, num_divisions, step, fixed_width
-            )
-            for t in tracks
-        ]
-        assert all(t % self.MANUFACTURING_GRID == 0 for t in fixed_tracks)
 
 
 class TestPinPlacementPlanPrivateMethods:
