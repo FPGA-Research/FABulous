@@ -357,6 +357,22 @@ def test_run_simulation(cli: FABulousREPL) -> None:
 
 
 @pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_oversized_bitstream(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bitstream larger than the testbench memory fails before simulating."""
+    bitstream = cli.projectDir / "user_design" / "sequential_16bit_en.bin"
+    bitstream.write_bytes(bytes(MAX_BITBYTES + 1))
+
+    run_cmd(cli, SIM_CMD)
+
+    assert cli.exit_code == 1
+    assert f"is {MAX_BITBYTES + 1} bytes" in caplog.text
+    assert find_task_calls() == []
+    assert not (cli.projectDir / "Test" / "build" / "sequential_16bit_en.hex").exists()
+
+
+@pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_makefile_fallback(
     cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,

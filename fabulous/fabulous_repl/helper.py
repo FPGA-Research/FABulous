@@ -408,21 +408,26 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
 def make_hex(binfile: Path, outfile: Path) -> None:
     """Convert a binary file into hex file.
 
-    If the binary file exceeds MAX_BITBYTES, logs error.
-
     Parameters
     ----------
     binfile : Path
         Path to binary file.
     outfile : Path
         Path to ouput hex file.
+
+    Raises
+    ------
+    ValueError
+        If the binary file exceeds `MAX_BITBYTES`.
     """
     with Path(binfile).open("rb") as f:
         bindata = f.read()
 
     if len(bindata) > MAX_BITBYTES:
-        logger.error("Binary file too big.")
-        return
+        raise ValueError(
+            f"Bitstream {binfile} is {len(bindata)} bytes, larger than the "
+            f"{MAX_BITBYTES}-byte bitstream memory of the simulation testbench."
+        )
 
     with Path(outfile).open("w") as f:
         for i in range(MAX_BITBYTES):
