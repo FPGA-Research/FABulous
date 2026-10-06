@@ -498,11 +498,9 @@ class UserDesignCommandSet(ReplCommandSet):
             if not p.is_absolute():
                 p = repl.projectDir / p
             resolvePath: Path = p.absolute()
-            if resolvePath.exists():
-                paths.append(resolvePath)
-            else:
-                logger.error(f"{resolvePath} does not exist")
-                return
+            if not resolvePath.exists():
+                raise FileNotFoundError(f"{resolvePath} does not exist")
+            paths.append(resolvePath)
 
         # Output paths must be absolute: the task runs with cwd=.FABulous/.
         json_file = json or paths[0].with_suffix(".json")

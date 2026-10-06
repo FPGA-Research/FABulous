@@ -252,7 +252,7 @@ def test_compile_design_no_taskfile(
 def test_compile_design_nonexistent_file(
     compile_cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A missing design file is reported and nothing is compiled."""
+    """A missing design file fails the command and nothing is compiled."""
     mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
     bogus = compile_cli.projectDir / "user_design" / "does_not_exist.v"
 
@@ -260,5 +260,4 @@ def test_compile_design_nonexistent_file(
 
     mock_run_task.assert_not_called()
     assert f"{bogus} does not exist" in caplog.text
-    # bug: the missing file is only logged, so the command still exits 0
-    assert compile_cli.exit_code == 0
+    assert compile_cli.exit_code == 1
