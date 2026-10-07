@@ -16,7 +16,7 @@ from loguru import logger
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
-from tests.conftest import normalize, run_cmd
+from tests.conftest import normalize, run_cmd, use_core_only_plugins
 
 
 class FileDifference(NamedTuple):
@@ -270,6 +270,7 @@ def run_fabulous_commands_with_logging(
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
     monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
     init_context(project_path)
+    use_core_only_plugins(monkeypatch)
     cli = FABulousREPL(
         language,
         force=False,
@@ -287,7 +288,7 @@ def run_fabulous_commands_with_logging(
             "gen_fabric",
             "gen_bitStream_spec",
             "gen_top_wrapper",
-            "gen_model_npnr",
+            "gen_pnr_model",
             "gen_geometry",
         ]
 

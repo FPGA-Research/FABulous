@@ -10,4 +10,5 @@ building_doc/index
 cli_doc/index
 using_doc/index
 simulation/index
+writing_a_plugin
 ```

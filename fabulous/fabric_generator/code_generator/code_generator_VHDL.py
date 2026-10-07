@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Never
 
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, HDLType
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
@@ -14,6 +14,9 @@ class VHDLCodeGenerator(CodeGenerator):
 
     This is the template for generating VHDL code.
     """
+
+    hdl_type = HDLType.VHDL
+    file_extension = ".vhdl"
 
     def addComment(
         self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
