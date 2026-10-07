@@ -12,6 +12,7 @@ from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -27,6 +28,7 @@ class FabricConfig(NamedTuple):
     name: str
     frame_bits_per_row: int
     max_frames_per_col: int
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED
 
 
 class TileConfig(NamedTuple):
@@ -68,6 +70,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
     fabric.name = "DefaultFabric"
+    fabric.configBitMode = ConfigBitMode.FRAME_BASED
     return fabric
 
 
@@ -140,17 +143,33 @@ def switch_matrix_tile(parsed_default_fabric: Fabric) -> Tile:
         FabricConfig(
             frame_bits_per_row=32, max_frames_per_col=20, name="StandardFabric"
         ),
-        FabricConfig(frame_bits_per_row=8, max_frames_per_col=5, name="SmallFabric"),
+        FabricConfig(
+            frame_bits_per_row=8,
+            max_frames_per_col=5,
+            name="SmallFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
         FabricConfig(frame_bits_per_row=1, max_frames_per_col=1, name="MinimalFabric"),
-        FabricConfig(frame_bits_per_row=1, max_frames_per_col=64, name="ThinFabric"),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=64,
+            name="ThinFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
         FabricConfig(frame_bits_per_row=64, max_frames_per_col=1, name="WideFabric"),
         FabricConfig(frame_bits_per_row=5, max_frames_per_col=7, name="IrregularSmall"),
         FabricConfig(
-            frame_bits_per_row=33, max_frames_per_col=21, name="IrregularLarge"
+            frame_bits_per_row=33,
+            max_frames_per_col=21,
+            name="IrregularLarge",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         ),
         FabricConfig(frame_bits_per_row=7, max_frames_per_col=13, name="PrimeFabric"),
         FabricConfig(
-            frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"
+            frame_bits_per_row=256,
+            max_frames_per_col=100,
+            name="VeryLargeFabric",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         ),
     ],
     ids=lambda config: config.name,
@@ -162,6 +181,7 @@ def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabr
     fabric.frameBitsPerRow = config.frame_bits_per_row
     fabric.maxFramesPerCol = config.max_frames_per_col
     fabric.name = config.name
+    fabric.configBitMode = config.config_bit_mode
     return fabric
 
 
@@ -512,6 +532,8 @@ def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
                 "1g",
                 "--ieee-warnings=off",
             ]
+        elif sim == "ghdl":
+            build_kwargs["build_args"] = ["--std=08"]
         runner.build(**build_kwargs)
 
         if sim == "ghdl":
