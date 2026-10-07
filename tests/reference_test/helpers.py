@@ -287,7 +287,7 @@ def run_fabulous_commands_with_logging(
             "gen_fabric",
             "gen_bitStream_spec",
             "gen_top_wrapper",
-            "gen_model_npnr",
+            "gen_routing_model",
             "gen_geometry",
         ]
 

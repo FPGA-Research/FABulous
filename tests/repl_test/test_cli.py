@@ -183,12 +183,12 @@ def test_run_FABulous_fabric_deprecated(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_model_npnr(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating nextpnr model."""
-    run_cmd(cli, "gen_model_npnr")
+    run_cmd(cli, "gen_routing_model")
     log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating npnr model" in log[0]
-    assert "Generated npnr model" in log[-1]
+    assert "Generating nextpnr routing model" in log[0]
+    assert "Generated nextpnr routing model" in log[-1]
 
 
 def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
