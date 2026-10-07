@@ -1,158 +1,133 @@
--- This VHDL was converted from Verilog using the
--- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
-
 library ieee;
   use ieee.std_logic_1164.all;
   use ieee.numeric_std.all;
 
--- Generated from Verilog module ConfigFSM (ConfigFSM.v:1)
---   FrameBitsPerRow = 32
---   NumberOfRows = 16
---   RowSelectWidth = 5
---   desync_flag = 20
-
 entity ConfigFSM is
   generic (
-    FrameBitsPerRow : integer := 32;
     NumberOfRows    : integer := 16;
     RowSelectWidth  : integer := 5;
+    FrameBitsPerRow : integer := 32;
     desync_flag     : integer := 20
   );
   port (
-    CLK                  : in    std_logic;
-    FSM_Reset            : in    std_logic;
-    FrameAddressRegister : out   std_logic_vector(31 downto 0);
-    LongFrameStrobe      : out   std_logic;
-    RowSelect            : out   std_logic_vector(4 downto 0);
-    WriteData            : in    std_logic_vector(31 downto 0);
-    WriteStrobe          : in    std_logic;
-    resetn               : in    std_logic
+    CLK                    : in    std_logic;
+    reset_n                : in    std_logic;
+    write_data             : in    std_logic_vector(31 downto 0);
+    write_strobe           : in    std_logic;
+    fsm_reset              : in    std_logic;
+    frame_address_register : out   std_logic_vector(FrameBitsPerRow - 1 downto 0);
+    long_frame_strobe      : out   std_logic;
+    row_select             : out   std_logic_vector(RowSelectWidth - 1 downto 0)
   );
 end entity ConfigFSM;
 
--- Generated from Verilog module ConfigFSM (ConfigFSM.v:1)
---   FrameBitsPerRow = 32
---   NumberOfRows = 16
---   RowSelectWidth = 5
---   desync_flag = 20
-
 architecture from_verilog of ConfigFSM is
 
-  signal FrameAddressRegister_Reg : std_logic_vector(31 downto 0);
-  signal LongFrameStrobe_Reg      : std_logic;
-  signal RowSelect_Reg            : std_logic_vector(4 downto 0);
-  signal FrameShiftState          : unsigned(4 downto 0);         -- Declared at ConfigFSM.v:20
-  signal FrameStrobe              : std_logic;                    -- Declared at ConfigFSM.v:18
-  signal oldFrameStrobe           : std_logic;                    -- Declared at ConfigFSM.v:83
-  signal old_reset                : std_logic;                    -- Declared at ConfigFSM.v:24
-  signal state                    : std_logic_vector(1 downto 0); -- Declared at ConfigFSM.v:23
+  constant UNSYNCED            : std_logic_vector(1 downto 0)  := "00";
+  constant SYNC_HEADER         : std_logic_vector(1 downto 0)  := "01";
+  constant WRITE_FRAME_DATA    : std_logic_vector(1 downto 0)  := "10";
+  constant SYNC_HEADER_PATTERN : std_logic_vector(31 downto 0) := x"FAB0FAB1";
 
-  function Boolean_To_Logic (
-    B : Boolean
-  ) return std_logic is
-  begin
-
-    if (B) then
-      return '1';
-    else
-      return '0';
-    end if;
-
-  end function Boolean_To_Logic;
+  signal frame_address_register_reg : std_logic_vector(FrameBitsPerRow - 1 downto 0);
+  signal long_frame_strobe_reg      : std_logic;
+  signal frame_strobe               : std_logic;
+  signal row_index                  : unsigned(4 downto 0);
+  signal state                      : std_logic_vector(1 downto 0);
+  signal old_reset                  : std_logic;
+  signal old_frame_strobe           : std_logic;
 
 begin
 
-  FrameAddressRegister <= FrameAddressRegister_Reg;
-  LongFrameStrobe      <= LongFrameStrobe_Reg;
-  RowSelect            <= RowSelect_Reg;
+  frame_address_register <= frame_address_register_reg;
+  long_frame_strobe      <= long_frame_strobe_reg;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM.v:25)
-  p_fsm : process (resetn, CLK) is
+  p_fsm : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        old_reset                <= '0';
-        state                    <= "00";
-        FrameShiftState          <= "00000";
-        FrameAddressRegister_Reg <= x"00000000";
-        FrameStrobe              <= '0';
+    if (reset_n = '0') then
+      old_reset                  <= '0';
+      state                      <= UNSYNCED;
+      row_index                  <= "00000";
+      frame_address_register_reg <= (others => '0');
+      frame_strobe               <= '0';
+    elsif rising_edge(CLK) then
+      old_reset    <= fsm_reset;
+      frame_strobe <= '0';
+      -- Configuration activates only after detecting the 32-bit sync pattern 0xFAB0_FAB1.
+      -- This allows the same bitfile to be used for UART or parallel config, with arbitrary
+      -- metadata in the header, provided the header is 4-byte padded.
+      if ((old_reset = '0') and (fsm_reset = '1')) then
+        state     <= UNSYNCED;
+        row_index <= "00000";
       else
-        old_reset   <= FSM_Reset;
-        FrameStrobe <= '0';
-        if ((old_reset = '0') and (FSM_Reset = '1')) then
-          state           <= "00";
-          FrameShiftState <= "00000";
-        else
 
-          case state is
+        case state is
 
-            when "00" =>
+          when UNSYNCED =>
 
-              if (WriteStrobe = '1') then
-                if (WriteData = x"FAB0FAB1") then
-                  state <= "01";
-                end if;
+            if (write_strobe = '1') then
+              -- fire only after seeing pattern 0xFAB0_FAB1
+              if (write_data = SYNC_HEADER_PATTERN) then
+                state <= SYNC_HEADER;
               end if;
+            end if;
 
-            when "01" =>
+          when SYNC_HEADER =>
 
-              if (WriteStrobe = '1') then
-                if (WriteData(desync_flag) = '1') then
-                  state <= "00";
-                else
-                  FrameAddressRegister_Reg <= WriteData;
-                  FrameShiftState          <= to_unsigned(NumberOfRows, FrameShiftState'length);
-                  state                    <= "10";
-                end if;
+            if (write_strobe = '1') then
+              if (write_data(desync_flag) = '1') then
+                state <= UNSYNCED;
+              else
+                frame_address_register_reg <= write_data;
+                -- Deliberate narrowing, as in the Verilog
+                row_index <= to_unsigned(NumberOfRows mod 32, 5);
+                state     <= WRITE_FRAME_DATA;
               end if;
+            end if;
 
-            when "10" =>
+          when WRITE_FRAME_DATA =>
 
-              if (WriteStrobe = '1') then
-                FrameShiftState <= FrameShiftState - "00001";
-                if (Resize(FrameShiftState, 32) = x"00000001") then
-                  FrameStrobe <= '1';
-                  state       <= "01";
-                end if;
+            if (write_strobe = '1') then
+              row_index <= row_index - 1;
+              -- on last frame
+              if (row_index = 1) then
+                frame_strobe <= '1';
+                state        <= SYNC_HEADER;
               end if;
+            end if;
 
-            when others =>
+          when others =>
 
-              null;
+            state <= UNSYNCED;
 
-          end case;
+        end case;
 
-        end if;
       end if;
     end if;
 
   end process p_fsm;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM.v:75)
-  process (WriteStrobe, FrameShiftState) is
+  p_row_select : process (write_strobe, row_index) is
   begin
 
-    if (WriteStrobe = '1') then
-      RowSelect_Reg <= std_logic_vector(FrameShiftState);
+    if (write_strobe = '1') then
+      row_select <= std_logic_vector(resize(row_index, RowSelectWidth));
     else
-      RowSelect_Reg <= "11111";
+      -- Invalidate the row selection when not writing
+      row_select <= (others => '1');
     end if;
 
-  end process;
+  end process p_row_select;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM.v:84)
-  p_strobereg : process (resetn, CLK) is
+  p_strobereg : process (reset_n, CLK) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(CLK)) then
-      if ((not resetn) = '1') then
-        oldFrameStrobe      <= '0';
-        LongFrameStrobe_Reg <= '0';
-      else
-        oldFrameStrobe      <= FrameStrobe;
-        LongFrameStrobe_Reg <= Boolean_To_Logic((FrameStrobe = '1') or (oldFrameStrobe = '1'));
-      end if;
+    if (reset_n = '0') then
+      old_frame_strobe      <= '0';
+      long_frame_strobe_reg <= '0';
+    elsif rising_edge(CLK) then
+      old_frame_strobe      <= frame_strobe;
+      long_frame_strobe_reg <= frame_strobe or old_frame_strobe;
     end if;
 
   end process p_strobereg;
