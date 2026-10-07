@@ -172,7 +172,6 @@ class TestEmitTileVerilog:
         gen_sm.assert_called_once()
         # Config-bit mode and mux style flow through instead of being hard-coded.
         sm_kwargs = gen_sm.call_args.kwargs
-        assert sm_kwargs["config_bit_mode"] == ConfigBitMode.FLIPFLOP_CHAIN
         assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
         gen_cm.assert_called_once_with(
             mock_writer,

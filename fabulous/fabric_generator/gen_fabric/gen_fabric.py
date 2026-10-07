@@ -135,6 +135,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         )
         writer.addComment("CONFIG_PORT", onNewLine=False)
 
+    elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
+        writer.addComment("CONFIG_PORT", onNewLine=False)
+        writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
+        writer.addComment("CONFIG_PORT", onNewLine=False)
+        writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
+        writer.addComment("CONFIG_CLK", onNewLine=False)
+
     if not fabric.disableUserCLK:
         writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
 
@@ -173,7 +181,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
     writer.addComment("configuration signal declarations", onNewLine=True, end="\n")
 
-    if fabric.configBitMode == "FlipFlopChain":
+    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
         tileCounter = 0
         for row in fabric.tile:
             for t in row:
@@ -230,16 +238,6 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # VHDL architecture body
     writer.addLogicStart()
 
-    # top configuration data daisy chaining
-    # this is copy and paste from tile code generation
-    # (so we can modify this here without side effects)
-    if fabric.configBitMode == "FlipFlopChain":
-        writer.addComment("configuration data daisy chaining", onNewLine=True)
-        writer.addAssignScalar("conf_data'low", "CONFin")
-        writer.addComment("conf_data'low=0 and CONFin is from tile entity")
-        writer.addAssignScalar("CONFout", "conf_data'high")
-        writer.addComment("CONFout is from tile entity")
-
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
         for y in range(len(fabric.tile)):
             writer.addAssignVector(
@@ -257,6 +255,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             )
 
     instantiatedPosition = []
+    chain_counter = 0
     # Tile instantiations
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
@@ -539,6 +538,13 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                             )
                         )
 
+            elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+                portsPairs.append(("CONFin", f"conf_data[{chain_counter}]"))
+                portsPairs.append(("CONFout", f"conf_data[{chain_counter + 1}]"))
+                portsPairs.append(("CONF_CLK", "CONF_CLK"))
+
+                chain_counter += 1
+
             name = ""
             emulateParamPairs = []
             if superTile:
@@ -564,5 +570,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 emulateParamPairs=emulateParamPairs,
                 add_keep=True,
             )
+
+    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addNewLine()
+        writer.addComment("FlipFlop chain endpoint tie-offs", onNewLine=True)
+        # Head of the chain: fabric-level CONFin drives conf_data[0].
+        writer.addAssignScalar("conf_data[0]", "CONFin")
+        # Tail of the chain: last tile's CONFout drives fabric-level CONFout.
+        writer.addAssignScalar("CONFout", f"conf_data[{chain_counter}]")
+
     writer.addDesignDescriptionEnd()
     writer.writeToFile()

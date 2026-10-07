@@ -194,6 +194,109 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     assert anchors == [(0, 0, supertile)]
 
 
+def test_flipflop_chain_declares_chain_ports(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """FF-chain mode must expose CONFin/CONFout/CONF_CLK and no Frame ports."""
+    tile = mk_tile("T")
+    fabric = Fabric(
+        fabric_dir=tile.tileDir,
+        tile=[[tile]],
+        numberOfRows=1,
+        numberOfColumns=1,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    assert "CONFin" in rtl
+    assert "CONFout" in rtl
+    assert "CONF_CLK" in rtl
+    # Frame-based ports must NOT leak in.
+    assert "FrameData" not in rtl
+    assert "FrameStrobe" not in rtl
+
+
+def test_flipflop_chain_conf_data_width_matches_tile_count(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """conf_data must have one net per chain junction: N tiles -> N+1 nets.
+
+    The chain convention is: `conf_data[i]` is the net between tile i-1's
+    CONFout and tile i's CONFin, so N tiles use conf_data[0..N]. The head is
+    driven by `assign conf_data[0] = CONFin`, the tail drives
+    `assign CONFout = conf_data[N]`.
+    """
+    t = mk_tile("T")
+    # 2x3 grid with one NULL hole -> 5 instantiated tiles.
+    grid = [[t, t, None], [t, t, t]]
+    fabric = Fabric(
+        fabric_dir=t.tileDir,
+        tile=grid,
+        numberOfRows=2,
+        numberOfColumns=3,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    # 5 tiles -> 6 nets -> wire[5:0] conf_data;
+    assert re.search(r"wire\s*\[\s*5\s*:\s*0\s*\]\s*conf_data\b", rtl), rtl[:400]
+    # And the chain ends must be tied to the top-level ports.
+    assert "assign conf_data[0] = CONFin;" in rtl
+    assert "assign CONFout = conf_data[5];" in rtl
+
+
+def test_flipflop_chain_links_consecutive_tiles(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """Tiles are chained through conf_data nets; head/tail hit top-level ports.
+
+    The fabric wires `conf_data[i]` between consecutive tiles and then ties
+    the two endpoints to the fabric's top-level `CONFin` / `CONFout` ports
+    with `assign`. Without those assigns the chain is floating at both ends
+    (the first tile's CONFin and the fabric's CONFout are undriven).
+    """
+    t = mk_tile("T")
+    fabric = Fabric(
+        fabric_dir=t.tileDir,
+        tile=[[t, t, t]],
+        numberOfRows=1,
+        numberOfColumns=3,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    # Head: fabric-level CONFin drives conf_data[0], which is the first
+    # tile's CONFin. (Generator uses the inter-tile net convention, not a
+    # direct `.CONFin(CONFin)` on the first instantiation.)
+    assert "assign conf_data[0] = CONFin;" in rtl
+    first = rtl[rtl.index("Tile_X0Y0_T") :]
+    assert ".CONFin(conf_data[0])" in first
+    assert ".CONFout(conf_data[1])" in first
+
+    # Middle: chained from conf_data[1], drives conf_data[2].
+    mid = rtl[rtl.index("Tile_X1Y0_T") :]
+    assert ".CONFin(conf_data[1])" in mid
+    assert ".CONFout(conf_data[2])" in mid
+
+    # Tail: last tile drives conf_data[3], tied to fabric-level CONFout.
+    last = rtl[rtl.index("Tile_X2Y0_T") :]
+    assert ".CONFin(conf_data[2])" in last
+    assert ".CONFout(conf_data[3])" in last
+    assert "assign CONFout = conf_data[3];" in rtl
+
+    # CONF_CLK is fanned out to every tile.
+    assert rtl.count(".CONF_CLK(CONF_CLK)") == 3
+
+
 @pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
 def test_user_clk_chains_from_side(
     side: Side,

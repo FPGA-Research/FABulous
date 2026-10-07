@@ -251,7 +251,6 @@ def _emit_regular_tile_verilog(
         writer,
         tile,
         switch_matrix_debug_signal,
-        config_bit_mode=config_bit_mode,
         multiplexer_style=multiplexer_style,
         default_pip_delay=_SWITCH_MATRIX_PIP_DELAY,
     )

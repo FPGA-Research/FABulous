@@ -561,30 +561,6 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addShiftRegister(self, configBits: int, indentLevel: int = 0) -> None:
-        """Add a shift register.
-
-        Parameters
-        ----------
-        configBits : int
-            The number of configuration bits.
-        indentLevel : int, optional
-            The level of indentation. Defaults to 0.
-        """
-
-    @abc.abstractmethod
-    def addFlipFlopChain(self, configBits: int, indentLevel: int = 0) -> None:
-        """Add a flip flop chain.
-
-        Parameters
-        ----------
-        configBits : int
-            The number of configuration bits.
-        indentLevel : int, optional
-            The level of indentation. Defaults to 0.
-        """
-
-    @abc.abstractmethod
     def addRegister(
         self,
         reg: str,
