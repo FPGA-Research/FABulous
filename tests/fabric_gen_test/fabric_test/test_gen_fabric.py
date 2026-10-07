@@ -19,6 +19,9 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
+    VerilogCodeGenerator,
+)
 from fabulous.fabric_generator.gen_fabric.gen_fabric import (
     generateFabric,
     iter_super_tile_anchors,
@@ -225,3 +228,39 @@ def test_user_clk_chains_from_side(
     ey = 1 + dy
     edge = rtl[rtl.index(f"Tile_X{ex}Y{ey}_T") :]
     assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]
+
+
+def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
+    """Child offsets count from the placement base, not the anchor at (1, 0)."""
+    a, b, c = (
+        make_empty_tile(name, tileDir=tmp_path, pinOrderConfig={})
+        for name in ("A", "B", "C")
+    )
+    for tile in (a, b, c):
+        tile.partOfSuperTile = True
+    tileMap: list[list[Tile | None]] = [[None, a], [b, c]]
+    supertile = SuperTile(
+        name="Holed", tileDir=tmp_path, tiles=[a, b, c], tileMap=tileMap
+    )
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=tileMap,
+        numberOfRows=2,
+        numberOfColumns=2,
+        superTileDic={"Holed": supertile},
+        configBitMode=ConfigBitMode.FRAME_BASED,
+    )
+
+    writer = VerilogCodeGenerator()
+    writer.outFileName = tmp_path / "fabric.v"
+    generateFabric(writer, fabric)
+
+    instantiation = re.search(
+        r"Holed Tile_X\dY\d_Holed \(.*?\n\);", writer.outFileName.read_text(), re.DOTALL
+    )
+    assert instantiation is not None, "supertile wrapper not instantiated"
+    named = {
+        (int(x), int(y))
+        for x, y in re.findall(r"Tile_X(\d+)Y(\d+)_", instantiation.group(0))
+    }
+    assert named == {(1, 0), (0, 1), (1, 1)}

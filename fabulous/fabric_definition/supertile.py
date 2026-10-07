@@ -30,8 +30,9 @@ class SuperTile:
         Path to the tile directory.
     tiles : list[Tile]
         The list of tiles that make up the super tile.
-    tileMap : list[list[Tile]]
-        The map of the tiles that make up the super tile
+    tileMap : list[list[Tile | None]]
+        The map of the tiles that make up the super tile. A `None` cell is a
+        hole in the supertile's bounding box.
     bels : list[Bel]
         The list of bels of that the super tile contains
     withUserCLK : bool
@@ -49,11 +50,22 @@ class SuperTile:
     name: str
     tileDir: Path
     tiles: list[Tile]
-    tileMap: list[list[Tile]]
+    tileMap: list[list[Tile | None]]
     bels: list[Bel] = field(default_factory=list)
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+
+    def __post_init__(self) -> None:
+        """Reject a `tileMap` with no tile, which has neither anchor nor master.
+
+        Raises
+        ------
+        ValueError
+            If `tileMap` holds no tile.
+        """
+        if not any(tile is not None for row in self.tileMap for tile in row):
+            raise ValueError(f"SuperTile '{self.name}' has no tiles")
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
@@ -71,7 +83,7 @@ class SuperTile:
         ports = {}
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if self.tileMap[y][x] is None:
+                if tile is None:
                     continue
                 ports[f"{x},{y}"] = []
                 if y - 1 < 0 or self.tileMap[y - 1][x] is None:
@@ -127,6 +139,28 @@ class SuperTile:
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
 
+    def get_anchor_tile_coords(self) -> tuple[int, int]:
+        """Return the local (x, y) of the first non-None tile in row-major order.
+
+        `generateFabric` scans the grid in the same order, so the anchor is the
+        child it meets first and where it instantiates the supertile wrapper.
+
+        Returns
+        -------
+        tuple[int, int]
+            `(x, y)` in local supertile coordinates.
+
+        Raises
+        ------
+        ValueError
+            If the supertile contains no tiles.
+        """
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    return x, y
+        raise ValueError(f"SuperTile '{self.name}' has no tiles")
+
     def get_master_tile_coords(self) -> tuple[int, int]:
         """Return the (x, y) coordinates of the master tile in local space.
 
@@ -138,8 +172,8 @@ class SuperTile:
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural *anchor* tile (the top-left tile, where `gen_fabric` places
-        the wrapper instance); the master and the anchor are usually different
+        structural *anchor* tile (`get_anchor_tile_coords`, where `gen_fabric`
+        places the wrapper instance); the master and the anchor are usually different
         tiles (e.g. DSP master = `DSP_bot`, anchor = `DSP_top`).
 
         Returns
