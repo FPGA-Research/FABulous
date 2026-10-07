@@ -570,5 +570,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 emulateParamPairs=emulateParamPairs,
                 add_keep=True,
             )
+
+    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addNewLine()
+        writer.addComment("FlipFlop chain endpoint tie-offs", onNewLine=True)
+        # Head of the chain: fabric-level CONFin drives conf_data[0].
+        writer.addAssignScalar("conf_data[0]", "CONFin")
+        # Tail of the chain: last tile's CONFout drives fabric-level CONFout.
+        writer.addAssignScalar("CONFout", f"conf_data[{chain_counter}]")
+
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
