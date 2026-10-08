@@ -16,7 +16,7 @@ from loguru import logger
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
-from tests.conftest import normalize, run_cmd
+from tests.conftest import run_cmd
 
 
 class FileDifference(NamedTuple):
@@ -44,21 +44,15 @@ def compare_files_with_diff(
     list[str] | None
         None if files are identical, list of diff lines if different.
     """
-    try:
-        with current_file.open("r", encoding="utf-8", errors="replace") as f:
-            current_lines = f.readlines()
-    except Exception:  # noqa: BLE001
-        current_lines = []
-
-    try:
-        with reference_file.open("r", encoding="utf-8", errors="replace") as f:
-            reference_lines = f.readlines()
-    except Exception:  # noqa: BLE001
-        reference_lines = []
-
-    # Quick check for identical files
-    if current_lines == reference_lines:
+    # Bytes decide equality: decoding with `errors="replace"` maps different
+    # invalid bytes (e.g. in a `.bin` bitstream) to the same replacement char.
+    if current_file.read_bytes() == reference_file.read_bytes():
         return None
+
+    with current_file.open("r", encoding="utf-8", errors="replace") as f:
+        current_lines = f.readlines()
+    with reference_file.open("r", encoding="utf-8", errors="replace") as f:
+        reference_lines = f.readlines()
 
     # Generate unified diff
     diff = difflib.unified_diff(
@@ -69,8 +63,10 @@ def compare_files_with_diff(
         n=3,
     )
 
-    diff_lines = list(diff)
-    return diff_lines or None
+    return list(diff) or [
+        f"Binary files reference/{reference_file.name} and "
+        f"current/{current_file.name} differ\n"
+    ]
 
 
 def compare_directories(
@@ -231,7 +227,6 @@ def format_file_differences_report(
 def run_fabulous_commands_with_logging(
     project_path: Path,
     language: str,
-    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     commands: list[str] | None = None,
     skip_on_fail: bool = False,
@@ -244,8 +239,6 @@ def run_fabulous_commands_with_logging(
         Path to the project directory to run commands in.
     language : str
         Language type for FABulous CLI ("verilog" or "vhdl").
-    caplog : pytest.LogCaptureFixture
-        Pytest log capture fixture for collecting log output.
     monkeypatch : pytest.MonkeyPatch
         Pytest monkeypatch fixture for environment management.
     commands : list[str] | None, optional
@@ -262,8 +255,7 @@ def run_fabulous_commands_with_logging(
         - commands_run: List of successfully executed commands
         - commands_failed: List of commands that failed
         - commands_not_executed: List of commands skipped due to failures
-        - errors: List of error messages collected from logs
-        - warnings: List of warning messages collected from logs
+        - errors: One message per failed command
     """
     setup_logger(0, False)
 
@@ -296,36 +288,21 @@ def run_fabulous_commands_with_logging(
         "commands_failed": [],
         "commands_not_executed": [],
         "errors": [],
-        "warnings": [],
     }
 
     for cmd in commands:
-        fail = False
-        try:
-            logger.info(f"Running command: {cmd}")
-            # Reuse the run_cmd function from CLI tests
-            run_cmd(cli, cmd)
-
-            # check for errors and warnings in logs
-            log_lines = normalize(caplog.text)
-
-            execution_info["warnings"] += [
-                line for line in log_lines if "WARNING" in line
-            ]
-            if errors := [line for line in log_lines if "ERROR" in line]:
-                execution_info["commands_failed"].append(cmd)
-                execution_info["errors"] += errors
-                fail = True
-
-            caplog.clear()  # Clear for next command
-
-            execution_info["commands_run"].append(cmd)
-
-        except Exception as e:  # noqa: BLE001
+        logger.info(f"Running command: {cmd}")
+        # The REPL catches a failing command, logs it and sets exit_code rather
+        # than raising.
+        run_cmd(cli, cmd)
+        fail = cli.exit_code != 0
+        if fail:
             execution_info["commands_failed"].append(cmd)
-            execution_info["errors"].append(f"Command '{cmd}' failed: {str(e)}")
-            logger.error(f"Command '{cmd}' failed: {e}")
-            fail = True
+            execution_info["errors"].append(
+                f"Command '{cmd}' exited with code {cli.exit_code}"
+            )
+        else:
+            execution_info["commands_run"].append(cmd)
 
         if skip_on_fail and fail:
             # skip remaining commands on failure

@@ -16,7 +16,7 @@ import pytest
 from librelane.flows.flow import Flow, FlowException
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
 from fabulous.fabric_generator.gds_generator.flows import plugin_tile_flow
 from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
     FABulousTile,
@@ -25,6 +25,7 @@ from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
 )
+from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 
 
 class TestFABulousTileSchema:
@@ -34,23 +35,22 @@ class TestFABulousTileSchema:
         """LibreLane must be able to resolve the flow by name."""
         assert Flow.factory.get("FABulousTile") is FABulousTile
 
-    def test_exposes_plugin_config_vars(self) -> None:
-        """The three plugin-level variables must be declared."""
-        names: set[str] = {v.name for v in FABulousTile.config_vars}
-        assert {
+    def test_config_vars_extend_underlying_flow(self) -> None:
+        """The underlying flow's vars come first, so LibreLane validates the full
+        schema against a single class, followed by exactly the plugin vars."""
+        names: list[str] = [v.name for v in FABulousTile.config_vars]
+        underlying: list[str] = [
+            v.name for v in FABulousTileVerilogMacroFlow.config_vars
+        ]
+
+        assert names[: len(underlying)] == underlying
+        assert names[len(underlying) :] == [
             "FABULOUS_TILE_DIR",
             "FABULOUS_EXTERNAL_SIDE",
             "FABULOUS_SUPERTILE",
-        } <= names
-
-    def test_inherits_underlying_config_vars(self) -> None:
-        """Underlying flow's config vars must still be declared so LibreLane validates
-        the full schema against a single class."""
-        plugin_names: set[str] = {v.name for v in FABulousTile.config_vars}
-        underlying_names: set[str] = {
-            v.name for v in FABulousTileVerilogMacroFlow.config_vars
-        }
-        assert underlying_names <= plugin_names
+            "FABULOUS_CONFIG_BIT_MODE",
+            "FABULOUS_MULTIPLEXER_STYLE",
+        ]
 
     def test_inherits_steps_from_underlying_flow(self) -> None:
         """`Steps` matches the underlying flow (SequentialFlow may copy)."""
@@ -63,12 +63,18 @@ class TestFABulousTileSchema:
             == FABulousTileVerilogMacroFlow.gating_config_vars
         )
 
-    def test_fabulous_supertile_default_false(self) -> None:
-        """Default for FABULOUS_SUPERTILE is `False` so users can omit it."""
-        var = next(
-            v for v in FABulousTile.config_vars if v.name == "FABULOUS_SUPERTILE"
-        )
-        assert var.default is False
+    @pytest.mark.parametrize(
+        ("name", "default"),
+        [
+            ("FABULOUS_SUPERTILE", False),
+            ("FABULOUS_CONFIG_BIT_MODE", ConfigBitMode.FRAME_BASED),
+            ("FABULOUS_MULTIPLEXER_STYLE", MultiplexerStyle.CUSTOM),
+        ],
+    )
+    def test_optional_plugin_var_defaults(self, name: str, default: object) -> None:
+        """Plugin vars users may omit default to a standard tile build."""
+        var = next(v for v in FABulousTile.config_vars if v.name == name)
+        assert var.default == default
 
     def test_fabulous_io_pin_order_cfg_is_optional_on_step(self) -> None:
         """`FABULOUS_IO_PIN_ORDER_CFG` must be optional on the step.
@@ -169,18 +175,27 @@ class TestEmitTileVerilog:
             tile_dir / "LUT4AB.v",
         ]
         assert actual_paths == expected
-        gen_sm.assert_called_once()
         # Config-bit mode and mux style flow through instead of being hard-coded.
-        sm_kwargs = gen_sm.call_args.kwargs
-        assert sm_kwargs["config_bit_mode"] == ConfigBitMode.FLIPFLOP_CHAIN
-        assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
+        gen_sm.assert_called_once_with(
+            mock_writer,
+            mock_tile,
+            False,
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+            multiplexer_style=MultiplexerStyle.GENERIC,
+            default_pip_delay=80,
+        )
         gen_cm.assert_called_once_with(
             mock_writer,
             mock_tile.name,
             mock_tile.globalConfigBits,
             tile_dir / "LUT4AB_ConfigMem.csv",
         )
-        gen_tile.assert_called_once()
+        gen_tile.assert_called_once_with(
+            mock_writer,
+            mock_tile,
+            disable_user_clk=True,
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        )
 
     def test_supertile_emits_per_subtile_then_wrapper(
         self, mock_writer: MagicMock, mocker: MockerFixture, tmp_path: Path
@@ -214,16 +229,34 @@ class TestEmitTileVerilog:
             mock_writer,
             mock_supertile,
             tile_dir,
-            config_bit_mode=ConfigBitMode.FRAME_BASED,
-            multiplexer_style=MultiplexerStyle.CUSTOM,
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+            multiplexer_style=MultiplexerStyle.GENERIC,
         )
 
-        assert [call.args[2] for call in emit_regular.call_args_list] == [
-            top_dir,
-            bot_dir,
+        # Each sub-tile is emitted into its own directory, then the wrapper.
+        assert emit_regular.call_args_list == [
+            mocker.call(
+                mock_writer,
+                top_tile,
+                top_dir,
+                ConfigBitMode.FLIPFLOP_CHAIN,
+                MultiplexerStyle.GENERIC,
+            ),
+            mocker.call(
+                mock_writer,
+                bot_tile,
+                bot_dir,
+                ConfigBitMode.FLIPFLOP_CHAIN,
+                MultiplexerStyle.GENERIC,
+            ),
         ]
         assert mock_writer.outFileName == tile_dir / "DSP.v"
-        gen_super.assert_called_once()
+        gen_super.assert_called_once_with(
+            mock_writer,
+            mock_supertile,
+            disable_user_clk=True,
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        )
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -241,8 +274,6 @@ class TestFABulousTileRunAdapter:
         project: Path = tmp_path / "proj"
         tile_dir: Path = project / "Tile" / "LUT4AB"
         tile_dir.mkdir(parents=True)
-        # Existing Verilog discovered via `**/*.v` glob on the project Tile dir.
-        (tile_dir.parent / "shared.v").write_text("", encoding="utf-8")
         return {"project": project, "tile_dir": tile_dir}
 
     def test_run_populates_config_and_delegates(
@@ -251,18 +282,20 @@ class TestFABulousTileRunAdapter:
         tmp_path: Path,
         project_tree: dict[str, Path],
     ) -> None:
-        from decimal import Decimal
-
-        from librelane.config.config import Config
-
+        """Parse, emit and pin-YAML generation are driven from the config, and
+        the downstream keys are set before `SequentialFlow.run` is invoked."""
         from fabulous.fabric_definition.tile import Tile
 
         tile_dir: Path = project_tree["tile_dir"]
+        bel_src: Path = tmp_path / "primitives" / "LC.v"
+        # Only the tile top-level exists on disk; the switch matrix and config
+        # memory were "not generated", so they must not reach VERILOG_FILES.
+        (tile_dir / "LUT4AB.v").write_text("", encoding="utf-8")
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
-        mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(10))
+        mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(20))
         mock_tile.name = "LUT4AB"
         mock_tile.tileDir = tile_dir / "LUT4AB.csv"
-        mock_tile.bels = []
+        mock_tile.bels = [mocker.MagicMock(src=bel_src), mocker.MagicMock(src=bel_src)]
         mock_tile.globalConfigBits = 0
 
         init_ctx = mocker.patch.object(plugin_tile_flow, "init_context")
@@ -271,7 +304,7 @@ class TestFABulousTileRunAdapter:
             "get_context",
             return_value=mocker.MagicMock(models_pack=None),
         )
-        mocker.patch.object(plugin_tile_flow, "VerilogCodeGenerator")
+        writer_cls = mocker.patch.object(plugin_tile_flow, "VerilogCodeGenerator")
         parse_tile = mocker.patch.object(
             plugin_tile_flow, "parse_tile_from_dir", return_value=mock_tile
         )
@@ -295,6 +328,7 @@ class TestFABulousTileRunAdapter:
             config={
                 "DESIGN_NAME": "LUT4AB",
                 "FABULOUS_TILE_DIR": [str(tile_dir)],
+                "FABULOUS_EXTERNAL_SIDE": "E",
                 "DESIGN_DIR": str(tile_dir),
             },
             design_dir=str(tile_dir),
@@ -311,29 +345,47 @@ class TestFABulousTileRunAdapter:
             "fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow.SequentialFlow.run",
             return_value=(sentinel_state, []),
         )
+        initial_state = mocker.MagicMock()
 
-        state, steps = flow.run(initial_state=mocker.MagicMock())
+        state, steps = flow.run(initial_state=initial_state)
 
         assert (state, steps) == (sentinel_state, [])
         # init_context is called in api_mode — no project dir required.
         init_ctx.assert_called_once_with(api_mode=True)
         parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False)
-        emit_verilog.assert_called_once()
-        # Pin YAML should be generated below run_dir.
-        assert gen_pin_yaml.call_count == 1
-        assert gen_pin_yaml.call_args.args[:2] == (
+        # Config-bit mode and mux style come from the declared Variable defaults.
+        emit_verilog.assert_called_once_with(
+            writer_cls.return_value,
             mock_tile,
-            Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml",
+            tile_dir,
+            config_bit_mode=ConfigBitMode.FRAME_BASED,
+            multiplexer_style=MultiplexerStyle.CUSTOM,
         )
-        # Adapter must set the downstream keys.
-        assert flow.config["DESIGN_NAME"] == "LUT4AB"
-        assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
-        assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
-        assert str(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]).endswith(
-            "LUT4AB_io_pin_order.yaml"
+        pin_yaml: Path = Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml"
+        gen_pin_yaml.assert_called_once_with(
+            mock_tile, pin_yaml, external_port_side=Side.EAST
         )
-        assert isinstance(flow.config, Config)
-        super_run.assert_called_once()
+        assert {
+            key: flow.config[key]
+            for key in (
+                "DESIGN_NAME",
+                "VERILOG_FILES",
+                "FABULOUS_IO_PIN_ORDER_CFG",
+                "FABULOUS_TILE_LOGICAL_WIDTH",
+                "FABULOUS_TILE_LOGICAL_HEIGHT",
+                "FABULOUS_OPT_MODE",
+                "DIE_AREA",
+            )
+        } == {
+            "DESIGN_NAME": "LUT4AB",
+            "VERILOG_FILES": [str(bel_src), str(tile_dir / "LUT4AB.v")],
+            "FABULOUS_IO_PIN_ORDER_CFG": str(pin_yaml),
+            "FABULOUS_TILE_LOGICAL_WIDTH": 1,
+            "FABULOUS_TILE_LOGICAL_HEIGHT": 1,
+            "FABULOUS_OPT_MODE": OptMode.NO_OPT,
+            "DIE_AREA": (0, 0, Decimal(10), Decimal(20)),
+        }
+        super_run.assert_called_once_with(initial_state)
 
     def test_run_raises_on_bad_tile_dir(
         self, mocker: MockerFixture, tmp_path: Path
@@ -524,6 +576,10 @@ class TestFABulousTileEndToEnd:
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
         # Generated RTL must be in VERILOG_FILES so downstream synth picks it up.
-        verilog_files = [str(p) for p in flow.config["VERILOG_FILES"]]
-        assert any(f"{name}.v" in p for p in verilog_files)
-        assert any(f"{name}_switch_matrix.v" in p for p in verilog_files)
+        # The 1:1 switch matrix needs no config bits, so no ConfigMem is
+        # emitted and none is listed.
+        tile_dir: Path = tile_workspace.resolve()
+        assert flow.config["VERILOG_FILES"] == [
+            str(tile_dir / f"{name}.v"),
+            str(tile_dir / f"{name}_switch_matrix.v"),
+        ]

@@ -31,13 +31,13 @@ def _tile(name: str, ports: list[TilePort]) -> Tile:
     return make_empty_tile(name, ports, pinOrderConfig={})
 
 
-def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
+def _sjump_wires(tile: Tile) -> list[tuple[str, str, int, int]]:
     """Return (source, destination, x_offset, y_offset) for the tile's SJUMP wires."""
-    return {
+    return [
         (w.source, w.destination, w.x_offset, w.y_offset)
         for w in tile.wireList
         if w.direction == Direction.SJUMP
-    }
+    ]
 
 
 class TestPortSJumpExpansion:
@@ -182,28 +182,26 @@ class TestFabricSJumpWirePass:
         )
 
     def test_forward_wires_child_output_to_master(self, fabric: Fabric) -> None:
-        top = fabric.tile[0][0]
-        bot = fabric.tile[1][0]
-        # DSP_top OUTPUT port jumps down to the master one row below (offset y=1).
-        assert ("top2bot0", "DSP_top_top2bot0", 0, 1) in _sjump_wires(top)
-        assert ("top2bot1", "DSP_top_top2bot1", 0, 1) in _sjump_wires(top)
-        # The master's own OUTPUT port is a zero-offset self-jump.
-        assert ("A0", "DSP_bot_A0", 0, 0) in _sjump_wires(bot)
+        # DSP_top's OUTPUT port jumps down to the master one row below (y=1);
+        # its INPUT port gets no wire of its own, the master drives it.
+        assert _sjump_wires(fabric.tile[0][0]) == [
+            ("top2bot0", "DSP_top_top2bot0", 0, 1),
+            ("top2bot1", "DSP_top_top2bot1", 0, 1),
+        ]
 
-    def test_reverse_wires_master_to_child_input(self, fabric: Fabric) -> None:
-        bot = fabric.tile[1][0]
-        master_wires = _sjump_wires(bot)
-        # Master drives its own INPUT port back (zero offset)...
-        assert ("DSP_bot_Q0", "Q0", 0, 0) in master_wires
-        # ...and the child tile's INPUT port one row up (offset y=-1).
-        assert ("DSP_top_bot2top0", "bot2top0", 0, -1) in master_wires
-        assert ("DSP_top_bot2top1", "bot2top1", 0, -1) in master_wires
-
-    def test_no_duplicate_sjump_wires(self, fabric: Fabric) -> None:
-        for row in fabric.tile:
-            for tile in row:
-                sjump = [w for w in tile.wireList if w.direction == Direction.SJUMP]
-                assert len(sjump) == len(set(sjump))
+    def test_master_owns_self_jumps_and_reverse_wires(self, fabric: Fabric) -> None:
+        # Exact list, so a duplicated or extra wire fails as well.
+        assert _sjump_wires(fabric.tile[1][0]) == [
+            # reverse: supertile SM output back up to the child's INPUT (y=-1)
+            ("DSP_top_bot2top0", "bot2top0", 0, -1),
+            ("DSP_top_bot2top1", "bot2top1", 0, -1),
+            # forward: the master's own OUTPUT port is a zero-offset self-jump
+            ("A0", "DSP_bot_A0", 0, 0),
+            ("A1", "DSP_bot_A1", 0, 0),
+            # reverse: the master's own INPUT port
+            ("DSP_bot_Q0", "Q0", 0, 0),
+            ("DSP_bot_Q1", "Q1", 0, 0),
+        ]
 
 
 class TestSJumpRequiresSupertile:
@@ -227,8 +225,12 @@ class TestSJumpRequiresSupertile:
             tiles=[bot],
             tileMap=[[bot]],
         )
-        # Must not raise.
-        make_fabric(tile=[[bot]], superTileDic={"DSP": supertile})
+        fabric = make_fabric(tile=[[bot]], superTileDic={"DSP": supertile})
+
+        assert _sjump_wires(fabric.tile[0][0]) == [
+            ("A0", "DSP_bot_A0", 0, 0),
+            ("A1", "DSP_bot_A1", 0, 0),
+        ]
 
 
 class TestGenNpnrModelSupertile:
@@ -281,19 +283,23 @@ class TestGenNpnrModelSupertile:
             t.partOfSuperTile = True
         return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
-    def test_forward_pip_has_bel_input_as_destination(self, fabric: Fabric) -> None:
+    def test_supertile_pips_run_from_source_to_sink(self, fabric: Fabric) -> None:
         pip_str, *_ = genNextpnrModel(fabric)
-        pips = set(pip_str.splitlines())
-        # source DSP_bot_A0 -> destination SUPER_A0 (BEL input is the sink).
-        assert "X0Y1,DSP_bot_A0,X0Y1,SUPER_A0,8,DSP_bot_A0.SUPER_A0" in pips
-        # The reversed form must NOT be present.
-        assert "X0Y1,SUPER_A0,X0Y1,DSP_bot_A0,8,SUPER_A0.DSP_bot_A0" not in pips
-
-    def test_reverse_pip_has_bel_output_as_source(self, fabric: Fabric) -> None:
-        pip_str, *_ = genNextpnrModel(fabric)
-        pips = set(pip_str.splitlines())
-        # BEL output SUPER_Q0 -> reverse wire DSP_bot_Q0.
-        assert "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0" in pips
+        assert pip_str.splitlines() == [
+            "#Tile-internal pips on tile X0Y0:",
+            "#Tile-external pips on tile X0Y0:",
+            # SJUMP wires from tile.wireList: child output down to the master
+            "X0Y0,top2bot0,X0Y1,DSP_top_top2bot0,8,top2bot0.DSP_top_top2bot0",
+            "X0Y0,top2bot1,X0Y1,DSP_top_top2bot1,8,top2bot1.DSP_top_top2bot1",
+            "#Tile-internal pips on tile X0Y1:",
+            "#Tile-external pips on tile X0Y1:",
+            "X0Y1,A0,X0Y1,DSP_bot_A0,8,A0.DSP_bot_A0",
+            "X0Y1,DSP_bot_Q0,X0Y1,Q0,8,DSP_bot_Q0.Q0",
+            # supertile SM: forward wire into the BEL input SUPER_A0 ...
+            "X0Y1,DSP_bot_A0,X0Y1,SUPER_A0,8,DSP_bot_A0.SUPER_A0",
+            # ... and the BEL output SUPER_Q0 onto the reverse wire
+            "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0",
+        ]
 
     def test_supertile_bel_emitted_in_belv2_and_belv3(
         self, make_fabric: Callable[..., Fabric], tmp_path: Path
@@ -329,11 +335,26 @@ class TestGenNpnrModelSupertile:
 
         _, belv1, belv2, belv3, _ = genNextpnrModel(fabric)
 
-        assert "X0Y1,X0,Y1,A,FABULOUS_LC" in belv1
-        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv2
-        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv3
-        assert "Delay,I0,O,3.0,FF=0" in belv3
-        assert "Delay," not in belv2
+        header = [
+            "# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X15Y15",
+            "#Tile_X0Y0",
+            "#Tile_X0Y1",
+            "#SuperTile_DSP_X0Y1",
+        ]
+        pins = [
+            "BelBegin,X0Y1,A,FABULOUS_LC,LA_",
+            "I,I0,X0Y1.I0",
+            "I,I1,X0Y1.I1",
+            "O,O,X0Y1.O",
+        ]
+        assert belv1.splitlines() == [*header, "X0Y1,X0,Y1,A,FABULOUS_LC,I0,I1,O"]
+        assert belv2.splitlines() == [*header, *pins, "BelEnd"]
+        # bel.v3 adds the FABULOUS_LC timing arcs between the pins and BelEnd.
+        v3 = belv3.splitlines()
+        assert v3[: len(header) + len(pins)] == [*header, *pins]
+        assert "Delay,I0,O,3.0,FF=0" in v3
+        assert v3[-1] == "BelEnd"
+        assert v3.count("BelBegin,X0Y1,A,FABULOUS_LC,LA_") == 1
 
 
 class TestGenBitstreamSpecSupertileMux:
@@ -393,18 +414,27 @@ class TestGenBitstreamSpecSupertileMux:
         return generateBitstreamSpec(fabric)
 
     def test_mux_select_bits_mapped_at_master_tile(self, spec: dict) -> None:
-        # The master tile is DSP_bot at X0Y1.
-        master_specs = spec["TileSpecs"]["X0Y1"]
-        # All four mux inputs become PIPs into the BEL input.
-        for src in ("s0", "s1", "s2", "s3"):
-            assert f"{src}.SUPER_A0" in master_specs
-        # The select code is MSB-first over the .list order: the last source
-        # (s3) is all-ones, the first (s0) all-zeros, on frame bits 30/31.
-        assert master_specs["s3.SUPER_A0"] == {30: "1", 31: "1"}
-        assert master_specs["s0.SUPER_A0"] == {30: "0", 31: "0"}
+        # Source k of the 4:1 mux is selected by code k; config bit 0 (the
+        # LSB) sits on frame bit 30 and config bit 1 on frame bit 31.
+        expected_master = {
+            "A0.DSP_bot_A0": {},
+            "s0.SUPER_A0": {30: "0", 31: "0"},
+            "s1.SUPER_A0": {30: "1", 31: "0"},
+            "s2.SUPER_A0": {30: "0", 31: "1"},
+            "s3.SUPER_A0": {30: "1", 31: "1"},
+        }
+        expected_child = {
+            "top2bot0.DSP_top_top2bot0": {},
+            "top2bot1.DSP_top_top2bot1": {},
+        }
+        expected = {"X0Y0": expected_child, "X0Y1": expected_master}
+        assert spec["TileSpecs"] == expected
+        assert spec["TileSpecs_No_Mask"] == expected
 
     def test_supertile_mask_merged_into_master_framemap(self, spec: dict) -> None:
-        # The master tile has no config bits of its own, yet the supertile's
-        # used-bit mask for frame 0 is merged into its FrameMap.
-        master_frame_map = spec["FrameMap"]["DSP_bot"]
-        assert master_frame_map[0] == "1" * 2 + "0" * 30
+        # Neither tile has config bits of its own, yet the supertile's used-bit
+        # mask for frame 0 is merged into the master tile's FrameMap.
+        assert spec["FrameMap"] == {
+            "DSP_top": {},
+            "DSP_bot": {0: "1" * 2 + "0" * 30},
+        }

@@ -1,5 +1,4 @@
 demo*
-ttsim*
 **/__pycache__
 *.egg-info/
 .venv
@@ -8,7 +7,6 @@ venv
 .vscode
 oss-cad-suite
 .ltex
-docker-image
 .claude
 .codex
 .coverage*
@@ -18,6 +16,4 @@ build
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/
-docs/source/references/*.rst
-!docs/source/references/index.rst
 docs/source/generated_doc/

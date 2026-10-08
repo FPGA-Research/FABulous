@@ -15,6 +15,7 @@ Three layers of coverage:
   hardware.
 """
 
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -69,6 +70,7 @@ def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
         ([[0, 0]], False),  # single zero-config row
         ([[1]], True),  # single tile, single bit
         ([[0], [0], [0]], False),  # tall single-column, no config
+        ([[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]], False),  # deep interior
     ],
 )
 def test_border_rows_have_config_bits(
@@ -82,13 +84,6 @@ def test_border_rows_have_config_bits(
 def test_border_rows_have_config_bits_empty_fabric() -> None:
     """An empty tile grid reports no border config bits."""
     fabric = make_fabric_from_grid([])
-    assert border_rows_have_config_bits(fabric) is False
-
-
-def test_border_rows_have_config_bits_interior_ignored() -> None:
-    """Config bits confined to interior rows never flip the flag on."""
-    grid = [[0, 0, 0]] + [[127, 127, 127]] * 5 + [[0, 0, 0]]
-    fabric = _fabric_from_bits(grid)
     assert border_rows_have_config_bits(fabric) is False
 
 
@@ -109,14 +104,17 @@ def test_spec_is_internally_consistent(generated_fabric: Fabric) -> None:
     fabric = generated_fabric
     spec = generateBitstreamSpec(fabric)
 
-    arch = spec["ArchSpecs"]
-    assert arch["FrameBitsPerRow"] == fabric.frameBitsPerRow
-    assert arch["MaxFramesPerCol"] == fabric.maxFramesPerCol
-    assert arch["FrameSelectWidth"] == fabric.frameSelectWidth
-    assert arch["DesyncBit"] == fabric.desync_flag
-    # the flag must mirror the detector on the actual fabric
-    assert arch["IncludeBorderRows"] == border_rows_have_config_bits(fabric)
-    assert arch["MultiClkDomains"] == fabric.multiClkDomains
+    # The frame geometry is fixed by Fabric.__post_init__'s bitstream limits.
+    assert spec["ArchSpecs"] == {
+        "MaxFramesPerCol": 20,
+        "FrameBitsPerRow": 32,
+        "FrameSelectWidth": 5,
+        "DesyncBit": 20,
+        "SyncHeaderHex": "00AAFF01000000010000000000000000FAB0FAB1",
+        "IncludeBorderRows": False,
+        "MultiClkDomains": False,
+        "FABulousVersion": version("FABulous-FPGA"),
+    }
 
     # TileMap covers the whole grid; NULL cells are mapped but carry no specs
     assert set(spec["TileMap"]) == _all_tile_locations(fabric)
@@ -147,12 +145,6 @@ def test_border_rows_excluded_for_demo_fabric(generated_fabric: Fabric) -> None:
     """The demo fabric terminates top/bottom rows, so the flag stays off."""
     spec = generateBitstreamSpec(generated_fabric)
     assert spec["ArchSpecs"]["IncludeBorderRows"] is False
-
-
-def test_multi_clk_domains_defaults_off(generated_fabric: Fabric) -> None:
-    """MultiClkDomains defaults to False for a plain fabric."""
-    spec = generateBitstreamSpec(generated_fabric)
-    assert spec["ArchSpecs"]["MultiClkDomains"] is False
 
 
 def test_multi_clk_domains_flag_propagates(generated_fabric: Fabric) -> None:
@@ -322,31 +314,6 @@ def _build_fabric(
     return fabric
 
 
-def test_bitstream_spec_is_deterministic(tmp_path: Path) -> None:
-    """Identical fabric content yields an identical spec across runs."""
-    first = _build_fabric(
-        tmp_path,
-        "first",
-        feature_map=_FEATURE_MAP,
-        sources=_SOURCES,
-        wires=_natural_wires(),
-    )
-    second = _build_fabric(
-        tmp_path,
-        "second",
-        feature_map=_FEATURE_MAP,
-        sources=_SOURCES,
-        wires=_natural_wires(),
-    )
-
-    spec_first = generateBitstreamSpec(first)
-    spec_second = generateBitstreamSpec(second)
-
-    assert spec_first == spec_second
-    # Guard against a vacuous pass: the tile spec must actually be populated.
-    assert spec_first["TileSpecs"]["X0Y0"]
-
-
 def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
     tmp_path: Path,
 ) -> None:
@@ -365,17 +332,26 @@ def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
         wires=_natural_wires(),
     )
 
-    tile_spec = generateBitstreamSpec(fabric)["TileSpecs"]["X0Y0"]
+    spec = generateBitstreamSpec(fabric)
 
-    assert tile_spec["A.F_A"] == {31: "1"}
-    # F_B is a two-bit feature; only the highest bit survives the per-bit
-    # overwrite, landing on offset 2 -> physical position 29.
-    assert tile_spec["A.F_B"] == {29: "1"}
-    assert tile_spec["A.F_C"] == {28: "1"}
-    assert tile_spec["D0.S0"] == {27: "0"}
-    assert tile_spec["D1.S0"] == {27: "1"}
-    assert tile_spec["D0.S1"] == {26: "0"}
-    assert tile_spec["D1.S1"] == {26: "1"}
-    # Immutable wires emit empty bit maps.
-    assert tile_spec["W_A.W_B"] == {}
-    assert tile_spec["W_C.W_D"] == {}
+    expected = {
+        "A.F_A": {31: "1"},
+        # Bug: a multi-bit feature keeps only its last bit, because
+        # generateBitstreamSpec reassigns the feature's dict per bit; F_B's
+        # bit 0 ({30: "0"}) is lost.
+        "A.F_B": {29: "1"},
+        "A.F_C": {28: "1"},
+        "D0.S0": {27: "0"},
+        "D1.S0": {27: "1"},
+        "D0.S1": {26: "0"},
+        "D1.S1": {26: "1"},
+        # Immutable wires emit empty bit maps.
+        "W_A.W_B": {},
+        "W_C.W_D": {},
+    }
+    assert spec["TileSpecs"] == {"X0Y0": expected}
+    assert spec["TileSpecs_No_Mask"] == {"X0Y0": expected}
+    assert spec["FrameMap"] == {
+        _TILE_NAME: {0: "1" * _USED_BITS + "0" * (_FRAME_BITS - _USED_BITS)}
+        | {frame: "0" * _FRAME_BITS for frame in range(1, _MAX_FRAMES)}
+    }

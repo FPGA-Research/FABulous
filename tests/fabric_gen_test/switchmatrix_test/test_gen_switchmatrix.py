@@ -11,7 +11,11 @@ from fabulous.custom_exception import (
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, MultiplexerStyle
+from fabulous.fabric_definition.define import (
+    IO,
+    SWITCH_MATRIX_CONSTANTS,
+    MultiplexerStyle,
+)
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -26,8 +30,12 @@ from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
+    MuxWiring,
+    Netlist,
     create_switchmatrix_list,
+    cus_mux_stubs,
     find_switch_matrix_tile,
+    mux_wiring,
 )
 
 
@@ -323,15 +331,17 @@ class TestSuperTileSwitchMatrixConstants:
 
     `gen_super_tile_switch_matrix` reuses the shared matrix-body generator, so a
     `supertile_matrix.list` may drive a BEL input from a constant (tie-off) or
-    offer one as a mux option. This guards that behaviour against a refactor.
+    offer one as a mux option. The generated matrix is elaborated with Yosys so
+    the constant's logic level and the mux pins are checked, not the RTL text.
     """
 
-    def _gen(
+    def _elaborate(
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        elaborate: Callable[..., Netlist],
         connections: list[tuple[str, str]],
-    ) -> str:
+    ) -> Netlist:
         mat = tmp_path / "supertile_matrix.list"
         create_switchmatrix_list(mat, connections)
         bot = make_empty_tile(
@@ -352,38 +362,40 @@ class TestSuperTileSwitchMatrixConstants:
         )
         writer = code_generator_factory(".v", "DSP_switch_matrix")
         gen_super_tile_switch_matrix(writer, supertile)
-        return writer.outFileName.read_text()
+        return elaborate(writer.outFileName.read_text() + cus_mux_stubs())
 
-    def test_constants_declared(
-        self,
-        tmp_path: Path,
-        code_generator_factory: Callable[[str, str], CodeGenerator],
-    ) -> None:
-        rtl = self._gen(
-            tmp_path, code_generator_factory, [("SUPER_A0", "[DSP_bot_A0]")]
-        )
-        assert "parameter GND0 = 1'b0;" in rtl
-        assert "parameter VCC0 = 1'b1;" in rtl
-        assert "parameter VDD0 = 1'b1;" in rtl
-
+    @pytest.mark.parametrize("constant", SWITCH_MATRIX_CONSTANTS)
     def test_constant_tie_off(
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        elaborate: Callable[..., Netlist],
+        constant: str,
     ) -> None:
-        rtl = self._gen(tmp_path, code_generator_factory, [("SUPER_A0", "[GND0]")])
-        assert "assign SUPER_A0 = GND0;" in rtl
+        net = self._elaborate(
+            tmp_path, code_generator_factory, elaborate, [("SUPER_A0", f"[{constant}]")]
+        )
+        level = "0" if constant.startswith("GND") else "1"
+        assert net.port_net("SUPER_A0") == [level]
 
     def test_constant_as_mux_input(
         self,
         tmp_path: Path,
         code_generator_factory: Callable[[str, str], CodeGenerator],
+        elaborate: Callable[..., Netlist],
     ) -> None:
-        rtl = self._gen(
-            tmp_path, code_generator_factory, [("SUPER_B0{2}", "[VCC0|DSP_bot_x0]")]
+        net = self._elaborate(
+            tmp_path,
+            code_generator_factory,
+            elaborate,
+            [("SUPER_B0{2}", "[VCC0|DSP_bot_x0]")],
         )
-        assert "SUPER_B0_input = {DSP_bot_x0,VCC0}" in rtl
-        assert "cus_mux21 inst_cus_mux21_SUPER_B0" in rtl
+        # The .list reads MSB-first, so VCC0 is data input 0.
+        assert mux_wiring(net, "SUPER_B0") == MuxWiring(
+            inputs=["1", *net.port_net("DSP_bot_x0")],
+            selects=net.port_net("ConfigBits"),
+            selects_n=[],
+        )
 
 
 class TestUnconnectedPortDiagnostic:
@@ -400,11 +412,11 @@ class TestUnconnectedPortDiagnostic:
 
         hint = _unconnected_port_diagnostic(ports, "X1_Y1_2_X1_Y4_port16")
 
-        assert "X1_Y1_2_X1_Y4_port" in hint
-        assert "48" in hint  # wires (16) x distance (3)
-        assert "16" in hint  # original wire count
-        assert "3" in hint  # distance
-        assert "both ends" in hint
+        assert "from wire spec 'X1_Y1_2_X1_Y4_port'" in hint
+        assert "(wires=16, distance=3)" in hint
+        assert "wires x distance = 16 x 3 = 48" in hint
+        assert "(X1_Y1_2_X1_Y4_port0..X1_Y1_2_X1_Y4_port47)" in hint
+        assert "name both ends of the wire" in hint
 
     def test_both_ends_named_wire_gives_no_hint(self) -> None:
         ports, _ = parse_port_line("NORTH,N4BEG,0,-4,N4END,4")

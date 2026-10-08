@@ -119,9 +119,22 @@ def fake_sdf_graph_object() -> SDFGobject:
     graph.add_edge("U2/B", "U2/Z", weight=0.5, component=comp_u2_iopath)
     graph.add_edge("U2/Z", "OUT", weight=0.6, component=comp_u2_out)
 
+    # U3 is a register-like instance whose only timing data is a check, not a path
+    comp_u3_setup = make_component(
+        c_type=SDFCellType.SETUP,
+        cell_name="DFF_X1",
+        connection_string="SETUP D CK",
+        from_cell_instance="U3",
+        to_cell_instance="U3",
+        from_cell_pin="D",
+        to_cell_pin="CK",
+        delay=0.7,
+    )
+
     instances = {
         "U1": [comp_u1_iopath, comp_u1_hold],
         "U2": [comp_u2_iopath],
+        "U3": [comp_u3_setup],
     }
 
     return SDFGobject(
@@ -194,8 +207,7 @@ def test_get_sdf_header_info_property(sdf_base: SDFTimingGraphBase) -> None:
     header_dict, header_str = sdf_base.get_SDF_header_info
 
     assert header_dict == {"divider": "/", "timescale": "1ns"}
-    assert "divider: /" in header_str
-    assert "timescale: 1ns" in header_str
+    assert header_str == "divider: /\ntimescale: 1ns\n"
 
 
 def test_get_cell_instance_returns_components_for_instance(
@@ -215,74 +227,51 @@ def test_get_cell_instance_missing_instance_raises_keyerror(
         sdf_base.get_cell_instance_components("NO_SUCH_INSTANCE")
 
 
-def test_get_cell_instance_inputs_to_outputs_for_existing_instance(
+@pytest.mark.parametrize(
+    ("instance_name", "expected"),
+    [
+        ("U1", (["A"], ["Y"])),
+        # an instance carrying only timing checks contributes no pins
+        ("U3", ([], [])),
+        ("NO_SUCH_INSTANCE", ([], [])),
+    ],
+    ids=["iopath_only", "timing_check_only", "missing_instance"],
+)
+def test_get_cell_instance_input_and_output_pins(
     sdf_base: SDFTimingGraphBase,
+    instance_name: str,
+    expected: tuple[list[str], list[str]],
 ) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
-
-    assert input_pins == ["A"]
-    assert output_pins == ["Y"]
+    assert sdf_base.get_cell_instance_input_and_output_pins(instance_name) == expected
 
 
-def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(
+@pytest.mark.parametrize(
+    ("c_type", "input_pin", "output_pin", "expected_index"),
+    [
+        (SDFCellType.IOPATH, "A", "Y", 0),
+        (SDFCellType.HOLD, "A", "Y", 1),
+        (SDFCellType.SETUP, "A", "Y", None),
+        (SDFCellType.IOPATH, "A", "Z", None),
+        (SDFCellType.IOPATH, "B", "Y", None),
+    ],
+    ids=["iopath", "hold", "wrong_type", "wrong_output_pin", "wrong_input_pin"],
+)
+def test_get_cell_instance_component_by_type(
     sdf_base: SDFTimingGraphBase,
-) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
-
-    assert "A" in input_pins
-    assert "Y" in output_pins
-    assert len(input_pins) == 1
-    assert len(output_pins) == 1
-
-
-def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_prints(
-    sdf_base: SDFTimingGraphBase,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins(
-        "NO_SUCH_INSTANCE"
-    )
-    capsys.readouterr()
-
-    assert input_pins == []
-    assert output_pins == []
-
-
-def test_get_cell_instance_component_by_type_returns_matching_component(
-    sdf_base: SDFTimingGraphBase,
-) -> None:
-    comp = sdf_base.get_cell_instance_component_by_type(
-        "U1", SDFCellType.IOPATH, "A", "Y"
-    )
-
-    assert comp is not None
-    assert comp.c_type == SDFCellType.IOPATH
-    assert comp.cell_name == "BUF_X1"
-    assert comp.from_cell_pin == "A"
-    assert comp.to_cell_pin == "Y"
-    assert comp.delay == 0.2
-
-
-def test_get_cell_instance_component_by_type_returns_none_if_no_match(
-    sdf_base: SDFTimingGraphBase,
+    fake_sdf_graph_object: SDFGobject,
+    c_type: SDFCellType,
+    input_pin: str,
+    output_pin: str,
+    expected_index: int | None,
 ) -> None:
     comp = sdf_base.get_cell_instance_component_by_type(
-        "U1", SDFCellType.SETUP, "A", "Y"
+        "U1", c_type, input_pin, output_pin
     )
 
-    assert comp is None
-
-
-def test_get_cell_instance_component_by_type_can_find_non_iopath_component(
-    sdf_base: SDFTimingGraphBase,
-) -> None:
-    comp = sdf_base.get_cell_instance_component_by_type(
-        "U1", SDFCellType.HOLD, "A", "Y"
-    )
-
-    assert comp is not None
-    assert comp.c_type == SDFCellType.HOLD
-    assert comp.delay == 0.3
+    if expected_index is None:
+        assert comp is None
+    else:
+        assert comp is fake_sdf_graph_object.instances["U1"][expected_index]
 
 
 def test_get_cell_instance_component_by_type_missing_instance_raises_keyerror(

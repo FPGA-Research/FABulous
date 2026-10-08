@@ -123,36 +123,51 @@ def test_opensta_template_with_spef() -> None:
     )
 
 
-def test_analyze_normalizes_inputs(mocker: MockerFixture, tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("liberty_as_list", "spef_as", "expected_spef_lines"),
+    [
+        (False, None, ""),
+        (True, None, ""),
+        (False, "path", "read_spef {spef}\n"),
+        (False, "list", "read_spef {spef}\nread_spef {spef}\n"),
+    ],
+    ids=["bare_liberty", "liberty_list", "bare_spef", "spef_list"],
+)
+def test_analyze_normalizes_inputs(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    liberty_as_list: bool,
+    spef_as: str | None,
+    expected_spef_lines: str,
+) -> None:
+    mocker.patch(
+        "fabulous.tools.opensta.tempfile.gettempdir", return_value=str(tmp_path)
+    )
     run = mocker.patch.object(OpenStaTool, "run")
     lib = tmp_path / "x.lib"
-    lib.write_text("lib")
     netlist = tmp_path / "n.v"
-    netlist.write_text("module n(); endmodule")
-
-    sdf = Path(tempfile.gettempdir()) / "sta_NORM_tmp.sdf"
-    if sdf.exists():
-        sdf.unlink()
+    spef = tmp_path / "r.spef"
+    sdf = tmp_path / "sta_NORM_tmp.sdf"
+    spef_files = {None: None, "path": spef, "list": [spef, spef]}[spef_as]
 
     # run is mocked, so produce the SDF file analyze reads back.
     def write_sdf(*_args: object, **_kwargs: object) -> None:
         sdf.write_text("(DELAYFILE)")
 
-    try:
-        run.side_effect = write_sdf
-        result = OpenStaTool.analyze(netlist, lib, "NORM")
+    run.side_effect = write_sdf
+    result = OpenStaTool.analyze(
+        netlist, [lib] if liberty_as_list else lib, "NORM", spef_files
+    )
 
-        assert result == sdf
-        assert run.call_args.kwargs["stdin_data"] == OpenStaTool.render_template(
-            "opensta_sdf.j2",
-            liberty_files=[lib],
-            verilog_netlist=netlist,
-            top_name="NORM",
-            spef_files=None,
-            sdf_path=sdf,
-        )
-    finally:
-        sdf.unlink(missing_ok=True)
+    assert result == sdf
+    assert run.call_args.kwargs["stdin_data"] == (
+        f"read_liberty {lib}\n"
+        f"read_verilog {netlist}\n"
+        "link_design NORM\n"
+        + expected_spef_lines.format(spef=spef)
+        + f"write_sdf {sdf}\n"
+        "exit\n"
+    )
 
 
 def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None:
@@ -168,5 +183,7 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
 @pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])
 def test_tool_cannot_be_instantiated(tool_cls: type[Tool]) -> None:
     """Tool wrappers are classmethod-only singletons and reject instantiation."""
-    with pytest.raises(TypeError, match="cannot be instantiated"):
+    with pytest.raises(
+        TypeError, match=rf"^{tool_cls.__name__} is a stateless tool wrapper"
+    ):
         tool_cls()

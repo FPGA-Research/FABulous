@@ -52,27 +52,22 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
             path = Path(project_data["path"])
         else:
             path = config_path.parent / project_data["path"]
-        try:
-            project = ReferenceProject(
-                name=project_data["name"],
-                path=path.resolve(),
-                language=project_data["language"],
-                test_mode=project_data["test_mode"],
-                description=project_data.get("description", ""),
-                expected_outputs=project_data.get("expected_outputs"),
-                include_patterns=project_data.get("include_patterns"),
-                exclude_patterns=project_data.get("exclude_patterns"),
-                fab_commands=project_data.get("fab_commands"),
-                pre_fab_commands=project_data.get("pre_fab_commands"),
-                post_fab_commands=project_data.get("post_fab_commands"),
-                cleanup_commands=project_data.get("cleanup_commands"),
-                skip_reason=project_data.get("skip_reason"),
-            )
-            projects.append(project)
-        except KeyError as e:
-            logger.warning(f"Invalid project config, missing key {e}: {project_data}")
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Failed to load project config: {e}")
+        project = ReferenceProject(
+            name=project_data["name"],
+            path=path.resolve(),
+            language=project_data["language"],
+            test_mode=project_data["test_mode"],
+            description=project_data.get("description", ""),
+            expected_outputs=project_data.get("expected_outputs"),
+            include_patterns=project_data.get("include_patterns"),
+            exclude_patterns=project_data.get("exclude_patterns"),
+            fab_commands=project_data.get("fab_commands"),
+            pre_fab_commands=project_data.get("pre_fab_commands"),
+            post_fab_commands=project_data.get("post_fab_commands"),
+            cleanup_commands=project_data.get("cleanup_commands"),
+            skip_reason=project_data.get("skip_reason"),
+        )
+        projects.append(project)
 
     return projects
 
@@ -110,7 +105,6 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 def test_reference_project_execution(
     ref_project: ReferenceProject,
     tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test execution of reference projects with run or diff mode."""
@@ -145,7 +139,6 @@ def test_reference_project_execution(
         _, execution_info = run_fabulous_commands_with_logging(
             test_project_path,
             ref_project.language,
-            caplog,
             monkeypatch,
             commands=ref_project.fab_commands,
         )
@@ -202,8 +195,8 @@ def test_reference_project_execution(
             logger.info(f"  Patterns: {include_patterns}")
 
             cmp_diff = compare_directories(
-                ref_project.path,
                 test_project_path,
+                ref_project.path,
                 include_patterns,
                 exclude_patterns=ref_project.exclude_patterns,
             )

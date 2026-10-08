@@ -9,7 +9,7 @@ from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
 )
 
 
-class test_ConditionalMagicDRC:
+class TestConditionalMagicDRC:
     def test_run_skips_when_no_violations(
         self, mock_config: Config, mock_state: State
     ) -> None:

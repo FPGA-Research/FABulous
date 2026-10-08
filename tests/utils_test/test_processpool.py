@@ -29,41 +29,31 @@ def default_worker_count() -> int:
         executor.shutdown()
 
 
-class TestDillProcessPoolWorkers:
-    """Worker-count resolution for DillProcessPoolExecutor."""
-
-    def test_zero_arg_maps_to_default(
-        self, mocker: MockerFixture, default_worker_count: int
-    ) -> None:
-        mocker.patch.object(processpool, "get_context")
-        executor = processpool.DillProcessPoolExecutor(max_workers=0)
-        try:
-            assert executor._max_workers == default_worker_count
-        finally:
-            executor.shutdown()
-
-    def test_zero_context_maps_to_default(
-        self, mocker: MockerFixture, default_worker_count: int
-    ) -> None:
-        mocker.patch.object(processpool, "get_context").return_value.max_worker = 0
-        executor = processpool.DillProcessPoolExecutor(max_workers=None)
-        try:
-            assert executor._max_workers == default_worker_count
-        finally:
-            executor.shutdown()
-
-    def test_positive_arg_preserved(self, mocker: MockerFixture) -> None:
-        mocker.patch.object(processpool, "get_context")
-        executor = processpool.DillProcessPoolExecutor(max_workers=3)
-        try:
-            assert executor._max_workers == 3
-        finally:
-            executor.shutdown()
-
-    def test_positive_context_preserved(self, mocker: MockerFixture) -> None:
-        mocker.patch.object(processpool, "get_context").return_value.max_worker = 5
-        executor = processpool.DillProcessPoolExecutor(max_workers=None)
-        try:
-            assert executor._max_workers == 5
-        finally:
-            executor.shutdown()
+@pytest.mark.parametrize(
+    ("max_workers", "context_max_worker", "expected"),
+    [
+        # None in `expected` stands for the system default worker count.
+        pytest.param(0, 7, None, id="zero_arg_maps_to_default"),
+        pytest.param(None, 0, None, id="zero_context_maps_to_default"),
+        pytest.param(3, 7, 3, id="positive_arg_wins_over_context"),
+        pytest.param(None, 5, 5, id="positive_context_preserved"),
+    ],
+)
+def test_worker_count_resolution(
+    mocker: MockerFixture,
+    default_worker_count: int,
+    max_workers: int | None,
+    context_max_worker: int,
+    expected: int | None,
+) -> None:
+    """An explicit argument overrides the context; 0 means the system default."""
+    mocker.patch.object(
+        processpool, "get_context"
+    ).return_value.max_worker = context_max_worker
+    executor = processpool.DillProcessPoolExecutor(max_workers=max_workers)
+    try:
+        assert executor._max_workers == (
+            default_worker_count if expected is None else expected
+        )
+    finally:
+        executor.shutdown()

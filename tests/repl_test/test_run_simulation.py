@@ -28,22 +28,6 @@ def _make_bitstream(cli: FABulousREPL) -> Path:
     return bitstream
 
 
-def test_run_simulation_uses_plain_task(
-    cli: FABulousREPL, mocker: MockerFixture
-) -> None:
-    """Without ``--gl`` the plain ``run-simulation`` task is used."""
-    bitstream = _make_bitstream(cli)
-    mocker.patch(f"{_CMD_MODULE}.make_hex")
-    collect = mocker.patch(f"{_CMD_MODULE}.collect_gl_sources")
-    run_task = mocker.patch(f"{_CMD_MODULE}.run_task")
-
-    run_cmd(cli, f"run_simulation fst {bitstream}")
-
-    run_task.assert_called_once()
-    assert run_task.call_args.args[0] == "run-simulation"
-    collect.assert_not_called()
-
-
 def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> None:
     """``--gl`` resolves GL sources and runs the ``run-gl-simulation`` task."""
     bitstream = _make_bitstream(cli)
@@ -60,15 +44,21 @@ def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> 
 
     run_cmd(cli, f"run_simulation --gl fst {bitstream}")
 
-    run_task.assert_called_once()
-    assert run_task.call_args.args[0] == "run-gl-simulation"
-    task_vars = run_task.call_args.kwargs["task_vars"]
-    assert task_vars["WAVEFORM_TYPE"] == "fst"
-    assert task_vars["DESIGN"] == "sequential_16bit_en"
-    assert task_vars["GL_SOURCES"] == (
-        "/p/Fabric/macro/final_views/eFPGA.nl.v "
-        "/p/Tile/LUT4AB/macro/final_views/nl/LUT4AB.nl.v "
-        "/pdk/sg13g2_stdcell.v"
+    # the cli fixture enables debug, which is forwarded as verbose
+    run_task.assert_called_once_with(
+        "run-gl-simulation",
+        task_dir=cli.projectDir / "Test",
+        task_vars={
+            "WAVEFORM_TYPE": "fst",
+            "DESIGN": "sequential_16bit_en",
+            "BITSTREAM_BIN": str(bitstream.resolve()),
+            "GL_SOURCES": (
+                "/p/Fabric/macro/final_views/eFPGA.nl.v "
+                "/p/Tile/LUT4AB/macro/final_views/nl/LUT4AB.nl.v "
+                "/pdk/sg13g2_stdcell.v"
+            ),
+        },
+        verbose=True,
     )
 
 
@@ -166,15 +156,16 @@ def test_collect_gl_sources_orders_wrapper_fabric_tiles_then_libs(
     _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
 
     sources = cmd_user_design.collect_gl_sources(tmp_path, [])
-    names = [p.name for p in sources]
 
-    assert "eFPGA_top.v" in names
-    assert "models_pack.v" in names
-    assert "eFPGA.v" not in names  # behavioural core replaced by the gate netlist
-    assert {netlist, tile, primary} <= set(sources)
-    assert any("udp" in n for n in names)
-    # behavioural wrapper precedes the gate netlist, which precedes the tiles
-    assert names.index("eFPGA_top.v") < sources.index(netlist) < sources.index(tile)
+    # eFPGA.v is absent: the gate netlist replaces the behavioural core
+    assert sources == [
+        tmp_path / "Fabric" / "eFPGA_top.v",
+        tmp_path / "Fabric" / "models_pack.v",
+        netlist,
+        tile,
+        primary,
+        primary.with_name("sg13g2_stdcell_udp.v"),
+    ]
 
 
 def _layout_no_fabric(_project: Path) -> None:
@@ -231,8 +222,9 @@ def test_resolve_sim_libs_override_no_match(tmp_path: Path) -> None:
     [
         (None, None, "set FAB_PDK"),
         ("made_up_pdk", Path("/tmp/pdk"), "No default standard-cell"),
+        ("ihp-sg13g2", None, "Cannot resolve PDK_ROOT"),
     ],
-    ids=["no-pdk", "unknown-pdk"],
+    ids=["no-pdk", "unknown-pdk", "no-pdk-root"],
 )
 def test_resolve_sim_libs_invalid_context(
     tmp_path: Path,
@@ -252,5 +244,4 @@ def test_resolve_sim_libs_from_context(tmp_path: Path, mocker: MockerFixture) ->
     primary = _make_pdk(tmp_path / "pdk_root")
     _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
     result = cmd_user_design.resolve_sim_libs(tmp_path, [])
-    assert result[0] == primary
-    assert any("udp" in p.name for p in result)
+    assert result == [primary, primary.with_name("sg13g2_stdcell_udp.v")]

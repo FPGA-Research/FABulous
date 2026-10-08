@@ -11,21 +11,59 @@ from fabulous.fabric_generator.gds_generator.steps.auto_diode import (
     AutoEcoDiodeInsertion,
 )
 
+# Sink pins of `mock_antenna_report` whose partial antenna ratio exceeds the
+# required one; the remaining rows are below their limit.
+OVER_LIMIT_PINS = {
+    "_3249_/A",
+    "_3194_/A",
+    "_1193_/A",
+    "_1525_/A2",
+    "_1896_/A1",
+    "_3223_/A",
+    "_3246_/A",
+    "_3248_/A",
+    "_3254_/A",
+    "_1180_/A",
+    "_1322_/A0",
+    "_1525_/A0",
+    "_3171_/A",
+    "_3238_/A",
+    "_3201_/A",
+    "_3191_/A",
+    "_3252_/A",
+    "_3251_/A",
+    "_3247_/A",
+    "_3245_/A",
+}
+UNDER_LIMIT_PINS = {"_1216_/A1", "_1271_/A0", "_1333_/A2", "_1455_/A0", "_3154_/A"}
+
 
 class TestAutoEcoDiodeInsertion:
     """Test suite for AutoEcoDiodeInsertion step."""
 
+    @pytest.mark.parametrize(
+        ("mode", "expected_targets"),
+        [
+            pytest.param("ratio", OVER_LIMIT_PINS, id="ratio"),
+            pytest.param("all", OVER_LIMIT_PINS | UNDER_LIMIT_PINS, id="all"),
+        ],
+    )
     def test_parse_diodes(
-        self, mock_config: Config, mock_state: State, mock_antenna_report: str
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mock_antenna_report: str,
+        mode: str,
+        expected_targets: set[str],
     ) -> None:
-        """Test parsing diodes in 'all' mode."""
+        """`ratio` targets only over-limit sinks; `all` targets every reported sink."""
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
-        step.step_dir = "/tmp/test"
-        step.config = mock_config
+        step.config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE=mode)
+
         diodes = step.parse_diodes(mock_antenna_report)
 
-        assert len(diodes) == 20
-        assert all(hasattr(d, "target") for d in diodes)
+        assert len(diodes) == len(expected_targets)
+        assert {d.target for d in diodes} == expected_targets
 
     def test_parse_diodes_empty_report(
         self, mock_config: Config, mock_state: State
@@ -38,49 +76,27 @@ class TestAutoEcoDiodeInsertion:
         diodes = step.parse_diodes(empty_report)
         assert len(diodes) == 0
 
-    def test_condition_stops_loop_when_done_enough(
-        self, mock_config: Config, mock_state: State
+    @pytest.mark.parametrize(
+        ("done_enough", "keep_looping"),
+        [
+            pytest.param(False, True, id="inserting"),
+            pytest.param(True, False, id="done"),
+        ],
+    )
+    def test_condition_follows_done_enough(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        done_enough: bool,
+        keep_looping: bool,
     ) -> None:
-        """Test that condition returns False to stop the loop when insertion is
-        complete.
-
-        This validates the loop termination behavior - when done_enough is True,
-        the condition should return False to exit the WhileStep iteration loop.
-        This typically happens when all diodes have been successfully inserted.
-        """
-        step = AutoEcoDiodeInsertion(mock_config, mock_state)
-
-        # Simulate the initial state - not done yet
-        step.done_enough = False
-        assert step.condition(mock_state) is True, "Loop should continue when not done"
-
-        # Simulate completion - all diodes inserted
-        step.done_enough = True
-        assert step.condition(mock_state) is False, "Loop should stop when done_enough"
-
-    def test_condition_continues_loop_while_inserting(
-        self, mock_config: Config, mock_state: State
-    ) -> None:
-        """Test that condition returns True to continue loop during insertion.
-
-        This validates that the WhileStep continues iterating while there are still
-        diodes to insert (done_enough = False).
-        """
-        step = AutoEcoDiodeInsertion(mock_config, mock_state)
-
-        # Default state should continue the loop
-        step.done_enough = False
-        result = step.condition(mock_state)
-
-        assert result is True, "Loop should continue while inserting diodes"
-
-        # Verify that the condition is based solely on done_enough, not metrics
-        # (metrics are checked in post_loop_callback, not condition)
+        """The loop runs until `done_enough`; remaining violations do not matter."""
         mock_state.metrics["antenna__violating__nets"] = 100
         mock_state.metrics["antenna__violating__pins"] = 100
-        result = step.condition(mock_state)
+        step = AutoEcoDiodeInsertion(mock_config, mock_state)
+        step.done_enough = done_enough
 
-        assert result is True, "Condition should ignore metrics, only check done_enough"
+        assert step.condition(mock_state) is keep_looping
 
     def test_pre_iteration_callback_first_iteration(
         self,
@@ -90,44 +106,73 @@ class TestAutoEcoDiodeInsertion:
         tmp_path: Path,
         mock_antenna_report: str,
     ) -> None:
-        """Test pre_iteration_callback on first iteration."""
+        """Iteration 0 runs its own antenna check and queues a diode per violation."""
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
         step.current_iteration = 0
         step.step_dir = str(tmp_path)
+        step.config = mock_config
+        step.previous_state = mocker.MagicMock()
 
-        # Create pre-check directory and report
         pre_check_dir = tmp_path / "pre-check" / "reports"
         pre_check_dir.mkdir(parents=True)
         (pre_check_dir / "antenna_summary.rpt").write_text(mock_antenna_report)
-
-        # Mock CheckAntennas
-        mock_instance = mocker.MagicMock()
-        _mock_check_antennas = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas",
-            return_value=mock_instance,
+        check_antennas = mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas"
         )
-        step.config = mock_config
-        step.previous_state = mock_state
-        _new_state = step.pre_iteration_callback(mock_state)
 
-        assert step.config["INSERT_ECO_DIODES"] != []
+        new_state = step.pre_iteration_callback(mock_state)
+
+        check_antennas.assert_called_once_with(mock_config, mock_state)
+        check_antennas.return_value.start.assert_called_once_with(
+            step_dir=str(tmp_path / "pre-check")
+        )
+        assert {d.target for d in step.config["INSERT_ECO_DIODES"]} == OVER_LIMIT_PINS
+        assert step.done_enough is False
+        assert new_state is step.previous_state
+
+    def test_pre_iteration_callback_later_iteration_with_clean_report(
+        self,
+        mocker: MockerFixture,
+        mock_config: Config,
+        mock_state: State,
+        tmp_path: Path,
+    ) -> None:
+        """A later iteration reads the previous check; an empty report ends the loop."""
+        step = AutoEcoDiodeInsertion(mock_config, mock_state)
+        step.current_iteration = 2
+        step.step_dir = str(tmp_path)
+        step.config = mock_config
+        step.previous_state = mocker.MagicMock()
+
+        report_dir = tmp_path / "iter_1" / "1-openroad-checkantennas" / "reports"
+        report_dir.mkdir(parents=True)
+        (report_dir / "antenna_summary.rpt").write_text("")
+        check_antennas = mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas"
+        )
+
+        new_state = step.pre_iteration_callback(mock_state)
+
+        check_antennas.assert_not_called()
+        assert step.config["INSERT_ECO_DIODES"] == []
+        assert step.done_enough is True
+        assert new_state is step.previous_state
 
     def test_post_iteration_callback_success(
-        self, mock_config: Config, mock_state: State
+        self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
-        """Test post_iteration_callback on successful iteration."""
+        """A full iteration records its state, advances and counts its diodes."""
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
-
-        step_config = mock_config.copy(INSERT_ECO_DIODES=[1, 2, 3])
         step.current_iteration = 0
         step.previous_state = mock_state
-        step.config = step_config
+        step.config = mock_config.copy(INSERT_ECO_DIODES=[1, 2, 3])
+        post_state = mocker.MagicMock()
 
-        new_state = step.post_iteration_callback(mock_state, full_iteration=True)
+        new_state = step.post_iteration_callback(post_state, full_iteration=True)
 
         assert step.current_iteration == 1
-        assert step.previous_state == mock_state
-        assert new_state == mock_state
+        assert step.previous_state is post_state
+        assert new_state is post_state
         assert step.total_diodes_inserted == 3
 
     def test_post_iteration_callback_failure(
@@ -139,31 +184,35 @@ class TestAutoEcoDiodeInsertion:
         with pytest.raises(RuntimeError, match="Fail to insert ECO diodes"):
             step.post_iteration_callback(mock_state, full_iteration=False)
 
-    def test_post_loop_callback_with_violations_all_mode(
-        self, mock_config: Config, mock_state: State
+    @pytest.mark.parametrize(
+        ("mode", "violating_nets", "violating_pins", "raises"),
+        [
+            pytest.param("all", 2, 0, True, id="all-nets-remain"),
+            pytest.param("all", 0, 2, True, id="all-pins-remain"),
+            pytest.param("all", 0, 0, False, id="all-clean"),
+            pytest.param("ratio", 5, 5, False, id="ratio-tolerates"),
+        ],
+    )
+    def test_post_loop_callback(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mode: str,
+        violating_nets: int,
+        violating_pins: int,
+        raises: bool,
     ) -> None:
-        """Test post_loop_callback raises error when violations remain in 'all' mode."""
-        mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
-        mock_state.metrics["antenna__violating__nets"] = 2
-        mock_state.metrics["antenna__violating__pins"] = 3
-
+        """Only `all` mode fails when violations remain; otherwise the state passes."""
+        mock_state.metrics["antenna__violating__nets"] = violating_nets
+        mock_state.metrics["antenna__violating__pins"] = violating_pins
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
-        step.config = mock_config
-        with pytest.raises(RuntimeError, match="Antenna violations remain"):
-            step.post_loop_callback(mock_state)
+        step.config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE=mode)
 
-    def test_post_loop_callback_no_violations(
-        self, mock_config: Config, mock_state: State
-    ) -> None:
-        """Test post_loop_callback succeeds when no violations remain."""
-        mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
-        mock_state.metrics["antenna__violating__nets"] = 0
-        mock_state.metrics["antenna__violating__pins"] = 0
-
-        step = AutoEcoDiodeInsertion(mock_config, mock_state)
-        step.config = mock_config
-        result = step.post_loop_callback(mock_state)
-        assert result == mock_state
+        if raises:
+            with pytest.raises(RuntimeError, match="Antenna violations remain"):
+                step.post_loop_callback(mock_state)
+        else:
+            assert step.post_loop_callback(mock_state) is mock_state
 
     def test_run_skip_when_mode_none(
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
@@ -187,18 +236,18 @@ class TestAutoEcoDiodeInsertion:
     def test_run_processes_when_mode_not_none(
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
-        """Test run processes when mode is not 'none'."""
-        mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
-
+        """The loop runs from the input state and reports the diodes it inserted."""
         mock_run = mocker.patch(
             "fabulous.fabric_generator.gds_generator.steps.auto_diode.WhileStep.run",
-            return_value=({}, {}),
+            return_value=({"view": "data"}, {}),
         )
-
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
-        step.config = mock_config
-        step.previous_state = mock_state
+        step.config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
+        step.total_diodes_inserted = 7
+
         views_update, metrics_update = step.run(mock_state)
 
-        mock_run.assert_called_once()
-        assert step.previous_state == mock_state
+        mock_run.assert_called_once_with(mock_state)
+        assert step.previous_state is mock_state
+        assert views_update == {"view": "data"}
+        assert metrics_update == {"auto_diode_inserted_total": 7}

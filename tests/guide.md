@@ -2,55 +2,34 @@
 
 This guide explains how to write tests for the FABulous project using [pytest](https://docs.pytest.org/en/stable/).
 
-## Prerequisites
-
-Here we assume all the dependency required by FABulous is already installed.
-
-You can install pytest using pip:
-
-```sh
-pip install pytest
-```
-
 ## Running Tests
 
-To run all the test, use the following command at the top level directory:
+Install the development environment with `uv sync`, then run the suite through the task runner at the top level directory:
 
 ```sh
-pytest
+task test
 ```
 
-To run a test file, use the following command at the top level directory:
+Arguments after `--` are forwarded to pytest, for example a single file or test case:
 
 ```sh
-pytest <path_to_test_file>
+task test -- tests/repl_test/test_cli.py
+task test -- -k <name_of_test_case>
 ```
 
-To run a specific test case use the following command at the top level directory:
-
-```sh
-pytest -k <name_of_test_case>
-```
-
+Tests marked `slow` or `gl` are skipped unless `--runslow` or `--gl` is given.
 For more details on what option can be used please check the pytest documentation.
 
 ## Testing Infrastructure
 
-We use `pytest` as our testing framework. Our testing infrastructure is set up in `tests/CLI_test/conftest.py`, which provides several useful fixtures and utilities.
+The shared fixtures live in `tests/conftest.py`; the REPL tests add their own in `tests/repl_test/conftest.py`.
 
 ### Key Testing Components
 
 #### tmp_path Fixture
 
-`tmp_path` is a built-in pytest fixture that provides a temporary directory unique to each test function. It's particularly useful for us as we work with file creation.
-
-Example usage:
-
-```python
-def test_example(tmp_path: Path):
-    project_dir = tmp_path / "my_test_project"
-    # Your test code here
-```
+`tmp_path` is a built-in pytest fixture that provides a temporary directory unique to each test function.
+The autouse `fabulous_test_environment` fixture also changes into it and points the user config directory and the ciel PDK home at it.
 
 #### CLI Fixture and run_cmd
 
@@ -61,26 +40,25 @@ The `cli` fixture provides a pre-configured instance of `FABulousREPL` for testi
 - Loads the fabric configuration
 - Returns a ready-to-use CLI instance
 
-The `run_cmd` function is a utility for executing CLI commands and capturing their output. It:
+`run_cmd(cli, command)` runs one REPL command and returns nothing.
+A failing command does not raise: check `cli.exit_code`.
 
-- Takes a CLI instance and a command string
-- Captures both stdout and stderr
-- Returns normalized output as lists of lines
-- Handles all the complexity of redirecting streams
-
-Example usage:
+Assert on what the command produces, not on its log lines.
+A log line such as "generation complete" is written whether or not the artifact was written.
 
 ```python
-def test_cli_command(cli, caplog):
-    run_cmd(cli, "your_command_here")
-    log = normalize(caplog.text)
+def test_gen_top_wrapper(cli: FABulousREPL) -> None:
+    run_cmd(cli, "gen_top_wrapper")
 
-    # check is "something" in first line of log
-    assert "something" in log[0]
-
-    # or can do
-    assert "something" in caplog.text
+    assert cli.exit_code == 0
+    assert (cli.projectDir / "Fabric" / "eFPGA_top.v").stat().st_size > 0
 ```
+
+#### Logs
+
+The `caplog` fixture is wired to loguru and works for REPL commands.
+It does not work for tests that call `fabulous.fabulous.main()`: `main` calls `setup_logger`, which removes every loguru sink including the one `caplog` added.
+Read the stdout sink with `capfd` instead; with `FABULOUS_TESTING` set, records are formatted as `LEVEL: message`.
 
 ### Reference Tests
 
@@ -92,4 +70,4 @@ runs specified FABulous commands, and compares the outputs against expected resu
 The default reference projects are hosted in the
 [FABulous-demo-projects repo](https://github.com/FPGA-Research/FABulous-demo-projects)
 
-For more information, please check the [reference_tests README](./reference_tests/README.md)
+For more information, please check the [reference_test README](./reference_test/README.md)

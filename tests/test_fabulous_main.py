@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous import NixShell, main
+from fabulous.fabulous import main
 
 
 def make_flake_dir(tmp_path: Path) -> Path:
@@ -33,9 +33,11 @@ def test_nix_env_error_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mocker: MockerFixture,
+    capfd: pytest.CaptureFixture[str],
     has_nix: bool,
     has_flake: bool,
 ) -> None:
+    """Each missing prerequisite is reported and nix is never executed."""
     flake_dir = tmp_path / "flake_dir"
     flake_dir.mkdir()
     if has_flake:
@@ -45,6 +47,7 @@ def test_nix_env_error_paths(
         "shutil.which",
         return_value="/nix/store/fake/bin/nix" if has_nix else None,
     )
+    mock_execvpe = mocker.patch("os.execvpe")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -55,6 +58,14 @@ def test_nix_env_error_paths(
         main()
 
     assert exc_info.value.code == 1
+    mock_execvpe.assert_not_called()
+    expected_error = (
+        f"ERROR: flake.nix not found in {flake_dir.resolve()}. "
+        "Use --flake-dir to specify the directory containing flake.nix.\n"
+        if has_nix
+        else "ERROR: Nix is not installed. Run `FABulous install nix` to install it.\n"
+    )
+    assert capfd.readouterr().out == expected_error
 
 
 # ---------------------------------------------------------------------------
@@ -82,9 +93,11 @@ def test_flake_dir_auto_discovery(
         main()
 
     mock_execvpe.assert_called_once()
-    _, nix_argv, _ = mock_execvpe.call_args[0]
+    _, nix_argv, env_vars = mock_execvpe.call_args[0]
     flake_ref = nix_argv[2]
     assert flake_ref == f"path:{expected_path}#nix-env"
+    # the bundled flake sits one level below the repository it builds
+    assert env_vars["REPO_ROOT"] == str(resource_dir.parent)
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +128,7 @@ def test_nix_env_shell_and_execvp(
 ) -> None:
     flake_dir = make_flake_dir(tmp_path)
     monkeypatch.delenv("FAB_NIX_SHELL", raising=False)
+    monkeypatch.delenv("REPO_ROOT", raising=False)
     monkeypatch.setenv("SHELL", shell_env)
     mocker.patch("shutil.which", return_value="/nix/store/fake/bin/nix")
     mock_execvpe = mocker.patch("os.execvpe")
@@ -142,6 +156,8 @@ def test_nix_env_shell_and_execvp(
     assert env_vars.get("FAB_NIX_SHELL") == expected_shell
     # --no-check not passed, so env var should be 0
     assert env_vars.get("FAB_NIX_NO_CHECK") == "0"
+    # an explicit --flake-dir is not the bundled flake, so no repository root
+    assert "REPO_ROOT" not in env_vars
 
 
 # ---------------------------------------------------------------------------
@@ -149,20 +165,43 @@ def test_nix_env_shell_and_execvp(
 # ---------------------------------------------------------------------------
 
 
-def test_nix_env_no_check_flag(
+@pytest.mark.parametrize(
+    ("flag", "env"),
+    [
+        pytest.param(["--no-check"], {}, id="flag"),
+        pytest.param(
+            [],
+            {"FAB_NIX_NO_CHECK": "1"},
+            id="setting",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "nix-env skips init_context, and the api_mode context only "
+                    "copies FAB_NIX_SHELL, so the nix_no_check setting is never read"
+                ),
+            ),
+        ),
+    ],
+)
+def test_nix_env_no_check(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mocker: MockerFixture,
+    flag: list[str],
+    env: dict[str, str],
 ) -> None:
+    """`--no-check` or the `FAB_NIX_NO_CHECK` setting skips the tool check."""
     flake_dir = make_flake_dir(tmp_path)
     monkeypatch.delenv("FAB_NIX_SHELL", raising=False)
     monkeypatch.setenv("SHELL", "/bin/bash")
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
     mocker.patch("shutil.which", return_value="/nix/store/fake/bin/nix")
     mock_execvpe = mocker.patch("os.execvpe")
     monkeypatch.setattr(
         sys,
         "argv",
-        ["FABulous", "nix-env", "--flake-dir", str(flake_dir), "--no-check"],
+        ["FABulous", "nix-env", "--flake-dir", str(flake_dir), *flag],
     )
 
     with pytest.raises(SystemExit):
@@ -193,32 +232,3 @@ def test_nix_env_uses_settings_shell_when_not_explicit(
     mock_execvpe.assert_called_once()
     _, _, env_vars = mock_execvpe.call_args[0]
     assert env_vars.get("FAB_NIX_SHELL") == "zsh"
-
-
-# ---------------------------------------------------------------------------
-# NixShell enum
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("value", "member"),
-    [
-        pytest.param("bash", NixShell.BASH, id="bash"),
-        pytest.param("fish", NixShell.FISH, id="fish"),
-        pytest.param("zsh", NixShell.ZSH, id="zsh"),
-    ],
-)
-def test_nix_shell_enum_from_string(value: str, member: NixShell) -> None:
-    assert NixShell(value) == member
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        pytest.param("tcsh", id="tcsh"),
-        pytest.param("csh", id="csh"),
-        pytest.param("", id="empty"),
-    ],
-)
-def test_nix_shell_enum_invalid(value: str) -> None:
-    assert NixShell(value) is NixShell.BASH

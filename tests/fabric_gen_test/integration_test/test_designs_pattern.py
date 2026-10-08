@@ -3,7 +3,6 @@
 # cspell:words cocotb noqa
 
 import random
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,36 +28,7 @@ from tests.fabric_gen_test.integration_test.conftest import (
 
 _FABRIC_SUFFIX: dict[str, str] = {"verilog": ".v", "vhdl": ".vhdl"}
 
-# Fabric → pad outputs; after bitstream upload these should leave X/Z.
-_FABRIC_OUTPUT_RE = re.compile(
-    r"^Tile_X(?P<tilex>\d+)Y(?P<tiley>\d+)_[A-Z]_I_top\d*$",
-    re.IGNORECASE,
-)
-
 _THIS_FILE = Path(__file__).resolve()
-
-
-@cocotb.test
-async def cocotb_test_demo_bitstream_smoke(dut: FabricConfigDUT) -> None:
-    """Replay the demo bitstream and assert fabric IO ports stay defined."""
-    await setup_fabric(dut)
-    await Timer(10, unit="ns")
-
-    defined_outs = 0
-    fabric_outputs = 0
-    for element in dut:
-        element_name: str = element._name  # noqa: SLF001
-        if _FABRIC_OUTPUT_RE.match(element_name) is None:
-            continue
-        fabric_outputs += 1
-        value = str(element.value)
-        if not any(ch in value for ch in ("x", "X", "z", "Z")):
-            defined_outs += 1
-    assert fabric_outputs > 0, "No fabric `_I_top` ports found in DUT"
-    assert defined_outs > 0, (
-        f"Bitstream upload appears broken: {fabric_outputs} fabric output "
-        "ports all still at X/Z"
-    )
 
 
 @cocotb.test

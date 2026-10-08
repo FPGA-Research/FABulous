@@ -42,9 +42,7 @@ class TestParetoFrontier:
         samples = [(127.68, 1034.88), (236.16, 470.4)]
         frontier = NLPTileProblem._pareto_frontier(samples)
 
-        assert (236.16, 470.4) in frontier
-        assert (127.68, 1034.88) in frontier
-        assert len(frontier) == 2
+        assert frontier == [(236.16, 470.4), (127.68, 1034.88)]
 
     def test_drops_dominated_samples(self) -> None:
         """A sample that is wider AND taller than another is dominated and dropped."""
@@ -80,7 +78,7 @@ class TestParetoFrontier:
             assert curr[0] < prev[0]
 
     @pytest.mark.parametrize(
-        ("samples", "expected_first_w_h", "expected_last_w_h"),
+        ("samples", "expected_frontier"),
         [
             pytest.param(
                 # DSP supertile: balance (236, 470), find_min_height probes
@@ -92,8 +90,7 @@ class TestParetoFrontier:
                     (127.68, 1034.88),
                     (127.68, 916.02),
                 ],
-                (236.16, 470.4),
-                (127.68, 828.24),
+                [(236.16, 470.4), (127.68, 828.24)],
                 id="dsp-supertile-frontier",
             ),
             pytest.param(
@@ -104,8 +101,7 @@ class TestParetoFrontier:
                     (125.76, 108.36),
                     (249.6, 108.36),  # dominated by (125.76, 108.36)
                 ],
-                (125.76, 108.36),
-                (20.16, 1338.96),
+                [(125.76, 108.36), (108.48, 142.38), (20.16, 1338.96)],
                 id="w-io-frontier",
             ),
         ],
@@ -113,21 +109,10 @@ class TestParetoFrontier:
     def test_real_demo_project_frontiers(
         self,
         samples: list[tuple[float, float]],
-        expected_first_w_h: tuple[float, float],
-        expected_last_w_h: tuple[float, float],
+        expected_frontier: list[tuple[float, float]],
     ) -> None:
         """Lock in the frontier shape for representative tiles from the demo."""
-        frontier = NLPTileProblem._pareto_frontier(samples)
-        assert frontier[0] == expected_first_w_h
-        assert frontier[-1] == expected_last_w_h
-        # Every kept sample is non-dominated by every other kept sample.
-        for i, (w_i, h_i) in enumerate(frontier):
-            for j, (w_j, h_j) in enumerate(frontier):
-                if i == j:
-                    continue
-                assert not (w_j <= w_i and h_j <= h_i and (w_j, h_j) != (w_i, h_i)), (
-                    f"{frontier[j]} dominates {frontier[i]}"
-                )
+        assert NLPTileProblem._pareto_frontier(samples) == expected_frontier
 
 
 class TestEnvelopeWFloor:
@@ -434,10 +419,11 @@ class TestNLPTileProblemInit:
         assert n_col_groups == 2
         assert problem.n_var == n_row_groups + n_col_groups
 
-        # Every dimension has a strictly positive floor and a non-collapsing
-        # upper bound.
-        assert np.all(problem.xl > 0)
-        assert np.all(problem.xu >= problem.xl)
+        # Variables are [row height, column A width, column B width]. Floors are
+        # the single compiled bbox per tile; ceilings are 3x the floor, which
+        # dominates both the area bound (21000/100, 25200/120) and 2x the bbox.
+        np.testing.assert_array_equal(problem.xl, [200.0, 100.0, 120.0])
+        np.testing.assert_array_equal(problem.xu, [600.0, 300.0, 360.0])
 
     def test_disjoint_rows_get_distinct_row_groups(self) -> None:
         # A occupies only row 0 and B only row 1 (single shared column). Because

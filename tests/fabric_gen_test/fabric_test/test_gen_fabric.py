@@ -5,12 +5,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
-    ConfigBitMode,
     Side,
 )
 from fabulous.fabric_definition.fabric import Fabric
@@ -25,25 +23,11 @@ from fabulous.fabric_generator.gen_fabric.gen_fabric import (
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
-from tests.fabric_gen_test.conftest import create_switchmatrix_list
-
-
-def test_generate_fabric_uses_fabric_name(mocker: MockerFixture) -> None:
-    """GenerateFabric should use fabric.name as the module name."""
-    fabric = mocker.create_autospec(Fabric)
-    fabric.name = "test_fabric"
-    fabric.tile = []
-    fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
-    fabric.maxFramesPerCol = 20
-    fabric.frameBitsPerRow = 32
-    fabric.numberOfRows = 0
-    fabric.numberOfColumns = 0
-
-    writer = mocker.create_autospec(CodeGenerator)
-
-    generateFabric(writer, fabric)
-
-    writer.addHeader.assert_called_once_with("test_fabric")
+from tests.fabric_gen_test.conftest import (
+    Netlist,
+    create_switchmatrix_list,
+    tile_stub,
+)
 
 
 def _supertile(tmp_path: Path) -> SuperTile:
@@ -199,11 +183,13 @@ def test_user_clk_chains_from_side(
     side: Side,
     mk_tile: Callable[[str], Tile],
     code_generator_factory: Callable[[str, str], CodeGenerator],
+    elaborate: Callable[..., Netlist],
 ) -> None:
     """`Fabric.userCLKSide` selects the neighbour that feeds each tile's UserCLK.
 
-    On a 3x3 grid the centre tile chains from its `side` neighbour and the
-    tile on the far edge in that direction takes the global clock.
+    On a 3x3 grid every tile's UserCLK must be the UserCLKo net of its `side`
+    neighbour, and a tile with no such neighbour takes the global clock. The
+    fabric module carries the fabric's name.
     """
     tile = mk_tile("T")
     fabric = Fabric(
@@ -212,16 +198,18 @@ def test_user_clk_chains_from_side(
         numberOfRows=3,
         numberOfColumns=3,
         userCLKSide=side,
+        name="test_fabric",
     )
-    writer = code_generator_factory(".v", "eFPGA")
+    writer = code_generator_factory(".v", "test_fabric")
     generateFabric(writer, fabric)
-    rtl = writer.outFileName.read_text()
+    net = elaborate(writer.outFileName.read_text() + tile_stub(tile))
 
+    assert net.top_name == "test_fabric"
     dx, dy = USER_CLK_PREDECESSOR[side]
-    centre = rtl[rtl.index("Tile_X1Y1_T") :]
-    assert f".UserCLK(Tile_X{1 + dx}Y{1 + dy}_UserCLKo)" in centre
-    # The tile at the entry edge has no predecessor -> global UserCLK.
-    ex = 1 + dx
-    ey = 1 + dy
-    edge = rtl[rtl.index(f"Tile_X{ex}Y{ey}_T") :]
-    assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]
+    for y in range(3):
+        for x in range(3):
+            clk = net.cell_net(f"Tile_X{x}Y{y}_T", "UserCLK")
+            if 0 <= x + dx < 3 and 0 <= y + dy < 3:
+                assert clk == net.cell_net(f"Tile_X{x + dx}Y{y + dy}_T", "UserCLKo")
+            else:
+                assert clk == net.port_net("UserCLK")
