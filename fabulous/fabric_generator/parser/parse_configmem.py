@@ -123,7 +123,7 @@ def parseConfigMem(
 
             elif ";" in entry["ConfigBits_ranges"]:
                 for item in entry["ConfigBits_ranges"].split(";"):
-                    if int(item) in allConfigBitsOrder:
+                    if int(item) in allConfigBitsOrder or int(item) in configBitsOrder:
                         raise ValueError(
                             f"Configuration bit index {item} already allocated in "
                             f"{fileName}, {entry['frame_name']}."

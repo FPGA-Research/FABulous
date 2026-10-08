@@ -291,7 +291,7 @@ def test_clone_tile_error_cases(
     cmd: str,
     error_fragment: str,
 ) -> None:
-    """Error cases log an informative ERROR and clone or register nothing."""
+    """Error cases fail with an informative ERROR and clone or register nothing."""
     if "LUT4AB_copy" in cmd:
         (cli.projectDir / "Tile" / "LUT4AB_copy").mkdir(parents=True)
     if "EMPTY_DIR" in cmd:
@@ -306,8 +306,7 @@ def test_clone_tile_error_cases(
     assert error_fragment in errors[0]
     assert sorted(p.name for p in (cli.projectDir / "Tile").iterdir()) == tiles_before
     assert cli.csvFile.read_text(encoding="utf-8") == csv_before
-    # bug: clone_tile only logs its usage errors, so the command still exits 0
-    assert cli.exit_code == 0
+    assert cli.exit_code == 1
 
 
 def test_clone_tile_dst_absolute_path(

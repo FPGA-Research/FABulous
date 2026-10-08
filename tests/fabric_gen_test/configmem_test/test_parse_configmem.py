@@ -422,10 +422,6 @@ def test_parsing_scenarios(tmp_path: Path, test_case: ParseConfigTestCase) -> No
                 expected_error="already allocated",
             ),
             id="repeated_bits_within_frame",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="parse_configmem only checks earlier frames for repeats",
-            ),
         ),
         pytest.param(
             ParseConfigErrorCase(

@@ -327,6 +327,8 @@ class SDFTimingGraph(SDFTimingGraphBase):
         targets: set[str] = set(targets)
         if not targets:
             raise ValueError("targets must be a non-empty iterable of nodes")
+        # add_edge would insert a missing target into G as a new node.
+        targets = {t for t in targets if t in G}
 
         # Pick a sentinel name that doesn't collide with existing nodes
         sentinel: str = f"{sentinel_prefix}_i89f9j9g58f7g6e5d4c3b2a1"

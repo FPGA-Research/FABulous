@@ -7,6 +7,7 @@ Tests focus on:
 - IO pin configuration generation
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -377,6 +378,64 @@ class TestSerializeSupertilePorts:
                 "WEST": [[r"Tile_X0Y1_FrameData\[\d+\]"]],
             },
         }
+
+    @staticmethod
+    def _interior_supertile_with_bel(
+        mocker: MockerFixture, port_sides: list[Side]
+    ) -> SuperTile:
+        """A 1x1 supertile whose sub-tile holds a BEL with external ports.
+
+        It has routing ports on `port_sides` and no fabric border side.
+        """
+        bel = mocker.MagicMock(
+            prefix="A_", externalInput=["A_ext_in"], externalOutput=["A_ext_out"]
+        )
+        bel.name = "EXT"
+        tile = _subtile(mocker)
+        tile.bels = [bel]
+        supertile = mocker.MagicMock(spec=SuperTile)
+        supertile.name = "ST"
+        supertile.bels = []
+        supertile.tileMap = [[tile]]
+        supertile.get_ports_around_tile.return_value = {
+            "0,0": [[_port(f"{side.name}_P", side)] for side in port_sides]
+        }
+        return supertile
+
+    def test_interior_bel_external_ports_take_the_only_routing_side(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Off the fabric border, a single routing-port side takes the BEL pins."""
+        supertile = self._interior_supertile_with_bel(mocker, [Side.EAST])
+
+        result = _serialize_supertile_ports(supertile, external_port_sides={})
+
+        assert result["X0Y0"]["EAST"][-1]["pins"] == ["A_ext_in", "A_ext_out"]
+
+    @pytest.mark.parametrize(
+        ("port_sides", "candidates"),
+        [
+            pytest.param([Side.EAST, Side.NORTH], "['EAST', 'NORTH']", id="two"),
+            pytest.param(
+                [Side.SOUTH, Side.WEST, Side.NORTH],
+                "['NORTH', 'SOUTH', 'WEST']",
+                id="three",
+            ),
+        ],
+    )
+    def test_interior_bel_external_ports_with_several_sides_raise(
+        self, mocker: MockerFixture, port_sides: list[Side], candidates: str
+    ) -> None:
+        """Off the fabric border, several routing-port sides are ambiguous."""
+        supertile = self._interior_supertile_with_bel(mocker, port_sides)
+
+        expected = (
+            "Ambiguous side for the external ports of BEL A_EXT in supertile ST at "
+            "X0Y0: the sub-tile is not on the fabric border and has routing ports "
+            f"on {candidates}."
+        )
+        with pytest.raises(ValueError, match=re.escape(expected)):
+            _serialize_supertile_ports(supertile, external_port_sides={})
 
     def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture) -> None:
         """Test handling when tileMap has None entries."""

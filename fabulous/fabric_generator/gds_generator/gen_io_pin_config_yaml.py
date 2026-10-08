@@ -208,8 +208,18 @@ def _serialize_supertile_ports(
                 if pin_regexes:
                     if external_port_sides and (int(x), int(y)) in external_port_sides:
                         external_side = external_port_sides[(int(x), int(y))]
+                    elif len(perimeter_sides) > 1:
+                        raise ValueError(
+                            f"Ambiguous side for the external ports of BEL "
+                            f"{bel.prefix}{bel.name} in supertile {super_tile.name} "
+                            f"at {tile_key}: the sub-tile is not on the fabric "
+                            f"border and has routing ports on "
+                            f"{sorted(side.name for side in perimeter_sides)}. The "
+                            "side is only resolved for a sub-tile on the fabric "
+                            "border or with routing ports on a single side."
+                        )
                     elif perimeter_sides:
-                        external_side = next(iter(perimeter_sides))
+                        (external_side,) = perimeter_sides
                     else:
                         external_side = Side.SOUTH
 

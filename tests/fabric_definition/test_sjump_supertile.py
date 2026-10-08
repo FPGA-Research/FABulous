@@ -431,6 +431,46 @@ class TestGenBitstreamSpecSupertileMux:
         assert spec["TileSpecs"] == expected
         assert spec["TileSpecs_No_Mask"] == expected
 
+    def test_multi_bit_bel_feature_keeps_every_bit(
+        self, make_fabric: Callable[..., Fabric], tmp_path: Path
+    ) -> None:
+        """A two-bit supertile BEL feature maps both bits at the master tile."""
+        top_mat = tmp_path / "DSP_top_switch_matrix.csv"
+        bot_mat = tmp_path / "DSP_bot_switch_matrix.csv"
+        top_mat.write_text("DSP_top\n")
+        bot_mat.write_text("DSP_bot\n")
+        rows = [
+            "frame_name,frame_index,bits_used_in_frame,used_bits_mask,ConfigBits_ranges",
+            "frame0,0,2," + "1" * 2 + "0" * 30 + ",1:0",
+        ]
+        for i in range(1, 20):
+            rows.append(f"frame{i},{i},0," + "0" * 32 + ",NULL")
+        (tmp_path / "DSP_ConfigMem.csv").write_text("\n".join(rows) + "\n")
+
+        top = _tile("DSP_top", [])
+        bot = _tile("DSP_bot", [])
+        top.switch_matrix = SwitchMatrix.from_file(top_mat, "DSP_top")
+        bot.switch_matrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
+        bel = make_muladd_bel([])
+        bel.configBit = 2
+        bel.belFeatureMap = {"MODE": {0: {0: "0", 1: "1"}}}
+        supertile = SuperTile(
+            name="DSP",
+            tileDir=tmp_path / "DSP.csv",
+            tiles=[top, bot],
+            tileMap=[[top], [bot]],
+            bels=[bel],
+        )
+        for t in supertile.tiles:
+            t.partOfSuperTile = True
+        fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
+
+        spec = generateBitstreamSpec(fabric)
+
+        # Config bit 0 sits on frame bit 30 and config bit 1 on frame bit 31.
+        assert spec["TileSpecs"]["X0Y1"] == {"A.MODE": {30: "0", 31: "1"}}
+        assert spec["TileSpecs_No_Mask"]["X0Y1"] == {"A.MODE": {30: "0", 31: "1"}}
+
     def test_supertile_mask_merged_into_master_framemap(self, spec: dict) -> None:
         # Neither tile has config bits of its own, yet the supertile's used-bit
         # mask for frame 0 is merged into the master tile's FrameMap.

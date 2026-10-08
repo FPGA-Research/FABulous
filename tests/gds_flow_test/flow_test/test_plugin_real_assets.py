@@ -122,14 +122,16 @@ class TestTileRealAsset:
         assert flow.config["FABULOUS_IO_PIN_ORDER_CFG"] == str(pin_yaml)
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
-        # The eight LUT BELs share one primitive source, listed once ahead of
-        # the generated tile RTL. The BEL path keeps the CSV's relative `..`
-        # segments.
+        # The eight LUT BELs share one primitive source, listed once and
+        # resolved (no `..` segments) ahead of the generated tile RTL.
         resolved_tile_dir: Path = tile_dir.resolve()
         assert flow.config["VERILOG_FILES"] == [
             str(
-                resolved_tile_dir
-                / "../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v"
+                assets.resolve()
+                / "primitives"
+                / "FABULOUS_LC"
+                / "fabulous"
+                / "FABULOUS_LC.v"
             ),
             str(resolved_tile_dir / f"{TILE_NAME}.v"),
             str(resolved_tile_dir / f"{TILE_NAME}_switch_matrix.v"),

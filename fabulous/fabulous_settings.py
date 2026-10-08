@@ -20,6 +20,7 @@ from loguru import logger
 from packaging.version import Version
 from pydantic import (
     Field,
+    TypeAdapter,
     ValidationError,
     ValidationInfo,
     field_validator,
@@ -315,33 +316,31 @@ class FABulousSettings(BaseSettings):
 
     @field_validator("proj_lang", mode="before")
     @classmethod
-    def parse_proj_lang(cls, value: str | HDLType) -> str | HDLType:
-        """Parse project language from string or HDLType enum."""
-        if isinstance(value, HDLType):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower()
-        raise ValueError("Project language must be a string or HDLType enum")
+    def parse_proj_lang(cls, value: str | HDLType) -> HDLType:
+        """Normalise the project language to `HDLType`, accepting aliases.
 
-    @field_validator("proj_lang", mode="after")
-    @classmethod
-    def validate_proj_lang(cls, value: str | HDLType) -> HDLType:
-        """Validate and normalise the project language to HDLType enum."""
+        This runs before pydantic's enum check, which would otherwise reject the
+        `v`, `sv` and `vhd` aliases.
+        """
         if isinstance(value, HDLType):
             return value
-        key = value.strip().upper()
-        # Allow common aliases
-        alias_map = {
-            "VERILOG": "VERILOG",
-            "V": "VERILOG",
-            "SYSTEM_VERILOG": "SYSTEM_VERILOG",
-            "SV": "SYSTEM_VERILOG",
-            "VHDL": "VHDL",
-            "VHD": "VHDL",
+        aliases = {
+            "verilog": HDLType.VERILOG,
+            "v": HDLType.VERILOG,
+            "system_verilog": HDLType.SYSTEM_VERILOG,
+            "sv": HDLType.SYSTEM_VERILOG,
+            "vhdl": HDLType.VHDL,
+            "vhd": HDLType.VHDL,
         }
-        if key not in alias_map:
-            raise ValueError(f"Invalid project language: {value}")
-        return HDLType[alias_map[key]]
+        if isinstance(value, str):
+            key = value.strip().lower()
+            if key in aliases:
+                return aliases[key]
+            raise ValueError(
+                f"Invalid project language {value!r}, expected one of: "
+                f"{', '.join(aliases)}"
+            )
+        raise ValueError("Project language must be a string or HDLType enum")
 
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(
@@ -359,33 +358,37 @@ class FABulousSettings(BaseSettings):
     def resolve_tool_paths(
         cls, value: Path | str | None, info: ValidationInfo
     ) -> Path | str:
-        """Resolve tool paths by checking if tools are available in `PATH`.
+        """Resolve a tool to an executable path.
 
-        This method is used as a field validator to automatically resolve tool paths
-        during settings initialization. If a tool path is not explicitly provided,
-        it searches for the tool in the system `PATH`.
+        A value with a directory component is an explicit path and must exist. A
+        bare name, including the default, is looked up on `PATH` under that name.
 
         Parameters
         ----------
         value : Path | str | None
-            The explicitly provided tool path, if any.
+            The explicitly provided tool path or name, if any.
         info : ValidationInfo
             Validation context containing field information.
 
         Returns
         -------
         Path | str
-            The resolved path to the tool if found, tool name otherwise.
+            The resolved path to the tool if found, the default tool name
+            otherwise.
+
+        Raises
+        ------
+        ValueError
+            If an explicit path does not exist, or an explicit non-default name is
+            not found on `PATH`.
 
         Notes
         -----
-        This method logs a warning if a tool is not found in `PATH`, as some
-        features may be unavailable without the tool.
+        This method logs a warning if the default tool is not found in `PATH`, as
+        some features may be unavailable without the tool.
         """
         if isinstance(value, Path):
             return value
-        if isinstance(value, str) and value != "" and Path(value).exists():
-            return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
             "opensta_path": "sta",
@@ -396,17 +399,34 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name)
+        default_tool = tool_map[info.field_name]
+        env_var = f"FAB_{info.field_name.upper()}"
+        tool = value or default_tool
+        if Path(tool).name != tool:
+            if not Path(tool).exists():
+                raise ValueError(
+                    f"{env_var} is set to {tool}, which does not exist. Point it at "
+                    f"an existing executable, or unset it to look up {default_tool} "
+                    "on PATH."
+                )
+            return Path(tool).resolve()
+
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
             return Path(tool_path).resolve()
+        if tool != default_tool:
+            raise ValueError(
+                f"{env_var} is set to {tool}, which is not found on PATH. Add it to "
+                f"PATH, give its full path, or unset {env_var} to look up "
+                f"{default_tool} instead."
+            )
 
         logger.warning(
             f"{tool} not found in PATH during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return tool_map[info.field_name]
+        return default_tool
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:
@@ -533,6 +553,8 @@ def init_context(
     global_dot_env: Path | None = None,
     project_dot_env: Path | None = None,
     api_mode: bool = False,
+    verbose: int | None = None,
+    debug: bool | None = None,
 ) -> FABulousSettings:
     """Initialize the global FABulous context with settings.
 
@@ -549,6 +571,12 @@ def init_context(
         Path to a project-specific .env file (if any)
     api_mode: bool
         If True, skips all validation for API mode
+    verbose : int | None
+        Verbosity given on the command line. Defaults to None, which leaves it to
+        `FAB_VERBOSE`.
+    debug : bool | None
+        Debug mode given on the command line. Defaults to None, which leaves it to
+        `FAB_DEBUG`.
 
     Returns
     -------
@@ -562,8 +590,13 @@ def init_context(
 
     if api_mode:
         logger.debug("API mode: skipping all validation")
+        # model_construct reads no environment, so the settings that work outside
+        # a project are parsed here with pydantic's own coercion.
         return FABulousSettings.model_construct(
             nix_shell=os.environ.get("FAB_NIX_SHELL"),
+            nix_no_check=TypeAdapter(bool).validate_python(
+                os.environ.get("FAB_NIX_NO_CHECK", False)
+            ),
         )
 
     # 1. User config .env file (global)
@@ -604,12 +637,19 @@ def init_context(
                 "but this is not found, this entry is ignored"
             )
 
+    # Init kwargs outrank every env source, so command-line flags win.
+    cli_flags: dict[str, int | bool] = {}
+    if verbose is not None:
+        cli_flags["verbose"] = verbose
+    if debug is not None:
+        cli_flags["debug"] = debug
+
     if project_dir:
         _context_instance = FABulousSettings(
-            proj_dir=project_dir, _env_file=tuple(env_files)
+            proj_dir=project_dir, _env_file=tuple(env_files), **cli_flags
         )
     else:
-        _context_instance = FABulousSettings(_env_file=tuple(env_files))
+        _context_instance = FABulousSettings(_env_file=tuple(env_files), **cli_flags)
 
     return _context_instance
 

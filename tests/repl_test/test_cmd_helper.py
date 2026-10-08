@@ -64,13 +64,10 @@ def test_print_bel_not_found(
 
 
 def test_tile_completer_returns_tile_names(cli: FABulousREPL) -> None:
-    """The tile completer offers the fabric's tile names, reaching app state via _cmd.
-
-    Supertiles (`DSP`) are offered as their sub-tiles only, although print_tile
-    accepts the supertile name too.
-    """
+    """The tile completer offers every tile and supertile name, via _cmd."""
     names = _complete_names(cli, "print_tile", "tile")
     assert sorted(names) == [
+        "DSP",
         "DSP_bot",
         "DSP_top",
         "LUT4AB",
@@ -89,9 +86,9 @@ def test_tile_completer_returns_tile_names(cli: FABulousREPL) -> None:
 
 
 def test_bel_completer_returns_bel_names(cli: FABulousREPL) -> None:
-    """The bel completer offers every bel module of the fabric, via _cmd."""
+    """The bel completer offers every bel module of the fabric once, via _cmd."""
     names = _complete_names(cli, "print_bel", "bel")
-    assert set(names) == {
+    assert sorted(names) == [
         "Config_access",
         "IO_1_bidirectional_frame_config_pass",
         "InPass4_frame_config_mux",
@@ -100,4 +97,4 @@ def test_bel_completer_returns_bel_names(cli: FABulousREPL) -> None:
         "MUX8LUT_frame_config_mux",
         "OutPass4_frame_config_mux",
         "RegFile_32x4",
-    }
+    ]

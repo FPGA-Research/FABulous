@@ -6,6 +6,7 @@ from typing import cast
 
 from librelane.common import GenericImmutableDict
 from librelane.config.variable import Variable
+from librelane.flows.classic import Classic
 from librelane.flows.flow import FlowException
 from librelane.logging.logger import info
 from librelane.state.design_format import DesignFormat
@@ -120,6 +121,16 @@ var = [
     ),
 ]
 
+# RUN_DRT is deliberately absent: the loop sizes the tile by the detailed-routing
+# DRC result, so routing cannot be skipped inside it.
+gating = {
+    "OpenROAD.TapEndcapInsertion": ["RUN_TAP_ENDCAP_INSERTION"],
+    "OpenROAD.CTS": ["RUN_CTS"],
+    "OpenROAD.RepairAntennas": ["RUN_ANTENNA_REPAIR"],
+}
+classic_variables = {variable.name: variable for variable in Classic.config_vars}
+var += [classic_variables[name] for names in gating.values() for name in names]
+
 
 @Step.factory.register()
 class TileAreaOptimisation(WhileStep):
@@ -166,6 +177,8 @@ class TileAreaOptimisation(WhileStep):
     ]
 
     config_vars = var
+
+    gating_config_vars = gating
 
     max_iterations = 20
 

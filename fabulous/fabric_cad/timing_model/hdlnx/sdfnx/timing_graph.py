@@ -62,12 +62,11 @@ def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
     """
     nominal = delay_paths.get("nominal")
     if isinstance(nominal, dict) and ("min" in nominal or "max" in nominal):
-        nmin = _as_float(nominal.get("min"))
-        nmax = _as_float(nominal.get("max"))
-        return max(nmin, nmax)
-
-    fast = delay_paths.get("fast", {}) or {}
-    slow = delay_paths.get("slow", {}) or {}
+        # A nominal triple overrides fast and slow: it stands in for both.
+        fast = slow = nominal
+    else:
+        fast = delay_paths.get("fast", {}) or {}
+        slow = delay_paths.get("slow", {}) or {}
 
     fast_min: float = _as_float(fast.get("min"))
     fast_max: float = _as_float(fast.get("max"))

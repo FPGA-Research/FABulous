@@ -126,8 +126,8 @@ class AutoEcoDiodeInsertion(WhileStep):
         Currently unimplemented.
         """
         if self.config["AUTO_ECO_DIODE_INSERT_MODE"] == "all" and (
-            (state.metrics["antenna__violating__nets"] > 1)
-            or (state.metrics["antenna__violating__pins"] > 1)
+            (state.metrics["antenna__violating__nets"] > 0)
+            or (state.metrics["antenna__violating__pins"] > 0)
         ):
             raise RuntimeError("Antenna violations remain after auto-diode insertion.")
         return state

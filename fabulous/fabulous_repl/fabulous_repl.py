@@ -29,7 +29,7 @@ import sys
 import tkinter as tk
 import traceback
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 from cmd2 import (
     Cmd,
@@ -302,6 +302,21 @@ class FABulousREPL(Cmd):
             if self.interactive:
                 return False
             return not self.force
+
+    def default(self, statement: Statement) -> NoReturn:
+        """Fail on an unrecognised command instead of only printing an error.
+
+        Parameters
+        ----------
+        statement : Statement
+            The parsed line whose command matched no command, alias or macro.
+
+        Raises
+        ------
+        CommandError
+            Always, naming the unrecognised command.
+        """
+        raise CommandError(self.default_error.format(statement.command))
 
     @with_category(CMD_OTHER)
     @with_annotated

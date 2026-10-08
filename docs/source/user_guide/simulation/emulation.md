@@ -11,19 +11,20 @@ runtime, see [Emulating a fabric on a commercial FPGA](#emulation-on-fpga).
 The emulation functionality is implemented but needs more testing.
 :::
 
-The script `bit_gen.py` in [bitstream generation](#bitstream-generation)
-not only generates the binary bitstream for simulation, but also the bitstream files for Verilog and VHDL emulation.
+The `bit_gen` command from the `FABulous-bit-gen` package, which `compile_design` runs as its
+[bitstream generation](#bitstream-generation) step, not only generates the binary bitstream for simulation,
+but also writes the Verilog (`.vh`) and VHDL (`.vhd`) bitstream files for emulation next to the `.bin` file.
 
 :::{note}
 The bitstream in both Verilog and VHDL follow the original order of configuration bits in each tile, not the re-mapping one.
 :::
 
-- Verilog: Users should define the global macro value of `EMULATION_MODE` to enable the emulation function in the fabric testing.
+- Verilog: Users should define the global macro `EMULATION` to enable the emulation function in the fabric testing.
 
   ```{code-block} verilog
   :emphasize-lines: 1
 
-     `ifdef EMULATION_MODE
+     `ifdef EMULATION
              `include "sequential_2bit_en_bitstream.vh"
      `endif
   ```

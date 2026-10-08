@@ -280,6 +280,17 @@ def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     assert output_file.exists()
 
 
+def test_gen_io_pin_config_unknown_tile(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unknown tile fails the command and writes no pin config."""
+    run_cmd(cli, "gen_io_pin_config NO_SUCH_TILE")
+
+    assert cli.exit_code == 1
+    assert "Tile NO_SUCH_TILE not found in fabric definition" in caplog.text
+    assert not (cli.projectDir / "Tile" / "NO_SUCH_TILE").exists()
+
+
 def test_gen_macro_tile_with_io_pin_config_skips_generation(
     cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
 ) -> None:
@@ -343,6 +354,22 @@ def test_run_simulation(cli: FABulousREPL) -> None:
     )
     assert hex_lines[:4] == ["de", "ad", "be", "ef"]
     assert hex_lines[4:] == ["0"] * (MAX_BITBYTES - 4)
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_oversized_bitstream(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bitstream larger than the testbench memory fails before simulating."""
+    bitstream = cli.projectDir / "user_design" / "sequential_16bit_en.bin"
+    bitstream.write_bytes(bytes(MAX_BITBYTES + 1))
+
+    run_cmd(cli, SIM_CMD)
+
+    assert cli.exit_code == 1
+    assert f"is {MAX_BITBYTES + 1} bytes" in caplog.text
+    assert find_task_calls() == []
+    assert not (cli.projectDir / "Test" / "build" / "sequential_16bit_en.hex").exists()
 
 
 @pytest.mark.usefixtures("simulation_mock")
@@ -805,19 +832,65 @@ class TestGenMacroFullForwarding:
             **expected_kwargs,
         }
 
-    def test_skips_when_pdk_not_set(
-        self, cli: FABulousREPL, mocker: MockerFixture
-    ) -> None:
-        mocker.patch(
-            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=False
-        )
-        full_auto = mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
-        run_cmd(cli, "gen_macro full")
+@pytest.mark.parametrize(
+    ("command", "api_method"),
+    [
+        (f"gen_macro tile {TILE}", "genTileMacro"),
+        ("gen_macro all_tile", "genTileMacro"),
+        ("gen_macro stitch", "fabric_stitching"),
+        ("gen_macro full", "full_fabric_automation"),
+    ],
+    ids=["tile", "all_tile", "stitch", "full"],
+)
+def test_gen_macro_fails_without_pdk(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    command: str,
+    api_method: str,
+) -> None:
+    """Every `gen_macro` step fails without a PDK and hardens nothing."""
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=False
+    )
+    api_mock = mocker.patch.object(cli.fabulousAPI, api_method)
 
-        full_auto.assert_not_called()
-        # bug: the missing PDK is only logged, so the command still exits 0
-        assert cli.exit_code == 0
+    run_cmd(cli, command)
+
+    api_mock.assert_not_called()
+    assert cli.exit_code == 1
+    assert "PDK configuration is not set" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("make_dir", "error"),
+    [
+        (False, "does not exist"),
+        (True, "not found in fabric definition"),
+    ],
+    ids=["no-tile-dir", "not-in-fabric"],
+)
+def test_gen_macro_tile_fails_on_unknown_tile(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    make_dir: bool,
+    error: str,
+) -> None:
+    """A tile without a directory or a fabric entry fails and hardens nothing."""
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+    )
+    gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
+    if make_dir:
+        (cli.projectDir / "Tile" / "NO_SUCH_TILE").mkdir()
+
+    run_cmd(cli, "gen_macro tile NO_SUCH_TILE")
+
+    gen_tile_macro_mock.assert_not_called()
+    assert cli.exit_code == 1
+    assert error in caplog.text
 
 
 class TestGenMacroAllTile:
@@ -909,7 +982,10 @@ class TestGenMacroAllTile:
 
 
 def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
-    """The tile completer still reaches app state from inside the subparser."""
+    """The tile completer offers exactly the tiles `gen_macro all_tile` hardens.
+
+    It reaches app state via _cmd from inside the subparser.
+    """
     parser = cli.command_parsers.get(cli.do_gen_macro)
     subparsers = next(a for a in parser._actions if a.dest == "subcommand")  # noqa: SLF001
     tile_action = next(
@@ -921,7 +997,7 @@ def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
 
     names = list(tile_action.get_completer()(cmd_set))
 
-    assert TILE in names
+    assert sorted(names) == DEMO_TILES
 
 
 @pytest.mark.parametrize(

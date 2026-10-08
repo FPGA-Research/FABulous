@@ -557,17 +557,19 @@ class Fabric:
     def getAllUniqueBels(self) -> list[Bel]:
         """Get all unique BELs from all tiles and supertiles in the fabric.
 
+        A BEL is identified by its name, so a BEL instantiated under several
+        prefixes or in several tiles is returned once, as its first instance.
+
         Returns
         -------
         list[Bel]
-            A list of all unique BELs across all tiles and supertiles.
+            One BEL per BEL name across all tiles and supertiles.
         """
-        bels = list()
-        for tile in self.tileDic.values():
-            bels.extend(tile.bels)
-        for superTile in self.superTileDic.values():
-            bels.extend(superTile.bels)
-        return bels
+        unique_bels: dict[str, Bel] = {}
+        for tile in [*self.tileDic.values(), *self.superTileDic.values()]:
+            for bel in tile.bels:
+                unique_bels.setdefault(bel.name, bel)
+        return list(unique_bels.values())
 
     def getBelsByTileXY(self, x: int, y: int) -> list[Bel]:
         """Get all the Bels of a tile.

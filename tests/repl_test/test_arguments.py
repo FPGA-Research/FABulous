@@ -444,13 +444,6 @@ def test_debug_mode(
     assert any(line.startswith("DEBUG: ") for line in out_lines) is debug_records
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "common_options hands -v/--debug only to setup_logger; start_cmd reads "
-        "verbose/debug from get_context(), which only sees FAB_VERBOSE/FAB_DEBUG"
-    ),
-)
 @pytest.mark.parametrize(
     ("flag", "expected"),
     [
@@ -799,13 +792,6 @@ def test_project_dir_precedence(
             False,
             0,
             id="legacy",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "convert_legacy_args_with_deprecation_warning passes project_dir "
-                    "to the zero-argument update_project_version_cmd: TypeError"
-                ),
-            ),
         ),
     ],
 )
@@ -1187,9 +1173,9 @@ def test_check_version_compatibility_cases(
 
     if should_exit:
         with pytest.raises(typer.Exit):
-            check_version_compatibility(project)
+            check_version_compatibility()
     else:
-        check_version_compatibility(project)
+        check_version_compatibility()
 
     errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
     if expected_error is None:
@@ -1197,6 +1183,39 @@ def test_check_version_compatibility_cases(
     else:
         assert len(errors) == 1
         assert errors[0].startswith(expected_error)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [["start"], ["run", "help"], ["script", "{script}"]],
+    ids=["start", "run", "script"],
+)
+def test_newer_project_version_blocks_repl(
+    project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    command: list[str],
+) -> None:
+    """A project newer than the package exits 1 before the REPL runs anything."""
+    script_file = tmp_path / "test.fab"
+    script_file.write_text("help\n")
+    set_key(project / ".FABulous" / ".env", "FAB_PROJ_VERSION", "99.0.0")
+    monkeypatch.setattr("fabulous.fabulous.version", lambda _: "1.0.0")
+    dispatch = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
+    # not a MagicMock: cmd2 scans the class for subcommand markers and a mock
+    # answers every attribute lookup
+    looped: list[FABulousREPL] = []
+    monkeypatch.setattr(FABulousREPL, "cmdloop", looped.append)
+    argv = [arg.replace("{script}", str(script_file)) for arg in command]
+    monkeypatch.setattr(sys, "argv", ["FABulous", "-p", str(project), *argv])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    dispatch.assert_not_called()
+    assert looped == []
 
 
 @pytest.mark.parametrize(
@@ -1215,6 +1234,7 @@ def test_check_version_compatibility_cases(
             ["load_fabric test.csv"],
             id="failing-line-aborts",
         ),
+        pytest.param("hepl\nhelp\n", 1, ["hepl"], id="unknown-command-aborts"),
         pytest.param("", 0, [], id="empty-script"),
     ],
 )
@@ -1259,20 +1279,8 @@ def test_script_execution_with_content(
     ("suffix", "type_flag", "expected_command"),
     [
         pytest.param(".tcl", [], "run_tcl", id="tcl-default"),
-        pytest.param(".txt", [], "run_tcl", id="txt-default"),
-        pytest.param(
-            ".fab",
-            [],
-            "run_script",
-            id="fab-default",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "--type defaults to tcl, so the `script_type is None` extension "
-                    "detection in script_cmd is unreachable"
-                ),
-            ),
-        ),
+        pytest.param(".fab", [], "run_script", id="fab-default"),
+        pytest.param(".fs", [], "run_script", id="fs-default"),
         pytest.param(".tcl", ["-t", "tcl"], "run_tcl", id="tcl-explicit-tcl"),
         pytest.param(".fab", ["-t", "tcl"], "run_tcl", id="fab-explicit-tcl"),
         pytest.param(".tcl", ["-t", "fabulous"], "run_script", id="tcl-explicit-fab"),
@@ -1315,6 +1323,29 @@ def test_script_type_dispatch(
         f"{expected_command} {script_file.resolve()}",
         *script_lines,
     ]
+
+
+def test_script_unknown_extension_needs_type(
+    tmp_path: Path,
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """An extension with no known script type fails before the REPL runs."""
+    script_file = tmp_path / "test.txt"
+    script_file.write_text("help\n")
+    spy = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
+    monkeypatch.setattr(
+        sys, "argv", ["FABulous", "-p", str(project), "script", str(script_file)]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    spy.assert_not_called()
+    assert "Pass --type fabulous or --type tcl." in capfd.readouterr().out
 
 
 def test_main_function_exception_handling(

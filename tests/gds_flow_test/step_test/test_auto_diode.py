@@ -189,6 +189,8 @@ class TestAutoEcoDiodeInsertion:
         [
             pytest.param("all", 2, 0, True, id="all-nets-remain"),
             pytest.param("all", 0, 2, True, id="all-pins-remain"),
+            pytest.param("all", 1, 0, True, id="all-one-net-remains"),
+            pytest.param("all", 0, 1, True, id="all-one-pin-remains"),
             pytest.param("all", 0, 0, False, id="all-clean"),
             pytest.param("ratio", 5, 5, False, id="ratio-tolerates"),
         ],

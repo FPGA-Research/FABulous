@@ -430,8 +430,7 @@ class FabricGenCommandSet(ReplCommandSet):
 
         tile_obj = repl.fabulousAPI.getTile(tile)
         if tile_obj is None:
-            logger.error(f"Tile {tile} not found in fabric definition")
-            return
+            raise CommandError(f"Tile {tile} not found in fabric definition")
 
         output_path = output
         if output_path is None:

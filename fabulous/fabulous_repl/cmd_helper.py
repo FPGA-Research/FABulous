@@ -60,9 +60,13 @@ class HelperCommandSet(ReplCommandSet):
         tile: Annotated[
             str,
             Argument(
-                help_text="A tile",
+                help_text="A tile or supertile",
                 completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
+                    tile.name
+                    for tile in [
+                        *self._cmd.fabulousAPI.getTiles(),
+                        *self._cmd.fabulousAPI.getSuperTiles(),
+                    ]
                 ],
             ),
         ],

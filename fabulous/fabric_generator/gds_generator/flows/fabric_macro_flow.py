@@ -34,6 +34,10 @@ from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
 )
 from fabulous.fabulous_settings import get_context
 
+# In µm, as are tile sizes and pitches. A tenth of a 1000 DBU/µm database unit,
+# so a misalignment of one DBU is still rejected.
+PITCH_ALIGNMENT_TOLERANCE = Decimal("0.0001")
+
 subs = {
     "OpenROAD.CutRows": None,
     "OpenROAD.TapEndcapInsertion": None,
@@ -427,7 +431,6 @@ class FABulousFabricMacroFlow(Classic):
 
     def _validate_tile_sizes(
         self,
-        fabric: Fabric,
         tile_sizes: dict[str, tuple[Decimal, Decimal]],
         pitch_x: Decimal,
         pitch_y: Decimal,
@@ -435,14 +438,13 @@ class FABulousFabricMacroFlow(Classic):
         """Validate tile and supertile sizes are aligned to the routing pitch grid.
 
         This checks that each tile's width is a multiple of min_pitch_x and
-        each tile's height is a multiple of min_pitch_y. Also validates supertiles.
+        each tile's height is a multiple of min_pitch_y.
 
         Parameters
         ----------
-        fabric : Fabric
-            The fabric object with supertile information.
         tile_sizes : dict[str, tuple[Decimal, Decimal]]
-            Dictionary mapping tile names to their sizes (width, height).
+            Dictionary mapping tile and supertile names to their sizes
+            (width, height).
         pitch_x : Decimal
             Pitch for horizontal (X) direction.
         pitch_y : Decimal
@@ -460,38 +462,19 @@ class FABulousFabricMacroFlow(Classic):
         """
         tile_size_errors: list[str] = []
 
-        def check_multiple(tile_name: str, width: Decimal, height: Decimal) -> None:
-            # Existing pitch alignment check (rounded division -> check fractional part)
-            if pitch_x != 0:
-                width_remainder = str(round(width / pitch_x, 2))[-2:]
-            else:
-                width_remainder = "00"
-
-            if pitch_y != 0:
-                height_remainder = str(round(height / pitch_y, 2))[-2:]
-            else:
-                height_remainder = "00"
-
-            if width_remainder != "00":
-                tile_size_errors.append(
-                    f"{tile_name}: width {width} not aligned to {pitch_x} "
-                    f"(remainder: {width_remainder})"
-                )
-            if height_remainder != "00":
-                tile_size_errors.append(
-                    f"{tile_name}: height {height} not aligned to {pitch_y} "
-                    f"(remainder: {height_remainder})"
-                )
-
         for tile_name, (width, height) in tile_sizes.items():
-            check_multiple(tile_name, width, height)
-
-        # Also validate supertiles
-        for supertile_name, _ in fabric.superTileDic.items():
-            if supertile_name not in tile_sizes:
-                continue
-            width, height = tile_sizes[supertile_name]
-            check_multiple(supertile_name, width, height)
+            for axis, size, pitch in (
+                ("width", width, pitch_x),
+                ("height", height, pitch_y),
+            ):
+                if pitch == 0:
+                    continue
+                remainder = size % pitch
+                if min(remainder, pitch - remainder) > PITCH_ALIGNMENT_TOLERANCE:
+                    tile_size_errors.append(
+                        f"{tile_name}: {axis} {size} not aligned to {pitch} "
+                        f"(remainder: {remainder})"
+                    )
 
         if tile_size_errors:
             err("Tile sizes validation failed:")
@@ -549,7 +532,7 @@ class FABulousFabricMacroFlow(Classic):
 
         # Validate that all tile sizes are pitch-aligned
         info("Validating tile sizes are aligned to pitch grid...")
-        self._validate_tile_sizes(self.fabric, self.tile_sizes, pitch_x, pitch_y)
+        self._validate_tile_sizes(self.tile_sizes, pitch_x, pitch_y)
 
         # Use rounded left/bottom and original right/top for initial calculation
         halo_spacing = (halo_left, halo_bottom, halo_right, halo_top)

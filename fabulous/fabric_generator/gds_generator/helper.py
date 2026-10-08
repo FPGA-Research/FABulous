@@ -52,22 +52,6 @@ def get_pitch(config: Config) -> tuple[Decimal, Decimal]:
     return x_pitch, y_pitch
 
 
-def get_offset(config: Config) -> tuple[Decimal, Decimal]:
-    """Read the FP_TRACKS_INFO file and return track offsets for X and Y.
-
-    Returns a tuple (x_offset, y_offset) where x_offset is the track offset along X-axis
-    (IO_PIN_V_LAYER X direction) and y_offset is the track offset along Y-axis
-    (IO_PIN_H_LAYER Y direction). The cardinal field in FP_TRACKS_INFO is expected to be
-    'X' or 'Y' (case-insensitive).
-    """
-    layers = get_layer_info(config)
-
-    x_offset = layers[config["IO_PIN_V_LAYER"]]["X"][0]
-    y_offset = layers[config["IO_PIN_H_LAYER"]]["Y"][0]
-
-    return x_offset, y_offset
-
-
 def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
     """Round up value to the next multiple of pitch."""
     if pitch == 0:

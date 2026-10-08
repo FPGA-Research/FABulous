@@ -210,13 +210,10 @@ FABulous script script.fab
 
 # fabulous tcl script
 FABulous script script.tcl
-
-# python script
-FABulous script script.py
 ```
 
 TCL scripts are fully supported and can use standard TCL syntax — all FABulous CLI commands are registered as TCL commands, so you can use them as if they were normal TCL procedures.
 
-We have included some simple logic to determine the script type based on the file extension (`.fab`/`.fs` for FABulous scripts, `.tcl` for TCL, `.py` for Python), but if desired you can also explicitly specify the script type by using the `--type` argument.
+The script type is determined from the file extension (`.fab`/`.fs` for FABulous scripts, `.tcl` for TCL). A file with any other extension is rejected unless you specify the script type with the `--type` argument, which also overrides the extension.
 
 The `FABulous` tool can also do more than just starting the shell and running scripts. For more details of what it is capable of, please refer to the `FABulous --help` output.
