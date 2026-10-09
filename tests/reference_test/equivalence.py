@@ -1,26 +1,18 @@
 """Hierarchical RTL equivalence check for diff-mode reference projects.
 
-A text diff fails on every cosmetic change in the generated RTL, and one flattened
-`equiv_make` problem does not scale: on the 2.0b4 demo the flattened `eFPGA` used
-11.7 GB before `equiv_make` finished. Each module is therefore proven once as its
-own top. A leaf module is flattened and proven with `equiv_simple` and
-`equiv_induct`. A module that instantiates other project modules keeps those
-instances as cut points: `expose -evert` turns every instance input into a compared
-output and every instance output into a free input shared by both sides, so the
-parent proof assumes only what the child's own job proves. Models-pack cells are
-inlined rather than cut, so a buffer cell that becomes an `assign` still matches.
+Yosys proves each project module equivalent on its own, since a text diff fails on
+cosmetic changes and a flattened proof of the whole fabric runs out of memory.
+`expose -evert` cuts the project-module instances inside each module, whose own
+proofs cover them. Models-pack cells are inlined.
 
-`expose -evert` drops the module type of each instance it removes, so the
-instance-to-(type, parameters) map of every module is compared separately. The cut
-ports and that map are both keyed on instance names, which must therefore match
-between the reference and the regenerated project.
+`expose -evert` drops the type of each instance it cuts, so the instance types and
+parameters are compared separately. Instance names must therefore match between the
+reference and the regenerated project.
 
-A VHDL project is first synthesised to Verilog by GHDL and then checked the same
-way. The yosys GHDL plugin is not used because it rejects the
-`falling_edge(resetn) or rising_edge(CLK)` processes of the template config
-modules. GHDL elaborates only the hierarchy below the top entity, and it names
-each module `<entity>_B<architecture>` plus its generic values, so a changed
-generic default shows up as a missing and an extra module.
+GHDL synthesises a VHDL project to Verilog first, because the yosys GHDL plugin
+rejects the `ConfigFSM` reset process in the current VHDL reference projects. GHDL
+drops the latch enable in that Verilog, so the VHDL config latches are checked as
+plain connections.
 """
 
 import json
@@ -50,11 +42,12 @@ class EquivalenceFailure:
     Attributes
     ----------
     module : str
-        Yosys module name, including `$paramod` prefixes.
+        Yosys module name, including any `$paramod` prefix.
     reason : str
-        Short failure class.
+        Failure class, such as `not equivalent` or `missing in regenerated`.
     detail : str
-        Yosys error line or the differing items.
+        The last yosys error line with its log path, or the differing instance
+        names.
     """
 
     module: str
@@ -64,7 +57,7 @@ class EquivalenceFailure:
 
 @dataclass(frozen=True)
 class _Design:
-    """A project parsed once into RTLIL plus its yosys JSON module table."""
+    """A project elaborated into RTLIL, its yosys JSON modules and non-pack names."""
 
     rtlil: Path
     modules: dict[str, Any]
@@ -84,14 +77,12 @@ def _fabric_files(
 
 
 def _unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
-    """Return `files` minus every file whose modules an earlier file defines.
+    """Drop every file that only repeats modules an earlier file defines.
 
     Tile directories carry their own copies of shared BEL sources such as
-    `Config_access.v`, and the copies can differ in comments and layout alone.
-    Every file is elaborated on its own with `src` attributes removed, and a file
-    whose modules an earlier file already defines identically is dropped. The
-    comparison sees only the default-parameter elaboration of a module. Techmap
-    rule files are dropped as well.
+    `Config_access.v`. A file is dropped when an earlier file already defines all of
+    its modules identically, ignoring `src` attributes. Techmap rule files are
+    dropped too.
 
     Parameters
     ----------
@@ -189,14 +180,11 @@ def _ghdl_synth(library: Path, entity: str, output: Path) -> Path:
 def _vhdl_to_verilog(
     project: Path, models_pack: Path, work_dir: Path
 ) -> tuple[Path, set[str]]:
-    """Synthesise the VHDL fabric of `project` to one Verilog netlist.
+    """Synthesise the VHDL fabric of `project` into one Verilog netlist.
 
-    Each fabric file is analysed alone against the pack to find the entities it
-    defines. GHDL silently keeps the last of several same-named entities, so every
-    copy is synthesised on its own and `_unique_sources` keeps the first and
-    rejects copies that differ. A copy is synthesised from its own file and the
-    pack alone, so this holds for duplicated leaf entities such as BELs; a
-    duplicated entity that instantiates other fabric entities fails in GHDL.
+    GHDL keeps the last of several same-named entities without warning, so each
+    fabric file is first analysed alone. A file that only redefines earlier
+    entities is dropped once its synthesised copies match the first ones.
 
     Parameters
     ----------
@@ -211,9 +199,7 @@ def _vhdl_to_verilog(
     -------
     tuple[Path, set[str]]
         The Verilog netlist of the fabric top entity, and the netlist module names
-        of the pack entities. GHDL names a module below the top
-        `<entity>_B<architecture>` plus any generic values, so a pack
-        cell instantiated with generics counts as a project module.
+        of the pack architectures.
 
     Raises
     ------
@@ -277,13 +263,10 @@ def _hide_ghdl_nets(
 ) -> dict[str, Any]:
     """Make the numbered nets of a GHDL netlist private and rewrite the design.
 
-    GHDL names anonymous nets and registers `n<number>`, and instance outputs
-    `<instance>_n<number>`, numbered across the whole synthesised design. The same
-    name then denotes unrelated nets once the two sides differ anywhere, and
-    `equiv_make` would pair them. With those names private, `opt_clean` names each
-    register after the VHDL signal it drives, which both sides share. Hiding a name
-    removes only a matching hint, so a real signal caught by the rule can cause a
-    false failure but not a false pass.
+    GHDL numbers anonymous nets across the whole design, so once the two sides
+    differ the same name denotes unrelated nets and `equiv_make` would pair them.
+    Hiding a name removes only a matching hint, so it can cause a false failure but
+    never a false pass.
 
     Parameters
     ----------
@@ -333,9 +316,9 @@ def _parse(
     work_dir: Path,
     tag: str,
 ) -> _Design:
-    """Elaborate `project` with its own models pack into RTLIL and JSON.
+    """Elaborate `project` against its own models pack into RTLIL and yosys JSON.
 
-    `YosysTool.run` raises if a cell is missing from the pack.
+    Every module the pack does not define counts as a project module.
     """
     rtlil = work_dir / f"{tag}.il"
     netlist = work_dir / f"{tag}.json"
@@ -384,7 +367,7 @@ def _parse(
 
 
 def _instances(design: _Design, module: str) -> Instances:
-    """Map each instance of a project module inside `module` to type and params."""
+    """Map each project-module instance in `module` to its type and parameters."""
     return {
         name: (cell["type"], tuple(sorted(cell.get("parameters", {}).items())))
         for name, cell in design.modules[module]["cells"].items()
@@ -393,7 +376,7 @@ def _instances(design: _Design, module: str) -> Instances:
 
 
 def _prepare(rtlil: Path, module: str, children: list[str], tag: str) -> list[str]:
-    """Return the yosys commands that reduce `module` to one side of a proof."""
+    """Return the yosys commands that reduce `module` to one proof side named `tag`."""
     lines = [f'read_rtlil "{rtlil}"', f"hierarchy -top {module}"]
     if children:
         lines += [
@@ -422,7 +405,11 @@ def _check_module(
     regenerated: _Design,
     script: Path,
 ) -> EquivalenceFailure | None:
-    """Prove one module equivalent, cutting at its project-module instances."""
+    """Prove `module` equivalent, cutting at its project-module instances.
+
+    Returns `None` when the proof holds, otherwise a failure carrying the last
+    yosys error line.
+    """
     log = script.with_suffix(".log")
     script.write_text(
         "\n".join(
@@ -460,9 +447,9 @@ def check_rtl_equivalence(
 ) -> list[EquivalenceFailure]:
     """Check the fabric RTL of `regenerated` against `reference` module by module.
 
-    Each side is elaborated with only its own models pack. Module sets, the ports
-    of `(* blackbox *)` stubs and the instance maps are compared structurally, and
-    every other module is proven equivalent by yosys.
+    Each side is elaborated with only its own models pack. The module sets, the
+    ports of `(* blackbox *)` stubs and the per-module instance maps are compared
+    directly, and yosys proves every other module equivalent.
 
     Parameters
     ----------
@@ -473,7 +460,7 @@ def check_rtl_equivalence(
     models_pack : Path
         Models pack path relative to each project directory.
     language : Literal["verilog", "vhdl"]
-        HDL of both projects; VHDL is synthesised to Verilog by GHDL first.
+        HDL of both projects. GHDL synthesises VHDL to Verilog first.
     work_dir : Path
         Directory for yosys scripts, logs and the parsed designs.
 
