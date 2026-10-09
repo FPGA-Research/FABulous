@@ -9,10 +9,11 @@ proofs cover them. Models-pack cells are inlined.
 parameters are compared separately. Instance names must therefore match between the
 reference and the regenerated project.
 
-GHDL synthesises a VHDL project to Verilog first, because the yosys GHDL plugin
-rejects the `ConfigFSM` reset process in the current VHDL reference projects. GHDL
-drops the latch enable in that Verilog, so the VHDL config latches are checked as
-plain connections.
+For the reference check, GHDL synthesises a VHDL project to Verilog first, because
+the yosys GHDL plugin rejects the `ConfigFSM` reset process in the current VHDL
+reference projects. GHDL drops the latch enable in that Verilog, so the VHDL config
+latches are checked as plain connections. The VHDL-against-Verilog check reads
+freshly generated VHDL through the plugin, which keeps the latches.
 """
 
 import json
@@ -177,10 +178,24 @@ def _ghdl_synth(library: Path, entity: str, output: Path) -> Path:
     return output
 
 
-def _vhdl_to_verilog(
+def _fabric_top(project: Path, suffixes: tuple[str, ...]) -> Path:
+    """Return the one `Fabric/<fabric>_top` file of `project` with `suffixes`."""
+    # `ghdl --find-top` cannot stand in: unused BEL entities are tops as well.
+    tops = sorted(
+        path for path in (project / "Fabric").glob("*_top.*") if path.suffix in suffixes
+    )
+    if len(tops) != 1:
+        raise ValueError(
+            f"Expected one fabric top file Fabric/*_top{suffixes} in {project}, "
+            f"found {[top.name for top in tops]}."
+        )
+    return tops[0]
+
+
+def _vhdl_sources(
     project: Path, models_pack: Path, work_dir: Path
-) -> tuple[Path, set[str]]:
-    """Synthesise the VHDL fabric of `project` into one Verilog netlist.
+) -> tuple[list[Path], set[str]]:
+    """Select the VHDL fabric files of `project` that GHDL reads together.
 
     GHDL keeps the last of several same-named entities without warning, so each
     fabric file is first analysed alone. A file that only redefines earlier
@@ -193,20 +208,19 @@ def _vhdl_to_verilog(
     models_pack : Path
         Absolute VHDL models pack path.
     work_dir : Path
-        Directory for the GHDL libraries and the emitted Verilog.
+        Directory for the per-file GHDL libraries.
 
     Returns
     -------
-    tuple[Path, set[str]]
-        The Verilog netlist of the fabric top entity, and the netlist module names
-        of the pack architectures.
+    tuple[list[Path], set[str]]
+        The fabric files to read, and the yosys module names
+        `<entity>_B<architecture>` of the pack architectures.
 
     Raises
     ------
     ValueError
-        If a file redefines an entity differently, defines a mix of entities already
-        defined by an earlier file and new ones, or `Fabric/` does not hold exactly
-        one `*_top` file.
+        If a file redefines an entity differently, or defines a mix of entities
+        already defined by an earlier file and new ones.
     """
     pack_units = _ghdl_analyse(work_dir / "pack", [models_pack])
     pack_entities = _entities(pack_units)
@@ -243,18 +257,21 @@ def _vhdl_to_verilog(
         if not defined:
             kept.append(path)
             first_definition.update({entity: (path, library) for entity in entities})
+    return kept, pack_modules
 
-    # FABulous writes the `<fabric>_top` entity to `Fabric/<fabric>_top.vhdl`.
-    # `ghdl --find-top` cannot stand in: unused BEL entities are tops as well.
-    tops = sorted((project / "Fabric").glob("*_top.vhd*"))
-    if len(tops) != 1:
-        raise ValueError(
-            f"Expected one fabric top file Fabric/*_top.vhdl in {project}, "
-            f"found {[top.name for top in tops]}."
-        )
+
+def _vhdl_to_verilog(
+    project: Path, models_pack: Path, work_dir: Path
+) -> tuple[Path, set[str]]:
+    """Synthesise the VHDL fabric of `project` into one Verilog netlist.
+
+    Returns the netlist and the pack module names from `_vhdl_sources`.
+    """
+    sources, pack_modules = _vhdl_sources(project, models_pack, work_dir)
+    top = _fabric_top(project, VHDL_SUFFIXES).stem.lower()
     fabric_library = work_dir / "fabric"
-    _ghdl_analyse(fabric_library, [models_pack, *kept])
-    fabric = _ghdl_synth(fabric_library, tops[0].stem.lower(), work_dir / "fabric.v")
+    _ghdl_analyse(fabric_library, [models_pack, *sources])
+    fabric = _ghdl_synth(fabric_library, top, work_dir / "fabric.v")
     return fabric, pack_modules
 
 
@@ -383,7 +400,8 @@ def _prepare(rtlil: Path, module: str, children: list[str], tag: str) -> list[st
             f"setattr -mod -set keep_hierarchy 1 {' '.join(children)}",
             f"flatten {module}",
             f"blackbox * {module} %d",
-            f"expose -evert {module}/c:*",
+            # The GHDL plugin gives internal cells public names; cut only instances.
+            f"expose -evert {module}/c:* {module}/t:$* %d",
         ]
     else:
         lines.append("flatten")
@@ -438,6 +456,45 @@ def _check_module(
     return None
 
 
+def _prove_modules(
+    gold: _Design, gate: _Design, modules: list[str], work_dir: Path
+) -> list[EquivalenceFailure]:
+    """Compare the instance maps of `modules` and prove each module equivalent."""
+    failures: list[EquivalenceFailure] = []
+    jobs: list[tuple[str, list[str]]] = []
+    for module in modules:
+        gold_instances = _instances(gold, module)
+        gate_instances = _instances(gate, module)
+        if gold_instances != gate_instances:
+            differing = sorted(
+                name
+                for name in gold_instances.keys() | gate_instances.keys()
+                if gold_instances.get(name) != gate_instances.get(name)
+            )
+            failures.append(
+                EquivalenceFailure(
+                    module=module,
+                    reason="instance type or parameters differ",
+                    detail=", ".join(differing),
+                )
+            )
+        jobs.append((module, sorted({kind for kind, _ in gold_instances.values()})))
+
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
+        results = pool.map(
+            lambda job: _check_module(
+                module=job[1][0],
+                children=job[1][1],
+                reference=gold,
+                regenerated=gate,
+                script=work_dir / f"module_{job[0]:03d}.ys",
+            ),
+            enumerate(jobs),
+        )
+        failures += [result for result in results if result is not None]
+    return failures
+
+
 def check_rtl_equivalence(
     reference: Path,
     regenerated: Path,
@@ -486,7 +543,7 @@ def check_rtl_equivalence(
         for m in sorted(gate.project_modules - gold.project_modules)
     ]
 
-    jobs: list[tuple[str, list[str]]] = []
+    proved: list[str] = []
     for module in sorted(gold.project_modules & gate.project_modules):
         if "blackbox" in gold.modules[module]["attributes"]:
             # Hard-macro stub: the interface is all there is to compare.
@@ -497,36 +554,274 @@ def check_rtl_equivalence(
                     )
                 )
             continue
-        gold_instances = _instances(gold, module)
-        gate_instances = _instances(gate, module)
-        if gold_instances != gate_instances:
+        proved.append(module)
+
+    if not proved:
+        raise ValueError(f"No project modules found to check under {reference}.")
+    return failures + _prove_modules(gold, gate, proved, work_dir)
+
+
+def _elaborate_vhdl(
+    project: Path, models_pack: Path, work_dir: Path, tag: str
+) -> _Design:
+    """Elaborate the VHDL fabric of `project` with the yosys GHDL plugin.
+
+    Every module that is not a pack architecture counts as a project module, and a
+    pack architecture elaborated with generics stays a pack module.
+    """
+    source_dir = work_dir / f"{tag}_sources"
+    source_dir.mkdir()
+    sources, pack_modules = _vhdl_sources(project, models_pack, source_dir)
+    top = _fabric_top(project, VHDL_SUFFIXES).stem
+    rtlil = work_dir / f"{tag}.il"
+    netlist = work_dir / f"{tag}.json"
+    script = work_dir / f"{tag}_parse.ys"
+    script.write_text(
+        "\n".join(
+            [
+                f"ghdl {' '.join(GHDL_FLAGS)} {models_pack} "
+                f"{' '.join(map(str, sources))} -e {top}",
+                "hierarchy -check",
+                "proc",
+                "opt_clean",
+                f'write_rtlil "{rtlil}"',
+                f'write_json "{netlist}"',
+            ]
+        )
+    )
+    YosysTool.run(
+        args=["-m", "ghdl", "-q", "-l", str(script.with_suffix(".log")), str(script)]
+    )
+    modules: dict[str, Any] = json.loads(netlist.read_text())["modules"]
+    project_modules = {
+        name
+        for name in modules
+        if not any(name == p or name.startswith(f"{p}_") for p in pack_modules)
+    }
+    return _Design(rtlil=rtlil, modules=modules, project_modules=project_modules)
+
+
+def _pair_modules(
+    verilog: _Design, verilog_top: str, vhdl: _Design, vhdl_top: str
+) -> tuple[dict[str, str], list[EquivalenceFailure]]:
+    """Map each VHDL module reachable from `vhdl_top` to its Verilog module.
+
+    GHDL names a module after its entity, architecture and generic values, so the
+    two sides are paired by walking the hierarchy and matching instance names
+    without case.
+
+    Parameters
+    ----------
+    verilog : _Design
+        Elaborated Verilog fabric.
+    verilog_top : str
+        Fabric top module of `verilog`.
+    vhdl : _Design
+        Elaborated VHDL fabric.
+    vhdl_top : str
+        Fabric top module of `vhdl`.
+
+    Returns
+    -------
+    tuple[dict[str, str], list[EquivalenceFailure]]
+        VHDL module name to Verilog module name, and one failure per instance that
+        exists on one side only or pairs two modules already paired otherwise.
+    """
+    mapping = {vhdl_top: verilog_top}
+    paired = {verilog_top: vhdl_top}
+    failures: list[EquivalenceFailure] = []
+    stack = [vhdl_top]
+    while stack:
+        vhdl_module = stack.pop()
+        verilog_module = mapping[vhdl_module]
+        verilog_cells = {
+            name.lower(): cell["type"]
+            for name, cell in verilog.modules[verilog_module]["cells"].items()
+            if cell["type"] in verilog.project_modules
+        }
+        vhdl_cells = {
+            name.lower(): cell["type"]
+            for name, cell in vhdl.modules[vhdl_module]["cells"].items()
+            if cell["type"] in vhdl.project_modules
+        }
+        for name in sorted(verilog_cells.keys() ^ vhdl_cells.keys()):
+            side = "VHDL" if name in verilog_cells else "Verilog"
+            failures.append(
+                EquivalenceFailure(
+                    module=verilog_module,
+                    reason=f"instance missing in {side}",
+                    detail=name,
+                )
+            )
+        for name in sorted(verilog_cells.keys() & vhdl_cells.keys()):
+            vhdl_type, verilog_type = vhdl_cells[name], verilog_cells[name]
+            if vhdl_type not in mapping and verilog_type not in paired:
+                mapping[vhdl_type] = verilog_type
+                paired[verilog_type] = vhdl_type
+                stack.append(vhdl_type)
+            elif mapping.get(vhdl_type) != verilog_type:
+                failures.append(
+                    EquivalenceFailure(
+                        module=verilog_module,
+                        reason="instance pairs modules paired elsewhere",
+                        detail=f"{name}: Verilog {verilog_type}, VHDL {vhdl_type}",
+                    )
+                )
+    return mapping, failures
+
+
+def _fold_case(modules: dict[str, Any], rename: dict[str, str]) -> dict[str, Any]:
+    """Lower-case the port, net and cell names of `modules` and apply `rename`.
+
+    VHDL identifiers are case-insensitive and GHDL writes them in lower case, so
+    both sides are folded before `equiv_make` matches names. The fold raises
+    `ValueError` if two port, net or cell names of one module differ only in case.
+
+    Parameters
+    ----------
+    modules : dict[str, Any]
+        The `modules` table of a yosys JSON netlist.
+    rename : dict[str, str]
+        New names for modules, applied to definitions and cell types.
+
+    Returns
+    -------
+    dict[str, Any]
+        The folded `modules` table.
+    """
+
+    def lower(module: str, kind: str, table: dict[str, Any]) -> dict[str, Any]:
+        folded: dict[str, Any] = {}
+        for name, value in table.items():
+            if name.lower() in folded:
+                raise ValueError(
+                    f"Module {module} has two {kind} names that differ only in "
+                    f"case ({name}); VHDL cannot tell them apart."
+                )
+            folded[name.lower()] = value
+        return folded
+
+    result: dict[str, Any] = {}
+    for name, module in modules.items():
+        cells: dict[str, Any] = {}
+        for cell_name, cell in module["cells"].items():
+            if cell["type"] in modules:
+                cell = {
+                    **cell,
+                    "type": rename.get(cell["type"], cell["type"]),
+                    "connections": lower(name, "connection", cell["connections"]),
+                }
+                if "port_directions" in cell:
+                    cell["port_directions"] = lower(
+                        name, "port direction", cell["port_directions"]
+                    )
+            cells[cell_name] = cell
+        result[rename.get(name, name)] = {
+            **module,
+            "ports": lower(name, "port", module["ports"]),
+            "netnames": lower(name, "net", module["netnames"]),
+            "cells": lower(name, "cell", cells),
+        }
+    return result
+
+
+def _write_design(
+    modules: dict[str, Any], project_modules: set[str], path: Path
+) -> _Design:
+    """Write a `modules` table to `path` as yosys JSON and RTLIL."""
+    netlist = path.with_suffix(".json")
+    rtlil = path.with_suffix(".il")
+    script = path.with_suffix(".ys")
+    netlist.write_text(json.dumps({"modules": modules}))
+    script.write_text(f'read_json "{netlist}"\nwrite_rtlil "{rtlil}"')
+    YosysTool.run(args=["-q", "-l", str(path.with_suffix(".log")), str(script)])
+    return _Design(rtlil=rtlil, modules=modules, project_modules=project_modules)
+
+
+def check_vhdl_verilog_equivalence(
+    verilog_project: Path,
+    vhdl_project: Path,
+    verilog_models_pack: Path,
+    vhdl_models_pack: Path,
+    work_dir: Path,
+) -> list[EquivalenceFailure]:
+    """Check the VHDL fabric of a project against its Verilog fabric.
+
+    The yosys GHDL plugin elaborates the VHDL side directly, which keeps the config
+    latches. Modules are paired through the hierarchy below the fabric top, so a
+    module the top does not reach is not checked. Each paired module has its port
+    directions and widths and its instance map compared, and yosys proves it
+    equivalent with the Verilog side as gold.
+
+    Parameters
+    ----------
+    verilog_project : Path
+        Project generated with Verilog output.
+    vhdl_project : Path
+        The same fabric generated with VHDL output.
+    verilog_models_pack : Path
+        Absolute Verilog models pack path.
+    vhdl_models_pack : Path
+        Absolute VHDL models pack path.
+    work_dir : Path
+        Directory for yosys scripts, logs and the parsed designs.
+
+    Returns
+    -------
+    list[EquivalenceFailure]
+        One entry per differing module or instance; empty when the two are
+        equivalent.
+
+    Raises
+    ------
+    ValueError
+        If no paired module is left to prove.
+    """
+    work_dir.mkdir(parents=True, exist_ok=True)
+    verilog = _parse(
+        verilog_project, verilog_models_pack, "verilog", work_dir, "verilog"
+    )
+    vhdl = _elaborate_vhdl(vhdl_project, vhdl_models_pack, work_dir, "vhdl")
+    mapping, failures = _pair_modules(
+        verilog,
+        _fabric_top(verilog_project, VERILOG_SUFFIXES).stem,
+        vhdl,
+        _fabric_top(vhdl_project, VHDL_SUFFIXES).stem,
+    )
+    paired = set(mapping.values())
+    gold = _write_design(
+        _fold_case(verilog.modules, {}), paired, work_dir / "verilog_folded"
+    )
+    gate = _write_design(
+        _fold_case(vhdl.modules, mapping), paired, work_dir / "vhdl_folded"
+    )
+
+    proved: list[str] = []
+    for module in sorted(paired):
+        gold_ports = {
+            name: (port["direction"], len(port["bits"]))
+            for name, port in gold.modules[module]["ports"].items()
+        }
+        gate_ports = {
+            name: (port["direction"], len(port["bits"]))
+            for name, port in gate.modules[module]["ports"].items()
+        }
+        if gold_ports != gate_ports:
             differing = sorted(
                 name
-                for name in gold_instances.keys() | gate_instances.keys()
-                if gold_instances.get(name) != gate_instances.get(name)
+                for name in gold_ports.keys() | gate_ports.keys()
+                if gold_ports.get(name) != gate_ports.get(name)
             )
             failures.append(
                 EquivalenceFailure(
                     module=module,
-                    reason="instance type or parameters differ",
+                    reason="port direction or width differs",
                     detail=", ".join(differing),
                 )
             )
-        jobs.append((module, sorted({kind for kind, _ in gold_instances.values()})))
+        if "blackbox" not in gold.modules[module]["attributes"]:
+            proved.append(module)
 
-    if not jobs:
-        raise ValueError(f"No project modules found to check under {reference}.")
-
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
-        results = pool.map(
-            lambda job: _check_module(
-                module=job[1][0],
-                children=job[1][1],
-                reference=gold,
-                regenerated=gate,
-                script=work_dir / f"module_{job[0]:03d}.ys",
-            ),
-            enumerate(jobs),
-        )
-        failures += [result for result in results if result is not None]
-    return failures
+    if not proved:
+        raise ValueError(f"No paired modules to prove under {verilog_project}.")
+    return failures + _prove_modules(gold, gate, proved, work_dir)
