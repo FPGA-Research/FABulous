@@ -420,3 +420,28 @@ class TestUnconnectedPortDiagnostic:
         ports, _ = parse_port_line("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
 
         assert _unconnected_port_diagnostic(ports, "not_a_real_wire0") == ""
+
+
+@pytest.mark.parametrize(
+    ("extension", "scalar_decl", "one_bit_range"),
+    [
+        (".v", r"^wire DEBUG_select_\w+;$", "[0:0]"),
+        (".vhd", r"^signal DEBUG_select_\w+ : STD_LOGIC;$", "( 0 downto 0 )"),
+    ],
+)
+def test_debug_select_of_two_input_mux_is_scalar(
+    project: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+    extension: str,
+    scalar_decl: str,
+    one_bit_range: str,
+) -> None:
+    """A 2:1 mux has a one-bit select, declared as a scalar debug signal."""
+    init_context(project)
+    tile = parseFabricCSV(str(project / "fabric.csv")).getTileByName("LUT4AB")
+    writer = code_generator_factory(extension, "LUT4AB_switch_matrix")
+    genTileSwitchMatrix(writer, tile, True)
+    rtl = writer.outFileName.read_text()
+
+    assert re.search(scalar_decl, rtl, re.MULTILINE)
+    assert one_bit_range not in rtl

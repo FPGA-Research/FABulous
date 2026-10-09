@@ -152,19 +152,19 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     for name, group in sorted(portGroups.items(), key=lambda x: x[0]):
         if fabric.numberOfBRAMs > 0 and ("RAM2FAB" in name or "FAB2RAM" in name):
             continue
-        writer.addPortVector(name, group[0], len(group[1]) - 1, indentLevel=2)
+        writer.addPort(name, group[0], width=len(group[1]), indentLevel=2)
     writer.addComment("Config related ports", onNewLine=True, indentLevel=2)
-    writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("resetn", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("SelfWriteStrobe", IO.INPUT, indentLevel=2)
-    writer.addPortVector(
-        "SelfWriteData", IO.INPUT, fabric.frameBitsPerRow - 1, indentLevel=2
+    writer.addPort("CLK", IO.INPUT, indentLevel=2)
+    writer.addPort("resetn", IO.INPUT, indentLevel=2)
+    writer.addPort("SelfWriteStrobe", IO.INPUT, indentLevel=2)
+    writer.addPort(
+        "SelfWriteData", IO.INPUT, width=fabric.frameBitsPerRow, indentLevel=2
     )
-    writer.addPortScalar("Rx", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("ComActive", IO.OUTPUT, indentLevel=2)
-    writer.addPortScalar("ReceiveLED", IO.OUTPUT, indentLevel=2)
-    writer.addPortScalar("s_clk", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("s_data", IO.INPUT, indentLevel=2)
+    writer.addPort("Rx", IO.INPUT, indentLevel=2)
+    writer.addPort("ComActive", IO.OUTPUT, indentLevel=2)
+    writer.addPort("ReceiveLED", IO.OUTPUT, indentLevel=2)
+    writer.addPort("s_clk", IO.INPUT, indentLevel=2)
+    writer.addPort("s_data", IO.INPUT, indentLevel=2)
     writer.addPortEnd()
     writer.addHeaderEnd(f"{fabric.name}_top")
     writer.addDesignDescriptionStart(f"{fabric.name}_top")
@@ -173,21 +173,21 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     if "RAM2FAB_D_I" in portGroups and fabric.numberOfBRAMs > 0:
         writer.addComment("BlockRAM ports", onNewLine=True)
         writer.addNewLine()
-        writer.addConnectionVector("RAM2FAB_D_I", f"{numberOfRows * 4 * 4}-1")
-        writer.addConnectionVector("FAB2RAM_D_O", f"{numberOfRows * 4 * 4}-1")
-        writer.addConnectionVector("FAB2RAM_A_O", f"{numberOfRows * 4 * 2}-1")
-        writer.addConnectionVector("FAB2RAM_C_O", f"{numberOfRows * 4}-1")
+        writer.addConnection("RAM2FAB_D_I", width=numberOfRows * 4 * 4)
+        writer.addConnection("FAB2RAM_D_O", width=numberOfRows * 4 * 4)
+        writer.addConnection("FAB2RAM_A_O", width=numberOfRows * 4 * 2)
+        writer.addConnection("FAB2RAM_C_O", width=numberOfRows * 4)
 
     writer.addNewLine()
     writer.addComment("Signal declarations", onNewLine=True)
-    writer.addConnectionVector("FrameRegister", "(NumberOfRows*FrameBitsPerRow)-1")
-    writer.addConnectionVector("FrameSelect", "(MaxFramesPerCol*NumberOfCols)-1")
-    writer.addConnectionVector("FrameData", "(FrameBitsPerRow*(NumberOfRows+2))-1")
-    writer.addConnectionVector("FrameAddressRegister", "FrameBitsPerRow-1")
-    writer.addConnectionScalar("LongFrameStrobe")
-    writer.addConnectionVector("LocalWriteData", 31)
-    writer.addConnectionScalar("LocalWriteStrobe")
-    writer.addConnectionVector("RowSelect", "RowSelectWidth-1")
+    writer.addConnection("FrameRegister", width="(NumberOfRows*FrameBitsPerRow)")
+    writer.addConnection("FrameSelect", width="(MaxFramesPerCol*NumberOfCols)")
+    writer.addConnection("FrameData", width="(FrameBitsPerRow*(NumberOfRows+2))")
+    writer.addConnection("FrameAddressRegister", width="FrameBitsPerRow")
+    writer.addConnection("LongFrameStrobe")
+    writer.addConnection("LocalWriteData", width=32)
+    writer.addConnection("LocalWriteStrobe")
+    writer.addConnection("RowSelect", width="RowSelectWidth")
 
     if isinstance(writer, VHDLCodeGenerator):
         basePath = Path(writer.outFileName).parent
@@ -309,7 +309,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     for name, group in sorted(portGroups.items(), key=lambda x: x[0]):
         for i, sig in enumerate(group[1]):
             portList.append(sig)
-            signal.append(f"{name}[{i}]")
+            # a one-element group is a scalar port, see `CodeGenerator.addPort`
+            signal.append(name if len(group[1]) == 1 else f"{name}[{i}]")
 
     portList.append("UserCLK")
     signal.append("CLK")
@@ -357,12 +358,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
                 portsPairs=portsPairs,
             )
     if isinstance(writer, VHDLCodeGenerator):
-        writer.addAssignScalar(
-            "FrameData", ['X"12345678"', "FrameRegister", 'X"12345678"']
-        )
+        writer.addAssign("FrameData", ['X"12345678"', "FrameRegister", 'X"12345678"'])
     else:
-        writer.addAssignScalar(
-            "FrameData", ["32'h12345678", "FrameRegister", "32'h12345678"]
-        )
+        writer.addAssign("FrameData", ["32'h12345678", "FrameRegister", "32'h12345678"])
     writer.addDesignDescriptionEnd()
     writer.writeToFile()

@@ -314,13 +314,23 @@ class TilePort(Port):
         """Wire count (backward compatibility)."""
         return self._wire_count
 
+    @property
+    def bus_width(self) -> int:
+        """Width of the HDL signal that carries this port in the tile.
+
+        A JUMP or SJUMP signal carries `wire_count` wires. A side port carries
+        `wire_count` wires per tile of Manhattan distance. A width of one is
+        declared as a scalar, so references to it must not bit-select.
+        """
+        if self.wire_direction in (Direction.JUMP, Direction.SJUMP):
+            return self.wire_count
+        return (abs(self.x_offset) + abs(self.y_offset)) * self.wire_count
+
     def __repr__(self) -> str:
         """Return a string representation of the TilePort."""
         name = f"{self.side_of_tile}"
-        return (
-            f"TilePort({{{name}}} {self.io_direction.value} "
-            f"{self.name}[{self.width - 1}:0])"
-        )
+        bus = self.name if self.width == 1 else f"{self.name}[{self.width - 1}:0]"
+        return f"TilePort({{{name}}} {self.io_direction.value} {bus})"
 
     @property
     def _sort_key(self) -> tuple[int, int]:
@@ -362,7 +372,8 @@ class TilePort(Port):
         Parameters
         ----------
         indexed : bool, optional
-            If True, wire names use bracket notation (e.g., `port[0]`).
+            If True, wire names use bracket notation (e.g., `port[0]`), except
+            that a signal of `bus_width` one is named bare (e.g., `port`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
         prefix : str, optional
@@ -393,7 +404,8 @@ class TilePort(Port):
         Parameters
         ----------
         indexed : bool, optional
-            If True, wire names use bracket notation (e.g., `port[0]`).
+            If True, wire names use bracket notation (e.g., `port[0]`), except
+            that a signal of `bus_width` one is named bare (e.g., `port`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
         prefix : str, optional
@@ -419,14 +431,10 @@ class TilePort(Port):
                 f"{prefix}{self.name}{i}" for i in range(count) if not self.name_is_null
             ]
 
-        if escape:
-            return [
-                rf"{prefix}{self.name}\[{i}\]"
-                for i in range(count)
-                if not self.name_is_null
-            ]
         return [
-            f"{prefix}{self.name}[{i}]" for i in range(count) if not self.name_is_null
+            self.select_wire(i, prefix=prefix, escape=escape)
+            for i in range(count)
+            if not self.name_is_null
         ]
 
     def expand_port_info_by_name_top(
@@ -441,7 +449,8 @@ class TilePort(Port):
         Parameters
         ----------
         indexed : bool, optional
-            If True, wire names use bracket notation (e.g., `port[0]`).
+            If True, wire names use bracket notation (e.g., `port[0]`), except
+            that a signal of `bus_width` one is named bare (e.g., `port`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
         prefix : str, optional
@@ -474,17 +483,48 @@ class TilePort(Port):
                 if not self.name_is_null
             ]
 
-        if escape:
-            return [
-                rf"{prefix}{self.name}\[{i}\]"
-                for i in range(startIndex, total_wires)
-                if not self.name_is_null
-            ]
         return [
-            f"{prefix}{self.name}[{i}]"
+            self.select_wire(i, prefix=prefix, escape=escape)
             for i in range(startIndex, total_wires)
             if not self.name_is_null
         ]
+
+    def select_wire(self, index: int, prefix: str = "", escape: bool = False) -> str:
+        """Name wire `index` of the port signal for use in HDL.
+
+        A signal of `bus_width` one is declared as a scalar, where a bit-select
+        is illegal HDL, so its only wire is referenced by the bare name.
+
+        Parameters
+        ----------
+        index : int
+            Index of the wire within the port signal.
+        prefix : str
+            A prefix to prepend to the port name. Defaults to "".
+        escape : bool
+            If True, escape the brackets of a bit-select for use in a regex.
+            Defaults to False.
+
+        Returns
+        -------
+        str
+            The bare name for a one-wire signal, otherwise the bit-select.
+
+        Raises
+        ------
+        IndexError
+            If `index` is outside `0` to `bus_width - 1`.
+        """
+        if not 0 <= index < self.bus_width:
+            raise IndexError(
+                f"Wire {index} is outside {self.name}, which carries "
+                f"{self.bus_width} wires. Select a wire from 0 to {self.bus_width - 1}."
+            )
+        if self.bus_width == 1:
+            return f"{prefix}{self.name}"
+        if escape:
+            return rf"{prefix}{self.name}\[{index}\]"
+        return f"{prefix}{self.name}[{index}]"
 
     def expand_port_info(
         self, mode: str = "SwitchMatrix"

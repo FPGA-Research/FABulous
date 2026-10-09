@@ -261,15 +261,20 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPortScalar(
+    def addPort(
         self,
         name: str,
         io: IO,
+        *,
+        width: int | str = 1,
         reg: bool = False,
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
-        """Add a scalar port.
+        """Add a port carrying `width` wires.
+
+        An integer width of 1 declares a scalar, so references to it must use the
+        bare name. An expression width always declares a vector.
 
         Parameters
         ----------
@@ -277,56 +282,23 @@ class CodeGenerator(abc.ABC):
             Name of the port.
         io : IO
             Direction of the port (input, output, inout).
-        reg: bool, optional
-            port is a register. Only useful with Verilog.
-        attribute: str, optional
-            Add a FABulous ATTRIBUTE to the port.
-        indentLevel : int, optional
+        width : int | str
+            Number of wires, or an HDL expression such as `NoConfigBits`.
+            Defaults to 1.
+        reg : bool
+            Port is a register. Only useful with Verilog. Defaults to False.
+        attribute : str
+            Add a FABulous ATTRIBUTE to the port. Defaults to no attribute.
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
         --------
         Verilog
-            **(* FABulous, ATTRIBUTE *)** **io** **reg** **name**
+            **(* FABulous, ATTRIBUTE *)** **io** **reg** [**width**-1:0] **name**
 
         VHDL
-            **name** : **io** STD_LOGIC; **-- ATTRIBUTE**
-        """
-
-    @abc.abstractmethod
-    def addPortVector(
-        self,
-        name: str,
-        io: IO,
-        msbIndex: str | int,
-        reg: bool = False,
-        attribute: str = "",
-        indentLevel: int = 0,
-    ) -> None:
-        """Add a vector port.
-
-        Parameters
-        ----------
-        name : str
-            Name of the port.
-        io : IO
-            Direction of the port (input, output, inout).
-        msbIndex : str | int
-            Index of the MSB of the vector. Can be a string.
-        reg : bool, optional
-            port is a register. Only useful with Verilog.
-        attribute : str, optional
-            Add a FABulous ATTRIBUTE to the port.
-        indentLevel : int, optional
-            The level of indentation. Defaults to 0.
-
-        Examples
-        --------
-        Verilog
-            **(* FABulous, ATTRIBUTE *)** **io** **reg** [**msbIndex**:0] **name**
-
-        VHDL
-            **name** : **io** STD_LOGIC_VECTOR(**msbIndex** downto 0); **-- ATTRIBUTE**
+            **name** : **io** STD_LOGIC_VECTOR(**width**-1 downto 0); **-- ATTRIBUTE**
         """
 
     @abc.abstractmethod
@@ -387,59 +359,101 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addConnectionScalar(
-        self, name: str, reg: bool = False, indentLevel: int = 0
-    ) -> None:
-        """Add a scalar connection.
-
-        Parameters
-        ----------
-        name : str
-            Name of the connection
-        reg : bool, optional
-            Connection is a register. Only useful with Verilog.
-        indentLevel : int, optional
-            The indentation Level. Defaults to 0.
-
-        Examples
-        --------
-        Verilog:
-            wire/reg **name**;
-        VHDL:
-            signal **name** : STD_LOGIC;
-        """
-
-    @abc.abstractmethod
-    def addConnectionVector(
+    def addConnection(
         self,
         name: str,
-        startIndex: str | int,
-        endIndex: str | int = 0,
+        *,
+        width: int | str = 1,
         reg: bool = False,
         indentLevel: int = 0,
     ) -> None:
-        """Add a vector connection.
+        """Add a connection carrying `width` wires.
+
+        An integer width of 1 declares a scalar, so references to it must use the
+        bare name. An expression width always declares a vector.
 
         Parameters
         ----------
         name : str
-            Name of the connection
-        startIndex : str | int
-            Start index of the vector.
-        endIndex : str | int, optional
-            End index of the vector. Defaults to 0.
-        reg : bool, optional
-            Connection is a register. Only useful with Verilog.
-        indentLevel : int, optional
+            Name of the connection.
+        width : int | str
+            Number of wires, or an HDL expression such as `NoConfigBits`.
+            Defaults to 1.
+        reg : bool
+            Connection is a register. Only useful with Verilog. Defaults to False.
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
         --------
         Verilog:
-            wire/reg [**startIndex**:**end**] **name**;
+            wire/reg [**width**-1:0] **name**;
         VHDL:
-            signal **name** : STD_LOGIC_VECTOR( **startIndex** downto **endIndex** );
+            signal **name** : STD_LOGIC_VECTOR( **width**-1 downto 0 );
         """
+
+    @staticmethod
+    def _msbIndex(width: int | str) -> int | str | None:
+        """Return the MSB index of a declaration carrying `width` wires.
+
+        Parameters
+        ----------
+        width : int | str
+            Number of wires, or an HDL expression.
+
+        Returns
+        -------
+        int | str | None
+            `None` for an integer width of 1, which is declared as a scalar. An
+            expression width always gives an index, because its value is only known
+            at elaboration.
+
+        Raises
+        ------
+        ValueError
+            If `width` is an integer below 1.
+        """
+        if isinstance(width, str):
+            return f"{width}-1"
+        if width < 1:
+            raise ValueError(f"A declaration needs at least one wire, got {width}.")
+        if width == 1:
+            return None
+        return width - 1
+
+    @staticmethod
+    def _rangeSelect(
+        high: int | str | None, low: int | str | None
+    ) -> tuple[int | str, int | str] | int | str | None:
+        """Classify the `right[high:low]` selection of `addAssign`.
+
+        Parameters
+        ----------
+        high : int | str | None
+            MSB of the selection.
+        low : int | str | None
+            LSB of the selection.
+
+        Returns
+        -------
+        tuple[int | str, int | str] | int | str | None
+            `None` for no selection, the index for a bit-select when the bounds are
+            equal, otherwise `(high, low)`.
+
+        Raises
+        ------
+        ValueError
+            If only one of `high` and `low` is given.
+        """
+        if high is None and low is None:
+            return None
+        if high is None or low is None:
+            raise ValueError(
+                f"A range select needs both bounds, got high={high} and low={low}."
+            )
+        if high == low:
+            return high
+        return (high, low)
 
     @abc.abstractmethod
     def addLogicStart(self, indentLevel: int = 0) -> None:
@@ -630,74 +644,48 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addAssignScalar(
+    def addAssign(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
+        *,
+        high: int | str | None = None,
+        low: int | str | None = None,
         delay: int = 0,
-        indentLevel: int = 0,
         inverted: bool = False,
+        indentLevel: int = 0,
     ) -> None:
-        """Add a scalar assign statement.
+        """Add an assign statement, optionally selecting `right[high:low]`.
 
-        Delay is provided by currently not being used by any of the code generator.
+        Equal bounds give a bit-select `right[high]`. The bounds are compared as
+        Python values, so pass one bit as two equal values rather than two spellings
+        of the same expression. Giving only one bound raises `ValueError`. Only VHDL
+        emits `delay`.
 
         Parameters
         ----------
         left : str
             The left hand side of the assign statement.
-        right : str
-            The right hand side of the assign statement.
-        delay : int, optional
+        right : str | list[str]
+            The right hand side of the assign statement. A list is concatenated.
+        high : int | str | None
+            MSB of the range selected from **right**. Defaults to no selection.
+        low : int | str | None
+            LSB of the range selected from **right**. Defaults to no selection.
+        delay : int
             Delay in the assignment. Defaults to 0.
-        indentLevel : int, optional
+        inverted : bool
+            Invert **right**. Defaults to False.
+        indentLevel : int
             The indentation Level. Defaults to 0.
-        inverted : bool, optional
-            Invert **right**. Default False.
 
         Examples
         --------
         Verilog:
-            assign **left** = **right**;
+            assign **left** = **right**[**high**:**low**];
 
         VHDL:
-            **left** <= **right** after **delay** ps;
-        """
-
-    @abc.abstractmethod
-    def addAssignVector(
-        self,
-        left: str,
-        right: str,
-        widthL: str | int,
-        widthR: str | int,
-        indentLevel: int = 0,
-        inverted: bool = False,
-    ) -> None:
-        """Add a vector assign statement.
-
-        Parameters
-        ----------
-        left : str
-            The left hand side of the assign statement.
-        right : str
-            The right hand side of the assign statement.
-        widthL : str | int
-            The start index of the vector.
-        widthR : str | int
-            The end index of the vector.
-        indentLevel : int, optional
-            The indentation Level. Defaults to 0.
-        inverted : bool, optional
-            Invert **right**. Default False.
-
-        Examples
-        --------
-        Verilog:
-            assign **left** = **right** [**widthL**:**widthR**];
-
-        VHDL:
-            **left** <= **right** ( **widthL** downto *widthR* );
+            **left** <= **right**( **high** downto **low** ) after **delay** ps;
         """
 
     @abc.abstractmethod

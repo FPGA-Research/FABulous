@@ -115,44 +115,22 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(deComma(temp))
         self._add(");", indentLevel)
 
-    def addPortScalar(
+    def addPort(
         self,
         name: str,
         io: IO,
+        *,
+        width: int | str = 1,
         reg: bool = False,
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
-        """Add a scalar port declaration.
+        """Add a port declaration, scalar for an integer width of 1.
 
         Args:
             name: Port name
             io: Input/output direction
-            reg: Whether the port should be declared as a `reg` type
-            attribute: Additional attributes to add as Verilog attribute
-            indentLevel: The indentation level
-        """
-        ioString = io.value.lower()
-        if attribute:
-            attribute = f"(* FABulous, {attribute} *) "
-        regString = "reg" if reg else ""
-        self._add(f"{attribute}{ioString} {regString} {name},", indentLevel)
-
-    def addPortVector(
-        self,
-        name: str,
-        io: IO,
-        msbIndex: int | str,
-        reg: bool = False,
-        attribute: str = "",
-        indentLevel: int = 0,
-    ) -> None:
-        """Add a vector port declaration.
-
-        Args:
-            name: Port name
-            io: Input/output direction
-            msbIndex: Most significant bit index
+            width: Number of wires, or an HDL expression
             reg: Whether port should be declared as `reg` type
             attribute: Additional attributes to add as Verilog attribute
             indentLevel: The indentation level
@@ -161,8 +139,10 @@ class VerilogCodeGenerator(CodeGenerator):
         regString = "reg" if reg else ""
         if attribute:
             attribute = f"(* FABulous, {attribute} *) "
+        msbIndex = self._msbIndex(width)
+        rangeString = "" if msbIndex is None else f" [{msbIndex}:0]"
         self._add(
-            f"{attribute}{ioString} {regString} [{msbIndex}:0] {name},", indentLevel
+            f"{attribute}{ioString} {regString}{rangeString} {name},", indentLevel
         )
 
     def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
@@ -191,40 +171,28 @@ class VerilogCodeGenerator(CodeGenerator):
         """
         self._add(f"parameter {name} = {value};", indentLevel)
 
-    def addConnectionScalar(
-        self, name: str, reg: bool = False, indentLevel: int = 0
+    def addConnection(
+        self,
+        name: str,
+        *,
+        width: int | str = 1,
+        reg: bool = False,
+        indentLevel: int = 0,
     ) -> None:
-        """Add a scalar `wire` or `reg` declaration.
+        """Add a `wire` or `reg` declaration, scalar for an integer width of 1.
 
         Args:
             name: Signal name
+            width: Number of wires, or an HDL expression
             reg: If True, the connection will be declared as a `reg` type.
                  If False, the connection will be declared as a `wire`.
                  Defaults to False.
             indentLevel: The indentation level
         """
         con_type = "reg" if reg else "wire"
-        self._add(f"{con_type} {name};", indentLevel)
-
-    def addConnectionVector(
-        self,
-        name: str,
-        startIndex: int,
-        endIndex: int = 0,
-        reg: bool = False,
-        indentLevel: int = 0,
-    ) -> None:
-        """Add a vector wire or reg declaration.
-
-        Args:
-            name: Signal name
-            startIndex: Start index (MSB)
-            endIndex: End index (LSB)
-            reg: Whether to declare as `reg` type
-            indentLevel: The indentation level
-        """
-        con_type = "reg" if reg else "wire"
-        self._add(f"{con_type}[{startIndex}:{endIndex}] {name};", indentLevel)
+        msbIndex = self._msbIndex(width)
+        rangeString = "" if msbIndex is None else f"[{msbIndex}:0]"
+        self._add(f"{con_type}{rangeString} {name};", indentLevel)
 
     def addLogicStart(self, indentLevel: int = 0) -> None:
         """Start the logic section (no-op for Verilog).
@@ -415,50 +383,39 @@ end
 """
         self._add(template, indentLevel)
 
-    def addAssignScalar(
+    def addAssign(
         self,
         left: str,
-        right: str,
+        right: str | list[str],
+        *,
+        high: int | str | None = None,
+        low: int | str | None = None,
         delay: int = 0,  # noqa: ARG002
-        indentLevel: int = 0,
         inverted: bool = False,
+        indentLevel: int = 0,
     ) -> None:
-        """Add a continuous assignment statement.
+        """Add a continuous assignment, optionally selecting `right[high:low]`.
 
         Args:
             left: Left-hand side signal
-            right: Right-hand side signal or expression
+            right: Right-hand side signal or expression; a list is concatenated
+            high: MSB of the selection from `right`
+            low: LSB of the selection from `right`
             delay: Delay (unused in Verilog implementation)
-            inverted: Whether to invert the right-hand side of the expression
             inverted: Whether to invert the right-hand side
+            indentLevel: The indentation level
         """
         inv = "~" if inverted else ""
         if isinstance(right, list):
-            self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)
-        else:
-            self._add(f"assign {left} = {inv}{right};")
-
-    def addAssignVector(
-        self,
-        left: str,
-        right: str,
-        widthL: int | str,
-        widthR: int | str,
-        indentLevel: int = 0,
-        inverted: bool = False,
-    ) -> None:
-        """Add a vector slice assignment.
-
-        Args:
-            left: Left-hand side signal
-            right: Right-hand side signal
-            widthL: Upper bound of slice
-            widthR: Lower bound of slice
-            inverted: Whether to invert the right-hand side of the expression
-            inverted: Whether to invert the right-hand side
-        """
-        inv = "~" if inverted else ""
-        self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
+            right = f"{{{','.join(right)}}}"
+        match self._rangeSelect(high, low):
+            case None:
+                pass
+            case (msb, lsb):
+                right = f"{right}[{msb}:{lsb}]"
+            case bit:
+                right = f"{right}[{bit}]"
+        self._add(f"assign {left} = {inv}{right};", indentLevel)
 
     def addMuxAssign(
         self,

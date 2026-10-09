@@ -725,27 +725,25 @@ def genIOBel(
                 raise InvalidPortType("Invalid IO type for generative IO")
 
     for port, direction, reg in internalPorts:
-        writer.addPortScalar(port, direction, reg, indentLevel=2)
+        writer.addPort(port, direction, reg=reg, indentLevel=2)
 
     for port, direction, reg in externalPorts:
-        writer.addPortScalar(port, direction, reg, "EXTERNAL", indentLevel=2)
+        writer.addPort(port, direction, reg=reg, attribute="EXTERNAL", indentLevel=2)
 
     if clocked:
-        writer.addPortScalar(
-            "UserCLK", IO.INPUT, False, "EXTERNAL, SHARED_PORT", indentLevel=2
+        writer.addPort(
+            "UserCLK", IO.INPUT, attribute="EXTERNAL, SHARED_PORT", indentLevel=2
         )
 
     if configBits > 0:
         if language == "vhdl":
             writer.addComment("GLOBAL", True, indentLevel=2)
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+            writer.addPort("ConfigBits", IO.INPUT, width="NoConfigBits", indentLevel=2)
         else:  #  Verilog
-            writer.addPortVector(
+            writer.addPort(
                 "ConfigBits",
                 IO.INPUT,
-                "NoConfigBits -1",
+                width="NoConfigBits",
                 attribute="GLOBAL",
                 indentLevel=2,
             )
@@ -768,11 +766,7 @@ def genIOBel(
             )
         for i in range(configBits):
             port, inverted = configAccessPorts[i]
-            writer.addAssignScalar(
-                f"{port}",
-                f"ConfigBits[{i}]",
-                inverted=inverted,
-            )
+            writer.addAssign(f"{port}", f"ConfigBits[{i}]", inverted=inverted)
 
     # gen_io assignments
     writer.addNewLine()
@@ -810,7 +804,7 @@ def genIOBel(
                         f"{gio.prefix}{j}",
                         inverted=gio.inverted,
                     )
-                    writer.addAssignScalar(
+                    writer.addAssign(
                         f"{gio.prefix}_top{j}",
                         f"{gio.prefix}{j}",
                         inverted=gio.inverted,
@@ -822,7 +816,7 @@ def genIOBel(
                         f"{gio.prefix}_top{j}",
                         inverted=gio.inverted,
                     )
-                    writer.addAssignScalar(
+                    writer.addAssign(
                         f"{gio.prefix}{j}",
                         f"{gio.prefix}_top{j}",
                         inverted=gio.inverted,
@@ -842,7 +836,7 @@ def genIOBel(
 
                     reg = f"{gio.prefix}_Q{j}"
 
-                    writer.addConnectionScalar(reg, True)
+                    writer.addConnection(reg, reg=True)
                     writer.addRegister(
                         reg,
                         source,
@@ -864,12 +858,12 @@ def genIOBel(
                     else:
                         # generic multiplexer
                         if language == "vhdl":
-                            writer.addAssignScalar(
+                            writer.addAssign(
                                 sink,
                                 f"{source} when (ConfigBits[{i}] = '0') else {reg}",
                             )
                         else:  # Verilog
-                            writer.addAssignScalar(
+                            writer.addAssign(
                                 sink, f"ConfigBits[{i}] ? {reg} : {source}"
                             )
 
@@ -877,13 +871,13 @@ def genIOBel(
                 # for single pins we kick out the index
                 j = "" if gio.pins == 1 else f"{i}"
                 if gio.IO == IO.INPUT:
-                    writer.addAssignScalar(
+                    writer.addAssign(
                         f"{gio.prefix}_top{j}",
                         f"{gio.prefix}{j}",
                         inverted=gio.inverted,
                     )
                 elif gio.IO == IO.OUTPUT:
-                    writer.addAssignScalar(
+                    writer.addAssign(
                         f"{gio.prefix}{j}",
                         f"{gio.prefix}_top{j}",
                         inverted=gio.inverted,

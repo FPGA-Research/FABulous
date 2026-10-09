@@ -10,6 +10,7 @@ approaches.
 """
 
 import re
+from functools import cached_property
 from pathlib import Path
 
 from loguru import logger
@@ -27,6 +28,7 @@ from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
 from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 
 
 class FABulousTileTimingModel:
@@ -138,6 +140,35 @@ class FABulousTileTimingModel:
                 f"Using RTL Verilog files for tile {self.unique_tile_name}:"
                 f"{'\n  '.join(map(str, [''] + self.verilog_files))}"
             )
+
+    @cached_property
+    def port_bit_names(self) -> dict[str, str]:
+        """Map each tile port wire to its bit name in the tile netlist.
+
+        A PIP names wire 3 of `NN2BEG` as `NN2BEG3`, where the netlist names it
+        `NN2BEG[3]`. A one-wire port is a scalar in the netlist, so its wire maps
+        to the bare port name.
+
+        Returns
+        -------
+        dict[str, str]
+            PIP wire name to netlist bit name, for every wire of the tile's ports.
+
+        Raises
+        ------
+        TypeError
+            If `tile_name` names a supertile rather than a tile.
+        """
+        tile = self.fabric.getTileByName(self.tile_name)
+        if not isinstance(tile, Tile):
+            raise TypeError(f"{self.tile_name} is a supertile, not a tile.")
+        names: dict[str, str] = {}
+        for port in tile.portsInfo:
+            if port.name_is_null:
+                continue
+            for i in range(port.bus_width):
+                names[f"{port.name}{i}"] = port.select_wire(i)
+        return names
 
     def _get_unique_tile_name(self) -> None:
         """Determine if the tile is part of a SuperTile.
@@ -814,9 +845,9 @@ class FABulousTileTimingModel:
         # In general try to avoid delay of 0.
         default_delay: float = 0.001
 
-        # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
-        pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
-        pip_dst_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
+        # A wire that is not a port of this tile never matches a tile port below.
+        pip_src_port = self.port_bit_names.get(pip_src, pip_src)
+        pip_dst_port = self.port_bit_names.get(pip_dst, pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
         if pip_src_port in synth_model.output_ports:
@@ -908,9 +939,9 @@ class FABulousTileTimingModel:
 
         default_delay: float = 0.001
 
-        # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
-        pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
-        pip_dst_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
+        # A wire that is not a port of this tile never matches a tile port below.
+        pip_src_port = self.port_bit_names.get(pip_src, pip_src)
+        pip_dst_port = self.port_bit_names.get(pip_dst, pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
         if pip_src_port in phys_model.output_ports:

@@ -16,6 +16,7 @@ from fabulous.fabric_definition.port import (
     SlicedPort,
     TilePort,
 )
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 
 
 class TestPort:
@@ -356,9 +357,78 @@ class TestTilePort:
         with pytest.raises(TypeError, match="Cannot compare"):
             port < 1  # noqa: B015
 
+    @pytest.mark.parametrize(
+        ("width", "expected"),
+        [(1, "TilePort({N} OUTPUT n)"), (4, "TilePort({N} OUTPUT n[3:0])")],
+    )
+    def test_repr_drops_the_range_of_one_wire(self, width: int, expected: str) -> None:
+        """The repr lands in HDL comments, so one wire carries no `[0:0]`."""
+        port = TilePort(
+            name="n", io_direction=IO.OUTPUT, width=width, side_of_tile=Side.NORTH
+        )
+        assert repr(port) == expected
+
     def test_tile_back_reference_defaults_to_none(self) -> None:
         """An unattached port has no owning tile."""
         port = TilePort(
             name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
         )
         assert port.tile is None
+
+
+@pytest.mark.parametrize(
+    ("line", "name", "bus_width", "indexed"),
+    [
+        ("NORTH,Co,0,-1,Ci,1", "Co", 1, ["Co"]),
+        ("NORTH,Co,0,-1,Ci,1", "Ci", 1, ["Ci"]),
+        ("NORTH,X2BEG,0,-2,X2END,1", "X2BEG", 2, ["X2BEG[0]"]),
+        ("NORTH,N1BEG,0,-1,N1END,2", "N1BEG", 2, ["N1BEG[0]", "N1BEG[1]"]),
+        ("SOUTH,TBEG,0,1,NULL,1", "TBEG", 1, ["TBEG"]),
+        ("JUMP,J_BEG,0,0,J_END,1", "J_BEG", 1, ["J_BEG"]),
+        ("SJUMP,SA,0,0,NULL,1", "SA", 1, ["SA"]),
+    ],
+)
+def test_one_wire_tile_port_is_referenced_by_bare_name(
+    line: str, name: str, bus_width: int, indexed: list[str]
+) -> None:
+    """A tile port signal of `bus_width` one is a scalar and takes no bit-select."""
+    port = next(p for p in parse_port_line(line)[0] if p.name == name)
+
+    assert port.bus_width == bus_width
+    assert port.expand_port_info_by_name(indexed=True) == indexed
+
+
+@pytest.mark.parametrize(
+    ("line", "name", "indexed_top"),
+    [
+        ("NORTH,Co,0,-1,Ci,1", "Co", ["Co"]),
+        ("NORTH,X2BEG,0,-2,X2END,1", "X2BEG", ["X2BEG[1]"]),
+        ("SOUTH,TBEG,0,1,NULL,1", "TBEG", ["TBEG"]),
+    ],
+)
+def test_top_slice_of_one_wire_port_is_referenced_by_bare_name(
+    line: str, name: str, indexed_top: list[str]
+) -> None:
+    """The top slice the switch matrix drives follows the same scalar rule."""
+    port = next(p for p in parse_port_line(line)[0] if p.name == name)
+
+    assert port.expand_port_info_by_name_top(indexed=True) == indexed_top
+
+
+@pytest.mark.parametrize(
+    ("line", "name", "index"),
+    [
+        ("NORTH,Co,0,-1,Ci,1", "Co", 1),
+        ("NORTH,X2BEG,0,-2,X2END,1", "X2BEG", 2),
+        ("NORTH,X2BEG,0,-2,X2END,1", "X2BEG", -1),
+        ("JUMP,J_BEG,0,0,J_END,1", "J_BEG", -1),
+    ],
+)
+def test_select_wire_outside_the_signal_raises(
+    line: str, name: str, index: int
+) -> None:
+    """A wire index outside `0` to `bus_width - 1` has no HDL name."""
+    port = next(p for p in parse_port_line(line)[0] if p.name == name)
+
+    with pytest.raises(IndexError, match=f"Wire {index} is outside {name}"):
+        port.select_wire(index)
