@@ -14,7 +14,11 @@ from loguru import logger
 
 from fabulous.fabulous_repl.helper import update_project_version
 from fabulous.fabulous_settings import get_context, init_context
-from tests.reference_test.equivalence import check_rtl_equivalence
+from tests.equivalence import (
+    EquivalenceFailure,
+    parse_project,
+    prove_modules,
+)
 from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
@@ -82,6 +86,74 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
             logger.warning(f"Failed to load project config: {e}")
 
     return projects
+
+
+def _check_rtl_equivalence(
+    reference: Path,
+    regenerated: Path,
+    models_pack: Path,
+    language: Literal["verilog", "vhdl"],
+    work_dir: Path,
+) -> list[EquivalenceFailure]:
+    """Check the fabric RTL of `regenerated` against `reference` module by module.
+
+    Each side is elaborated with only its own models pack. The module sets, the
+    ports of `(* blackbox *)` stubs and the per-module instance maps are compared
+    directly, and yosys proves every other module equivalent.
+
+    Parameters
+    ----------
+    reference : Path
+        Reference project directory.
+    regenerated : Path
+        Project directory holding the freshly generated RTL.
+    models_pack : Path
+        Models pack path relative to each project directory.
+    language : Literal["verilog", "vhdl"]
+        HDL of both projects. GHDL synthesises VHDL to Verilog first.
+    work_dir : Path
+        Directory for yosys scripts, logs and the parsed designs.
+
+    Returns
+    -------
+    list[EquivalenceFailure]
+        One entry per differing module; empty when the projects are equivalent.
+
+    Raises
+    ------
+    ValueError
+        If the reference project contains no project modules to check.
+    """
+    work_dir.mkdir(parents=True, exist_ok=True)
+    gold = parse_project(reference, reference / models_pack, language, work_dir, "gold")
+    gate = parse_project(
+        regenerated, regenerated / models_pack, language, work_dir, "gate"
+    )
+
+    failures = [
+        EquivalenceFailure(module=m, reason="missing in regenerated", detail="")
+        for m in sorted(gold.project_modules - gate.project_modules)
+    ] + [
+        EquivalenceFailure(module=m, reason="extra in regenerated", detail="")
+        for m in sorted(gate.project_modules - gold.project_modules)
+    ]
+
+    proved: list[str] = []
+    for module in sorted(gold.project_modules & gate.project_modules):
+        if "blackbox" in gold.modules[module]["attributes"]:
+            # Hard-macro stub: the interface is all there is to compare.
+            if gold.modules[module]["ports"] != gate.modules[module]["ports"]:
+                failures.append(
+                    EquivalenceFailure(
+                        module=module, reason="blackbox ports differ", detail=""
+                    )
+                )
+            continue
+        proved.append(module)
+
+    if not proved:
+        raise ValueError(f"No project modules found to check under {reference}.")
+    return failures + prove_modules(gold, gate, proved, work_dir)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
@@ -250,7 +322,7 @@ def test_reference_project_execution(
                 assert models_pack is not None, (
                     f"No models pack configured for {ref_project.name}"
                 )
-                failures = check_rtl_equivalence(
+                failures = _check_rtl_equivalence(
                     reference=ref_project.path,
                     regenerated=test_project_path,
                     models_pack=models_pack.relative_to(test_project_path),
