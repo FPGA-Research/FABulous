@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.3.0](https://github.com/FPGA-Research/FABulous/compare/v2.2.0...v2.3.0) (2026-10-09)
+
+
+### Features
+
+* configurable UserCLK ladder direction ([#1039](https://github.com/FPGA-Research/FABulous/issues/1039)) ([ad39353](https://github.com/FPGA-Research/FABulous/commit/ad39353b91cbf235a53586657078b571d07534e2))
+* **repl:** fold the macro commands into a gen_macro base command ([#1040](https://github.com/FPGA-Research/FABulous/issues/1040)) ([c1b8a3c](https://github.com/FPGA-Research/FABulous/commit/c1b8a3c7f377e376109ae31bc27585f688ea2e7c))
+* support the ihp-sg13cmos5l PDK ([#1049](https://github.com/FPGA-Research/FABulous/issues/1049)) ([4b76fa5](https://github.com/FPGA-Research/FABulous/commit/4b76fa56bcabacc67ce287f4f9b6d6c5bdc3709b))
+
+
+### Bug Fixes
+
+* Added missing vhdl instance of `cus_mux21` in `MUX8LUT_frame_config_mux.vhdl` and added tests for it. ([#1093](https://github.com/FPGA-Research/FABulous/issues/1093)) ([4869f06](https://github.com/FPGA-Research/FABulous/commit/4869f06a3d5fb46ff4d6906ce991c7c494db2278))
+* colour the log only when the sink is a terminal ([#1035](https://github.com/FPGA-Research/FABulous/issues/1035)) ([ad7cc96](https://github.com/FPGA-Research/FABulous/commit/ad7cc96c34e94078a4c320b40f1ad6f1f63adc97))
+* find bundled task binary outside PATH ([#1050](https://github.com/FPGA-Research/FABulous/issues/1050)) ([b1d600b](https://github.com/FPGA-Research/FABulous/commit/b1d600bc2c3eb95e1b86add0cbdf84df34d5a367))
+* **gds:** align tile PDN stripes across supertile columns ([#1078](https://github.com/FPGA-Research/FABulous/issues/1078)) ([6d11462](https://github.com/FPGA-Research/FABulous/commit/6d11462d299caf4fd424f9c2c5b40a3bc28113d4)), closes [#1062](https://github.com/FPGA-Research/FABulous/issues/1062)
+* **gds:** hand the fabric to the optimisation flow as an argument ([#1038](https://github.com/FPGA-Research/FABulous/issues/1038)) ([7208b86](https://github.com/FPGA-Research/FABulous/commit/7208b86d43af6f0665e074665a3b0152e7810c26))
+* honor ADD_AS_CUSTOM_PRIM on supertile BEL lines  ([#1053](https://github.com/FPGA-Research/FABulous/issues/1053)) ([8df23be](https://github.com/FPGA-Research/FABulous/commit/8df23be941c02ec57c1956ad547deb0cfc172422))
+* **repl:** stitch only the tiles the fabric uses ([#1091](https://github.com/FPGA-Research/FABulous/issues/1091)) ([ab85c65](https://github.com/FPGA-Research/FABulous/commit/ab85c65d93b437c83b079ded270dc2d16b12d0e2))
+
+
+### Documentation
+
+* fix stale references in AGENTS.md ([#1052](https://github.com/FPGA-Research/FABulous/issues/1052)) ([5ad1b52](https://github.com/FPGA-Research/FABulous/commit/5ad1b52af811b6e5ad800eac69c98ae32a2e9a66))
+
 ## [2.2.0](https://github.com/FPGA-Research/FABulous/compare/v2.1.0...v2.2.0) (2026-09-11)
 
 
