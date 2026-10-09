@@ -138,16 +138,16 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
     return sources
 
 
-def vhdl_pack_modules(models_pack: Path, library: Path) -> set[str]:
-    """Return the yosys module names `<entity>_B<architecture>` of a VHDL pack."""
-    architectures = GhdlTool.analyze(
+def vhdl_pack_prefixes(models_pack: Path, library: Path) -> tuple[str, ...]:
+    """Return the module name prefixes GHDL gives the entities of a VHDL pack.
+
+    GHDL names a module `<entity>_B<architecture>`, with generic values appended.
+    Entity names are lower case, so `<entity>_B` matches no other entity's modules.
+    """
+    entities = GhdlTool.analyze(
         files=[models_pack], workdir=library, flags=GHDL_ANALYSIS_FLAGS
     )
-    return {
-        f"{entity}_B{architecture}"
-        for entity, names in architectures.items()
-        for architecture in names
-    }
+    return tuple(f"{entity}_B" for entity in entities)
 
 
 def parse_project(
@@ -178,7 +178,7 @@ def parse_project(
             )
             reads = [f'read_verilog -sv "{path}"' for path in sources]
         case HDLType.VHDL:
-            pack_modules = vhdl_pack_modules(models_pack, source_dir / "pack")
+            pack_prefixes = vhdl_pack_prefixes(models_pack, source_dir / "pack")
             fabric_library = source_dir / "fabric"
             GhdlTool.analyze(
                 files=[models_pack, *fabric_files(project, models_pack, VHDL_SUFFIXES)],
@@ -252,7 +252,9 @@ def parse_project(
                 ]
             )
             modules = json.loads(netlist.read_text())["modules"]
-            project_modules = modules.keys() - pack_modules
+            project_modules = {
+                name for name in modules if not name.startswith(pack_prefixes)
+            }
     return Design(rtlil=rtlil, modules=modules, project_modules=project_modules)
 
 

@@ -200,22 +200,19 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
 @pytest.mark.parametrize(
     ("lines", "expected"),
     [
-        pytest.param(["entity my_buf"], {"my_buf": []}, id="entity"),
+        pytest.param(["entity my_buf"], {"my_buf"}, id="entity"),
         pytest.param(
             ["entity my_buf", "architecture from_verilog of my_buf"],
-            {"my_buf": ["from_verilog"]},
+            {"my_buf"},
             id="architecture",
         ),
-        pytest.param(["package attr_pack"], {}, id="package"),
+        pytest.param(["package attr_pack"], set(), id="package"),
     ],
 )
 def test_ghdl_analyze_lists_entities(
-    lines: list[str],
-    expected: dict[str, list[str]],
-    mocker: MockerFixture,
-    tmp_path: Path,
+    lines: list[str], expected: set[str], mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """`GhdlTool.analyze` maps each entity in `ghdl --dir` to its architectures."""
+    """`GhdlTool.analyze` returns the entities `ghdl --dir` lists."""
     run = mocker.patch.object(GhdlTool, "run")
     run.return_value.stdout = "\n".join(
         ["# Library work", f"# Directory: {tmp_path}/", *lines]

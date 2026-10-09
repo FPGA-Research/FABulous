@@ -79,7 +79,7 @@ class GhdlTool(Tool):
     @classmethod
     def analyze(
         cls, files: list[Path], workdir: Path, flags: tuple[str, ...] = ("--std=08",)
-    ) -> dict[str, list[str]]:
+    ) -> set[str]:
         """Analyse `files` into the GHDL library at `workdir` and list its entities.
 
         Parameters
@@ -93,23 +93,15 @@ class GhdlTool(Tool):
 
         Returns
         -------
-        dict[str, list[str]]
-            Every entity in the library after the analysis, in lower case, mapped to
-            its architectures.
+        set[str]
+            Every entity in the library after the analysis, in lower case.
         """
         workdir.mkdir(parents=True, exist_ok=True)
         common = [*flags, f"--workdir={workdir}"]
         cls.run(args=["-a", *common, *map(str, files)])
-        architectures: dict[str, list[str]] = {}
-        # `ghdl --dir` lists `entity <e>` and `architecture <a> of <e>`, among other
-        # units this ignores.
-        for line in cls.run(args=["--dir", *common]).stdout.splitlines():
-            match line.split():
-                case ["entity", entity]:
-                    architectures.setdefault(entity, [])
-                case ["architecture", architecture, "of", entity]:
-                    architectures.setdefault(entity, []).append(architecture)
-        return architectures
+        listing = cls.run(args=["--dir", *common]).stdout
+        lines = (line.split() for line in listing.splitlines())
+        return {words[1] for words in lines if words[:1] == ["entity"]}
 
     @classmethod
     def synthesize_entity(
