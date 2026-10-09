@@ -112,7 +112,7 @@ reference_projects:
 
 ## RTL equivalence
 
-In diff mode the RTL of a project with `rtl_equivalence: true` is compared by `tests/reference_test/equivalence.py`, which needs `yosys` on `PATH`, and `ghdl` as well for VHDL projects.
+In diff mode the RTL of a project with `rtl_equivalence: true` is compared by `tests/equivalence.py`, which needs `yosys` on `PATH`, and `ghdl` as well for VHDL projects.
 GHDL synthesises a VHDL project to Verilog from its top entity, so VHDL entities outside the top's hierarchy are not compared.
 Each side is elaborated with only its own models pack, so a reference project whose pack lacks a cell the generator now emits fails to elaborate.
 Every module is proven once as its own top: leaf modules are flattened, and a module that instantiates other project modules keeps those instances as cut points through `expose -evert`.
