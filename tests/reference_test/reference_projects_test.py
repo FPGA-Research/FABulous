@@ -13,16 +13,11 @@ import yaml
 from loguru import logger
 
 from fabulous.fabulous_repl.helper import update_project_version
-from fabulous.fabulous_settings import get_context, init_context
-from tests.equivalence import (
-    EquivalenceFailure,
-    parse_project,
-    prove_modules,
-)
+from fabulous.fabulous_settings import init_context
 from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
-    run_fabulous_commands_with_logging,
+    generate_project,
     run_shell_commands,
 )
 
@@ -88,74 +83,6 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
     return projects
 
 
-def _check_rtl_equivalence(
-    reference: Path,
-    regenerated: Path,
-    models_pack: Path,
-    language: Literal["verilog", "vhdl"],
-    work_dir: Path,
-) -> list[EquivalenceFailure]:
-    """Check the fabric RTL of `regenerated` against `reference` module by module.
-
-    Each side is elaborated with only its own models pack. The module sets, the
-    ports of `(* blackbox *)` stubs and the per-module instance maps are compared
-    directly, and yosys proves every other module equivalent.
-
-    Parameters
-    ----------
-    reference : Path
-        Reference project directory.
-    regenerated : Path
-        Project directory holding the freshly generated RTL.
-    models_pack : Path
-        Models pack path relative to each project directory.
-    language : Literal["verilog", "vhdl"]
-        HDL of both projects. GHDL synthesises VHDL to Verilog first.
-    work_dir : Path
-        Directory for yosys scripts, logs and the parsed designs.
-
-    Returns
-    -------
-    list[EquivalenceFailure]
-        One entry per differing module; empty when the projects are equivalent.
-
-    Raises
-    ------
-    ValueError
-        If the reference project contains no project modules to check.
-    """
-    work_dir.mkdir(parents=True, exist_ok=True)
-    gold = parse_project(reference, reference / models_pack, language, work_dir, "gold")
-    gate = parse_project(
-        regenerated, regenerated / models_pack, language, work_dir, "gate"
-    )
-
-    failures = [
-        EquivalenceFailure(module=m, reason="missing in regenerated", detail="")
-        for m in sorted(gold.project_modules - gate.project_modules)
-    ] + [
-        EquivalenceFailure(module=m, reason="extra in regenerated", detail="")
-        for m in sorted(gate.project_modules - gold.project_modules)
-    ]
-
-    proved: list[str] = []
-    for module in sorted(gold.project_modules & gate.project_modules):
-        if "blackbox" in gold.modules[module]["attributes"]:
-            # Hard-macro stub: the interface is all there is to compare.
-            if gold.modules[module]["ports"] != gate.modules[module]["ports"]:
-                failures.append(
-                    EquivalenceFailure(
-                        module=module, reason="blackbox ports differ", detail=""
-                    )
-                )
-            continue
-        proved.append(module)
-
-    if not proved:
-        raise ValueError(f"No project modules found to check under {reference}.")
-    return failures + prove_modules(gold, gate, proved, work_dir)
-
-
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test parameters dynamically based on config."""
     if "ref_project" in metafunc.fixturenames:
@@ -196,9 +123,6 @@ def test_reference_project_execution(
     assert ref_project.path.exists(), (
         f"Reference project path does not exist: {ref_project.path}"
     )
-    assert not ref_project.rtl_equivalence or ref_project.test_mode == "diff", (
-        f"{ref_project.name}: rtl_equivalence needs 'diff' mode"
-    )
 
     # Copy project to temporary location
     project_name = ref_project.path.name
@@ -219,32 +143,13 @@ def test_reference_project_execution(
                 f"update-project-version failed for {ref_project.name}"
             )
 
-        # Run optional pre-fab shell commands
-        if ref_project.pre_fab_commands:
-            pre_failures = run_shell_commands(
-                test_project_path, ref_project.pre_fab_commands
-            )
-            assert not pre_failures, (
-                f"pre_fab_commands failed for {ref_project.name}: "
-                + "\n".join(
-                    f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in pre_failures
-                )
-            )
-
-        # Run FABulous commands
-        _, execution_info = run_fabulous_commands_with_logging(
+        generate_project(
             test_project_path,
             ref_project.language,
             caplog,
             monkeypatch,
-            commands=ref_project.fab_commands,
-        )
-
-        # Always check that basic commands succeeded
-        assert not execution_info["commands_failed"], (
-            f"Commands failed for {ref_project.name}: "
-            f"{execution_info['commands_failed']}"
-            f"\nErrors: {execution_info['errors']}"
+            pre_fab_commands=ref_project.pre_fab_commands,
+            fab_commands=ref_project.fab_commands,
         )
 
         # Verify expected outputs exist if specified
@@ -286,7 +191,7 @@ def test_reference_project_execution(
             else:
                 logger.info("Using default include patterns for:")
                 if ref_project.rtl_equivalence:
-                    # The RTL is checked for equivalence below, not diffed as text.
+                    # `rtl_equivalence_test.py` checks the RTL instead.
                     include_patterns = []
                 elif ref_project.language == "verilog":
                     include_patterns = ["*.v", "*.sv"]
@@ -316,29 +221,6 @@ def test_reference_project_execution(
                 pytest.fail(
                     f"Compare project differences in {ref_project.name}:\n{diff_report}"
                 )
-
-            if ref_project.rtl_equivalence:
-                models_pack = get_context().models_pack
-                assert models_pack is not None, (
-                    f"No models pack configured for {ref_project.name}"
-                )
-                failures = _check_rtl_equivalence(
-                    reference=ref_project.path,
-                    regenerated=test_project_path,
-                    models_pack=models_pack.relative_to(test_project_path),
-                    language=ref_project.language,
-                    work_dir=tmp_path / "equivalence",
-                )
-                if failures:
-                    report = "\n".join(
-                        f"  {f.module}: {f.reason}"
-                        + (f": {f.detail}" if f.detail else "")
-                        for f in failures
-                    )
-                    pytest.fail(
-                        f"RTL of {ref_project.name} is not equivalent to the "
-                        f"reference in {len(failures)} modules:\n{report}"
-                    )
 
             logger.info(
                 f"✓ Project {ref_project.name} passed regression testing in 'diff' mode"
