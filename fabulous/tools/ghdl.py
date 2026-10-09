@@ -2,15 +2,37 @@
 
 GHDL elaborates a VHDL design (`--synth --out=verilog`) and writes the resulting
 Verilog netlist to stdout. This wrapper captures that output so the VHDL-to-Verilog
-conversion no longer needs a raw subprocess call in the caller. Used as a singleton
-via `GhdlTool.synthesize_to_verilog(...)`; never instantiated.
+conversion no longer needs a raw subprocess call in the caller. `analyze` and
+`synthesize_entity` expose the two steps separately for callers that keep a GHDL
+library across calls. Used as a singleton through classmethods; never
+instantiated.
 """
 
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from fabulous.fabulous_settings import get_context
 from fabulous.tools.tool import Tool
+
+
+@dataclass(frozen=True)
+class GhdlUnit:
+    """One design unit of a GHDL library, as `ghdl --dir` lists it.
+
+    Attributes
+    ----------
+    kind : str
+        Unit kind, such as `entity`, `architecture` or `package`.
+    name : str
+        Unit name in lower case.
+    entity : str | None
+        The entity an architecture or configuration belongs to, otherwise `None`.
+    """
+
+    kind: str
+    name: str
+    entity: str | None
 
 
 class GhdlTool(Tool):
@@ -73,3 +95,60 @@ class GhdlTool(Tool):
         finally:
             stub.unlink(missing_ok=True)
         return result.stdout
+
+    @classmethod
+    def analyze(
+        cls, files: list[Path], workdir: Path, flags: tuple[str, ...] = ("--std=08",)
+    ) -> list[GhdlUnit]:
+        """Analyse `files` into the GHDL library at `workdir` and list its units.
+
+        Parameters
+        ----------
+        files : list[Path]
+            VHDL files to analyse, in order.
+        workdir : Path
+            Library directory, created if missing.
+        flags : tuple[str, ...]
+            Analysis flags such as `--std=08` and `-fsynopsys`.
+
+        Returns
+        -------
+        list[GhdlUnit]
+            Every unit in the library after the analysis.
+        """
+        workdir.mkdir(parents=True, exist_ok=True)
+        common = [*flags, f"--workdir={workdir}"]
+        cls.run(args=["-a", *common, *map(str, files)])
+        units: list[GhdlUnit] = []
+        for line in cls.run(args=["--dir", *common]).stdout.splitlines():
+            words = line.split()
+            # `#` lines name the library and its directory.
+            if not words or words[0] == "#":
+                continue
+            entity = words[3] if words[2:3] == ["of"] else None
+            units.append(GhdlUnit(kind=words[0], name=words[1], entity=entity))
+        return units
+
+    @classmethod
+    def synthesize_entity(
+        cls, entity: str, workdir: Path, flags: tuple[str, ...] = ("--std=08",)
+    ) -> str:
+        """Synthesise `entity` from the GHDL library at `workdir` into Verilog.
+
+        Parameters
+        ----------
+        entity : str
+            Top entity, already analysed into `workdir`.
+        workdir : Path
+            Library directory.
+        flags : tuple[str, ...]
+            Synthesis flags such as `--std=08` and `--latches`.
+
+        Returns
+        -------
+        str
+            The Verilog netlist GHDL emits on stdout.
+        """
+        return cls.run(
+            args=["--synth", *flags, f"--workdir={workdir}", "--out=verilog", entity]
+        ).stdout
