@@ -4,7 +4,7 @@
 
   inputs = {
     # Same librelane dev rev as the uv source in pyproject.toml.
-    librelane.url = "github:librelane/librelane/aaf7a938766e0708ca894776d81e2c2cfb12b7e7";
+    librelane.url = "github:librelane/librelane/c5b5099e55f4e3bed507f2e79441ecfd6432d65c";
 
     # Follow librelane's nix-eda and nixpkgs for binary cache hits
     nix-eda.follows = "librelane/nix-eda";
