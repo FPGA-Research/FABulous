@@ -13,6 +13,7 @@ from typing import Any, NamedTuple
 import pytest
 from loguru import logger
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
@@ -230,7 +231,7 @@ def format_file_differences_report(
 
 def run_fabulous_commands_with_logging(
     project_path: Path,
-    language: str,
+    language: HDLType,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     commands: list[str] | None = None,
@@ -242,7 +243,7 @@ def run_fabulous_commands_with_logging(
     ----------
     project_path : Path
         Path to the project directory to run commands in.
-    language : str
+    language : HDLType
         Language type for FABulous CLI ("verilog" or "vhdl").
     caplog : pytest.LogCaptureFixture
         Pytest log capture fixture for collecting log output.
@@ -406,7 +407,7 @@ def run_shell_commands(
 
 def generate_project(
     project_path: Path,
-    language: str,
+    language: HDLType,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     pre_fab_commands: list[dict[str, str]] | None,
@@ -418,7 +419,7 @@ def generate_project(
     ----------
     project_path : Path
         Copy of the reference project to generate into.
-    language : str
+    language : HDLType
         Language type for FABulous CLI ("verilog" or "vhdl").
     caplog : pytest.LogCaptureFixture
         Pytest log capture fixture for collecting log output.
