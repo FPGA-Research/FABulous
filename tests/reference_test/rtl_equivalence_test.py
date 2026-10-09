@@ -39,6 +39,7 @@ def _check_rtl_equivalence(
     regenerated: Path,
     models_pack: Path,
     language: HDLType,
+    top: str,
     work_dir: Path,
 ) -> list[EquivalenceFailure]:
     """Check the fabric RTL of `regenerated` against `reference` module by module.
@@ -57,6 +58,8 @@ def _check_rtl_equivalence(
         Models pack path relative to each project directory.
     language : HDLType
         HDL of both projects. GHDL synthesises VHDL to Verilog first.
+    top : str
+        Fabric top module, `<fabric>_top`.
     work_dir : Path
         Directory for yosys scripts, logs and the parsed designs.
 
@@ -71,9 +74,16 @@ def _check_rtl_equivalence(
         If the reference project contains no project modules to check.
     """
     work_dir.mkdir(parents=True, exist_ok=True)
-    gold = parse_project(reference, reference / models_pack, language, work_dir, "gold")
-    gate = parse_project(
-        regenerated, regenerated / models_pack, language, work_dir, "gate"
+    gold, gate = (
+        parse_project(
+            project=project,
+            models_pack=project / models_pack,
+            language=language,
+            top=top,
+            work_dir=work_dir,
+            tag=tag,
+        )
+        for project, tag in ((reference, "gold"), (regenerated, "gate"))
     )
 
     failures = [
@@ -111,7 +121,7 @@ def test_rtl_equivalence(
     """The regenerated fabric RTL of `ref_project` is equivalent to the reference."""
     regenerated = tmp_path / ref_project.path.name
     shutil.copytree(ref_project.path, regenerated, symlinks=True)
-    generate_project(
+    fabric = generate_project(
         regenerated,
         ref_project.language,
         caplog,
@@ -127,6 +137,7 @@ def test_rtl_equivalence(
         regenerated=regenerated,
         models_pack=models_pack.relative_to(regenerated),
         language=ref_project.language,
+        top=f"{fabric}_top",
         work_dir=tmp_path / "equivalence",
     )
     if failures:

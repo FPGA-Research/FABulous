@@ -413,7 +413,7 @@ def generate_project(
     monkeypatch: pytest.MonkeyPatch,
     pre_fab_commands: list[dict[str, str]] | None,
     fab_commands: list[str] | None,
-) -> None:
+) -> str:
     """Run the pre-fab shell commands, then the FABulous commands, in a project.
 
     Parameters
@@ -430,6 +430,11 @@ def generate_project(
         Shell commands to run first, as for `run_shell_commands`.
     fab_commands : list[str] | None
         FABulous commands, or `None` for the standard sequence.
+
+    Returns
+    -------
+    str
+        Name of the fabric the commands loaded.
     """
     if pre_fab_commands:
         pre_failures = run_shell_commands(project_path, pre_fab_commands)
@@ -440,7 +445,7 @@ def generate_project(
             )
         )
 
-    _, execution_info = run_fabulous_commands_with_logging(
+    cli, execution_info = run_fabulous_commands_with_logging(
         project_path, language, caplog, monkeypatch, commands=fab_commands
     )
     assert not execution_info["commands_failed"], (
@@ -448,3 +453,4 @@ def generate_project(
         f"{execution_info['commands_failed']}"
         f"\nErrors: {execution_info['errors']}"
     )
+    return cli.fabulousAPI.fabric.name
