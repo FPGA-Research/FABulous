@@ -17,6 +17,8 @@ class YosysTool(Tool):
     the classmethods directly, never instantiate.
     """
 
+    COMMAND = "yosys"
+
     @classmethod
     def executable(cls) -> Path | str:
         """Return the Yosys executable from the FABulous context.

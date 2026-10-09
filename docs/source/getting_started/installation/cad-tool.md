@@ -15,6 +15,10 @@ This will install the [`oss-cad-suit`](https://github.com/YosysHQ/oss-cad-suite-
 Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
 :::
 
+:::{warning}
+VHDL projects need [GHDL](https://github.com/ghdl/ghdl/releases) **6.0.0 or newer**. FABulous carries a BEL definition in user-defined VHDL attributes, and GHDL propagates those through `--synth --out=verilog` only from 6.0.0; 5.1.1 warns `unhandled attribute` and emits none, which leaves the BelMap empty. FABulous refuses to run against an older GHDL rather than generate a broken fabric. Check with `ghdl --version`.
+:::
+
 :::{note}
 If you just want to install `yosys` using **apt**, make sure you have at least Ubuntu 23.10 (24.04 for the LTS versions) installed to meet the above requirement.
 :::

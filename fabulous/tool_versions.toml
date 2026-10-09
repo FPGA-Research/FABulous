@@ -1,0 +1,9 @@
+# Supported version range of each external tool as a PEP 440 specifier set,
+# keyed by the `COMMAND` of its wrapper in `fabulous/tools`. A tool with no
+# entry is not version-checked.
+
+# An older GHDL drops user-defined VHDL attributes from --synth --out=verilog,
+# so the BelMap of a VHDL BEL comes back empty.
+ghdl = ">=6.0.0"
+# Yosys changed behaviour FABulous has not been adapted to after 0.66.
+yosys = "<=0.66"
