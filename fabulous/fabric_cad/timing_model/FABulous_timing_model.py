@@ -106,7 +106,8 @@ class FABulousTileTimingModel:
         source files are specified in the configuration for this tile, use those
         instead.
         """
-        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
+        # yosys/ holds synthesis blackboxes named after fabric BELs.
+        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test", "^yosys$"]
         self.verilog_files: list[Path] = self._find_matching_files(
             self.tm_config.project_dir, r".*\.v$", exclude_dir_patterns
         )

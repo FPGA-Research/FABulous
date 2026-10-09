@@ -550,7 +550,7 @@ def compile_user_design(
     run_cmd(
         cli,
         f"compile_design {user_design} -top {design_name} "
-        f'--synth-extra-args=-iopad --nextpnr-extra-args "-o pcf={pcf}"',
+        f'--nextpnr-extra-args "-o pcf={pcf}"',
     )
     bitstream = user_design.with_suffix(".bin")
     if not bitstream.exists():

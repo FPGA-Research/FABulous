@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from dotenv import set_key
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import EnvironmentNotSet
@@ -68,18 +69,16 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
 
 
 def test_update_project_version_success(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test successful project version update."""
-    env_dir = tmp_path / "proj" / ".FABulous"
-    env_dir.mkdir(parents=True)
-    env_file = env_dir / ".env"
-    env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
+    env_file = project / ".FABulous" / ".env"
+    set_key(env_file, "FAB_PROJ_VERSION", "1.2.3")
 
     # Patch version() to return compatible version
     monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "1.2.4")
 
-    assert update_project_version(tmp_path / "proj") is True
+    assert update_project_version(project) is True
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
 
 

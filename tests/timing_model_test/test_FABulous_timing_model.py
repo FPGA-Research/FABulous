@@ -260,7 +260,7 @@ def test_get_project_rtl_files_uses_default_search(
     ) -> list[Path]:
         assert root_dir == tmp_path
         assert file_pattern == r".*\.v$"
-        assert exclude_dir_patterns == ["macro", "user_design", "Test"]
+        assert exclude_dir_patterns == ["macro", "user_design", "Test", "^yosys$"]
         assert exclude_file_patterns is None
         return [tmp_path / "a.v", tmp_path / "b.v"]
 

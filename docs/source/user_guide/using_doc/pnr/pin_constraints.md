@@ -17,11 +17,12 @@ pin assignment separately.
 
 The PCF flow has two parts, one in synthesis and one in place-and-route:
 
-1. **Synthesis (`-iopad`):** Passing `-iopad` to the `synth_fabulous` Yosys pass
-   runs I/O pad mapping, which inserts an I/O buffer cell
-   (`$nextpnr_ibuf` / `$nextpnr_obuf` / `$nextpnr_iobuf`) on every top-level
-   port. Without this step there are no I/O cells for nextpnr to constrain, and
-   the PCF has nothing to bind to.
+1. **Synthesis (pad insertion):** The `synth_fabulous` Yosys pass inserts an
+   I/O buffer on every top-level port, and the project's
+   `yosys/techmap/io_map.v` maps each buffer onto the fabric I/O BEL
+   (`IO_1_bidirectional_frame_config_pass`). A FABulous project inserts pads by
+   default. Without this step there are no I/O cells for nextpnr to constrain,
+   and the PCF has nothing to bind to.
 2. **Place-and-route (`-o pcf=...`):** nextpnr reads the PCF, and for each
    `set_io` line it finds the I/O cell connected to the named port and locks it
    to the requested I/O BEL.
@@ -30,7 +31,7 @@ Because the port list stays intact, you set nextpnr's top module to your design
 itself (via `-top`), not to a wrapper.
 
 :::{note}
-`-iopad` is the simplest way to get I/O cells and is what this flow uses. Some
+Mapping the pads with the project's `io_map.v` is what this flow uses. Some
 tile libraries (for example the primitives in
 [fabulous-tiles](https://github.com/FPGA-Research/fabulous-tiles)) instead
 provide explicit `IBUF`/`OBUF`/`TBUF`/`IOBUF` primitives that you map in with
@@ -142,12 +143,10 @@ run, two files in `<project-dir>/.FABulous/` list them:
 ## Running the flow
 
 Drive the full synthesis -> place-and-route -> bitstream flow with
-`compile_design`, enabling `-iopad` in synthesis and pointing nextpnr at your
-PCF. From the FABulous shell, with the fabric already loaded:
+`compile_design`, pointing nextpnr at your PCF. From the FABulous shell, with the fabric already loaded:
 
 ```console
 FABulous> compile_design user_design/counter.v -top counter \
-    --synth-extra-args=-iopad \
     --nextpnr-extra-args "-o pcf=user_design/counter.pcf"
 ```
 
@@ -155,7 +154,6 @@ FABulous> compile_design user_design/counter.v -top counter \
 | ------------------------------------- | -------------------------------------------------- |
 | `user_design/counter.v`               | The design source(s) to compile.                   |
 | `-top counter`                        | Use the design module as the top (no wrapper).     |
-| `--synth-extra-args=-iopad`           | Insert I/O buffers so the PCF has cells to bind.   |
 | `--nextpnr-extra-args "-o pcf=..."`   | Forward the PCF to nextpnr's `fabulous` uarch.     |
 
 The result is the usual bitstream (`counter.bin`) next to the design, ready to
@@ -203,7 +201,6 @@ Compile it:
 
 ```console
 FABulous> compile_design user_design/counter.v -top counter \
-    --synth-extra-args=-iopad \
     --nextpnr-extra-args "-o pcf=user_design/counter.pcf"
 ```
 
@@ -211,12 +208,14 @@ FABulous> compile_design user_design/counter.v -top counter \
 
 `No IO cell found connected to '<port>' via PAD port ... Was iopadmap run in
 Yosys?`
-: nextpnr found the port but no I/O buffer to constrain. Add
-  `--synth-extra-args=-iopad` so synthesis inserts the I/O pads.
+: nextpnr found the port but no I/O buffer to constrain. Check that `-noiopad`
+  is not among the synthesis arguments. A project without a `yosys/` folder
+  that runs on Yosys 0.66 or older inserts pads only with
+  `--synth-extra-args=-iopad`.
 
 `Can only constrain IO cells`
 : The name on the left of `set_io` is a top-level port, but it is not an I/O
-  buffer — check the port name and that `-iopad` ran.
+  buffer — check the port name and that pad insertion ran.
 
 `Cannot find a pin named '<location>'`
 : The `X<col>Y<row>/<bel>` location does not exist or is not an I/O BEL. Confirm
