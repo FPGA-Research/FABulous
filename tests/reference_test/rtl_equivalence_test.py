@@ -7,10 +7,10 @@ module proves the regenerated RTL equivalent to the reference instead.
 
 import shutil
 from pathlib import Path
-from typing import Literal
 
 import pytest
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_settings import get_context
 from tests.equivalence import EquivalenceFailure, parse_project, prove_modules
 from tests.reference_test.helpers import generate_project
@@ -38,7 +38,7 @@ def _check_rtl_equivalence(
     reference: Path,
     regenerated: Path,
     models_pack: Path,
-    language: Literal["verilog", "vhdl"],
+    language: HDLType,
     work_dir: Path,
 ) -> list[EquivalenceFailure]:
     """Check the fabric RTL of `regenerated` against `reference` module by module.
@@ -55,7 +55,7 @@ def _check_rtl_equivalence(
         Project directory holding the freshly generated RTL.
     models_pack : Path
         Models pack path relative to each project directory.
-    language : Literal["verilog", "vhdl"]
+    language : HDLType
         HDL of both projects. GHDL synthesises VHDL to Verilog first.
     work_dir : Path
         Directory for yosys scripts, logs and the parsed designs.

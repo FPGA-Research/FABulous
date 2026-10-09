@@ -12,6 +12,7 @@ import pytest
 import yaml
 from loguru import logger
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.helper import update_project_version
 from fabulous.fabulous_settings import init_context
 from tests.reference_test.helpers import (
@@ -27,7 +28,7 @@ class ReferenceProject(NamedTuple):
 
     name: str
     path: Path
-    language: Literal["verilog", "vhdl"]
+    language: HDLType
     test_mode: Literal["run", "diff"]
     upgrade: bool = False
     description: str = ""
@@ -60,7 +61,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
             project = ReferenceProject(
                 name=project_data["name"],
                 path=path.resolve(),
-                language=project_data["language"],
+                language=HDLType(project_data["language"]),
                 test_mode=project_data["test_mode"],
                 upgrade=project_data.get("upgrade", False),
                 description=project_data.get("description", ""),
@@ -193,7 +194,7 @@ def test_reference_project_execution(
                 if ref_project.rtl_equivalence:
                     # `rtl_equivalence_test.py` checks the RTL instead.
                     include_patterns = []
-                elif ref_project.language == "verilog":
+                elif ref_project.language == HDLType.VERILOG:
                     include_patterns = ["*.v", "*.sv"]
                 else:
                     include_patterns = ["*.vhd", "*.vhdl"]

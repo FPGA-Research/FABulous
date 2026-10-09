@@ -20,8 +20,9 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.yosys import YosysTool
 
@@ -226,7 +227,7 @@ def vhdl_sources(
 def parse_project(
     project: Path,
     models_pack: Path,
-    language: Literal["verilog", "vhdl"],
+    language: HDLType,
     work_dir: Path,
     tag: str,
 ) -> Design:
@@ -240,13 +241,13 @@ def parse_project(
     source_dir = work_dir / f"{tag}_sources"
     source_dir.mkdir()
     match language:
-        case "verilog":
+        case HDLType.VERILOG | HDLType.SYSTEM_VERILOG:
             sources = unique_sources(
                 [models_pack, *fabric_files(project, models_pack, VERILOG_SUFFIXES)],
                 source_dir,
             )
             reads = [f'read_verilog -sv "{path}"' for path in sources]
-        case "vhdl":
+        case HDLType.VHDL:
             sources, pack_modules = vhdl_sources(project, models_pack, source_dir)
             fabric_library = source_dir / "fabric"
             GhdlTool.analyze(
@@ -279,14 +280,14 @@ def parse_project(
     )
     modules: dict[str, Any] = json.loads(netlist.read_text())["modules"]
     match language:
-        case "verilog":
+        case HDLType.VERILOG | HDLType.SYSTEM_VERILOG:
             pack_src = f"{models_pack}:"
             project_modules = {
                 name
                 for name, module in modules.items()
                 if not module["attributes"].get("src", "").startswith(pack_src)
             }
-        case "vhdl":
+        case HDLType.VHDL:
             # GHDL numbers anonymous nets `n<number>` and `<instance>_n<number>`
             # across the whole design, so once the two sides differ the same name
             # denotes unrelated nets and `equiv_make` would pair them. Hiding them
