@@ -27,8 +27,9 @@ from fabulous.tools.yosys import YosysTool
 
 VERILOG_SUFFIXES = (".v", ".sv")
 VHDL_SUFFIXES = (".vhd", ".vhdl")
+GHDL_ANALYSIS_FLAGS = ("--std=08", "-fsynopsys")
 # --latches: the config latches and the template FSMs infer latches.
-GHDL_FLAGS = ("--std=08", "-fsynopsys", "--latches")
+GHDL_FLAGS = (*GHDL_ANALYSIS_FLAGS, "--latches")
 # Generated fabric RTL lives here; Test/ and user_design/ hold user inputs.
 RTL_DIRS = ("Tile", "Fabric")
 
@@ -136,28 +137,6 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
     return sources
 
 
-def ghdl_analyse(library: Path, files: list[Path]) -> list[list[str]]:
-    """Analyse `files` into a fresh GHDL library and return its unit listing.
-
-    Each entry is one `ghdl --dir` line split into words, such as `entity my_buf`
-    or `architecture from_verilog of my_buf`.
-    """
-    library.mkdir(parents=True)
-    workdir = f"--workdir={library}"
-    GhdlTool.run(args=["-a", *GHDL_FLAGS[:2], workdir, *map(str, files)])
-    listing = GhdlTool.run(args=["--dir", *GHDL_FLAGS[:2], workdir]).stdout
-    return [line.split() for line in listing.splitlines() if line.strip()]
-
-
-def ghdl_synth(library: Path, entity: str, output: Path) -> Path:
-    """Synthesise `entity` and its sub-hierarchy from `library` into `output`."""
-    result = GhdlTool.run(
-        args=["--synth", *GHDL_FLAGS, f"--workdir={library}", "--out=verilog", entity]
-    )
-    output.write_text(result.stdout)
-    return output
-
-
 def fabric_top(project: Path, suffixes: tuple[str, ...]) -> Path:
     """Return the one `Fabric/<fabric>_top` file of `project` with `suffixes`."""
     # `ghdl --find-top` cannot stand in: unused BEL entities are tops as well.
@@ -202,10 +181,14 @@ def vhdl_sources(
     ValueError
         If a file redefines an entity differently.
     """
-    pack_units = ghdl_analyse(work_dir / "pack", [models_pack])
-    pack_entities = {unit[1] for unit in pack_units if unit[0] == "entity"}
+    pack_units = GhdlTool.analyze(
+        files=[models_pack], workdir=work_dir / "pack", flags=GHDL_ANALYSIS_FLAGS
+    )
+    pack_entities = {unit.name for unit in pack_units if unit.kind == "entity"}
     pack_modules = {
-        f"{unit[3]}_B{unit[1]}" for unit in pack_units if unit[0] == "architecture"
+        f"{unit.entity}_B{unit.name}"
+        for unit in pack_units
+        if unit.kind == "architecture"
     }
 
     # Entity name to the file and GHDL library of its first definition.
@@ -213,14 +196,20 @@ def vhdl_sources(
     kept: list[Path] = []
     for index, path in enumerate(fabric_files(project, models_pack, VHDL_SUFFIXES)):
         library = work_dir / f"file_{index:03d}"
-        units = ghdl_analyse(library, [models_pack, path])
-        entities = {unit[1] for unit in units if unit[0] == "entity"} - pack_entities
+        units = GhdlTool.analyze(
+            files=[models_pack, path], workdir=library, flags=GHDL_ANALYSIS_FLAGS
+        )
+        entities = {unit.name for unit in units if unit.kind == "entity"}
+        entities -= pack_entities
         for entity in sorted(entities & first_definition.keys()):
             first_path, first_library = first_definition[entity]
-            copies = [
-                ghdl_synth(first_library, entity, library / "first.v"),
-                ghdl_synth(library, entity, library / "copy.v"),
-            ]
+            copies = [library / "first.v", library / "copy.v"]
+            for copy, source in zip(copies, (first_library, library), strict=True):
+                copy.write_text(
+                    GhdlTool.synthesize_entity(
+                        entity=entity, workdir=source, flags=GHDL_FLAGS
+                    )
+                )
             try:
                 unique_sources(copies, library / "compare")
             except ValueError as error:
@@ -260,9 +249,18 @@ def parse_project(
         case "vhdl":
             sources, pack_modules = vhdl_sources(project, models_pack, source_dir)
             fabric_library = source_dir / "fabric"
-            ghdl_analyse(fabric_library, [models_pack, *sources])
+            GhdlTool.analyze(
+                files=[models_pack, *sources],
+                workdir=fabric_library,
+                flags=GHDL_ANALYSIS_FLAGS,
+            )
             top = fabric_top(project, VHDL_SUFFIXES).stem.lower()
-            fabric = ghdl_synth(fabric_library, top, source_dir / "fabric.v")
+            fabric = source_dir / "fabric.v"
+            fabric.write_text(
+                GhdlTool.synthesize_entity(
+                    entity=top, workdir=fabric_library, flags=GHDL_FLAGS
+                )
+            )
             reads = [f'read_verilog -sv "{fabric}"']
     script.write_text(
         "\n".join(
