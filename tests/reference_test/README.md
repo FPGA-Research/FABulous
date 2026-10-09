@@ -21,7 +21,8 @@ pytest tests/reference_test/
 - **Flexible Configuration**: YAML-based project configuration with skip support
 - **Run or Diff Mode**: Either just run FABulous commands or run + compare outputs
   - **Run** mode checks for command execution errors only and if `expected_outputs` are defined
-  - **Diff** Mode copies the project to a temp directory, runs commands, and compares outputs against the original project
+  - **Diff** Mode copies the project to a temp directory, runs commands, and compares outputs against the original project.
+    A project with `rtl_equivalence: true` has its fabric RTL under `Tile/` and `Fabric/` checked with Yosys equivalence instead of a text diff (see below)
 - **File Pattern Matching**: Configure which files to include/exclude in comparisons
 - **Git-style Diffs**: Shows detailed unified diff output when tests fail
 - **GitHub Integration**: Automatically download reference projects from repository
@@ -42,8 +43,11 @@ reference_projects: Header for all reference projects
     description: A brief description of the project.
     expected_outputs: (Optional) Check of the following list of files exists after run
     include_patterns: (Optional) Only for "diff" mode.
-      A list of glob patterns, which files to diff:
-      Default include_patterns: ["*.v", "*.sv", "*.vhd", "*.vhdl", "*.csv", "*.list", "*txt", "*.bin"]
+      A list of glob patterns, which files to diff as text:
+      Default include_patterns: ["*.csv", "*.list", "*txt", "*.bin"], plus the project's RTL ("*.v", "*.sv" or "*.vhd", "*.vhdl") unless rtl_equivalence is set
+    rtl_equivalence: (Optional)
+      Check the RTL with Yosys equivalence instead of a text diff.
+      Default rtl_equivalence: false
     exclude_patterns: (Optional) Only for "diff" mode.
       A list of glob patterns, which files to exclude from diff
       Default exclude_patterns: [] # None excluded
@@ -102,6 +106,15 @@ reference_projects:
       - cmd: "make clean"
         cwd: "Test/"
 ```
+
+## RTL equivalence
+
+`rtl_equivalence_test.py` regenerates every project with `rtl_equivalence: true` and proves its RTL equivalent to the reference with `tests/equivalence.py`, which needs `yosys` on `PATH`, and `ghdl` as well for VHDL projects.
+GHDL synthesises a VHDL project to Verilog from its top entity, so VHDL entities outside the top's hierarchy are not compared.
+Each side is elaborated with only its own models pack, so a reference project whose pack lacks a cell the generator now emits fails to elaborate.
+Every module is proven once as its own top: leaf modules are flattened, and a module that instantiates other project modules keeps those instances as cut points through `expose -evert`.
+The instance-to-(type, parameters) map of every module is compared separately, because cutting an instance drops its type.
+Instance names must therefore match between the reference and the regenerated RTL.
 
 ## Command Line Options
 

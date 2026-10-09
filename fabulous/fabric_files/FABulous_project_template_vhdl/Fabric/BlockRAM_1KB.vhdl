@@ -6,15 +6,15 @@ library ieee;
   use ieee.numeric_std.all;
 
 -- Generated from Verilog module BlockRAM_1KB (BlockRAM_1KB.v:1)
---   READ_ADDRESS_MSB_FROM_DATALSB = 24
---   WRITE_ADDRESS_MSB_FROM_DATALSB = 16
+--   READ_ADDRESS_MSB_FROM_DATA_LSB = 24
+--   WRITE_ADDRESS_MSB_FROM_DATA_LSB = 16
 --   WRITE_ENABLE_FROM_DATA = 20
 
 entity BlockRAM_1KB is
   generic (
-    READ_ADDRESS_MSB_FROM_DATALSB  : integer := 24;
-    WRITE_ADDRESS_MSB_FROM_DATALSB : integer := 16;
-    WRITE_ENABLE_FROM_DATA         : integer := 20
+    READ_ADDRESS_MSB_FROM_DATA_LSB  : integer := 24;
+    WRITE_ADDRESS_MSB_FROM_DATA_LSB : integer := 16;
+    WRITE_ENABLE_FROM_DATA          : integer := 20
   );
   port (
     C0      : in    std_logic;
@@ -32,18 +32,18 @@ entity BlockRAM_1KB is
 end entity BlockRAM_1KB;
 
 -- Generated from Verilog module BlockRAM_1KB (BlockRAM_1KB.v:1)
---   READ_ADDRESS_MSB_FROM_DATALSB = 24
---   WRITE_ADDRESS_MSB_FROM_DATALSB = 16
+--   READ_ADDRESS_MSB_FROM_DATA_LSB = 24
+--   WRITE_ADDRESS_MSB_FROM_DATA_LSB = 16
 --   WRITE_ENABLE_FROM_DATA = 20
 
 architecture from_verilog of BlockRAM_1KB is
 
-  signal alwaysWriteEnable                       : std_logic;                     -- Declared at BlockRAM_1KB.v:25
+  signal always_write_enable                     : std_logic;                     -- Declared at BlockRAM_1KB.v:25
   signal final_dout                              : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:119
-  signal memWriteEnable                          : std_logic;                     -- Declared at BlockRAM_1KB.v:31
+  signal mem_write_enable                        : std_logic;                     -- Declared at BlockRAM_1KB.v:31
   signal mem_dout                                : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:73
   signal mem_wr_mask                             : std_logic_vector(3 downto 0);  -- Declared at BlockRAM_1KB.v:39
-  signal muxedDataIn                             : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:40
+  signal muxed_data_in                           : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:40
   signal optional_register_enabled_configuration : std_logic;                     -- Declared at BlockRAM_1KB.v:24
   signal rd_dout_additional_register             : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:115
   signal rd_dout_muxed                           : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:92
@@ -70,13 +70,13 @@ architecture from_verilog of BlockRAM_1KB is
 
 begin
 
-  alwaysWriteEnable                       <= C4;
+  always_write_enable                     <= C4;
   optional_register_enabled_configuration <= C5;
   rd_data                                 <= final_dout;
   wr_port_configuration                   <= C0 & C1;
   rd_port_configuration                   <= C2 & C3;
-  wr_addr_topbits                         <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto
-                                                     READ_ADDRESS_MSB_FROM_DATALSB);
+  wr_addr_topbits                         <= wr_data(WRITE_ADDRESS_MSB_FROM_DATA_LSB + 1 downto
+                                                     WRITE_ADDRESS_MSB_FROM_DATA_LSB);
 
   -- Generated from instantiation at BlockRAM_1KB.v:75
   memory_cell : component sram_1rw1r_32_256_8_sky130
@@ -85,22 +85,22 @@ begin
       addr1  => rd_addr,
       clk0   => clk,
       clk1   => clk,
-      csb0   => memWriteEnable,
+      csb0   => mem_write_enable,
       csb1   => '0',
-      din0   => muxedDataIn,
+      din0   => muxed_data_in,
       dout1  => mem_dout,
-      web0   => memWriteEnable,
+      web0   => mem_write_enable,
       wmask0 => mem_wr_mask
     );
 
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
-  process (alwaysWriteEnable, wr_data) is
+  process (always_write_enable, wr_data) is
   begin
 
-    if (alwaysWriteEnable = '1') then
-      memWriteEnable <= '0';
+    if (always_write_enable = '1') then
+      mem_write_enable <= '0';
     else
-      memWriteEnable <= not wr_data(WRITE_ENABLE_FROM_DATA);
+      mem_write_enable <= not wr_data(WRITE_ENABLE_FROM_DATA);
     end if;
 
   end process;
@@ -109,39 +109,41 @@ begin
   process (wr_port_configuration, wr_data, wr_addr_topbits) is
   begin
 
-    muxedDataIn <= "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU";
+    muxed_data_in <= (others => '0');
 
     if (wr_port_configuration = "00") then
-      mem_wr_mask <= x"F";
-      muxedDataIn <= wr_data;
+      mem_wr_mask   <= x"F";
+      muxed_data_in <= wr_data;
     else
       if (wr_port_configuration = "01") then
         if (wr_addr_topbits = "00") then
-          mem_wr_mask                  <= x"3";
-          muxedDataIn(0 + 15 downto 0) <= wr_data(0 + 15 downto 0);
+          mem_wr_mask                    <= x"3";
+          muxed_data_in(0 + 15 downto 0) <= wr_data(0 + 15 downto 0);
         else
-          mem_wr_mask                    <= x"C";
-          muxedDataIn(16 + 15 downto 16) <= wr_data(0 + 15 downto 0);
+          mem_wr_mask                      <= x"C";
+          muxed_data_in(16 + 15 downto 16) <= wr_data(0 + 15 downto 0);
         end if;
       else
         if (wr_port_configuration = "10") then
           if (wr_addr_topbits = "00") then
-            mem_wr_mask                 <= x"1";
-            muxedDataIn(0 + 7 downto 0) <= wr_data(0 + 7 downto 0);
+            mem_wr_mask                   <= x"1";
+            muxed_data_in(0 + 7 downto 0) <= wr_data(0 + 7 downto 0);
           else
             if (wr_addr_topbits = "01") then
-              mem_wr_mask                 <= x"2";
-              muxedDataIn(8 + 7 downto 8) <= wr_data(0 + 7 downto 0);
+              mem_wr_mask                   <= x"2";
+              muxed_data_in(8 + 7 downto 8) <= wr_data(0 + 7 downto 0);
             else
               if (wr_addr_topbits = "10") then
-                mem_wr_mask                   <= x"4";
-                muxedDataIn(16 + 7 downto 16) <= wr_data(0 + 7 downto 0);
+                mem_wr_mask                     <= x"4";
+                muxed_data_in(16 + 7 downto 16) <= wr_data(0 + 7 downto 0);
               else
-                mem_wr_mask                   <= x"8";
-                muxedDataIn(24 + 7 downto 24) <= wr_data(0 + 7 downto 0);
+                mem_wr_mask                     <= x"8";
+                muxed_data_in(24 + 7 downto 24) <= wr_data(0 + 7 downto 0);
               end if;
             end if;
           end if;
+        else
+          mem_wr_mask <= x"0";
         end if;
       end if;
     end if;
@@ -153,7 +155,7 @@ begin
   begin
 
     if rising_edge(clk) then
-      rd_dout_sel <= wr_data(24 + 1 downto 24);
+      rd_dout_sel <= wr_data(READ_ADDRESS_MSB_FROM_DATA_LSB + 1 downto READ_ADDRESS_MSB_FROM_DATA_LSB);
     end if;
 
   end process;

@@ -13,6 +13,7 @@ from typing import Any, NamedTuple
 import pytest
 from loguru import logger
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
@@ -230,7 +231,7 @@ def format_file_differences_report(
 
 def run_fabulous_commands_with_logging(
     project_path: Path,
-    language: str,
+    language: HDLType,
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
     commands: list[str] | None = None,
@@ -242,7 +243,7 @@ def run_fabulous_commands_with_logging(
     ----------
     project_path : Path
         Path to the project directory to run commands in.
-    language : str
+    language : HDLType
         Language type for FABulous CLI ("verilog" or "vhdl").
     caplog : pytest.LogCaptureFixture
         Pytest log capture fixture for collecting log output.
@@ -402,3 +403,53 @@ def run_shell_commands(
                 break
 
     return failures
+
+
+def generate_project(
+    project_path: Path,
+    language: HDLType,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    pre_fab_commands: list[dict[str, str]] | None,
+    fab_commands: list[str] | None,
+) -> str:
+    """Run the pre-fab shell commands, then the FABulous commands, in a project.
+
+    Parameters
+    ----------
+    project_path : Path
+        Copy of the reference project to generate into.
+    language : HDLType
+        Language type for FABulous CLI ("verilog" or "vhdl").
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture for collecting log output.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture for environment management.
+    pre_fab_commands : list[dict[str, str]] | None
+        Shell commands to run first, as for `run_shell_commands`.
+    fab_commands : list[str] | None
+        FABulous commands, or `None` for the standard sequence.
+
+    Returns
+    -------
+    str
+        Name of the fabric the commands loaded.
+    """
+    if pre_fab_commands:
+        pre_failures = run_shell_commands(project_path, pre_fab_commands)
+        assert not pre_failures, (
+            f"pre_fab_commands failed for {project_path.name}: "
+            + "\n".join(
+                f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in pre_failures
+            )
+        )
+
+    cli, execution_info = run_fabulous_commands_with_logging(
+        project_path, language, caplog, monkeypatch, commands=fab_commands
+    )
+    assert not execution_info["commands_failed"], (
+        f"Commands failed for {project_path.name}: "
+        f"{execution_info['commands_failed']}"
+        f"\nErrors: {execution_info['errors']}"
+    )
+    return cli.fabulousAPI.fabric.name
