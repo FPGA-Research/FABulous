@@ -64,3 +64,7 @@ class PipelineCommandError(Exception):
 
 class InvalidState(Exception):
     """Exception raised for invalid state during fabric generation."""
+
+
+class GDSFlowError(Exception):
+    """Exception raised when a step of the GDS flow cannot produce what it promised."""
