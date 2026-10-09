@@ -16,7 +16,7 @@ from packaging.version import Version
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import UnsupportedToolVersion
-from fabulous.tools.ghdl import GhdlTool, GhdlUnit
+from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.opensta import OpenStaTool
 from fabulous.tools.tool import Tool, _check_version_once, _tool_versions
 from fabulous.tools.yosys import YosysTool
@@ -198,36 +198,33 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize(
-    ("line", "unit"),
+    ("lines", "expected"),
     [
+        pytest.param(["entity my_buf"], {"my_buf": []}, id="entity"),
         pytest.param(
-            "entity my_buf",
-            GhdlUnit(kind="entity", name="my_buf", entity=None),
-            id="entity",
-        ),
-        pytest.param(
-            "architecture from_verilog of my_buf",
-            GhdlUnit(kind="architecture", name="from_verilog", entity="my_buf"),
+            ["entity my_buf", "architecture from_verilog of my_buf"],
+            {"my_buf": ["from_verilog"]},
             id="architecture",
         ),
-        pytest.param(
-            "package attr_pack",
-            GhdlUnit(kind="package", name="attr_pack", entity=None),
-            id="package",
-        ),
+        pytest.param(["package attr_pack"], {}, id="package"),
     ],
 )
-def test_ghdl_analyze_lists_units(
-    line: str, unit: GhdlUnit, mocker: MockerFixture, tmp_path: Path
+def test_ghdl_analyze_lists_entities(
+    lines: list[str],
+    expected: dict[str, list[str]],
+    mocker: MockerFixture,
+    tmp_path: Path,
 ) -> None:
-    """`GhdlTool.analyze` turns each `ghdl --dir` unit line into a `GhdlUnit`."""
-    listing = f"# Library work\n# Directory: {tmp_path}/\n{line}\n"
+    """`GhdlTool.analyze` maps each entity in `ghdl --dir` to its architectures."""
     run = mocker.patch.object(GhdlTool, "run")
-    run.return_value.stdout = listing
+    run.return_value.stdout = "\n".join(
+        ["# Library work", f"# Directory: {tmp_path}/", *lines]
+    )
 
-    assert GhdlTool.analyze(files=[tmp_path / "a.vhdl"], workdir=tmp_path / "lib") == [
-        unit
-    ]
+    assert (
+        GhdlTool.analyze(files=[tmp_path / "a.vhdl"], workdir=tmp_path / "lib")
+        == expected
+    )
 
 
 @pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])

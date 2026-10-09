@@ -138,106 +138,36 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
     return sources
 
 
-def fabric_top(project: Path, suffixes: tuple[str, ...]) -> Path:
-    """Return the one `Fabric/<fabric>_top` file of `project` with `suffixes`."""
-    # `ghdl --find-top` cannot stand in: unused BEL entities are tops as well.
-    tops = sorted(
-        path for path in (project / "Fabric").glob("*_top.*") if path.suffix in suffixes
+def vhdl_pack_modules(models_pack: Path, library: Path) -> set[str]:
+    """Return the yosys module names `<entity>_B<architecture>` of a VHDL pack."""
+    architectures = GhdlTool.analyze(
+        files=[models_pack], workdir=library, flags=GHDL_ANALYSIS_FLAGS
     )
-    if len(tops) != 1:
-        raise ValueError(
-            f"Expected one fabric top file Fabric/*_top{suffixes} in {project}, "
-            f"found {[top.name for top in tops]}."
-        )
-    return tops[0]
-
-
-def vhdl_sources(
-    project: Path, models_pack: Path, work_dir: Path
-) -> tuple[list[Path], set[str]]:
-    """Select the VHDL fabric files of `project` that GHDL reads together.
-
-    GHDL keeps the last of several same-named entities without warning, so each
-    fabric file is first analysed alone. Every redefined entity must synthesise to
-    the same netlist as its first definition, and a file without a new entity is
-    dropped.
-
-    Parameters
-    ----------
-    project : Path
-        Project directory to collect from.
-    models_pack : Path
-        Absolute VHDL models pack path.
-    work_dir : Path
-        Directory for the per-file GHDL libraries.
-
-    Returns
-    -------
-    tuple[list[Path], set[str]]
-        The fabric files to read, and the yosys module names
-        `<entity>_B<architecture>` of the pack architectures.
-
-    Raises
-    ------
-    ValueError
-        If a file redefines an entity differently.
-    """
-    pack_units = GhdlTool.analyze(
-        files=[models_pack], workdir=work_dir / "pack", flags=GHDL_ANALYSIS_FLAGS
-    )
-    pack_entities = {unit.name for unit in pack_units if unit.kind == "entity"}
-    pack_modules = {
-        f"{unit.entity}_B{unit.name}"
-        for unit in pack_units
-        if unit.kind == "architecture"
+    return {
+        f"{entity}_B{architecture}"
+        for entity, names in architectures.items()
+        for architecture in names
     }
-
-    # Entity name to the file and GHDL library of its first definition.
-    first_definition: dict[str, tuple[Path, Path]] = {}
-    kept: list[Path] = []
-    for index, path in enumerate(fabric_files(project, models_pack, VHDL_SUFFIXES)):
-        library = work_dir / f"file_{index:03d}"
-        units = GhdlTool.analyze(
-            files=[models_pack, path], workdir=library, flags=GHDL_ANALYSIS_FLAGS
-        )
-        entities = {unit.name for unit in units if unit.kind == "entity"}
-        entities -= pack_entities
-        for entity in sorted(entities & first_definition.keys()):
-            first_path, first_library = first_definition[entity]
-            copies = [library / "first.v", library / "copy.v"]
-            for copy, source in zip(copies, (first_library, library), strict=True):
-                copy.write_text(
-                    GhdlTool.synthesize_entity(
-                        entity=entity, workdir=source, flags=GHDL_FLAGS
-                    )
-                )
-            try:
-                unique_sources(copies, library / "compare")
-            except ValueError as error:
-                raise ValueError(
-                    f"{path} defines entity {entity} differently from "
-                    f"{first_path}; make the copies identical."
-                ) from error
-        if new := entities - first_definition.keys():
-            kept.append(path)
-            first_definition.update({entity: (path, library) for entity in new})
-    return kept, pack_modules
 
 
 def parse_project(
     project: Path,
     models_pack: Path,
     language: HDLType,
+    top: str,
     work_dir: Path,
     tag: str,
 ) -> Design:
     """Elaborate `project` against its own models pack into RTLIL and yosys JSON.
 
-    Every module the pack does not define counts as a project module.
+    Every module the pack does not define counts as a project module. `top` names
+    the fabric top entity GHDL synthesises a VHDL project from. Tile directories
+    carry their own copies of shared files such as `Config_access.vhdl`, and GHDL
+    keeps the last copy it analyses.
     """
     rtlil = work_dir / f"{tag}.il"
     netlist = work_dir / f"{tag}.json"
-    script = work_dir / f"{tag}parse_project.ys"
+    script = work_dir / f"{tag}_parse.ys"
     source_dir = work_dir / f"{tag}_sources"
     source_dir.mkdir()
     match language:
@@ -248,14 +178,13 @@ def parse_project(
             )
             reads = [f'read_verilog -sv "{path}"' for path in sources]
         case HDLType.VHDL:
-            sources, pack_modules = vhdl_sources(project, models_pack, source_dir)
+            pack_modules = vhdl_pack_modules(models_pack, source_dir / "pack")
             fabric_library = source_dir / "fabric"
             GhdlTool.analyze(
-                files=[models_pack, *sources],
+                files=[models_pack, *fabric_files(project, models_pack, VHDL_SUFFIXES)],
                 workdir=fabric_library,
                 flags=GHDL_ANALYSIS_FLAGS,
             )
-            top = fabric_top(project, VHDL_SUFFIXES).stem.lower()
             fabric = source_dir / "fabric.v"
             fabric.write_text(
                 GhdlTool.synthesize_entity(
@@ -275,9 +204,7 @@ def parse_project(
             ]
         )
     )
-    YosysTool.run(
-        args=["-q", "-l", str(work_dir / f"{tag}parse_project.log"), str(script)]
-    )
+    YosysTool.run(args=["-q", "-l", str(work_dir / f"{tag}_parse.log"), str(script)])
     modules: dict[str, Any] = json.loads(netlist.read_text())["modules"]
     match language:
         case HDLType.VERILOG | HDLType.SYSTEM_VERILOG:
