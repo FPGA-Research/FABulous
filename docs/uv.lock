@@ -647,7 +647,7 @@ requires-dist = [
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "librelane", git = "https://github.com/librelane/librelane.git?rev=aaf7a938766e0708ca894776d81e2c2cfb12b7e7" },
+    { name = "librelane", git = "https://github.com/librelane/librelane.git?rev=c5b5099e55f4e3bed507f2e79441ecfd6432d65c" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "networkx", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=2.5.1" },
@@ -1051,7 +1051,7 @@ wheels = [
 [[package]]
 name = "librelane"
 version = "3.1.0.dev3"
-source = { git = "https://github.com/librelane/librelane.git?rev=aaf7a938766e0708ca894776d81e2c2cfb12b7e7#aaf7a938766e0708ca894776d81e2c2cfb12b7e7" }
+source = { git = "https://github.com/librelane/librelane.git?rev=c5b5099e55f4e3bed507f2e79441ecfd6432d65c#c5b5099e55f4e3bed507f2e79441ecfd6432d65c" }
 dependencies = [
     { name = "ciel" },
     { name = "click" },
