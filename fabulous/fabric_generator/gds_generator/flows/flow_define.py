@@ -11,6 +11,7 @@ from librelane.steps import pyosys as pyYosys
 from librelane.steps import verilator as Verilator
 from librelane.steps.step import Step
 
+from fabulous.fabric_generator.gds_generator.steps import state_sdc as StateSDC
 from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
@@ -19,6 +20,9 @@ from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
 )
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
+)
+from fabulous.fabric_generator.gds_generator.steps.loop_break_sdc import (
+    FABulousLoopBreakSDC,
 )
 from fabulous.fabric_generator.gds_generator.steps.magic_streamout import (
     FABulousMagicStreamOut,
@@ -110,11 +114,12 @@ physical_steps: list[type[Step]] = [
 ]
 
 tile_optimisation_physical_steps: list[type[Step]] = [
+    FABulousLoopBreakSDC,
     TileAreaOptimisation,
-    OpenROAD.FillInsertion,
+    StateSDC.FillInsertion,
     Odb.CellFrequencyTables,
-    OpenROAD.RCX,
-    OpenROAD.IRDropReport,
+    StateSDC.RCX,
+    StateSDC.IRDropReport,
 ]
 
 write_out_steps: list[type[Step]] = [

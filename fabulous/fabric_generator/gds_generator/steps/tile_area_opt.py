@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import cast
 
 from librelane.common import GenericImmutableDict
+from librelane.common.types import Path
 from librelane.config.variable import Variable
 from librelane.flows.flow import FlowException
 from librelane.logging.logger import info
@@ -128,7 +129,8 @@ class TileAreaOptimisation(WhileStep):
     id = "FABulous.TileAreaOptimisation"
     name = "Tile Area Optimisation"
 
-    inputs = [DesignFormat.NETLIST]
+    # The SDC view carries the loop-break cuts from `FABulousLoopBreakSDC`.
+    inputs = [DesignFormat.NETLIST, DesignFormat.SDC]
 
     Steps = [
         OpenROAD.Floorplan,
@@ -553,6 +555,9 @@ class TileAreaOptimisation(WhileStep):
     ) -> tuple[ViewsUpdate, MetricsUpdate]:
         """Run the tile optimisation step."""
         self.clean_probes = []
+        self.config = self.config.copy(
+            PNR_SDC_FILE=Path(str(state_in[DesignFormat.SDC]))
+        )
         if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)

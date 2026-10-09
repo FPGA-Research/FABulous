@@ -2,13 +2,17 @@
 
 import json
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
+from itertools import product
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
+import networkx as nx
 from loguru import logger
 
-from fabulous.custom_exception import InvalidFileType
+from fabulous.custom_exception import InvalidFileType, InvalidState
+from fabulous.fabric_definition.define import IO
 from fabulous.fabulous_settings import get_context
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.yosys import YosysTool
@@ -21,6 +25,19 @@ integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
 """
 BitVector = list[int | Literal["0", "1", "x", "z"]]
 KeyValue = dict[str, str | int]
+PortBit = tuple[str, int]
+
+# Yosys gate-level register and latch types, whose input->output path is not a
+# combinational timing arc. `write_json` emits no sequential flag, so the family
+# is enumerated here.
+REGISTER_CELL_PREFIXES = (
+    "$_DFF",
+    "$_SDFF",
+    "$_ALDFF",
+    "$_FF",
+    "$_DLATCH",
+    "$_SR",
+)
 
 
 @dataclass
@@ -83,6 +100,38 @@ class YosysCellDetails:
     )
     model: str = ""
 
+    @property
+    def is_sequential(self) -> bool:
+        """Whether this gate-level primitive is a register or latch.
+
+        Returns
+        -------
+        bool
+            True for a register or latch primitive.
+        """
+        return self.type.startswith(REGISTER_CELL_PREFIXES)
+
+    def port_bits(self, direction: IO) -> list[int]:
+        """Return the integer net bits wired to ports of the given direction.
+
+        Parameters
+        ----------
+        direction : IO
+            Port direction to select.
+
+        Returns
+        -------
+        list[int]
+            Net bit ids on the cell's ports of that direction.
+        """
+        return [
+            bit
+            for port, bits in self.connections.items()
+            if self.port_directions.get(port) == direction.value.lower()
+            for bit in bits
+            if isinstance(bit, int)
+        ]
+
 
 @dataclass
 class YosysMemoryDetails:
@@ -139,6 +188,30 @@ class YosysNetDetails:
     offset: int = 0
     upto: int = 0
     signed: int = 0
+
+    def bit_names(self, net_name: str) -> list[str]:
+        """Return the Verilog bit-select name of each bit of this net.
+
+        A single-bit net keeps `net_name`. Bit `i` of a vector is
+        `net_name[index]`, where the index counts up from `offset` for a
+        `[msb:lsb]` declaration and down from its top for an `upto` one.
+
+        Parameters
+        ----------
+        net_name : str
+            Name of this net in its module.
+
+        Returns
+        -------
+        list[str]
+            One name per entry of `bits`, in bit order.
+        """
+        width = len(self.bits)
+        if width == 1:
+            return [net_name]
+        if self.upto:
+            return [f"{net_name}[{self.offset + width - 1 - i}]" for i in range(width)]
+        return [f"{net_name}[{self.offset + i}]" for i in range(width)]
 
 
 @dataclass
@@ -269,22 +342,7 @@ class YosysJson:
         else:
             yosys_src = self.srcPath
         YosysTool.convert_to_json(yosys_src, json_file)
-        with json_file.open() as f:
-            o = json.load(f)
-        self.creator = o.get("creator", "")  # Use .get() for safety
-        # Provide default empty dicts for potentially missing keys in module data
-        self.modules = {
-            k: YosysModule(
-                attributes=v.get("attributes", {}),
-                parameter_default_values=v.get("parameter_default_values", {}),
-                ports=v.get("ports", {}),
-                cells=v.get("cells", {}),
-                memories=v.get("memories", {}),  # Provide default for memories
-                netnames=v.get("netnames", {}),  # Provide default for netnames
-            )
-            for k, v in o.get("modules", {}).items()  # Use .get() for safety
-        }
-        self.models = o.get("models", {})  # Use .get() for safety
+        self.creator, self.modules, self.models = _read_yosys_json(json_file)
 
         # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
         if self.srcPath.suffix in [".vhd", ".vhdl"]:
@@ -343,6 +401,45 @@ class YosysJson:
                         module.netnames[port_name].attributes["SHARED_PORT"] = 1
                     if "GLOBAL" in p:
                         module.netnames[port_name].attributes["GLOBAL"] = 1
+
+    @classmethod
+    def from_netlist(
+        cls, netlist: Path, *, liberty: list[Path], top: str, json_output: Path
+    ) -> Self:
+        """Load a gate-level netlist with its standard cells modelled from liberty.
+
+        Parameters
+        ----------
+        netlist : Path
+            The gate-level Verilog netlist.
+        liberty : list[Path]
+            Liberty files defining every standard cell the netlist instantiates.
+        top : str
+            Name of the netlist's top module.
+        json_output : Path
+            Destination path for the intermediate Yosys JSON netlist.
+
+        Returns
+        -------
+        Self
+            The parsed netlist.
+
+        Raises
+        ------
+        FileNotFoundError
+            If `netlist` does not exist.
+        """
+        if not netlist.exists():
+            raise FileNotFoundError(f"File {netlist} does not exist")
+        YosysTool.convert_netlist_to_json(
+            netlist, json_output, liberty=liberty, top=top
+        )
+        yosys_json = cls.__new__(cls)
+        yosys_json.srcPath = netlist.absolute()
+        yosys_json.creator, yosys_json.modules, yosys_json.models = _read_yosys_json(
+            json_output
+        )
+        return yosys_json
 
     def getTopModule(self) -> tuple[str, YosysModule]:
         """Find and return the top-level module in the design.
@@ -444,6 +541,166 @@ class YosysJson:
             raise ValueError(f"Multiple driver found for net {net}: {src}")
 
         return src[0], sinks
+
+    def bit_graph(self, module_name: str) -> nx.DiGraph:
+        """Build the combinational graph between the net bits of a module.
+
+        A `$_*_` gate joins every input bit to its output bit. Registers,
+        latches and cells without outputs add no edge. A cell instantiating
+        another module adds only that module's port-to-port arcs, so the
+        submodule's internal nets are not nodes and a bypass around a register
+        inside it survives while the registered path does not. A blackbox module
+        hides its arcs, so its instance joins every input bit to every output
+        bit; this over-approximates, so no real loop through it is missed. A
+        cell whose type has no module in the netlist raises `InvalidState`,
+        since its arcs are unknown.
+
+        Parameters
+        ----------
+        module_name : str
+            Name of the module in this netlist to analyse.
+
+        Returns
+        -------
+        nx.DiGraph
+            Edges between net bit ids of `module_name`.
+        """
+        return self._bit_graph(module_name, {})
+
+    def _bit_graph(
+        self, module_name: str, memo: dict[str, set[tuple[PortBit, PortBit]]]
+    ) -> nx.DiGraph:
+        """Build `bit_graph`, reusing the port arcs of modules already analysed.
+
+        Parameters
+        ----------
+        module_name : str
+            Name of the module in this netlist to analyse.
+        memo : dict[str, set[tuple[PortBit, PortBit]]]
+            Port arcs of modules already analysed, keyed by module name.
+
+        Returns
+        -------
+        nx.DiGraph
+            Edges between net bit ids of `module_name`.
+
+        Raises
+        ------
+        InvalidState
+            A cell has a type with no module in the netlist, whose arcs are
+            unknown.
+        """
+        module = self.modules[module_name]
+        graph = nx.DiGraph()
+        for cell_name, cell in module.cells.items():
+            submodule = self.modules.get(cell.type)
+            if submodule is None:
+                outputs = cell.port_bits(IO.OUTPUT)
+                if cell.is_sequential or not outputs:
+                    continue
+                if not cell.type.startswith("$_"):
+                    raise InvalidState(
+                        f"Cell {cell_name} in module {module_name} has type "
+                        f"{cell.type}, which has no module in the netlist, so its "
+                        f"combinational arcs are unknown."
+                    )
+                graph.add_edges_from(product(cell.port_bits(IO.INPUT), outputs))
+                continue
+            if submodule.attributes.get("blackbox"):
+                graph.add_edges_from(
+                    product(cell.port_bits(IO.INPUT), cell.port_bits(IO.OUTPUT))
+                )
+                continue
+            for (in_port, in_index), (out_port, out_index) in self._port_arcs(
+                cell.type, memo
+            ):
+                # An unconnected submodule port carries no arc.
+                if in_port not in cell.connections or out_port not in cell.connections:
+                    continue
+                in_bit = cell.connections[in_port][in_index]
+                out_bit = cell.connections[out_port][out_index]
+                if isinstance(in_bit, int) and isinstance(out_bit, int):
+                    graph.add_edge(in_bit, out_bit)
+        return graph
+
+    def _port_arcs(
+        self, module_name: str, memo: dict[str, set[tuple[PortBit, PortBit]]]
+    ) -> set[tuple[PortBit, PortBit]]:
+        """Extract combinational arcs between the port bits of a module.
+
+        An input port bit reaches an output port bit through the module's
+        `bit_graph`, or directly when both ports share the net bit.
+
+        Parameters
+        ----------
+        module_name : str
+            Name of the module in this netlist to analyse.
+        memo : dict[str, set[tuple[PortBit, PortBit]]]
+            Port arcs of modules already analysed, keyed by module name.
+
+        Returns
+        -------
+        set[tuple[PortBit, PortBit]]
+            Combinational `((input_port, bit_index), (output_port, bit_index))`
+            arcs.
+        """
+        if module_name in memo:
+            return memo[module_name]
+        module = self.modules[module_name]
+        graph = self._bit_graph(module_name, memo)
+
+        inputs: list[tuple[int, PortBit]] = []
+        outputs: defaultdict[int, list[PortBit]] = defaultdict(list)
+        for port, detail in module.ports.items():
+            for index, bit in enumerate(detail.bits):
+                if not isinstance(bit, int):
+                    continue
+                if detail.direction == "input":
+                    inputs.append((bit, (port, index)))
+                elif detail.direction == "output":
+                    outputs[bit].append((port, index))
+
+        arcs: set[tuple[PortBit, PortBit]] = set()
+        for in_bit, source in inputs:
+            reachable = {in_bit}
+            if in_bit in graph:
+                reachable |= nx.descendants(graph, in_bit)
+            for out_bit in reachable & outputs.keys():
+                arcs.update((source, sink) for sink in outputs[out_bit])
+        memo[module_name] = arcs
+        return arcs
+
+
+def _read_yosys_json(
+    json_file: Path,
+) -> tuple[str, dict[str, YosysModule], dict]:
+    """Read the creator, modules and models of a Yosys JSON file.
+
+    Parameters
+    ----------
+    json_file : Path
+        Yosys JSON netlist to read.
+
+    Returns
+    -------
+    tuple[str, dict[str, YosysModule], dict]
+        The creator string, the modules by name and the behavioural models.
+    """
+    with json_file.open() as f:
+        o = json.load(f)
+    # Provide default empty dicts for potentially missing keys in module data
+    modules = {
+        k: YosysModule(
+            attributes=v.get("attributes", {}),
+            parameter_default_values=v.get("parameter_default_values", {}),
+            ports=v.get("ports", {}),
+            cells=v.get("cells", {}),
+            memories=v.get("memories", {}),  # Provide default for memories
+            netnames=v.get("netnames", {}),  # Provide default for netnames
+        )
+        for k, v in o.get("modules", {}).items()  # Use .get() for safety
+    }
+    return o.get("creator", ""), modules, o.get("models", {})
 
 
 def _update_dict_ignore_case(

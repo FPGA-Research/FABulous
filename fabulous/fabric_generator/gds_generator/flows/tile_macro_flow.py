@@ -24,6 +24,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
+    keep_bel_hierarchy,
     merge_layered_substitutions,
     round_die_area,
 )
@@ -62,6 +63,11 @@ class FABulousTileMacroFlow(SequentialFlow):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _models_pack_first: bool = False
     _extra_synth_config: dict[str, object] = {}
+
+    @staticmethod
+    def _synth_module_pattern(module_name: str) -> str:
+        """Return the Yosys selection matching HDL module `module_name`."""
+        return module_name
 
     def __new__(
         cls,
@@ -183,6 +189,9 @@ class FABulousTileMacroFlow(SequentialFlow):
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
             FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
         )
+        self.config = keep_bel_hierarchy(
+            self.config, {self._synth_module_pattern(bel.module_name) for bel in bels}
+        )
         final_opt_mode = self.config.get("FABULOUS_OPT_MODE", None)
         if final_opt_mode and final_opt_mode != OptMode.NO_OPT:
             directional = final_opt_mode in (
@@ -250,6 +259,13 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
     # `--latches`: `models_pack` defines a transparent latch primitive; GHDL errors
     # on inferred latches by default (Verilog synthesis tolerates them).
     _extra_synth_config = {"GHDL_ARGUMENTS": ["--std=08", "-fexplicit", "--latches"]}
+
+    @staticmethod
+    def _synth_module_pattern(module_name: str) -> str:
+        """Return the Yosys selection matching VHDL entity `module_name`."""
+        # The pinned GHDL names an elaborated entity `<entity>_B<architecture>`,
+        # then the generic values, all lower case but the separator `B`.
+        return f"{module_name.lower()}_B*"
 
 
 def _apply_tile_die_area_config(

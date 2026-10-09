@@ -30,6 +30,7 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
+    keep_bel_hierarchy,
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
@@ -155,6 +156,7 @@ class FABulousTile(SequentialFlow):
             concrete_tiles = [tile]
             generated_files = []
 
+        bel_modules = {bel.module_name for bel in tile.bels}
         for concrete_tile in concrete_tiles:
             concrete_tile_dir = concrete_tile.tileDir.parent
             generated_files.extend(
@@ -166,6 +168,7 @@ class FABulousTile(SequentialFlow):
             )
             for bel in concrete_tile.bels:
                 file_list.append(str(bel.src))
+                bel_modules.add(bel.module_name)
 
         file_list.extend(str(f) for f in generated_files if f.exists())
         file_list = list(dict.fromkeys(file_list))
@@ -188,6 +191,7 @@ class FABulousTile(SequentialFlow):
             FABULOUS_OPT_MODE=OptMode.NO_OPT,
         )
 
+        self.config = keep_bel_hierarchy(self.config, bel_modules)
         self.config = _apply_tile_die_area_config(self.config, tile)
         self.config = round_die_area(self.config)
 
