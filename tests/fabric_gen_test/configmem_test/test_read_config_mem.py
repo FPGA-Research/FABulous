@@ -1,22 +1,16 @@
-"""Test module for configuration memory parsing functionality.
-
-This module contains comprehensive tests for the `parseConfigMem` function, including
-various valid scenarios, error conditions, input format handling, and edge cases.
-It uses parameterized tests to cover a wide range of configuration memory
-specifications and validation logic.
-"""
+"""Tests for reading a configuration memory with `ConfigMem.from_csv`."""
 
 from pathlib import Path
 from typing import NamedTuple
 
 import pytest
 
-from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem
 from tests.fabric_gen_test.conftest import create_config_csv
 
 
 class ParseConfigTestCase(NamedTuple):
-    """Test case for parseConfigMem function."""
+    """Test case for reading a configuration memory."""
 
     csv_data: list[dict]
     max_frames: int
@@ -24,6 +18,15 @@ class ParseConfigTestCase(NamedTuple):
     global_bits: int
     expected_result_len: int
     expected_error: str | None = None  # If set, this is an error case
+
+
+def _read(csv_file: Path, test_case: ParseConfigTestCase) -> tuple:
+    """Read a test case's CSV as the tile it describes, returning its used frames."""
+    return ConfigMem.from_csv(
+        csv_file,
+        frame_bits_per_row=test_case.frame_bits,
+        max_frames_per_col=test_case.max_frames,
+    ).used_frames
 
 
 @pytest.mark.parametrize(
@@ -312,7 +315,7 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=5,
                 expected_result_len=0,
-                expected_error="to many 1-elements in bitmask",
+                expected_error="data lines, not the",
             ),
             id="too_many_ones",
         ),
@@ -330,7 +333,7 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=4,
                 expected_result_len=0,
-                expected_error="mismatch between the number of bits used in the frame",
+                expected_error="marks 4 data lines used but lists 3 configuration bits",
             ),
             id="mask_range_len_mismatch",
         ),
@@ -348,27 +351,9 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=2,
                 expected_result_len=0,
-                expected_error="too long or short bitmask",
+                expected_error="data lines, not the",
             ),
             id="wrong_bitmask_length",
-        ),
-        pytest.param(
-            ParseConfigTestCase(
-                csv_data=[
-                    {
-                        "frame_name": "Frame0",
-                        "frame_index": "0",
-                        "used_bits_mask": "1100",
-                        "ConfigBits_ranges": "0:1",
-                    }
-                ],
-                max_frames=1,
-                frame_bits=4,
-                global_bits=3,
-                expected_result_len=0,
-                expected_error="bitmask mismatch",
-            ),
-            id="bitmask_count_mismatch",
         ),
         pytest.param(
             ParseConfigTestCase(
@@ -390,7 +375,7 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=2,
                 expected_result_len=0,
-                expected_error="already allocated",
+                expected_error="allocated more than once",
             ),
             id="repeated_bits_colon",
         ),
@@ -414,7 +399,7 @@ class ParseConfigTestCase(NamedTuple):
                 frame_bits=4,
                 global_bits=2,
                 expected_result_len=0,
-                expected_error="already allocated",
+                expected_error="allocated more than once",
             ),
             id="repeated_bits_semicolon",
         ),
@@ -590,17 +575,10 @@ def test_parsing_scenarios(tmp_path: Path, test_case: ParseConfigTestCase) -> No
     if test_case.expected_error:
         # This is an error case - expect ValueError to be raised
         with pytest.raises(ValueError, match=test_case.expected_error):
-            parseConfigMem(
-                csv_file,
-                test_case.max_frames,
-                test_case.frame_bits,
-                test_case.global_bits,
-            )
+            _read(csv_file, test_case)
     else:
         # This is a success case
-        result = parseConfigMem(
-            csv_file, test_case.max_frames, test_case.frame_bits, test_case.global_bits
-        )
+        result = _read(csv_file, test_case)
 
         assert len(result) == test_case.expected_result_len
 
@@ -620,12 +598,12 @@ def test_parsing_scenarios(tmp_path: Path, test_case: ParseConfigTestCase) -> No
             for i, frame_result in enumerate(result):
                 expected_frame = expected_frames[i]
 
-                assert frame_result.frameName == expected_frame["frame_name"]
-                assert frame_result.frameIndex == int(expected_frame["frame_index"])
+                assert frame_result.frame_name == expected_frame["frame_name"]
+                assert frame_result.frame_index == int(expected_frame["frame_index"])
 
                 # Check underscore removal
                 expected_mask = expected_frame["used_bits_mask"].replace("_", "")
-                assert frame_result.usedBitMask == expected_mask
+                assert frame_result.used_bits_mask.to01() == expected_mask
 
                 # Verify bits used calculation
-                assert frame_result.bitsUsedInFrame == expected_mask.count("1")
+                assert len(frame_result.bits) == expected_mask.count("1")

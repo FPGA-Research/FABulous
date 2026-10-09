@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
+from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
@@ -389,8 +390,18 @@ class TestGenBitstreamSpecSupertileMux:
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
-        fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
-        return generateBitstreamSpec(fabric)
+        fabric = make_fabric(
+            tile=[[top], [bot]],
+            superTileDic={"DSP": supertile},
+            tileDic={t.name: t for t in (top, bot)},
+        )
+        # Built directly, so read the memory the parser would have.
+        supertile.config_mem = ConfigMem.from_csv(
+            configmem,
+            frame_bits_per_row=fabric.frameBitsPerRow,
+            max_frames_per_col=fabric.maxFramesPerCol,
+        )
+        return generate_bitstream_spec(fabric)
 
     def test_mux_select_bits_mapped_at_master_tile(self, spec: dict) -> None:
         # The master tile is DSP_bot at X0Y1.

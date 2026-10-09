@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -359,6 +360,7 @@ def _make_tile(name: str) -> Tile:
         bels=[],
         tileDir=Path(),
         switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
         gen_ios=[],
         userCLK=False,
     )

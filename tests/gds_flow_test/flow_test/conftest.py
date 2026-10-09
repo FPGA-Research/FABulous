@@ -17,7 +17,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
+from tests.conftest import make_empty_tile
 
 # PDK track info content for realistic routing grid
 TRACKS_INFO_CONTENT: str = """M1 X 0 0.28
@@ -142,7 +142,8 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     verilog_file: Path = tile_dir.parent / "test.v"
     verilog_file.write_text("module TestTile(); endmodule")
 
-    mock: MagicMock = mocker.MagicMock(spec=Tile)
+    # `config_mem` is an instance attribute, so spec from an instance.
+    mock: MagicMock = mocker.MagicMock(spec=make_empty_tile("TestTile"))
     mock.name = "TestTile"
     mock.tileDir = tile_dir
     mock.bels = []

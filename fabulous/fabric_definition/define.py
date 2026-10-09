@@ -255,3 +255,43 @@ SWITCH_MATRIX_CONSTANTS: tuple[str, ...] = (
     "VDD0",
     "VDD",
 )
+
+
+# What the bitstream format fixes. `Fabric` rejects any other value, so these are
+# not configurable; they are named here so the model, the parser and the
+# standalone tile flow cannot drift apart.
+FRAME_BITS_PER_ROW = 32
+"""`FrameData` lines per frame."""
+
+MAX_FRAMES_PER_COL = 20
+"""`FrameStrobe` lines per tile column."""
+
+FRAME_SELECT_WIDTH = 5
+"""Width of the frame select field of a bitstream word."""
+
+ROW_SELECT_WIDTH = 5
+"""Width of the row select field of a bitstream word."""
+
+DESYNC_FLAG = 20
+"""Bit position of the desynchronise flag in a bitstream word."""
+
+MAX_FABRIC_ROWS = 32
+"""Rows a fabric may have, bounded by the row select field."""
+
+MAX_FABRIC_COLUMNS = 32
+"""Columns a fabric may have, bounded by the frame select field."""
+
+# What a fabric definition may set, and what it gets when it does not.
+DEFAULT_FABRIC_NAME = "eFPGA"
+DEFAULT_NUMBER_OF_ROWS = 15
+DEFAULT_NUMBER_OF_COLUMNS = 15
+DEFAULT_CONFIG_BIT_MODE = ConfigBitMode.FRAME_BASED
+DEFAULT_PACKAGE = "use work.my_package.all"
+DEFAULT_SWITCH_MATRIX_DELAY = 80
+DEFAULT_MULTIPLEXER_STYLE = MultiplexerStyle.CUSTOM
+DEFAULT_NUMBER_OF_BRAMS = 10
+DEFAULT_SUPER_TILE_ENABLE = True
+DEFAULT_DISABLE_USER_CLK = False
+DEFAULT_USER_CLK_SIDE = Side.SOUTH
+DEFAULT_MULTI_CLK_DOMAINS = False
+DEFAULT_SYNC_HEADER_HEX = "00AAFF01000000010000000000000000FAB0FAB1"
