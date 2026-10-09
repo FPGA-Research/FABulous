@@ -402,3 +402,47 @@ def run_shell_commands(
                 break
 
     return failures
+
+
+def generate_project(
+    project_path: Path,
+    language: str,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    pre_fab_commands: list[dict[str, str]] | None,
+    fab_commands: list[str] | None,
+) -> None:
+    """Run the pre-fab shell commands, then the FABulous commands, in a project.
+
+    Parameters
+    ----------
+    project_path : Path
+        Copy of the reference project to generate into.
+    language : str
+        Language type for FABulous CLI ("verilog" or "vhdl").
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture for collecting log output.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture for environment management.
+    pre_fab_commands : list[dict[str, str]] | None
+        Shell commands to run first, as for `run_shell_commands`.
+    fab_commands : list[str] | None
+        FABulous commands, or `None` for the standard sequence.
+    """
+    if pre_fab_commands:
+        pre_failures = run_shell_commands(project_path, pre_fab_commands)
+        assert not pre_failures, (
+            f"pre_fab_commands failed for {project_path.name}: "
+            + "\n".join(
+                f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in pre_failures
+            )
+        )
+
+    _, execution_info = run_fabulous_commands_with_logging(
+        project_path, language, caplog, monkeypatch, commands=fab_commands
+    )
+    assert not execution_info["commands_failed"], (
+        f"Commands failed for {project_path.name}: "
+        f"{execution_info['commands_failed']}"
+        f"\nErrors: {execution_info['errors']}"
+    )
