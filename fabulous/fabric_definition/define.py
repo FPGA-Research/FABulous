@@ -263,6 +263,17 @@ SWITCH_MATRIX_CONSTANTS: tuple[str, ...] = (
 FRAME_BITS_PER_ROW = 32
 """`FrameData` lines per frame."""
 
+FRAME_DATA = "FrameData"
+FRAME_DATA_OUT = "FrameData_O"
+FRAME_STROBE = "FrameStrobe"
+FRAME_STROBE_OUT = "FrameStrobe_O"
+"""The frame chain ports of a tile, named as the HDL generators emit them.
+
+`FrameData` enters on the west border and leaves as `FrameData_O` on the east,
+`FrameStrobe` enters on the south and leaves as `FrameStrobe_O` on the north, so
+each chain spans the tile and where they cross is the crosspoint grid.
+"""
+
 MAX_FRAMES_PER_COL = 20
 """`FrameStrobe` lines per tile column."""
 

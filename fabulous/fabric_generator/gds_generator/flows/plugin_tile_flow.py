@@ -39,6 +39,9 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.gds_generator.variables import (
+    CONFIG_BIT_MODE_VARIABLE,
+)
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_tile_config_mem,
 )
@@ -82,14 +85,7 @@ class FABulousTile(SequentialFlow):
             "per-subtile Verilog.",
             default=False,
         ),
-        Variable(
-            "FABULOUS_CONFIG_BIT_MODE",
-            ConfigBitMode,
-            "Config-bit storage mode used when regenerating the tile switch "
-            "matrix and config memory. Must match the parent fabric; the "
-            "standalone tile flow has no fabric to read it from.",
-            default=ConfigBitMode.FRAME_BASED,
-        ),
+        CONFIG_BIT_MODE_VARIABLE,
         Variable(
             "FABULOUS_MULTIPLEXER_STYLE",
             MultiplexerStyle,
@@ -120,7 +116,7 @@ class FABulousTile(SequentialFlow):
         is_supertile = bool(self.config.get("FABULOUS_SUPERTILE", False))
 
         # A chain tile must not read a stale mapping left by a frame-based run.
-        config_bit_mode = ConfigBitMode(self.config["FABULOUS_CONFIG_BIT_MODE"])
+        config_bit_mode = ConfigBitMode(self.config[CONFIG_BIT_MODE_VARIABLE.name])
         try:
             tile = parse_tile_from_dir(
                 tile_dir,

@@ -130,13 +130,14 @@ class WhileStep(Step):
             if not self.condition(current_state):
                 break
             current_state = start_state.copy()
+            # Named before the callback so it can write per-iteration inputs there.
+            self._current_iter_dir = Path(self.step_dir) / f"iter_{i}"
             current_state = self.pre_iteration_callback(current_state)
             full_iter_completed = False
             # loop body
             for si, cStep in enumerate(loop_steps):
                 step = cStep(self.config, current_state)
                 try:
-                    self._current_iter_dir = Path(self.step_dir) / f"iter_{i}"
                     current_state = step.start(
                         toolbox=self.toolbox,
                         step_dir=str(

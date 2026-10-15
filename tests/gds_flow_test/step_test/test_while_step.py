@@ -167,6 +167,36 @@ class TestWhileStep:
         assert views_update == {}
         assert metrics_update == {}
 
+    def test_pre_iteration_callback_sees_the_current_iteration_dir(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mocker: MockerFixture,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        """The iteration directory is named before the pre-iteration callback runs."""
+        seen: list = []
+
+        class RecordingWhileStep(WhileStep):
+            Steps = [_InnerStep]  # noqa: RUF012
+            outputs = []  # noqa: RUF012
+            max_iterations = 2
+
+            def pre_iteration_callback(self, pre_iteration: State) -> State:  # noqa: D102
+                seen.append(self.get_current_iteration_dir())
+                return pre_iteration
+
+        mocker.patch.object(_InnerStep, "start", return_value=mock_state)
+
+        step = RecordingWhileStep(mock_config)
+        step.config = mock_config
+        step.step_dir = str(tmp_path)
+        step.toolbox = mocker.MagicMock()
+        step.name = "RecordingWhileStep"
+
+        step.run(mock_state)
+        assert seen == [tmp_path / "iter_0", tmp_path / "iter_1"]
+
     def test_substitute_steps_replaces_loop_body_step(
         self,
         mock_config: Config,
