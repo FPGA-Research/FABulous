@@ -51,6 +51,25 @@ ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)
 		CUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v
 endif
 
+# TODO(3.0): drop Yosys <= 0.66 support and pass the library options
+# unconditionally. Yosys before the synth_fabulous rework bundles its own
+# FABulous library, rejects these options and inserts pads only with -iopad.
+YOSYS_LIB_DIR=${FAB_PROJ_ROOT}/yosys
+ifeq ($(shell ${YOSYS} -p "help synth_fabulous" | grep -c -- -cells-map),0)
+    $(warning Yosys 0.66 and older is deprecated; support ends in FABulous 3.0.)
+    SYNTH_LIB_ARGS=-iopad
+else
+    SYNTH_LIB_ARGS=-extra-plib ${YOSYS_LIB_DIR}/primitives/prims.v \
+        -cells-map ${YOSYS_LIB_DIR}/techmap/cells_map.v \
+        -arith-map ${YOSYS_LIB_DIR}/techmap/arith_map.v \
+        -extra-map ${YOSYS_LIB_DIR}/techmap/ff_map.v \
+        -extra-map ${YOSYS_LIB_DIR}/techmap/latches_map.v \
+        -extra-map ${YOSYS_LIB_DIR}/techmap/io_map.v \
+        -extra-mlibmap ${YOSYS_LIB_DIR}/memlib/ram_regfile.txt \
+        -extra-map ${YOSYS_LIB_DIR}/techmap/regfile_map.v \
+        -ff \$$_DFF_P_ 0 -ff \$$_DLATCH_?_ x
+endif
+
 .PHONY: all run_FABulous_demo full build_test_design run_simulation mkdir_build clean FAB_sim build_demo_fabric
 
 sim: build_test_design run_simulation clean
@@ -70,7 +89,7 @@ build_demo_fabric: mkdir_build
 	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
-	${YOSYS} -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS};"
+	${YOSYS} -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${SYNTH_LIB_ARGS} ${CUSTOM_PRIMS};"
 
 run_nextpnr: mkdir_build
 	FAB_ROOT=${FAB_PROJ_ROOT} ${NEXTPNR} --uarch fabulous --json ${BUILD_DIR}/${DESIGN}.json -o fasm=${BUILD_DIR}/${DESIGN}.fasm

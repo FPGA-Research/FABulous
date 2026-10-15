@@ -76,6 +76,26 @@ tasks:
     vars:
       CUSTOM_PRIMS:
         sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+      # TODO(3.0): drop Yosys <= 0.66 support and pass the library options
+      # unconditionally. Yosys before the synth_fabulous rework bundles its own
+      # FABulous library, rejects these options and inserts pads only with -iopad.
+      SYNTH_LIB_ARGS:
+        sh: |
+          if {{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}} -p "help synth_fabulous" | grep -q -- -cells-map; then
+            lib={{.FAB_PROJ_ROOT}}/yosys
+            echo "-extra-plib $lib/primitives/prims.v" \
+              "-cells-map $lib/techmap/cells_map.v" \
+              "-arith-map $lib/techmap/arith_map.v" \
+              "-extra-map $lib/techmap/ff_map.v" \
+              "-extra-map $lib/techmap/latches_map.v" \
+              "-extra-map $lib/techmap/io_map.v" \
+              "-extra-mlibmap $lib/memlib/ram_regfile.txt" \
+              "-extra-map $lib/techmap/regfile_map.v" \
+              '-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x'
+          else
+            echo "WARNING: Yosys 0.66 and older is deprecated; support ends in FABulous 3.0." >&2
+            echo "-iopad"
+          fi
       RESOLVED_DESIGN_FILES: '{{.DESIGN_FILES | default (printf "%s/%s.vhdl" .USER_DESIGN_DIR .DESIGN)}}'
       RESOLVED_TOP_WRAPPER_FILE: '{{.TOP_WRAPPER_FILE | default (printf "%s/%s.v" .USER_DESIGN_DIR .TOP_WRAPPER)}}'
       RESOLVED_JSON_FILE: '{{.JSON_FILE | default (printf "%s/%s.json" .BUILD_DIR .DESIGN)}}'
@@ -84,7 +104,7 @@ tasks:
         vars:
           YOSYS_GHDL: "-m ghdl"
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
-          SYNTH_CMD: "ghdl {{.RESOLVED_DESIGN_FILES}} -e {{.DESIGN}}; read_verilog {{.RESOLVED_TOP_WRAPPER_FILE}}; synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}};"
+          SYNTH_CMD: "ghdl {{.RESOLVED_DESIGN_FILES}} -e {{.DESIGN}}; read_verilog {{.RESOLVED_TOP_WRAPPER_FILE}}; synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}};"
           DESIGN_FILES: ""
           TOP_WRAPPER_FILE: ""
 

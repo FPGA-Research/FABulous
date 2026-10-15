@@ -2,9 +2,11 @@
 
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from dotenv import get_key, set_key, unset_key
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import EnvironmentNotSet
@@ -68,18 +70,16 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
 
 
 def test_update_project_version_success(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test successful project version update."""
-    env_dir = tmp_path / "proj" / ".FABulous"
-    env_dir.mkdir(parents=True)
-    env_file = env_dir / ".env"
-    env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
+    env_file = project / ".FABulous" / ".env"
+    set_key(env_file, "FAB_PROJ_VERSION", "1.2.3")
 
     # Patch version() to return compatible version
     monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "1.2.4")
 
-    assert update_project_version(tmp_path / "proj") is True
+    assert update_project_version(project) is True
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
 
 
@@ -106,6 +106,31 @@ def test_update_project_version_major_mismatch(
     monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "2.0.0")
 
     assert update_project_version(tmp_path / "proj") is False
+
+
+@pytest.mark.parametrize(
+    ("legacy_version", "expected"),
+    [
+        pytest.param("1.0.0", True, id="1.x"),
+        pytest.param("0.3.0", False, id="0.x"),
+    ],
+)
+def test_update_project_version_from_fab_version(
+    legacy_version: str,
+    expected: bool,
+    pre_rework_project_factory: Callable[..., Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project with only `FAB_VERSION` is updated across majors only from 1.x."""
+    project_dir = pre_rework_project_factory()
+    env_file = project_dir / ".FABulous" / ".env"
+    unset_key(env_file, "FAB_PROJ_VERSION")
+    set_key(env_file, "FAB_VERSION", legacy_version)
+    monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "2.0.0")
+
+    assert update_project_version(project_dir) is expected
+
+    assert get_key(env_file, "FAB_PROJ_VERSION") == ("2.0.0" if expected else None)
 
 
 # --- run_task tests ---

@@ -20,7 +20,7 @@ from packaging.version import Version
 from pydantic import ValidationError
 from typer.main import get_command
 
-from fabulous.custom_exception import PipelineCommandError
+from fabulous.custom_exception import PipelineCommandError, ProjectUpgradeError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import (
@@ -478,7 +478,12 @@ def nix_env_cmd(
 def update_project_version_cmd() -> None:
     """Update project version to match package version."""
     logger.info(f"Using {get_context().proj_dir} directory as project directory")
-    if not update_project_version(get_context().proj_dir):
+    try:
+        updated = update_project_version(get_context().proj_dir)
+    except ProjectUpgradeError as e:
+        logger.error(f"Project upgrade failed, nothing was changed: {e}")
+        raise typer.Exit(1) from None
+    if not updated:
         logger.error(
             "Failed to update project version. Please check the logs for more details."
         )
@@ -930,7 +935,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         project_dot_env=args.projectDotEnv,
     )
     if args.update_project_version:
-        update_project_version_cmd(project_dir)
+        update_project_version_cmd()
     elif args.FABulousScript:
         # Convert legacy --FABulousScript to new typer script command
         # Use the new Typer script command internally

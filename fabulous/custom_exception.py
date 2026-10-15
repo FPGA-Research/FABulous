@@ -64,3 +64,7 @@ class PipelineCommandError(Exception):
 
 class InvalidState(Exception):
     """Exception raised for invalid state during fabric generation."""
+
+
+class ProjectUpgradeError(Exception):
+    """Exception raised when a project cannot be upgraded to the current layout."""

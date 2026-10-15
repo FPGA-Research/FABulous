@@ -28,6 +28,7 @@ from pick import pick
 
 from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
 from fabulous.fabulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
@@ -608,7 +609,8 @@ def update_project_version(project_dir: Path) -> bool:
 
     This function reads the current project version from the .env file and updates it
     to match the currently installed FABulous package version, provided there are no
-    major version mismatches.
+    major version mismatches. Before the version is bumped, the project is upgraded
+    to carry its own Yosys library (see `upgrade_to_yosys_library`).
 
     Parameters
     ----------
@@ -624,23 +626,37 @@ def update_project_version(project_dir: Path) -> bool:
     -----
     The function will refuse to update if there is a major version mismatch between
     the project version and the package version, as this could indicate incompatibility.
+    The exception is a project without `FAB_PROJ_VERSION` whose `FAB_VERSION` is
+    1.x, as in the hand-written `.env` of the FABulous-demo-projects legacy demos;
+    no FABulous release writes `FAB_VERSION`. Such a project is moved to the
+    package version. A project that cannot be upgraded raises `ProjectUpgradeError`
+    and keeps its version.
     """
     env_file = project_dir / ".FABulous" / ".env"
+    package_version = Version(version("FABulous-FPGA"))
 
     project_version = get_key(env_file, "FAB_PROJ_VERSION")
+    if project_version is not None:
+        if Version(project_version).major != package_version.major:
+            logger.error(
+                "There is a major version mismatch, cannot update project version."
+            )
+            return False
+    else:
+        # TODO(3.0): drop. FABulous already runs a 1.x project as a current one,
+        # and the upgrade below brings its Makefile to the current synthesis form.
+        legacy_version = get_key(env_file, "FAB_VERSION")
+        if legacy_version is None:
+            logger.error("VERSION not found in .env file.")
+            return False
+        if Version(legacy_version).major != 1:
+            logger.error(
+                f"FAB_VERSION is {legacy_version} and FAB_PROJ_VERSION is missing; "
+                "only a 1.x project can be updated without FAB_PROJ_VERSION."
+            )
+            return False
 
-    if project_version is None:
-        logger.error("VERSION not found in .env file.")
-        return False
-
-    project_version = Version(project_version)
-    package_version = Version(version("FABulous-FPGA"))
-    if package_version.major != project_version.major:
-        logger.error(
-            "There is a major version mismatch, cannot update project version."
-        )
-        return False
-
+    upgrade_to_yosys_library(project_dir)
     set_key(env_file, "FAB_PROJ_VERSION", str(package_version))
     return True
 

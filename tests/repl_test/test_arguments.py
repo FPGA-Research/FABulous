@@ -689,6 +689,18 @@ def test_project_dir_precedence(
             id="explicit-failure",
         ),
         pytest.param(["FABulous", "update-project-version"], True, 0, id="cwd-success"),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            0,
+            id="legacy-success",
+        ),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            1,
+            id="legacy-failure",
+        ),
     ],
 )
 def test_update_project_version_cases(
