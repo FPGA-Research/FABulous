@@ -11,13 +11,13 @@ library ieee;
 
 entity bitbang is
   port (
-    active : out   std_logic;
-    clk    : in    std_logic;
-    data   : out   std_logic_vector(31 downto 0);
-    resetn : in    std_logic;
-    s_clk  : in    std_logic;
-    s_data : in    std_logic;
-    strobe : out   std_logic
+    active  : out   std_logic;
+    clk     : in    std_logic;
+    data    : out   std_logic_vector(31 downto 0);
+    reset_n : in    std_logic;
+    s_clk   : in    std_logic;
+    s_data  : in    std_logic;
+    strobe  : out   std_logic
   );
 end entity bitbang;
 
@@ -44,78 +44,70 @@ begin
   strobe <= strobe_Reg;
 
   -- Generated from always process in bitbang (bitbang.v:21)
-  p_input_sync : process (resetn, clk) is
+  p_input_sync : process (reset_n, clk) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(clk)) then
-      if ((not resetn) = '1') then
-        s_data_sample <= x"0";
-        s_clk_sample  <= x"0";
-      else
-        s_data_sample <= s_data_sample(0 + 2 downto 0) & s_data;
-        s_clk_sample  <= s_clk_sample(0 + 2 downto 0) & s_clk;
-      end if;
+    if (reset_n = '0') then
+      s_data_sample <= x"0";
+      s_clk_sample  <= x"0";
+    elsif rising_edge(clk) then
+      s_data_sample <= s_data_sample(0 + 2 downto 0) & s_data;
+      s_clk_sample  <= s_clk_sample(0 + 2 downto 0) & s_clk;
     end if;
 
   end process p_input_sync;
 
   -- Generated from always process in bitbang (bitbang.v:32)
-  p_in_shift : process (resetn, clk) is
+  p_in_shift : process (reset_n, clk) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(clk)) then
-      if ((not resetn) = '1') then
-        serial_data    <= x"00000000";
-        serial_control <= x"0000";
-      else
-        if ((s_clk_sample(3) = '0') and (s_clk_sample(2) = '1')) then
-          serial_data <= serial_data(0 + 30 downto 0) & s_data_sample(3);
-        end if;
-        if ((s_clk_sample(3) = '1') and (s_clk_sample(2) = '0')) then
-          serial_control <= serial_control(0 + 14 downto 0) & s_data_sample(3);
-        end if;
+    if (reset_n = '0') then
+      serial_data    <= x"00000000";
+      serial_control <= x"0000";
+    elsif rising_edge(clk) then
+      if ((s_clk_sample(3) = '0') and (s_clk_sample(2) = '1')) then
+        serial_data <= serial_data(0 + 30 downto 0) & s_data_sample(3);
+      end if;
+      if ((s_clk_sample(3) = '1') and (s_clk_sample(2) = '0')) then
+        serial_control <= serial_control(0 + 14 downto 0) & s_data_sample(3);
       end if;
     end if;
 
   end process p_in_shift;
 
   -- Generated from always process in bitbang (bitbang.v:50)
-  p_parallel_load : process (resetn, clk) is
+  p_parallel_load : process (reset_n, clk) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(clk)) then
-      if ((not resetn) = '1') then
-        local_strobe     <= '0';
-        data_Reg         <= x"00000000";
-        old_local_strobe <= '0';
-        strobe_Reg       <= '0';
-      else
-        local_strobe <= '0';
-        if (serial_control = x"FAB1") then
-          data_Reg     <= serial_data;
-          local_strobe <= '1';
-        end if;
-        old_local_strobe <= local_strobe;
-        strobe_Reg       <= local_strobe and (not old_local_strobe);
+    if (reset_n = '0') then
+      local_strobe     <= '0';
+      data_Reg         <= x"00000000";
+      old_local_strobe <= '0';
+      strobe_Reg       <= '0';
+    elsif rising_edge(clk) then
+      local_strobe <= '0';
+      if (serial_control = x"FAB1") then
+        data_Reg     <= serial_data;
+        local_strobe <= '1';
       end if;
+      old_local_strobe <= local_strobe;
+      strobe_Reg       <= local_strobe and (not old_local_strobe);
     end if;
 
   end process p_parallel_load;
 
   -- Generated from always process in bitbang (bitbang.v:72)
-  active_fsm : process (resetn, clk) is
+  active_fsm : process (reset_n, clk) is
   begin
 
-    if (falling_edge(resetn) or rising_edge(clk)) then
-      if ((not resetn) = '1') then
+    if (reset_n = '0') then
+      active_Reg <= '0';
+    elsif rising_edge(clk) then
+      if (serial_control = x"FAB1") then
+        active_Reg <= '1';
+      end if;
+      if (serial_control = x"FAB0") then
         active_Reg <= '0';
-      else
-        if (serial_control = x"FAB1") then
-          active_Reg <= '1';
-        end if;
-        if (serial_control = x"FAB0") then
-          active_Reg <= '0';
-        end if;
       end if;
     end if;
 
