@@ -20,4 +20,5 @@ This list is generated automatically from the GitHub contributors API and refres
 - [@mtetrault](https://github.com/mtetrault)
 - [@Dario-CP](https://github.com/Dario-CP)
 - [@khoapham](https://github.com/khoapham)
+- [@heijligen](https://github.com/heijligen)
 - [@hausdinge](https://github.com/hausdinge)
