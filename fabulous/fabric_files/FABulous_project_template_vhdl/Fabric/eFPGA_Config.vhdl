@@ -1,166 +1,156 @@
--- This VHDL was converted from Verilog using the
--- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
-
 library ieee;
   use ieee.std_logic_1164.all;
   use ieee.numeric_std.all;
 
--- Generated from Verilog module eFPGA_Config (eFPGA_Config.v:1)
---   FrameBitsPerRow = 32
---   NumberOfRows = 16
---   RowSelectWidth = 5
---   desync_flag = 20
-
 entity eFPGA_Config is
   generic (
+    NumberOfRows    : integer := 16;
     RowSelectWidth  : integer := 5;
     FrameBitsPerRow : integer := 32;
-    NumberOfRows    : integer := 16;
     desync_flag     : integer := 20
   );
   port (
-    CLK                  : in    std_logic;
-    ComActive            : out   std_logic;
-    ConfigWriteData      : out   std_logic_vector(31 downto 0);
-    ConfigWriteStrobe    : out   std_logic;
-    FrameAddressRegister : out   std_logic_vector(31 downto 0);
-    LongFrameStrobe      : out   std_logic;
-    ReceiveLED           : out   std_logic;
-    RowSelect            : out   std_logic_vector(4 downto 0);
-    Rx                   : in    std_logic;
+    CLK    : in    std_logic;
+    resetn : in    std_logic;
+    -- UART configuration port
+    Rx         : in    std_logic;
+    ComActive  : out   std_logic;
+    ReceiveLED : out   std_logic;
+    -- BitBang configuration port
+    s_clk  : in    std_logic;
+    s_data : in    std_logic;
+    -- Parallel configuration port
     SelfWriteData        : in    std_logic_vector(31 downto 0);
     SelfWriteStrobe      : in    std_logic;
-    resetn               : in    std_logic;
-    s_clk                : in    std_logic;
-    s_data               : in    std_logic
+    ConfigWriteData      : out   std_logic_vector(31 downto 0);
+    ConfigWriteStrobe    : out   std_logic;
+    FrameAddressRegister : out   std_logic_vector(FrameBitsPerRow - 1 downto 0);
+    LongFrameStrobe      : out   std_logic;
+    RowSelect            : out   std_logic_vector(RowSelectWidth - 1 downto 0)
   );
 end entity eFPGA_Config;
 
--- Generated from Verilog module eFPGA_Config (eFPGA_Config.v:1)
---   FrameBitsPerRow = 32
---   NumberOfRows = 16
---   RowSelectWidth = 5
---   desync_flag = 20
-
 architecture from_verilog of eFPGA_Config is
-
-  signal BitBangActive          : std_logic;
-  signal BitBangWriteData       : std_logic_vector(31 downto 0);
-  signal BitBangWriteData_Mux   : std_logic_vector(31 downto 0);
-  signal BitBangWriteStrobe     : std_logic;
-  signal BitBangWriteStrobe_Mux : std_logic;
-  signal Command                : unsigned(7 downto 0);
-  signal FSM_Reset              : std_logic;
-  signal UART_ComActive         : std_logic;
-  signal UART_LED               : std_logic;
-  signal UART_WriteData         : unsigned(31 downto 0);
-  signal UART_WriteData_Mux     : std_logic_vector(31 downto 0);
-  signal UART_WriteStrobe       : std_logic;
-  signal UART_WriteStrobe_Mux   : std_logic;
-
-  component ConfigFSM is
-    generic (
-      FrameBitsPerRow : integer := FrameBitsPerRow;
-      NumberOfRows    : integer := NumberOfRows;
-      RowSelectWidth  : integer := RowSelectWidth;
-      desync_flag     : integer := desync_flag
-    );
-    port (
-      CLK                  : in    std_logic;
-      FSM_Reset            : in    std_logic;
-      FrameAddressRegister : out   std_logic_vector(31 downto 0);
-      LongFrameStrobe      : out   std_logic;
-      RowSelect            : out   std_logic_vector(4 downto 0);
-      WriteData            : in    std_logic_vector(31 downto 0);
-      WriteStrobe          : in    std_logic;
-      resetn               : in    std_logic
-    );
-  end component ConfigFSM;
-
-  signal FrameAddressRegister_Readable : std_logic_vector(31 downto 0); -- Needed to connect outputs
-  signal LongFrameStrobe_Readable      : std_logic;                     -- Needed to connect outputs
-  signal RowSelect_Readable            : std_logic_vector(4 downto 0);  -- Needed to connect outputs
 
   component config_UART is
     port (
       CLK         : in    std_logic;
-      ComActive   : out   std_logic;
-      Command     : out   unsigned(7 downto 0);
-      ReceiveLED  : out   std_logic;
+      reset_n     : in    std_logic;
       Rx          : in    std_logic;
       WriteData   : out   unsigned(31 downto 0);
+      ComActive   : out   std_logic;
       WriteStrobe : out   std_logic;
-      resetn      : in    std_logic
+      Command     : out   unsigned(7 downto 0);
+      ReceiveLED  : out   std_logic
     );
   end component config_UART;
 
   component bitbang is
     port (
-      active : out   std_logic;
-      clk    : in    std_logic;
-      data   : out   std_logic_vector(31 downto 0);
-      resetn : in    std_logic;
-      s_clk  : in    std_logic;
-      s_data : in    std_logic;
-      strobe : out   std_logic
+      s_clk   : in    std_logic;
+      s_data  : in    std_logic;
+      strobe  : out   std_logic;
+      data    : out   std_logic_vector(31 downto 0);
+      active  : out   std_logic;
+      clk     : in    std_logic;
+      reset_n : in    std_logic
     );
   end component bitbang;
 
+  component ConfigFSM is
+    generic (
+      NumberOfRows    : integer;
+      RowSelectWidth  : integer;
+      FrameBitsPerRow : integer;
+      desync_flag     : integer
+    );
+    port (
+      CLK                    : in    std_logic;
+      reset_n                : in    std_logic;
+      write_data             : in    std_logic_vector(31 downto 0);
+      write_strobe           : in    std_logic;
+      fsm_reset              : in    std_logic;
+      frame_address_register : out   std_logic_vector(FrameBitsPerRow - 1 downto 0);
+      long_frame_strobe      : out   std_logic;
+      row_select             : out   std_logic_vector(RowSelectWidth - 1 downto 0)
+    );
+  end component ConfigFSM;
+
+  signal Command                : unsigned(7 downto 0);
+  signal UART_WriteData         : unsigned(31 downto 0);
+  signal UART_WriteStrobe       : std_logic;
+  signal UART_WriteData_Mux     : std_logic_vector(31 downto 0);
+  signal UART_WriteStrobe_Mux   : std_logic;
+  signal UART_ComActive         : std_logic;
+  signal UART_LED               : std_logic;
+  signal BitBangWriteData       : std_logic_vector(31 downto 0);
+  signal BitBangWriteStrobe     : std_logic;
+  signal BitBangWriteData_Mux   : std_logic_vector(31 downto 0);
+  signal BitBangWriteStrobe_Mux : std_logic;
+  signal BitBangActive          : std_logic;
+  signal fsm_reset              : std_logic;
+
 begin
 
-  ConfigWriteData        <= UART_WriteData_Mux;
-  ConfigWriteStrobe      <= UART_WriteStrobe_Mux;
-  FSM_Reset              <= UART_ComActive or BitBangActive;
-  ComActive              <= UART_ComActive;
-  ReceiveLED             <= UART_LED xor BitBangWriteStrobe;
+  inst_config_uart : component config_UART
+    port map (
+      CLK         => CLK,
+      reset_n     => resetn,
+      Rx          => Rx,
+      WriteData   => UART_WriteData,
+      ComActive   => UART_ComActive,
+      WriteStrobe => UART_WriteStrobe,
+      Command     => Command,
+      ReceiveLED  => UART_LED
+    );
+
+  inst_bit_bang : component bitbang
+    port map (
+      s_clk   => s_clk,
+      s_data  => s_data,
+      strobe  => BitBangWriteStrobe,
+      data    => BitBangWriteData,
+      active  => BitBangActive,
+      clk     => CLK,
+      reset_n => resetn
+    );
+
+  -- Configuration port priority (highest to lowest): UART > BitBang > Parallel
+
   BitBangWriteData_Mux   <= BitBangWriteData when BitBangActive = '1' else
                             SelfWriteData;
   BitBangWriteStrobe_Mux <= BitBangWriteStrobe when BitBangActive = '1' else
                             SelfWriteStrobe;
-  UART_WriteData_Mux     <= std_logic_vector(UART_WriteData) when UART_ComActive = '1' else
-                            BitBangWriteData_Mux;
-  UART_WriteStrobe_Mux   <= UART_WriteStrobe when UART_ComActive = '1' else
-                            BitBangWriteStrobe_Mux;
-  FrameAddressRegister   <= FrameAddressRegister_Readable;
-  LongFrameStrobe        <= LongFrameStrobe_Readable;
-  RowSelect              <= RowSelect_Readable;
 
-  -- Generated from instantiation at eFPGA_Config.v:90
+  UART_WriteData_Mux   <= std_logic_vector(UART_WriteData) when UART_ComActive = '1' else
+                          BitBangWriteData_Mux;
+  UART_WriteStrobe_Mux <= UART_WriteStrobe when UART_ComActive = '1' else
+                          BitBangWriteStrobe_Mux;
+
+  ConfigWriteData   <= UART_WriteData_Mux;
+  ConfigWriteStrobe <= UART_WriteStrobe_Mux;
+
+  fsm_reset <= UART_ComActive or BitBangActive;
+
+  ComActive  <= UART_ComActive;
+  ReceiveLED <= UART_LED xor BitBangWriteStrobe;
+
   configfsm_inst : component ConfigFSM
+    generic map (
+      NumberOfRows    => NumberOfRows,
+      RowSelectWidth  => RowSelectWidth,
+      FrameBitsPerRow => FrameBitsPerRow,
+      desync_flag     => desync_flag
+    )
     port map (
-      CLK                  => CLK,
-      FSM_Reset            => FSM_Reset,
-      FrameAddressRegister => FrameAddressRegister_Readable,
-      LongFrameStrobe      => LongFrameStrobe_Readable,
-      RowSelect            => RowSelect_Readable,
-      WriteData            => UART_WriteData_Mux,
-      WriteStrobe          => UART_WriteStrobe_Mux,
-      resetn               => resetn
-    );
-
-  -- Generated from instantiation at eFPGA_Config.v:42
-  inst_config_uart : component config_UART
-    port map (
-      CLK         => CLK,
-      ComActive   => UART_ComActive,
-      Command     => Command,
-      ReceiveLED  => UART_LED,
-      Rx          => Rx,
-      WriteData   => UART_WriteData,
-      WriteStrobe => UART_WriteStrobe,
-      resetn      => resetn
-    );
-
-  -- Generated from instantiation at eFPGA_Config.v:54
-  inst_bitbang : component bitbang
-    port map (
-      active => BitBangActive,
-      clk    => CLK,
-      data   => BitBangWriteData,
-      resetn => resetn,
-      s_clk  => s_clk,
-      s_data => s_data,
-      strobe => BitBangWriteStrobe
+      CLK                    => CLK,
+      reset_n                => resetn,
+      write_data             => UART_WriteData_Mux,
+      write_strobe           => UART_WriteStrobe_Mux,
+      fsm_reset              => fsm_reset,
+      frame_address_register => FrameAddressRegister,
+      long_frame_strobe      => LongFrameStrobe,
+      row_select             => RowSelect
     );
 
 end architecture from_verilog;
