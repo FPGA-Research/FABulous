@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   docs:
-    runs-on: ubuntu-latest
+    # Self-hosted; its uv cache is refilled nightly from main.
+    runs-on: [self-hosted, book2]
     steps:
       # setuptools_scm reads tags to derive the version shown in the sidebar.
       - uses: actions/checkout@v7

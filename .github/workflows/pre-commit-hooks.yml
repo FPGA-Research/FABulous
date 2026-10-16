@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-latest
+    # Self-hosted; its uv and pre-commit caches are refilled nightly from main.
+    runs-on: [self-hosted, book2]
     steps:
     - uses: actions/checkout@v7
     - name: Install uv
