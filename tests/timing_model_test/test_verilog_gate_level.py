@@ -31,6 +31,50 @@ module Top (IN1, IN2, OUT1, OUT2);
 endmodule
 """
 
+ESCAPED_INSTANCE_NETLIST = r"""
+module RegisteredLeaf (D, CLK, Q);
+    input D;
+    input CLK;
+    output Q;
+
+    DFF \Q$_DFF_P_  ( .CLK(CLK), .D(D), .Q(Q) );
+endmodule
+
+module RegisteredMiddle (D, CLK, Q);
+    input D;
+    input CLK;
+    output Q;
+
+    RegisteredLeaf registered_leaf ( .D(D), .CLK(CLK), .Q(Q) );
+endmodule
+
+module IndexedRegisteredLeaf (D, CLK, Q);
+    input D;
+    input CLK;
+    output Q;
+
+    DFF \Q[0]$_DFF_P_  ( .CLK(CLK), .D(D), .Q(Q) );
+endmodule
+
+module EscapedInstanceTop (D, CLK, Q_DIRECT, Q_NESTED, Q_INDEXED);
+    input D;
+    input CLK;
+    output Q_DIRECT;
+    output Q_NESTED;
+    output Q_INDEXED;
+
+    RegisteredLeaf direct_leaf (
+        .D(D), .CLK(CLK), .Q(Q_DIRECT)
+    );
+    RegisteredMiddle middle (
+        .D(D), .CLK(CLK), .Q(Q_NESTED)
+    );
+    IndexedRegisteredLeaf indexed_leaf (
+        .D(D), .CLK(CLK), .Q(Q_INDEXED)
+    );
+endmodule
+"""
+
 
 @pytest.fixture
 def vg() -> VerilogGateLevelTimingGraph:
@@ -49,6 +93,33 @@ def test_get_raw_verilog_netlist_data(
     vg: VerilogGateLevelTimingGraph,
 ) -> None:
     assert vg.get_raw_verilog_netlist_data() == TEST_NETLIST
+
+
+@pytest.mark.parametrize(
+    ("verilog_identifier", "expected_sdf_identifier"),
+    [
+        ("ordinary_instance", "ordinary_instance"),
+        (r"\Q$_DFF_P_", r"Q\$_DFF_P_"),
+        (r"\Q[0]$_DFF_P_", r"Q\[0\]\$_DFF_P_"),
+    ],
+)
+def test_verilog_identifier_to_sdf(
+    verilog_identifier: str,
+    expected_sdf_identifier: str,
+) -> None:
+    """Convert Verilog identifiers to the spelling used by SDF.
+
+    Parameters
+    ----------
+    verilog_identifier : str
+        Identifier spelling from the structural Verilog netlist.
+    expected_sdf_identifier : str
+        Expected identifier spelling in the SDF timing graph.
+    """
+    assert (
+        VerilogGateLevelTimingGraph.verilog_identifier_to_sdf(verilog_identifier)
+        == expected_sdf_identifier
+    )
 
 
 def test_find_verilog_modules_regex_all(
@@ -154,6 +225,73 @@ def test_resolve_hier_pin_nested_submodule(
     vg: VerilogGateLevelTimingGraph,
 ) -> None:
     assert vg.resolve_hier_pin("u_mid/u_leaf1/IN") == ["u_mid/u_leaf1/leafbuf/A"]
+
+
+def test_resolve_hier_pin_vector_module_port() -> None:
+    """Indexed module ports resolve to the corresponding leaf-cell connection."""
+    vector_netlist: str = r"""
+module VectorLeaf (I, O);
+    input [1:0] I;
+    output [1:0] O;
+    BUF input0 (.A(I[0]), .Y(O[0]));
+    BUF input1 (.A(I[1]), .Y(O[1]));
+endmodule
+
+module VectorTop (IN, OUT);
+    input [1:0] IN;
+    output [1:0] OUT;
+    VectorLeaf vector_leaf (.I(IN), .O(OUT));
+endmodule
+"""
+    graph: VerilogGateLevelTimingGraph = VerilogGateLevelTimingGraph.__new__(
+        VerilogGateLevelTimingGraph
+    )
+    graph.top_name = "VectorTop"
+    graph.hier_sep = "/"
+    graph.verilog_netlist_content = vector_netlist
+
+    assert graph.resolve_hier_pin("vector_leaf/I[0]") == ["vector_leaf/input0/A"]
+    assert graph.resolve_hier_pin("vector_leaf/I[1]") == ["vector_leaf/input1/A"]
+
+
+@pytest.mark.parametrize(
+    ("hier_pin_path", "expected_leaf_pin"),
+    [
+        ("direct_leaf/Q", r"direct_leaf/Q\$_DFF_P_/Q"),
+        ("middle/registered_leaf/Q", r"middle/registered_leaf/Q\$_DFF_P_/Q"),
+        ("indexed_leaf/Q", r"indexed_leaf/Q\[0\]\$_DFF_P_/Q"),
+    ],
+)
+def test_resolve_hier_pin_escaped_instance_uses_sdf_path_name(
+    hier_pin_path: str,
+    expected_leaf_pin: str,
+) -> None:
+    """Resolve escaped leaf instances using the spelling present in the SDF graph.
+
+    Parameters
+    ----------
+    hier_pin_path : str
+        Hierarchical module pin to resolve.
+    expected_leaf_pin : str
+        Expected leaf pin using the SDF timing-graph identifier spelling.
+    """
+    graph: VerilogGateLevelTimingGraph = VerilogGateLevelTimingGraph.__new__(
+        VerilogGateLevelTimingGraph
+    )
+    graph.top_name = "EscapedInstanceTop"
+    graph.hier_sep = "/"
+    graph.verilog_netlist_content = ESCAPED_INSTANCE_NETLIST
+    graph.graph = nx.DiGraph()
+    graph.graph.add_edge(expected_leaf_pin, "OUT", weight=1.0)
+
+    resolved_leaf_pins: list[str] = graph.resolve_hier_pin(hier_pin_path)
+
+    assert resolved_leaf_pins
+    assert resolved_leaf_pins == [expected_leaf_pin]
+    assert all(pin in graph.graph for pin in resolved_leaf_pins)
+    assert graph.has_path(resolved_leaf_pins[0], "OUT")
+    with pytest.warns(DeprecationWarning, match="query_timing_paths"):
+        assert graph.single_delay(resolved_leaf_pins[0], "OUT") == 1.0
 
 
 def test_resolve_hier_pin_missing_target_pin(
