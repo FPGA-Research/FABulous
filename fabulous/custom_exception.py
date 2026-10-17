@@ -64,3 +64,7 @@ class PipelineCommandError(Exception):
 
 class InvalidState(Exception):
     """Exception raised for invalid state during fabric generation."""
+
+
+class UnsupportedToolVersion(Exception):
+    """Exception raised when an external tool is too old to be usable."""
