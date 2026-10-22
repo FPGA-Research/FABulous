@@ -8,9 +8,9 @@ The supported, first-class FABulous path is the CLI GDS flow in [Convert your de
 The plugin adds no hardening capability the CLI flow lacks. It only swaps the driver: you drive the same underlying steps through `librelane` and hand-written `config.yaml` files instead of through the FABulous CLI. Its main reason to exist is pairing FABulous with an external, [fabulous tile library](https://github.com/FPGA-Research/fabulous-tiles) and FABulous itself is not yet fully integrated to consume such a library. Until that integration lands, the plugin is essentially just a different interface onto the same flow, and you take on writing the `config.yaml` files and managing the tile macros by hand. If you are not deliberately building on the tile library, use the CLI GDS flow instead.
 :::
 
-FABulous ships a [LibreLane](https://github.com/librelane/librelane) plugin, `librelane_plugin_fabulous`, that exposes the tile-hardening and fabric-stitching flows as native LibreLane flows. This lets you drive the ASIC flow directly with `librelane` and a `config.yaml`, rather than through the FABulous CLI. It is a thin adapter over the same steps as the CLI flow, so the [flow variable table](#gds-variables), [pin configuration](#pin-config), and [tile stitching](#stitching-the-tiles) sections of the GDS guide apply here as well.
+FABulous ships a [LibreLane](https://github.com/librelane/librelane) plugin, `librelane_plugin_fabulous`, that exposes the tile-hardening and fabric-stitching flows as native LibreLane flows. This lets you drive the ASIC flow directly with `librelane` and a `config.yaml`, rather than through the FABulous CLI. It is a thin adapter over the same steps as the CLI flow, so the {ref}`flow variable table <gds-variables>`, {ref}`pin configuration <pin-config>`, and {ref}`tile stitching <stitching-the-tiles>` sections of the GDS guide apply here as well.
 
-Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `gen_macro full` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the [Full Automated Flow](#full-automated-flow)). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
+Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `gen_macro full` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the {ref}`Full Automated Flow <full-automated-flow>`). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
 
 The plugin provides two flows:
 
@@ -19,7 +19,7 @@ The plugin provides two flows:
 
 ## Prerequisites
 
-The plugin uses the same toolchain as the CLI GDS flow. You need the Nix environment and a PDK. See the [prerequisites](#prerequisites) of the GDS guide for details on entering the Nix environment and installing a PDK.
+The plugin uses the same toolchain as the CLI GDS flow. You need the Nix environment and a PDK. See the {ref}`prerequisites <prerequisites>` of the GDS guide for details on entering the Nix environment and installing a PDK.
 
 The plugin is generated into the `fabulous-fpga` wheel at build time, so it is available as soon as FABulous is installed in the Nix environment. There is no separate install step.
 
@@ -103,7 +103,7 @@ Plugin configuration variables:
 | `FABULOUS_TILE_LIBRARY` | `list[Path]` | Paths to the tile library roots. |
 | `FABULOUS_TILE_MACROS` | `dict[str, Path]` | Mapping of tile name to a previously-hardened macro output directory (containing `metrics.json`, `gds/`, `lef/`, `vh/`, `nl/`, `pnl/`, `spef/`). When omitted, each tile in the fabric CSV is auto-resolved by scanning `FABULOUS_TILE_LIBRARY` for a `<tile>/runs/RUN_*/final` directory and picking the most recently modified one. |
 
-Set `DESIGN_NAME` to the fabric name and add any top-level models and custom cells to `VERILOG_FILES`. The tile spacing and halo variables from the base flow (`FABULOUS_TILE_SPACING`, `FABULOUS_HALO_SPACING`) and the rest of the LibreLane variables apply here too; see the [flow variable table](#gds-variables).
+Set `DESIGN_NAME` to the fabric name and add any top-level models and custom cells to `VERILOG_FILES`. The tile spacing and halo variables from the base flow (`FABULOUS_TILE_SPACING`, `FABULOUS_HALO_SPACING`) and the rest of the LibreLane variables apply here too; see the {ref}`flow variable table <gds-variables>`.
 
 Example `config.yaml`:
 

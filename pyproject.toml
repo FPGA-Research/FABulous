@@ -138,7 +138,9 @@ docs = [
   "sphinx-autoapi>=3.0.0",            # Modern alternative to autosummary
   "myst-parser>=5.1.0",               # Markdown support (industry standard)
   "sphinxext-opengraph>=0.9.0",       # Social media preview cards
-  "sphinx-llm[gen]>=0.4.1",
+  # 1.1 relays the nested markdown builder's `unknown node type` warnings into
+  # the parent build, which fail it under -W.
+  "sphinx-llm[gen]>=0.4.1,<1.1",
   "sphinxcontrib-mermaid>=2.1.0",
   "sphinxcontrib-wavedrom>=3.0.4",    # build-time WaveJSON -> SVG
   "sphinx-reredirects>=1.1.0",        # Keep old page URLs working after restructures
