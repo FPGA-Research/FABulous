@@ -163,9 +163,9 @@ nextpnr can find all model files.
 | ------------------ | ------------------------------------------------------------------------------------ |
 | `bel.txt`          | Legacy (1.0) BEL list, one line per BEL. No longer read by nextpnr                    |
 | `bel.v2.txt`       | Block-structured BEL description used by current (2.0) projects                       |
-| `bel.v3.txt`       | `bel.v2.txt` plus per-BEL timing arcs (see [](#belv3txt-bel-timing))                  |
+| `bel.v3.txt`       | `bel.v2.txt` plus per-BEL timing arcs (see {ref}`belv3txt-bel-timing`)                  |
 | `pips.txt`         | Routing resources (programmable interconnect points) and their delays                |
-| `placement_estimate.txt`  | The fabric's base delay scaling factors (see [](#placement-estimate))                     |
+| `placement_estimate.txt`  | The fabric's base delay scaling factors (see {ref}`placement-estimate`)                     |
 | `template.pcf`     | A pin-constraint template listing the fabric's IO BELs                                |
 
 nextpnr selects the BEL file as follows:
