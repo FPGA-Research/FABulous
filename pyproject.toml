@@ -33,9 +33,8 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.3.1",
   'PyYAML>=6.0.0',
-  # Every PyPI librelane up to 3.1.0.dev3 pins ciel<3, so a non-uv install
-  # fails at resolution until 3.1.0 ships. See the librelane uv source.
-  "librelane>=3.1.0.dev3",
+  # ihp-sg13cmos5l needs ciel 3; 3.1.0.dev4 is the first PyPI librelane with it.
+  "librelane>=3.1.0.dev4",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
   "numpy>=2.5.1",
@@ -178,10 +177,6 @@ FABulous-bit-gen = "FABulous_bit_gen"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
-# ihp-sg13cmos5l needs ciel 3, which no librelane release supports yet. This is
-# the dev commit that enabled the variant; flake.nix pins the same rev. Drop
-# both pins, and the dependabot ignores, once librelane 3.1.0 is on PyPI.
-librelane = { git = "https://github.com/librelane/librelane.git", rev = "c5b5099e55f4e3bed507f2e79441ecfd6432d65c" }
 
 [tool.uv.extra-build-dependencies]
 sdf-timing = ["vcs-versioning"]
