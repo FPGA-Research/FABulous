@@ -19,7 +19,7 @@ Once you are in the REPL, you will find many features that help you with the flo
 You can type `help` or `?` in the REPL to see a list of all available commands and their descriptions.
 We will list out a few useful ones below. For more details on the capabilities of `cmd2`, please refer to the [cmd2 documentation](https://cmd2.readthedocs.io/en/stable/) since FABulous CLI is built on top of `cmd2`.
 
-For more details about the available commands, please refer to the {ref}`Interactive CLI Commands Reference <interactive-cli-commands-reference>`.
+For more details about the available commands, please refer to the {ref}`Interactive REPL Commands Reference <interactive-repl-commands-reference>`.
 
 ### Session variables
 
