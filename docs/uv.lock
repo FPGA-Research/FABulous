@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "ciel"
-version = "3.0.0"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -355,9 +355,9 @@ dependencies = [
     { name = "rich" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/2a/65acf477f58f85eedade1a6c6f366ead9950257f832d4fcfcf7a7ed77f1c/ciel-3.0.0.tar.gz", hash = "sha256:bf0ea63e1e1cdb9f1ded25a7103f93ddc5d5eee546eaea04db1c00eeb73fef6b", size = 27601, upload-time = "2026-09-19T18:28:33.575Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/72/2dbea0d3ca2a5abee310ba9be07747c7d8172919838a8a8a91eb065aab6d/ciel-3.2.0.tar.gz", hash = "sha256:96d8faa5330f4f8a23ca10c76470ecf6f8a46b5dd85bbcbc25698872d919e1e8", size = 29531, upload-time = "2026-10-21T14:50:36.511Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/65/e29ba436a486baac9d92a579c79bef0eae24d5c61922aeff1869e26ad1b1/ciel-3.0.0-py3-none-any.whl", hash = "sha256:4f3c0ebaa45311e60e6bf6823615de7f1af8e50ee4e9675c122281abb9a4548b", size = 39738, upload-time = "2026-09-19T18:28:32.185Z" },
+    { url = "https://files.pythonhosted.org/packages/96/a7/d0f206915fad4b98cdb919a5cf3843519f9eff02e16f3bbeeea060132532/ciel-3.2.0-py3-none-any.whl", hash = "sha256:be2dc2c08454dc1c161d18c80220115e65cbe872746eb278dfce2353295c0b63", size = 42170, upload-time = "2026-10-21T14:50:35.204Z" },
 ]
 
 [[package]]
@@ -647,7 +647,7 @@ requires-dist = [
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "librelane", git = "https://github.com/librelane/librelane.git?rev=c5b5099e55f4e3bed507f2e79441ecfd6432d65c" },
+    { name = "librelane", specifier = ">=3.1.0.dev4" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "networkx", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=2.5.1" },
@@ -1050,8 +1050,8 @@ wheels = [
 
 [[package]]
 name = "librelane"
-version = "3.1.0.dev3"
-source = { git = "https://github.com/librelane/librelane.git?rev=c5b5099e55f4e3bed507f2e79441ecfd6432d65c#c5b5099e55f4e3bed507f2e79441ecfd6432d65c" }
+version = "3.1.0.dev4"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ciel" },
     { name = "click" },
@@ -1067,6 +1067,10 @@ dependencies = [
     { name = "rich" },
     { name = "semver" },
     { name = "yamlcore" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6a/4b/493f4d4125262f7885826c5d03e49bd73d53a28cf9e641425268001b85e0/librelane-3.1.0.dev4.tar.gz", hash = "sha256:18ac90d7f2e521f07ad62d5068c0359738b131e31bcb4a7cdc08a6a78fe80ced", size = 312705, upload-time = "2026-10-23T15:11:14.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/db/2abd625288a8ae210762ac4d7f173a8c51517a0437bd9e5db538ec097b0a/librelane-3.1.0.dev4-py3-none-any.whl", hash = "sha256:f25170ee5ad2f35d7d1f737b70d6f80265964169dee0b278ad451d1dccc1d95b", size = 430813, upload-time = "2026-10-23T15:11:12.254Z" },
 ]
 
 [[package]]
