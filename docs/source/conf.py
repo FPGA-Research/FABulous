@@ -93,12 +93,8 @@ intersphinx_mapping = {
     "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
     "cmd2": ("https://cmd2.readthedocs.io/en/latest/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "pandas": ("https://pandas.pydata.org/docs/", None),
     "requests": ("https://docs.python-requests.org/en/master/", None),
     "pydantic": ("https://docs.pydantic.dev/latest/", None),
-    # Additional scikit-learn style mappings
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
-    "matplotlib": ("https://matplotlib.org/stable/", None),
     # GDS-flow dependencies whose types appear in the gds_generator docstrings.
     "librelane": ("https://librelane.readthedocs.io/en/latest/", None),
     "packaging": ("https://packaging.pypa.io/en/stable/", None),
@@ -160,6 +156,10 @@ ogp_site_name = "FABulous: Open-Source Embedded FPGA Framework"
 ogp_description_length = 200
 ogp_image = "_static/figs/FABulouslogo_wide_2.png"
 ogp_social_cards = {"enable": True, "image": "_static/figs/FABulouslogo_wide_2.png"}
+
+# Without a base, sphinx-llm writes llms.txt links relative to the build root,
+# which an agent fetching the file alone cannot resolve.
+markdown_http_base = ogp_site_url
 
 # JSON-LD structured data for search engines and LLM crawlers
 _jsonld = {

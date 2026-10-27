@@ -1,4 +1,6 @@
- (timing-characterization)=
+(timing-characterization)=
+
+# Timing Characterization
 
 :::{warning}
 The timing model produced by FABulous is experimental and has not been
@@ -7,7 +9,6 @@ they may be incomplete or inaccurate. Always validate timing results on real dev
 before relying on them for design decisions.
 :::
 
-# Timing Characterization
 
 FABulous can produce a timing model that maps physical or structural design information
 into pip delays used by nextpnr (the `pips.txt` format). The timing model is generated
