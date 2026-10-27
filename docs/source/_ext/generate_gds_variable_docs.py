@@ -172,9 +172,6 @@ def extract_variables_from_class(
 
         default = shorten_path_default(default, type_str)
 
-        if len(default) > 50:
-            default = default[:47] + "..."
-
         # Get description (left verbatim apart from whitespace: librelane
         # descriptions mix literal `{...}` placeholders with backticks, so a
         # blanket role strip would corrupt them).
@@ -202,16 +199,20 @@ def discover_classes_with_config_vars(package_name: str) -> list[tuple[str, type
     -------
     list[tuple[str, type]]
         List of (class_name, class) tuples for classes with config_vars.
+
+    Raises
+    ------
+    TypeError
+        If `package_name` names a plain module rather than a package.
     """
     classes_found: list[tuple[str, type]] = []
 
     package = importlib.import_module(package_name)
+    if not hasattr(package, "__path__"):
+        msg = f"{package_name} is a module, not a package; no steps to discover."
+        raise TypeError(msg)
 
-    package_path = getattr(package, "__path__", None)
-    if package_path is None:
-        return classes_found
-
-    for _, module_name, _ in pkgutil.iter_modules(package_path):
+    for _, module_name, _ in pkgutil.iter_modules(package.__path__):
         full_module_name = f"{package_name}.{module_name}"
 
         module = importlib.import_module(full_module_name)
