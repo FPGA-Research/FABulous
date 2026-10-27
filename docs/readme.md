@@ -16,9 +16,9 @@ xdg-open docs/build/html/index.html
 ## What to search for
 
 - Quick start and installation: docs/source/getting_started
-- CLI commands: docs/source/user_guide/cli_doc
-- Fabric build flow: docs/source/user_guide/building_doc
-- Bitstream and configuration: docs/source/user_guide/using_doc
+- CLI and REPL usage: docs/source/user_guide/cli_doc
+- Fabric definition, configuration and GDS flow: docs/source/user_guide/building_doc
+- Synthesis, place and route, pin constraints and bitstream generation: docs/source/user_guide/using_doc
 - Simulation and emulation: docs/source/user_guide/simulation
 
 ## General
@@ -26,6 +26,50 @@ xdg-open docs/build/html/index.html
 Our docs are built using [Sphinx](https://www.sphinx-doc.org/en/master).
 Pages are written in [MyST Markdown](https://myst-parser.readthedocs.io/en/latest/);
 the API reference is auto-generated from source docstrings by [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
+
+## Changing the docs
+
+Each kind of content has one home, and the generated pages have no hand-edited copy.
+
+| Content | Edit here | Not here |
+|---------|-----------|----------|
+| Guide pages | `docs/source/<section>/*.md`, plus one entry in that section's `index.md` toctree | |
+| API reference | the docstring in `fabulous/` | `generated_doc/fabulous/**` |
+| REPL command reference | the `do_*` docstring and its `@with_annotated` parameters in `fabulous/fabulous_repl/` | `generated_doc/interactive_repl_commands.md` |
+| `FABulousSettings` variables | the field and its description in `fabulous/fabulous_settings.py` | `generated_doc/fabulous_variable.md` |
+| GDS flow variables | the `config_vars` of the step or flow in `fabulous/fabric_generator/gds_generator/` | `generated_doc/gds_variable.md` |
+
+`source/generated_doc/` is gitignored and rebuilt by `task docs-build`. AutoAPI
+writes the API pages there, and the three extensions in `source/_ext/` write
+the reference pages there from Jinja templates in `source/_templates/` at
+`config-inited`. Two of those pages sit in a toctree directly. The settings page
+is excluded in `conf.py` and pulled into `user_guide/cli_doc/fabulous_variable.md`
+with `{include}`, because that page carries hand-written prose around the table.
+
+The REPL generator imports the live command classes. A command's category is
+its `@with_category` value, else its `CommandSet`'s `DEFAULT_CATEGORY`, and it
+must be one of the `CMD_*` constants in `fabulous_repl/command_set_base.py`,
+otherwise the build stops. Numpy `Notes`, `Examples` and `See Also` sections are
+kept and render as bold labels. `Parameters`, `Returns`, `Raises` and `Yields`
+are dropped, because the argument table already carries them.
+
+The build runs Sphinx with `-n -W`, so an unresolved cross-reference fails it.
+When a docstring type does not resolve, edit one of the two lists in `conf.py`.
+`_XREF_REWRITE` maps a bare or mis-qualified name to a target an intersphinx
+inventory can link. `_XREF_AS_TEXT` renders a name with no published target as
+plain text. `nitpick_ignore` is not used, because it silences the warning but
+still renders the unresolved fully-qualified name. A type from a package with no
+inventory in `intersphinx_mapping` needs a new mapping entry or an
+`_XREF_AS_TEXT` entry.
+
+Moving or deleting a page needs an entry in `redirects` in `conf.py`, mapping
+the old docname to its new URL relative to the old location, so published links
+keep resolving.
+
+Pages and docstrings are MyST. Pre-commit rejects reST double-backtick
+literals, reST directives and `:role:` syntax. A page's first heading becomes
+its title in `llms.txt`, so the `(label)=` target and the `#` heading come
+before any admonition.
 
 ## Prerequisites
 
