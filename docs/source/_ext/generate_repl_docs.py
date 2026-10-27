@@ -9,6 +9,8 @@ rather than re-deriving them, so the docs cannot drift from what the REPL
 actually accepts.
 """
 
+from __future__ import annotations
+
 import argparse
 import importlib
 import inspect
@@ -16,12 +18,15 @@ import logging
 import pkgutil
 import types
 import typing
-from pathlib import Path
 
 import jinja2
+from _doc_common import render_generated_doc
 from cmd2 import constants
-from sphinx.application import Sphinx
-from sphinx.config import Config
+
+# The pytest job installs no docs group, and tests/docs_test imports this module.
+if typing.TYPE_CHECKING:
+    from sphinx.application import Sphinx
+    from sphinx.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +45,7 @@ def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
         Extension metadata.
     """
     app.connect("config-inited", generate_repl_docs)
-    return {"version": "1.0"}
+    return {"version": "1.0", "parallel_read_safe": True}
 
 
 def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
@@ -59,32 +64,17 @@ def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
         If documentation generation fails.
     """
     try:
-        conf_py_path: str = conf._raw_config["__file__"]  # noqa: SLF001
-        doc_root_dir: Path = Path(conf_py_path).parent
-
-        template_relpath: str = conf.templates_path[0]
-        all_templates_path = doc_root_dir / template_relpath
-
-        lookup = jinja2.FileSystemLoader(searchpath=all_templates_path)
-        env = jinja2.Environment(loader=lookup)
-
-        commands_by_category = _collect_commands()
-        commands_by_category = _sort_categories(commands_by_category, _category_order())
-
-        # Render documentation
-        template = env.get_template("cli_commands.md.jinja")
-        output = template.render(
-            commands_by_category=commands_by_category,
+        commands_by_category = _sort_categories(
+            collect_commands(), _category_order()
         )
-
-        # Write output to generated_doc folder (gitignored)
-        output_file = doc_root_dir / "generated_doc" / "interactive_repl_commands.md"
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(output)
-
+        output_file = render_generated_doc(
+            conf,
+            template_name="repl_commands.md.jinja",
+            output_name="interactive_repl_commands.md",
+            context={"commands_by_category": commands_by_category},
+        )
         logger.info("Generated REPL command documentation: %s", output_file)
-
-    except (OSError, jinja2.TemplateError, ImportError):
+    except (OSError, jinja2.TemplateError, ImportError, ValueError):
         logger.exception("Failed to generate REPL command documentation")
         raise SystemExit(-1) from None
 
@@ -94,7 +84,9 @@ def clean_docstring(docstring: str) -> str:
 
     Only the call-signature sections go. `Notes`, `Examples` and `See Also` are
     kept: nothing else in the page carries them, so dropping them silently lost
-    caveats the reader needs.
+    caveats the reader needs. A kept section's numpy underline would parse as a
+    Markdown setext H2 and land beside the category headings, so its title is
+    rewritten to a bold label.
 
     Parameters
     ----------
@@ -118,20 +110,31 @@ def clean_docstring(docstring: str) -> str:
         "Yields",
     }
 
+    skip_underline = False
+
     for i, line in enumerate(lines):
         stripped = line.strip()
-        # Check if this is the start of a formal section
-        if stripped in formal_sections and i + 1 < len(lines):
-            next_line = lines[i + 1].strip()
-            # Check if followed by dashes (numpy style)
-            if next_line == "-" * len(stripped) or next_line.startswith("-" * 5):
-                skip_until_blank = True
-                continue
+        if skip_underline:
+            skip_underline = False
+            continue
+
+        next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        is_section_title = bool(stripped) and (
+            next_line == "-" * len(stripped) or next_line.startswith("-" * 5)
+        )
+        if is_section_title and stripped in formal_sections:
+            skip_until_blank = True
+            continue
 
         # Skip lines until we hit a blank line (end of section)
         if skip_until_blank:
-            if line.strip() == "":
+            if stripped == "":
                 skip_until_blank = False
+            continue
+
+        if is_section_title:
+            result.append(f"**{stripped}**")
+            skip_underline = True
             continue
 
         result.append(line)
@@ -139,7 +142,7 @@ def clean_docstring(docstring: str) -> str:
     return "\n".join(result).strip()
 
 
-def _command_classes() -> list[type]:
+def command_classes() -> list[type]:
     """Import the REPL command modules and return the classes that define commands.
 
     The concrete command providers are `FABulousREPL` itself and every
@@ -185,20 +188,41 @@ def _all_subclasses(cls: type) -> list[type]:
     return list(seen)
 
 
-def _collect_commands() -> dict:
+def collect_commands() -> dict:
     """Collect all `do_*` commands, grouped by their cmd2 help category.
+
+    The category is resolved the way `cmd2.Cmd` resolves it at runtime: the
+    `@with_category` attribute on the function, else the `DEFAULT_CATEGORY` of
+    the class that defines it.
 
     Returns
     -------
     dict
         Mapping of category name to a list of command doc entries.
+
+    Raises
+    ------
+    ValueError
+        If a command resolves to a category not declared as a `CMD_*` constant
+        in `command_set_base`, such as cmd2's own `DEFAULT_CATEGORY`.
     """
+    known_categories = set(_category_order())
     commands_by_category: dict = {}
-    for cls in _command_classes():
+    for cls in command_classes():
         for name, member in vars(cls).items():
             if not name.startswith("do_") or not callable(member):
                 continue
-            category = getattr(member, constants.COMMAND_ATTR_HELP_CATEGORY, "Other")
+            category = getattr(
+                member, constants.COMMAND_ATTR_HELP_CATEGORY, cls.DEFAULT_CATEGORY
+            )
+            if category not in known_categories:
+                msg = (
+                    f"{cls.__name__}.{name} resolves to category {category!r}, which"
+                    " is not a CMD_* constant in command_set_base. Set"
+                    " DEFAULT_CATEGORY on the class or decorate the command with"
+                    " @with_category."
+                )
+                raise ValueError(msg)
             commands_by_category.setdefault(category, []).append(
                 _command_entry(name, member)
             )
