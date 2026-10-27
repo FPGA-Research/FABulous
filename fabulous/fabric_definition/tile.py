@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
@@ -16,6 +17,33 @@ if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
         PinOrderConfig,
     )
+
+
+def tile_directory(name: str, tile_dir: Path, matrix_file: Path) -> Path:
+    """Return the directory a tile's own files are written to and read from.
+
+    A tile declared inside `fabric.csv` has no CSV of its own, so its switch
+    matrix's directory is used. A free function because the parser needs it
+    before the `Tile` exists.
+
+    Parameters
+    ----------
+    name : str
+        The tile's name.
+    tile_dir : Path
+        The CSV the tile is defined in, which `Tile.tileDir` holds.
+    matrix_file : Path
+        The tile's switch matrix file.
+
+    Returns
+    -------
+    Path
+        The tile's directory, which a `CONFIGMEM` or `MATRIX` entry does not
+        move.
+    """
+    if tile_dir.stem == name:
+        return tile_dir.parent
+    return matrix_file.parent
 
 
 @dataclass
@@ -35,6 +63,9 @@ class Tile:
     switch_matrix : SwitchMatrix
         Switch matrix of the tile, holding its source file, connectivity, and
         config-bit count.
+    config_mem : ConfigMem
+        The tile's configuration memory. It holds no bits until a mapping is
+        read or generated, and never does on a FLIPFLOP_CHAIN fabric.
     gen_ios : list[Gen_IO]
         List of general I/O components
     userCLK : bool
@@ -53,6 +84,8 @@ class Tile:
         The list of BELs of the tile
     switch_matrix : SwitchMatrix
         The switch matrix of the tile
+    config_mem : ConfigMem
+        The tile's configuration memory
     gen_ios : list[Gen_IO]
         The list of GEN_IOs of the tile
     withUserCLK : bool
@@ -71,6 +104,7 @@ class Tile:
     portsInfo: list[TilePort]
     bels: list[Bel]
     switch_matrix: SwitchMatrix
+    config_mem: ConfigMem
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
@@ -85,6 +119,7 @@ class Tile:
         bels: list[Bel],
         tileDir: Path,
         switch_matrix: SwitchMatrix,
+        config_mem: ConfigMem,
         gen_ios: list[Gen_IO],
         userCLK: bool,
         pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
@@ -97,6 +132,7 @@ class Tile:
         self.withUserCLK = userCLK
         self.wireList = []
         self.tileDir = tileDir
+        self.config_mem = config_mem
 
         if pinOrderConfig is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -321,6 +357,17 @@ class Tile:
             and p.wire_direction not in (Direction.JUMP, Direction.SJUMP)
             and p.is_output
         ]
+
+    @property
+    def directory(self) -> Path:
+        """The directory the tile's own files are written to and read from.
+
+        Returns
+        -------
+        Path
+            What `tile_directory` returns for this tile.
+        """
+        return tile_directory(self.name, self.tileDir, self.switch_matrix.matrix_file)
 
     @property
     def globalConfigBits(self) -> int:

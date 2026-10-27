@@ -13,6 +13,9 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
+from fabulous.fabric_definition.configmem import empty_config_mem
+from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
@@ -43,6 +46,17 @@ def test_gen_config_mem(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> 
     log = normalize_and_check_for_errors(caplog.text)
     assert f"Generating Config Memory for {TILE}" in log[0]
     assert "ConfigMem generation complete" in log[-1]
+
+
+def test_gen_config_mem_for_a_supertile(
+    cli: FABulousREPL, mocker: MockerFixture
+) -> None:
+    """A supertile's bits sit in its master's free crosspoints, so it has a memory."""
+    generate = mocker.patch.object(cli.fabulousAPI, "gen_super_tile_config_mem")
+
+    run_cmd(cli, "gen_config_mem DSP")
+
+    generate.assert_called_once_with("DSP")
 
 
 def test_gen_switch_matrix(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
@@ -124,12 +138,122 @@ def test_gen_tile_aborts_on_sub_command_failure(
     mocker.patch.object(
         cli.fabulousAPI, "genSwitchMatrix", side_effect=RuntimeError("boom")
     )
-    gen_config_mem = mocker.patch.object(cli.fabulousAPI, "genConfigMem")
+    gen_config_mem = mocker.patch(
+        "fabulous.fabulous_repl.cmd_fabric_gen.generate_tile_config_mem"
+    )
 
     run_cmd(cli, f"gen_tile {TILE}")
 
     assert cli.exit_code != 0, "gen_tile must report the failed sub-command"
     gen_config_mem.assert_not_called()
+
+
+@pytest.fixture
+def chain_cli(cli: FABulousREPL) -> FABulousREPL:
+    """A REPL on a FLIPFLOP_CHAIN fabric, with the empty memories the parser gives."""
+    cli.fabulousAPI.fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+    for tile in cli.fabulousAPI.fabric.tileDic.values():
+        tile.config_mem = empty_config_mem(tile.config_mem.source)
+    for super_tile in cli.fabulousAPI.fabric.superTileDic.values():
+        super_tile.config_mem = empty_config_mem(super_tile.config_mem.source)
+    return cli
+
+
+def test_a_chain_fabric_has_no_config_mem_to_generate(
+    chain_cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Asked for a mapping a chain fabric does not have, the command says so."""
+    run_cmd(chain_cli, f"gen_config_mem {TILE}")
+
+    assert "no configuration memory to generate" in caplog.text
+
+
+@pytest.mark.parametrize("tile", [TILE, "DSP"])
+def test_a_chain_fabric_generates_a_tile_without_a_mapping(
+    chain_cli: FABulousREPL, mocker: MockerFixture, tile: str
+) -> None:
+    """`gen_tile` on a chain fabric skips the configuration memory."""
+    generate = mocker.patch(
+        "fabulous.fabulous_repl.cmd_fabric_gen.generate_tile_config_mem"
+    )
+    super_tile = mocker.patch.object(chain_cli.fabulousAPI, "gen_super_tile_config_mem")
+
+    run_cmd(chain_cli, f"gen_tile {tile}")
+
+    assert chain_cli.exit_code == 0
+    generate.assert_not_called()
+    super_tile.assert_not_called()
+
+
+def test_a_supertile_with_no_bits_of_its_own_needs_no_master_mapping(
+    chain_cli: FABulousREPL,
+) -> None:
+    """A supertile with no bits of its own does not read its master's mapping."""
+    super_tile = chain_cli.fabulousAPI.fabric.superTileDic["DSP"]
+    memory = super_tile.config_mem
+
+    chain_cli.fabulousAPI.gen_super_tile_config_mem("DSP")
+
+    assert super_tile.config_mem is memory
+
+
+def test_an_unused_supertile_still_finds_its_master(cli: FABulousREPL) -> None:
+    """An unused supertile's master is found among the unused tiles."""
+    fabric = cli.fabulousAPI.fabric
+    super_tile = fabric.superTileDic.pop("DSP")
+    fabric.unusedSuperTileDic["DSP"] = super_tile
+    for child in super_tile.tiles:
+        fabric.unusedTileDic[child.name] = fabric.tileDic.pop(child.name)
+    super_tile.switch_matrix = SwitchMatrix(
+        matrix_file=super_tile.directory / "DSP_switch_matrix.list",
+        connections={},
+        hdl_config_bits=4,
+    )
+
+    # Reaching the mapping check at all is the point; the master is ungenerated.
+    with pytest.raises(ValueError, match="Generate its mapping before"):
+        cli.fabulousAPI.gen_super_tile_config_mem("DSP")
+
+
+def test_a_supertile_will_not_borrow_from_an_ungenerated_master(
+    cli: FABulousREPL,
+) -> None:
+    """A supertile mapping is refused until its master's mapping exists."""
+    super_tile = cli.fabulousAPI.fabric.superTileDic["DSP"]
+    # The demo supertile has no bits of its own.
+    super_tile.switch_matrix = SwitchMatrix(
+        matrix_file=super_tile.directory / "DSP_switch_matrix.list",
+        connections={},
+        hdl_config_bits=4,
+    )
+
+    with pytest.raises(ValueError, match="Generate its mapping before"):
+        cli.fabulousAPI.gen_super_tile_config_mem("DSP")
+
+
+def test_a_tile_generates_into_its_own_directory(cli: FABulousREPL) -> None:
+    """A tile outside `Tile/<name>` generates all its files into its own directory."""
+    tile = cli.fabulousAPI.fabric.tileDic[TILE]
+    elsewhere = cli.projectDir / "elsewhere"
+    elsewhere.mkdir()
+    tile.tileDir = elsewhere / f"{TILE}.csv"
+
+    run_cmd(cli, f"gen_tile {TILE}")
+
+    for name in (f"{TILE}_switch_matrix", f"{TILE}_ConfigMem", TILE):
+        assert (elsewhere / f"{name}.{cli.extension}").is_file()
+
+
+def test_a_stray_directory_does_not_make_a_tile_a_supertile(
+    cli: FABulousREPL,
+) -> None:
+    """A stray subdirectory does not make a tile a supertile."""
+    (cli.projectDir / "Tile" / TILE / "stray").mkdir()
+
+    run_cmd(cli, f"gen_tile {TILE}")
+
+    assert cli.exit_code == 0
+    assert (cli.projectDir / "Tile" / TILE / f"{TILE}.{cli.extension}").is_file()
 
 
 def test_gen_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
@@ -183,12 +307,12 @@ def test_run_FABulous_fabric_deprecated(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_model_npnr(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating nextpnr model."""
-    run_cmd(cli, "gen_model_npnr")
+    run_cmd(cli, "gen_routing_model")
     log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating npnr model" in log[0]
-    assert "Generated npnr model" in log[-1]
+    assert "Generating nextpnr routing model" in log[0]
+    assert "Generated nextpnr routing model" in log[-1]
 
 
 def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
@@ -848,8 +972,11 @@ def test_deprecated_macro_commands_forward(
     )
     mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
     api_mock = mocker.patch.object(cli.fabulousAPI, api_method)
-    # `gen_macro stitch` returns early unless a hardened tile exists.
-    (cli.projectDir / "Tile" / TILE / "macro" / "final_views").mkdir(parents=True)
+    # `gen_macro stitch` raises unless every tile in the fabric is hardened.
+    for tile in cli.fabulousAPI.fabric.get_all_unique_tiles():
+        (cli.projectDir / "Tile" / tile.name / "macro" / "final_views").mkdir(
+            parents=True
+        )
     command = f"{deprecated} {arguments}".strip()
 
     if through_tcl:
@@ -883,6 +1010,42 @@ def test_deprecated_macro_command_propagates_failure(
     else:
         assert cli.onecmd_plus_hooks(f"gen_tile_macro {TILE}")
     assert cli.exit_code != 0
+
+
+@pytest.mark.parametrize(
+    ("unhardened", "stale"),
+    [(set(), set()), (set(), {"DROPPED_TILE"}), ({TILE}, set())],
+    ids=["all_hardened", "stale_unused_macro", "used_tile_unhardened"],
+)
+def test_gen_macro_stitch_hands_over_exactly_the_fabric_tiles(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    unhardened: set[str],
+    stale: set[str],
+) -> None:
+    """Stitch takes the fabric's tiles, ignores stale macros and needs each hardened.
+
+    A tile hardened once and later dropped from the fabric leaves its
+    `final_views` behind under `Tile/`, which must not reach the stitching flow.
+    """
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+    )
+    api_mock = mocker.patch.object(cli.fabulousAPI, "fabric_stitching")
+    used = {tile.name for tile in cli.fabulousAPI.fabric.get_all_unique_tiles()}
+    for name in (used - unhardened) | stale:
+        (cli.projectDir / "Tile" / name / "macro" / "final_views").mkdir(parents=True)
+
+    run_cmd(cli, "gen_macro stitch")
+
+    if unhardened:
+        assert cli.exit_code != 0
+        assert any(TILE in r.message for r in caplog.records if r.levelname == "ERROR")
+        api_mock.assert_not_called()
+    else:
+        assert cli.exit_code == 0
+        assert set(api_mock.call_args.args[0]) == used
 
 
 CUSTOM_PRIM_BELS = [

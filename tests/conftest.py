@@ -14,7 +14,15 @@ from loguru import logger
 import fabulous.fabulous
 import fabulous.fabulous_settings
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, Direction, HDLType, Side
+from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import (
+    FRAME_BITS_PER_ROW,
+    IO,
+    MAX_FRAMES_PER_COL,
+    Direction,
+    HDLType,
+    Side,
+)
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -210,13 +218,15 @@ def make_empty_tile(
     matrixDir: Path = Path(),
     pinOrderConfig: dict | None = None,
     config_bits: int = 0,
+    frame_bits_per_row: int = FRAME_BITS_PER_ROW,
+    max_frames_per_col: int = MAX_FRAMES_PER_COL,
 ) -> Tile:
     """Build a minimal Tile usable inside a SuperTile.tileMap.
 
     Passing `pinOrderConfig={}` skips the GDS pin-order import; the `None`
     default preserves the original behaviour for callers that don't care.
-    `config_bits` sets the switch matrix's declared config-bit count so the
-    tile reports it via `globalConfigBits`.
+    `config_bits` sets the switch matrix's declared config-bit count and gives
+    the tile the default mapping of those bits.
     """
     return Tile(
         name=name,
@@ -229,6 +239,12 @@ def make_empty_tile(
         gen_ios=[],
         userCLK=False,
         pinOrderConfig=pinOrderConfig,
+        config_mem=ConfigMem.default(
+            config_bits,
+            frame_bits_per_row=frame_bits_per_row,
+            max_frames_per_col=max_frames_per_col,
+            source=Path("ConfigMem.csv"),
+        ),
     )
 
 

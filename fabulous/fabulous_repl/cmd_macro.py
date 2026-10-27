@@ -347,21 +347,20 @@ class MacroFlowCommandSet(ReplCommandSet):
             )
             return
 
-        tile_macro_root = repl.projectDir / "Tile"
-        tile_macro_paths: dict[str, Path] = {}
-
-        for tile_dir in tile_macro_root.iterdir():
-            if not tile_dir.is_dir():
-                continue
-            macro_dir = tile_dir / "macro" / "final_views"
-            if macro_dir.exists():
-                tile_macro_paths[tile_dir.name] = macro_dir
-
-        if not tile_macro_paths:
-            logger.error(
-                "No tile macro directories found. Generate tile GDS results first."
+        # Stitch only the tiles the fabric places. `Tile/` can still hold macros
+        # hardened for tiles since dropped from the fabric.
+        tile_macro_paths: dict[str, Path] = {
+            tile.name: repl.projectDir / "Tile" / tile.name / "macro" / "final_views"
+            for tile in repl.fabulousAPI.fabric.get_all_unique_tiles()
+        }
+        unhardened = sorted(
+            name for name, path in tile_macro_paths.items() if not path.is_dir()
+        )
+        if unhardened:
+            raise CommandError(
+                f"No hardened macro for tiles {unhardened} used in the fabric. "
+                "Run `gen_macro tile <tile>` for each, or `gen_macro all_tile`."
             )
-            return
 
         (repl.projectDir / "gds").mkdir(exist_ok=True)
         (repl.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)

@@ -12,6 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -44,6 +45,9 @@ class SuperTile:
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
+    config_mem : ConfigMem | None
+        The supertile's own bits, placed in the crosspoints its master tile
+        leaves free. The parser always sets it; None only on direct construction.
     """
 
     name: str
@@ -54,6 +58,7 @@ class SuperTile:
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
+    config_mem: ConfigMem | None = None
 
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
@@ -239,6 +244,23 @@ class SuperTile:
             valid_sources.update(bel.outputs)
 
         return valid_sources, valid_sinks
+
+    @property
+    def directory(self) -> Path:
+        """The directory the supertile's wrapper and its child tiles sit in.
+
+        A supertile declared inside `fabric.csv` has no CSV of its own, so its
+        directory is the parent of its first child's, where `generateSuperTile`
+        expects it.
+
+        Returns
+        -------
+        Path
+            The supertile's directory.
+        """
+        if self.tileDir.stem == self.name:
+            return self.tileDir.parent
+        return self.tiles[0].directory.parent
 
     @property
     def total_config_bits(self) -> int:

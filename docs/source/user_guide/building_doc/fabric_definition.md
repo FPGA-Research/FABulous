@@ -662,8 +662,19 @@ BEL,              LUT4.vhdl,       LA_
 BEL,              LUT4.vhdl,       LB_
 ...
 MATRIX,           LUT4AB_switch_matrix.vhdl
+CONFIGMEM,        LUT4AB_ConfigMem.csv
 EndTILE
 ```
+
+A `CONFIGMEM` line names the file holding the tile's configuration memory mapping,
+resolved relative to the tile CSV. `gen_config_mem` writes that file, and the parser
+reads it once into the tile, so every later command works from the tile's mapping
+rather than rereading the file. A tile without the line keeps its mapping in its own
+directory under the name `<tile>_ConfigMem.csv`, which is where every project
+generated so far has it. The generated `<tile>_ConfigMem` module goes in that
+directory too, whatever `CONFIGMEM` names, because the tile's HDL is generated
+there. For the deprecated layout that declares tiles inside `fabric.csv`, where a
+tile owns no directory of its own, both follow the tile's switch matrix instead.
 
 A `BEL` statement can carry the additional keyword `ADD_AS_CUSTOM_PRIM`, which makes
 Yosys aware of the primitive. Whenever the tile is parsed, the BEL is added as a

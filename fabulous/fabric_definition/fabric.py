@@ -11,6 +11,26 @@ from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
+    DEFAULT_CONFIG_BIT_MODE,
+    DEFAULT_DISABLE_USER_CLK,
+    DEFAULT_FABRIC_NAME,
+    DEFAULT_MULTI_CLK_DOMAINS,
+    DEFAULT_MULTIPLEXER_STYLE,
+    DEFAULT_NUMBER_OF_BRAMS,
+    DEFAULT_NUMBER_OF_COLUMNS,
+    DEFAULT_NUMBER_OF_ROWS,
+    DEFAULT_PACKAGE,
+    DEFAULT_SUPER_TILE_ENABLE,
+    DEFAULT_SWITCH_MATRIX_DELAY,
+    DEFAULT_SYNC_HEADER_HEX,
+    DEFAULT_USER_CLK_SIDE,
+    DESYNC_FLAG,
+    FRAME_BITS_PER_ROW,
+    FRAME_SELECT_WIDTH,
+    MAX_FABRIC_COLUMNS,
+    MAX_FABRIC_ROWS,
+    MAX_FRAMES_PER_COL,
+    ROW_SELECT_WIDTH,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
@@ -96,24 +116,24 @@ class Fabric:
     fabric_dir: Path
     tile: list[list[Tile]] = field(default_factory=list)
 
-    name: str = "eFPGA"
-    numberOfRows: int = 15
-    numberOfColumns: int = 15
-    configBitMode: ConfigBitMode = ConfigBitMode.FRAME_BASED
-    frameBitsPerRow: int = 32
-    maxFramesPerCol: int = 20
-    package: str = "use work.my_package.all"
-    generateDelayInSwitchMatrix: int = 80
-    multiplexerStyle: MultiplexerStyle = MultiplexerStyle.CUSTOM
-    frameSelectWidth: int = 5
-    rowSelectWidth: int = 5
-    desync_flag: int = 20
-    numberOfBRAMs: int = 10
-    superTileEnable: bool = True
-    disableUserCLK: bool = False
-    userCLKSide: Side = Side.SOUTH
-    multiClkDomains: bool = False
-    syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
+    name: str = DEFAULT_FABRIC_NAME
+    numberOfRows: int = DEFAULT_NUMBER_OF_ROWS
+    numberOfColumns: int = DEFAULT_NUMBER_OF_COLUMNS
+    configBitMode: ConfigBitMode = DEFAULT_CONFIG_BIT_MODE
+    frameBitsPerRow: int = FRAME_BITS_PER_ROW
+    maxFramesPerCol: int = MAX_FRAMES_PER_COL
+    package: str = DEFAULT_PACKAGE
+    generateDelayInSwitchMatrix: int = DEFAULT_SWITCH_MATRIX_DELAY
+    multiplexerStyle: MultiplexerStyle = DEFAULT_MULTIPLEXER_STYLE
+    frameSelectWidth: int = FRAME_SELECT_WIDTH
+    rowSelectWidth: int = ROW_SELECT_WIDTH
+    desync_flag: int = DESYNC_FLAG
+    numberOfBRAMs: int = DEFAULT_NUMBER_OF_BRAMS
+    superTileEnable: bool = DEFAULT_SUPER_TILE_ENABLE
+    disableUserCLK: bool = DEFAULT_DISABLE_USER_CLK
+    userCLKSide: Side = DEFAULT_USER_CLK_SIDE
+    multiClkDomains: bool = DEFAULT_MULTI_CLK_DOMAINS
+    syncHeaderHex: str = DEFAULT_SYNC_HEADER_HEX
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
@@ -130,38 +150,47 @@ class Fabric:
         The wires are used during model generation to work with wire that going cross
         tile.
         """
-        if self.numberOfRows > 32:
+        if self.numberOfRows > MAX_FABRIC_ROWS:
             raise ValueError(
                 "Due to bitstream limitations, "
-                "numberOfRows must be less than or equal to 32."
+                f"numberOfRows must be less than or equal to {MAX_FABRIC_ROWS}."
             )
 
-        if self.numberOfColumns > 32:
+        if self.numberOfColumns > MAX_FABRIC_COLUMNS:
             raise ValueError(
                 "Due to bitstream limitations, "
-                "numberOfColumns must be less than or equal to 32."
+                f"numberOfColumns must be less than or equal to "
+                f"{MAX_FABRIC_COLUMNS}."
             )
 
-        if self.frameBitsPerRow != 32:
+        if self.frameBitsPerRow != FRAME_BITS_PER_ROW:
             raise ValueError(
-                "Due to bitstream limitations, frameBitsPerRow must be 32."
+                "Due to bitstream limitations, frameBitsPerRow must be "
+                f"{FRAME_BITS_PER_ROW}."
             )
 
-        if self.maxFramesPerCol != 20:
+        if self.maxFramesPerCol != MAX_FRAMES_PER_COL:
             raise ValueError(
-                "Due to bitstream limitations, maxFramesPerCol must be 20."
+                "Due to bitstream limitations, maxFramesPerCol must be "
+                f"{MAX_FRAMES_PER_COL}."
             )
 
-        if self.frameSelectWidth != 5:
+        if self.frameSelectWidth != FRAME_SELECT_WIDTH:
             raise ValueError(
-                "Due to bitstream limitations, frameSelectWidth must be 5."
+                "Due to bitstream limitations, frameSelectWidth must be "
+                f"{FRAME_SELECT_WIDTH}."
             )
 
-        if self.rowSelectWidth != 5:
-            raise ValueError("Due to bitstream limitations, rowSelectWidth must be 5.")
+        if self.rowSelectWidth != ROW_SELECT_WIDTH:
+            raise ValueError(
+                "Due to bitstream limitations, rowSelectWidth must be "
+                f"{ROW_SELECT_WIDTH}."
+            )
 
-        if self.desync_flag != 20:
-            raise ValueError("Due to bitstream limitations, desync_flag must be 20.")
+        if self.desync_flag != DESYNC_FLAG:
+            raise ValueError(
+                f"Due to bitstream limitations, desync_flag must be {DESYNC_FLAG}."
+            )
 
         for tile in self.tileDic.values():
             if len(tile.bels) > 26:
