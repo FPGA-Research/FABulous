@@ -11,6 +11,7 @@ from pytest_mock import MockerFixture
 # Mock external dependencies BEFORE importing the module under test
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    GENERATED_HASH_KEY,
     PinOrderConfig,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_die_dimension
@@ -304,6 +305,20 @@ class TestPinPlacementPlan:
         plan = PinPlacementPlan(config, bterms, "none")
 
         assert len(plan.segments_by_side[Side.NORTH]) == 1
+        assert plan.tile_counts_by_side[Side.NORTH] == 1
+        assert plan.fabric_dimensions == (1, 1)
+
+    def test_init_ignores_generated_hash_key(self, mocker: MockerFixture) -> None:
+        """Test that the generated-hash entry is not read as a tile."""
+        config = {
+            GENERATED_HASH_KEY: "0" * 64,
+            "X0Y0": {"NORTH": [{"pins": ["clk"], "sort_mode": "bus_major"}]},
+        }
+        mock_clk = mocker.Mock()
+        mock_clk.getName.return_value = "clk"
+
+        plan = PinPlacementPlan(config, [mock_clk], "none")
+
         assert plan.tile_counts_by_side[Side.NORTH] == 1
         assert plan.fabric_dimensions == (1, 1)
 

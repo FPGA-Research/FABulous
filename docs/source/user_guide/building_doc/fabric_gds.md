@@ -129,6 +129,7 @@ Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, syn
 During the generation process there will be an extra file generated under the `macro` folder, which is the `io_pin_order.yaml`. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
 
 ```yaml
+fabulous_generated_sha256: 3f9a...
 X0Y0:
     EAST:
     - max_distance: null
@@ -150,6 +151,8 @@ X0Y0:
 X0Y1:
     ...
 ```
+
+The first line, `fabulous_generated_sha256`, records the hash of the content FABulous generated, so a rerun can tell your edits apart from a fabric change. A file you have not edited is regenerated on every run. An edited file is kept while the fabric is unchanged, and the run fails if the fabric changes underneath it, telling you to move the file aside and reapply your edits to the regenerated one. A file without this line, such as a hand-written one, is kept and gains the line on the next run. Leave the line in place when editing.
 
 The entry key `X0Y0` represents the location of the pins on a tile. For a normal tile, it will just have `X0Y0`. This is mainly useful for supertiles, where you need to set where the pins should be located relative to the tile shape. Having this control allows us to also align supertile and normal tile pins automatically.
 

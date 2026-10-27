@@ -520,11 +520,10 @@ class TestGenerateIOPinOrderConfig:
         assert "X0Y0" in config
 
     @pytest.mark.parametrize(
-        ("user_edit", "keep_header", "fabric_changed", "expect_kept"),
+        ("user_edit", "fabric_changed", "expect_kept"),
         [
-            pytest.param(False, True, True, False, id="untouched-regenerated"),
-            pytest.param(True, True, False, True, id="edited-kept"),
-            pytest.param(True, False, True, True, id="no-header-kept"),
+            pytest.param(False, True, False, id="untouched-regenerated"),
+            pytest.param(True, False, True, id="edited-kept"),
         ],
     )
     def test_generate_io_pin_order_config_existing_file(
@@ -533,7 +532,6 @@ class TestGenerateIOPinOrderConfig:
         mock_fabric: Fabric,
         tmp_path: Path,
         user_edit: bool,
-        keep_header: bool,
         fabric_changed: bool,
         expect_kept: bool,
     ) -> None:
@@ -541,10 +539,12 @@ class TestGenerateIOPinOrderConfig:
         outfile = tmp_path / "io_pin_order.yaml"
         mock_fabric.userCLKSide = Side.SOUTH
         generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
-        header, _, body = outfile.read_text().partition("\n")
         if user_edit:
-            body = body.replace("reverse_result: false", "reverse_result: true", 1)
-        outfile.write_text(f"{header}\n{body}" if keep_header else body)
+            outfile.write_text(
+                outfile.read_text().replace(
+                    "reverse_result: false", "reverse_result: true", 1
+                )
+            )
         existing = outfile.read_text()
 
         if fabric_changed:
@@ -552,6 +552,33 @@ class TestGenerateIOPinOrderConfig:
         generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
 
         assert (outfile.read_text() == existing) == expect_kept
+
+    def test_generate_io_pin_order_config_stamps_file_without_hash(
+        self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path
+    ) -> None:
+        """Test that a file without the hash key keeps its body and gains the key."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+        generated = outfile.read_text()
+        hash_line, _, body = generated.partition("\n")
+        hand_written = "# hand-written\n" + body.replace(
+            "reverse_result: false", "reverse_result: true", 1
+        )
+        outfile.write_text(hand_written)
+
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+
+        assert outfile.read_text() == f"{hash_line}\n{hand_written}"
+
+    def test_generate_io_pin_order_config_unstampable_file_raises(
+        self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path
+    ) -> None:
+        """Test that a file the hash key cannot be prepended to raises."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        outfile.write_text("---\nX0Y0: {}\n")
+
+        with pytest.raises(ValueError, match="single block mapping"):
+            generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
 
     def test_generate_io_pin_order_config_edited_and_stale_raises(
         self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path

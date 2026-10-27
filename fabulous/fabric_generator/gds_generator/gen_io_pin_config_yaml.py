@@ -15,8 +15,9 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
 # The hash of the body as generated tells a user edit (body no longer matches)
-# apart from a fabric change (fresh body no longer matches).
-GENERATED_HEADER = "# fabulous-generated sha256="
+# apart from a fabric change (fresh body no longer matches). It is stored as the
+# first top-level key, which cannot clash with the `X<x>Y<y>` tile keys.
+GENERATED_HASH_KEY = "fabulous_generated_sha256"
 
 
 @dataclass
@@ -266,11 +267,13 @@ def generate_IO_pin_order_config(
     (sub)tile's placement within the fabric; otherwise `external_port_side`
     is used as the fallback for every concrete (sub)tile.
 
-    The file starts with a `GENERATED_HEADER` line holding the hash of the
-    generated body. An existing `outfile` is overwritten only when its body
-    still matches that hash, or already matches the fresh body. A body the user
-    edited is kept while the fresh body matches the recorded hash. A file
-    without the header is treated as user-owned and kept unchanged.
+    The first line of the file is the `GENERATED_HASH_KEY` entry holding the
+    hash of the generated body below it. An existing `outfile` is overwritten
+    only when its body still matches that hash, or already matches the fresh
+    body. A body the user edited is kept while the fresh body matches the
+    recorded hash. A file without the key, such as a hand-written one or one
+    from an older FABulous, keeps its body and gains the key with the fresh
+    hash, so it counts as edited against the current fabric.
 
     Parameters
     ----------
@@ -291,6 +294,9 @@ def generate_IO_pin_order_config(
     StaleIOPinConfigError
         If `outfile` holds user edits and the fabric has changed since it was
         generated.
+    ValueError
+        If `outfile` has no `GENERATED_HASH_KEY` and prepending it does not
+        yield the same mapping plus that key, as with a leading `---` marker.
     """
     user_clk_side = fabric.userCLKSide if fabric is not None else Side.SOUTH
     if isinstance(tile_or_super_tile, SuperTile):
@@ -341,14 +347,36 @@ def generate_IO_pin_order_config(
     body = yaml.dump(payload)
     fresh_hash = hashlib.sha256(body.encode()).hexdigest()
     if outfile.exists():
-        header, _, existing_body = outfile.read_text().partition("\n")
-        if not header.startswith(GENERATED_HEADER):
+        existing = outfile.read_text()
+        existing_config = yaml.safe_load(existing)
+        if not (
+            isinstance(existing_config, dict) and GENERATED_HASH_KEY in existing_config
+        ):
+            stamped = yaml.dump({GENERATED_HASH_KEY: fresh_hash}) + existing
+            unstampable = (
+                f"Cannot add `{GENERATED_HASH_KEY}` to {outfile}: the file must "
+                "be a single block mapping. Remove any `---` marker, or move the "
+                "file aside to regenerate it."
+            )
+            try:
+                stamped_config = yaml.safe_load(stamped)
+            except yaml.YAMLError as e:
+                raise ValueError(unstampable) from e
+            if stamped_config != {
+                GENERATED_HASH_KEY: fresh_hash,
+                **(existing_config or {}),
+            }:
+                raise ValueError(unstampable)
+            outfile.write_text(stamped)
             logger.info(
-                f"Keeping {outfile}: no FABulous generation header, "
-                "treated as user-owned"
+                f"Added `{GENERATED_HASH_KEY}` to {outfile}; its content is kept "
+                "as a user edit of the current fabric"
             )
             return
-        recorded_hash = header.removeprefix(GENERATED_HEADER)
+        recorded_hash = existing_config[GENERATED_HASH_KEY]
+        existing_body = existing.removeprefix(
+            yaml.dump({GENERATED_HASH_KEY: recorded_hash})
+        )
         existing_hash = hashlib.sha256(existing_body.encode()).hexdigest()
         if existing_hash not in (recorded_hash, fresh_hash):
             if fresh_hash != recorded_hash:
@@ -360,4 +388,4 @@ def generate_IO_pin_order_config(
             logger.info(f"Keeping user-edited {outfile}")
             return
 
-    outfile.write_text(f"{GENERATED_HEADER}{fresh_hash}\n{body}")
+    outfile.write_text(yaml.dump({GENERATED_HASH_KEY: fresh_hash}) + body)
