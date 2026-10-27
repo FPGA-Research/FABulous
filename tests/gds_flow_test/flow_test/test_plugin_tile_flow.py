@@ -136,7 +136,7 @@ class TestEmitTileVerilog:
         tmp_path: Path,
         config_bit_mode: ConfigBitMode,
     ) -> None:
-        """Only a frame-based tile has a configuration memory to harden."""
+        """Tiles emit configuration memory modules for all configuration modes."""
         from fabulous.fabric_definition.tile import Tile
 
         tile_dir: Path = tmp_path / "LUT4AB"
@@ -181,12 +181,9 @@ class TestEmitTileVerilog:
         sm_kwargs = gen_sm.call_args.kwargs
         assert sm_kwargs["config_bit_mode"] == config_bit_mode
         assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
-        if config_bit_mode is ConfigBitMode.FRAME_BASED:
-            gen_cm.assert_called_once_with(
-                mock_writer, mock_tile, config_bit_mode=config_bit_mode
-            )
-        else:
-            gen_cm.assert_not_called()
+        gen_cm.assert_called_once_with(
+            mock_writer, mock_tile, config_bit_mode=config_bit_mode
+        )
         gen_tile.assert_called_once()
 
     def test_supertile_emits_per_subtile_then_wrapper(

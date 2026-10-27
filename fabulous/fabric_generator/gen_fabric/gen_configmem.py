@@ -129,7 +129,7 @@ def generate_config_mem(
                     ],
                 )
         case ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addComment("instantiate shift reg", end="")
+            writer.addComment("instantiate shift registers", end="")
             chain = list(memory.bit_at.values())
             d_source = "CONFin"
             for bit in chain:

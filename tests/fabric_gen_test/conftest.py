@@ -152,32 +152,71 @@ def switch_matrix_tile(parsed_default_fabric: Fabric) -> Tile:
         FabricConfig(
             frame_bits_per_row=32, max_frames_per_col=20, name="StandardFabric"
         ),
-        FabricConfig(
-            frame_bits_per_row=8,
-            max_frames_per_col=5,
-            name="SmallFabric",
-            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
-        ),
+        FabricConfig(frame_bits_per_row=8, max_frames_per_col=5, name="SmallFabric"),
         FabricConfig(frame_bits_per_row=1, max_frames_per_col=1, name="MinimalFabric"),
-        FabricConfig(
-            frame_bits_per_row=1,
-            max_frames_per_col=64,
-            name="ThinFabric",
-            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
-        ),
+        FabricConfig(frame_bits_per_row=1, max_frames_per_col=64, name="ThinFabric"),
         FabricConfig(frame_bits_per_row=64, max_frames_per_col=1, name="WideFabric"),
         FabricConfig(frame_bits_per_row=5, max_frames_per_col=7, name="IrregularSmall"),
         FabricConfig(
-            frame_bits_per_row=33,
-            max_frames_per_col=21,
-            name="IrregularLarge",
-            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+            frame_bits_per_row=33, max_frames_per_col=21, name="IrregularLarge"
         ),
         FabricConfig(frame_bits_per_row=7, max_frames_per_col=13, name="PrimeFabric"),
         FabricConfig(
+            frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"
+        ),
+        # --- Duplicated FLIPFLOP_CHAIN configs ---
+        FabricConfig(
+            frame_bits_per_row=32,
+            max_frames_per_col=20,
+            name="StandardFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=8,
+            max_frames_per_col=5,
+            name="SmallFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=1,
+            name="MinimalFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=64,
+            name="ThinFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=64,
+            max_frames_per_col=1,
+            name="WideFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=5,
+            max_frames_per_col=7,
+            name="IrregularSmall_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=33,
+            max_frames_per_col=21,
+            name="IrregularLarge_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=7,
+            max_frames_per_col=13,
+            name="PrimeFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
             frame_bits_per_row=256,
             max_frames_per_col=100,
-            name="VeryLargeFabric",
+            name="VeryLargeFabric_FF",
             config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         ),
     ],

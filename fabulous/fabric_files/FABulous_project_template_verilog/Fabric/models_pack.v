@@ -22,7 +22,7 @@ module config_dff (
     input wire D,
     input wire CLK,
     output reg Q,
-    output QN
+    output wire QN
 );
     always @(posedge CLK) begin
         Q <= D;
