@@ -386,17 +386,6 @@ class FabricGenCommandSet(ReplCommandSet):
 
         logger.info("Generated nextpnr routing model")
 
-    def do_gen_model_npnr(self, *_ignored: str) -> None:
-        """Run `gen_routing_model`; this name is deprecated."""
-        repl = self._cmd
-        logger.warning(
-            "The 'gen_model_npnr' command is deprecated. "
-            "Use 'gen_routing_model' instead."
-        )
-        repl.onecmd_plus_hooks("gen_routing_model")
-        if repl.exit_code != 0:
-            raise CommandError("gen_routing_model failed")
-
     @with_annotated
     def do_gen_io_tiles(
         self,
