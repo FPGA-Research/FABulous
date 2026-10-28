@@ -3,8 +3,8 @@
     nix-eda and nixpkgs follow librelane's pins for binary cache compatibility.";
 
   inputs = {
-    # Same librelane dev rev as the uv source in pyproject.toml.
-    librelane.url = "github:librelane/librelane/c5b5099e55f4e3bed507f2e79441ecfd6432d65c";
+    # dev carries the 3.1 line (ciel 3); main is the 3.0.x stable branch.
+    librelane.url = "github:librelane/librelane/dev";
 
     # Follow librelane's nix-eda and nixpkgs for binary cache hits
     nix-eda.follows = "librelane/nix-eda";
