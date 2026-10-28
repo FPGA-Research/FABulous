@@ -390,7 +390,7 @@ Here you can get an introduction how Yosys technology mapping works:
 For more information, please take a look at the [Yosys documentation](https://yosyshq.readthedocs.io/en/latest/)
 
 The `custom_prims.v` will automatically be included in the FABulous bitstream flow,
-You can use the FABulous CLI or the provided Makefile in the `Test` folder to generate
+You can use the FABulous CLI or the provided `Taskfile.yml` in the `Test` folder to generate
 your bitstream.
 If you are running Yosys manually, you have to specify it manually.
 For more information run `yosys -p "help synth_fabulous"`
@@ -470,7 +470,7 @@ The current simulation setup is described in section {ref}`simulation_setup`.
 
 Our current simulation setup uses a simple counter to test the fabric.
 You can find the testbench `sequential_16bit_en_tb.v` in the `Test` folder of your FABulous project.
-The `Test` folder also contains a Makefile, which can be used to run the testbench and
+The `Test` folder also contains a `Taskfile.yml`, which can be used to run the testbench and
 a `README.md`, which describes how to run the testbench.
 
 Our default testbench uses a simple 16-bit counter, to test our fabric.

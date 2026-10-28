@@ -816,10 +816,12 @@ class UserDesignCommandSet(ReplCommandSet):
                 task_vars=task_vars,
                 verbose=repl.verbose or repl.debug,
             )
+        # TODO(3.0): drop. New projects ship no Makefile, but a project from an
+        # earlier release may have only its own.
         elif makefile.exists():
             logger.warning(
                 "Taskfile.yml not found, falling back to Makefile. "
-                "Makefiles are deprecated and will be removed in the next release. "
+                "Makefiles are deprecated and support ends in FABulous 3.0. "
                 "Please migrate to Taskfile.yml."
             )
             make_cmd = ["make", "-C", str(test_path), "run_simulation"]

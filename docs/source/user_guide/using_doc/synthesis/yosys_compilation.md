@@ -32,12 +32,13 @@ FABulous -p <project_dir> update-project-version
 The upgrade does the following, then updates the project version:
 
 1. Copies the library files the project lacks into `yosys/`.
-2. Adds the library to the `synth_fabulous` invocation in `Test/Taskfile.yml`
-   and `Test/Makefile`, in the form new projects use, which works on Yosys
-   before and after the rework. A Makefile from FABulous 2.0.0b1 to 2.0.0b4
-   calls `yosys` by name; the upgrade switches it to `${YOSYS}`, the binary the
-   library check runs, and defines `YOSYS` from `FAB_YOSYS_PATH` as newer
-   templates do. Every other line of both files stays as it is. The original
+2. Adds the library to the `synth_fabulous` invocation in `Test/Taskfile.yml`,
+   in the form new projects use, and in `Test/Makefile`, in the form of the last
+   release that shipped a Makefile. Both forms work on Yosys before and after
+   the rework. A Makefile from FABulous 2.0.0b1 to 2.0.0b4 calls `yosys` by
+   name; the upgrade switches it to `${YOSYS}`, the binary the library check
+   runs, and defines `YOSYS` from `FAB_YOSYS_PATH` as later Makefile templates
+   did. Every other line of both files stays as it is. The original
    of each changed file is kept next to it as `Test/Taskfile.yml.bak` and
    `Test/Makefile.bak`.
 
@@ -128,8 +129,8 @@ synth_fabulous -top <top_wrapper> -json <out.json> <options as above>"
 
 Yosys 0.66 and older bundle this library themselves and reject these options, so
 there `synth_fabulous -top <toplevel> -json <out.json>` is the whole command.
-The project's `Test/Taskfile.yml` and `Test/Makefile` pick the right form for the
-Yosys they run.
+A project's `Test/Taskfile.yml`, and the `Test/Makefile` of an upgraded older
+project, pick the right form for the Yosys they run.
 
 :::{note}
 For VHDL projects we used the top_wrapper as verilog because ghdl doesn't interpret the attributes(`*BEL*`);

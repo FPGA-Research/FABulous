@@ -644,7 +644,8 @@ def update_project_version(project_dir: Path) -> bool:
             return False
     else:
         # TODO(3.0): drop. FABulous already runs a 1.x project as a current one,
-        # and the upgrade below brings its Makefile to the current synthesis form.
+        # and the upgrade below brings its Makefile to the synthesis form of the
+        # last Makefile template.
         legacy_version = get_key(env_file, "FAB_VERSION")
         if legacy_version is None:
             logger.error("VERSION not found in .env file.")

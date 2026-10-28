@@ -2,8 +2,9 @@
 
 Yosys 0.67 stopped shipping the FABulous primitives and technology maps, which a
 project now carries in `yosys/`. The upgrade copies that library into the project
-and rewrites the synthesis invocation of `Test/Taskfile.yml` and `Test/Makefile`
-into the form the current templates ship.
+and rewrites the synthesis invocation of `Test/Taskfile.yml` into the form the
+current template ships and that of `Test/Makefile` into the form the last Makefile
+template shipped.
 
 TODO(3.0): remove, together with the rest of the support for Yosys <= 0.66 and
 for projects created before the `yosys/` library folder existed.
@@ -82,6 +83,33 @@ _PRE_REWORK_YOSYS_RECIPES: dict[HDLType, tuple[str, ...]] = {
 # The probe runs ${YOSYS}, so the recipe must run the same binary.
 _MAKEFILE_RENAMES = {"\tyosys ": "\t${YOSYS} "}
 _MAKEFILE_YOSYS_DEF = "YOSYS?=$(or $(FAB_YOSYS_PATH),yosys)\n"
+# The probe of the last Makefile template, shared by both languages. New projects
+# ship no Makefile, so no template carries it any more.
+_MAKEFILE_PROBE = (
+    "# TODO(3.0): drop Yosys <= 0.66 support and pass the library options\n"
+    "# unconditionally. Yosys before the synth_fabulous rework bundles its own\n"
+    "# FABulous library, rejects these options and inserts pads only with -iopad.\n"
+    "YOSYS_LIB_DIR=${FAB_PROJ_ROOT}/yosys\n"
+    "SYNTH_LIB_OPTS=-extra-plib ${YOSYS_LIB_DIR}/primitives/prims.v \\\n"
+    "    -cells-map ${YOSYS_LIB_DIR}/techmap/cells_map.v \\\n"
+    "    -arith-map ${YOSYS_LIB_DIR}/techmap/arith_map.v \\\n"
+    "    -extra-map ${YOSYS_LIB_DIR}/techmap/ff_map.v \\\n"
+    "    -extra-map ${YOSYS_LIB_DIR}/techmap/latches_map.v \\\n"
+    "    -extra-map ${YOSYS_LIB_DIR}/techmap/io_map.v \\\n"
+    "    -extra-mlibmap ${YOSYS_LIB_DIR}/memlib/ram_regfile.txt \\\n"
+    "    -extra-map ${YOSYS_LIB_DIR}/techmap/regfile_map.v \\\n"
+    "    -ff \\$$_DFF_P_ 0 -ff \\$$_DLATCH_?_ x\n"
+    "checked_yosys_probe=$(if $(findstring FAB_YOSYS_PROBE_FAILED,$1),"
+    '$(error ${YOSYS} -p "help synth_fabulous" failed),$1)\n'
+    "# Recursively expanded, so only run_yosys starts Yosys.\n"
+    "SYNTH_LIB_ARGS=$(call checked_yosys_probe,$(shell \\\n"
+    '    if ! help=$$(${YOSYS} -p "help synth_fabulous"); then '
+    "echo FAB_YOSYS_PROBE_FAILED; \\\n"
+    "    elif printf '%s\\n' \"$$help\" | grep -q -- -cells-map; then "
+    "printf '%s\\n' '${SYNTH_LIB_OPTS}'; \\\n"
+    '    else echo "WARNING: Yosys 0.66 and older is deprecated; support ends in '
+    'FABulous 3.0." >&2; echo -iopad; fi))\n'
+)
 
 
 def _template_probe_block(template: Path, next_token: str) -> str:
@@ -90,7 +118,7 @@ def _template_probe_block(template: Path, next_token: str) -> str:
     Parameters
     ----------
     template : Path
-        Template Taskfile or Makefile.
+        Template Taskfile.
     next_token : str
         First token of the line that follows the probe; an empty string
         matches a blank line.
@@ -140,7 +168,7 @@ def _upgraded_synth_file(
     anchors : tuple[str, ...]
         The known forms of the text the probe is inserted after.
     probe : str
-        The probe of the current template.
+        The Yosys library probe, inserted after the anchor.
     custom_prims_ref : str
         Reference to the custom primitives in the synthesis line.
     lib_args_ref : str
@@ -262,7 +290,7 @@ def upgrade_to_yosys_library(project_dir: Path) -> None:
             anchors=_MAKEFILE_ANCHORS,
             probe="\n"
             + ("" if defines_yosys else _MAKEFILE_YOSYS_DEF)
-            + _template_probe_block(template_test_dir / "Makefile", ""),
+            + _MAKEFILE_PROBE,
             custom_prims_ref="${CUSTOM_PRIMS}",
             lib_args_ref="${SYNTH_LIB_ARGS}",
             renames=_MAKEFILE_RENAMES,

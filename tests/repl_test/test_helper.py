@@ -295,6 +295,15 @@ def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:
     assert "compile-bitgen" in content
 
 
+@pytest.mark.parametrize("lang", [HDLType.VERILOG, HDLType.VHDL])
+def test_create_project_has_no_makefile(tmp_path: Path, lang: HDLType) -> None:
+    """Test that project creation ships no Test/Makefile."""
+    project_dir = tmp_path / "test_project_no_makefile"
+    create_project(project_dir, lang=lang)
+
+    assert not (project_dir / "Test" / "Makefile").exists()
+
+
 def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
     """register_tile_in_fabric_csv appends Tile entry before ParametersEnd."""
     csv_path = tmp_path / "fabric.csv"
