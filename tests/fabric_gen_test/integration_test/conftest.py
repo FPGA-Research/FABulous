@@ -106,7 +106,7 @@ class PCF:
     `PCF` parses such a file, then walks the cocotb top-level handle
     to bind each `<signal>[<index>]` to the matching
     `Tile_X#Y#_<bel>_<use>_top` ports for `IN` (drive into fabric),
-    `OUT` (read from fabric) and `EN`` (output-enable) directions. Tests
+    `OUT` (read from fabric) and `EN` (output-enable) directions. Tests
     can then drive or sample signals **by user name** instead of touching
     tile-relative ports, which keeps the test code portable across fabric
     layouts.
