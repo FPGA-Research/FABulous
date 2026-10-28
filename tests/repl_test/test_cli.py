@@ -397,8 +397,10 @@ def test_run_simulation_makefile_fallback(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation falls back to Makefile with deprecation warning."""
-    # Remove Taskfile.yml so it falls back to Makefile
-    (cli.projectDir / "Test" / "Taskfile.yml").unlink()
+    # New projects ship no Makefile; subprocess.run is mocked, so any one will do.
+    test_dir = cli.projectDir / "Test"
+    (test_dir / "Taskfile.yml").unlink()
+    (test_dir / "Makefile").write_text("run_simulation:\n")
 
     caplog.clear()
     run_cmd(cli, SIM_CMD)
@@ -412,10 +414,7 @@ def test_run_simulation_no_taskfile_no_makefile(
     cli: FABulousREPL,
 ) -> None:
     """Test simulation errors when neither Taskfile.yml nor Makefile exists."""
-    # Remove both Taskfile.yml and Makefile
-    test_dir = cli.projectDir / "Test"
-    (test_dir / "Taskfile.yml").unlink()
-    (test_dir / "Makefile").unlink(missing_ok=True)
+    (cli.projectDir / "Test" / "Taskfile.yml").unlink()
 
     run_cmd(cli, SIM_CMD)
     assert cli.exit_code != 0

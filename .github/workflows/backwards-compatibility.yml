@@ -66,7 +66,7 @@ jobs:
         with:
           name: demo-${{ matrix.type }}-base
           path: /tmp/demo_${{ matrix.type }}
-      - name: Run fabric generator flow and simulation with FABulous makefile
+      - name: Run fabric generator flow and simulation with the project Taskfile
         run: |
           cd /tmp/demo_${{ matrix.type }}/Test
-          make FAB_sim
+          task fab-sim
