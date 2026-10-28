@@ -1,9 +1,7 @@
 """GDS macro-hardening flow commands for the FABulous REPL.
 
 Harden tiles and the fabric into GDS macros via the LibreLane flow. Every step is
-a subcommand of `gen_macro`. The pre-subcommand names stay registered as
-deprecated forwarders that pass their raw argument tail on unchanged, so they
-cannot drift from the new flag set.
+a subcommand of `gen_macro`.
 
 `tile` and `all_tile` share their sizing flags through `TileHardeningOptions`
 and the same `_harden_tile` body, so a flag added there reaches both parsers and
@@ -20,7 +18,7 @@ from pathlib import Path
 from typing import Annotated, cast
 
 import yaml
-from cmd2 import Statement, with_annotated
+from cmd2 import with_annotated
 from cmd2.annotated import Argument, ArgumentBlock, Option
 from loguru import logger
 
@@ -423,55 +421,4 @@ class MacroFlowCommandSet(ReplCommandSet):
             tile_opt_config=tile_opt_config,
             nlp_only=nlp_only,
             nlp_area_margin=nlp_area_margin,
-        )
-
-    def _forward_deprecated(
-        self, old_name: str, new_command: str, statement: Statement | str
-    ) -> None:
-        """Run `new_command` with the raw argument tail of a deprecated command.
-
-        Parameters
-        ----------
-        old_name : str
-            The deprecated command name, named in the warning.
-        new_command : str
-            The `gen_macro` subcommand replacing it.
-        statement : Statement | str
-            The parsed command line, or the already-joined argument tail the TCL
-            bridge hands to a `do_*` method. Either way the tail is appended
-            unchanged.
-
-        Raises
-        ------
-        CommandError
-            If `new_command` fails.
-        """
-        args = statement.args if isinstance(statement, Statement) else statement
-        logger.warning(
-            f"The '{old_name}' command is deprecated. Use '{new_command}' instead."
-        )
-        self._cmd.onecmd_plus_hooks(
-            f"{new_command} {args}".strip(), add_to_history=False
-        )
-        # The nested call swallows the failure into `exit_code`, which neither the
-        # TCL bridge nor the outer command's stop flag reads.
-        if self._cmd.exit_code != 0:
-            raise CommandError(f"'{new_command}' failed")
-
-    def do_gen_tile_macro(self, statement: Statement | str) -> None:
-        """Run `gen_macro tile`; this name is deprecated."""
-        self._forward_deprecated("gen_tile_macro", "gen_macro tile", statement)
-
-    def do_gen_all_tile_macros(self, statement: Statement | str) -> None:
-        """Run `gen_macro all_tile`; this name is deprecated."""
-        self._forward_deprecated("gen_all_tile_macros", "gen_macro all_tile", statement)
-
-    def do_gen_fabric_macro(self, statement: Statement | str) -> None:
-        """Run `gen_macro stitch`; this name is deprecated."""
-        self._forward_deprecated("gen_fabric_macro", "gen_macro stitch", statement)
-
-    def do_run_FABulous_eFPGA_macro(self, statement: Statement | str) -> None:
-        """Run `gen_macro full`; this name is deprecated."""
-        self._forward_deprecated(
-            "run_FABulous_eFPGA_macro", "gen_macro full", statement
         )

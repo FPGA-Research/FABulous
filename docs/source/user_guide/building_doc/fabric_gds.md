@@ -28,7 +28,7 @@ This uses the default `no_opt` mode, so each tile takes the `DIE_AREA` from its 
 :::{admonition} Renamed commands
 :class: note
 
-The macro commands are now subcommands of `gen_macro`. The old names still run, printing a deprecation warning and forwarding their arguments unchanged.
+The macro commands are subcommands of `gen_macro`. FABulous 3.0 removed the old names.
 
 | Old command                | Replacement              |
 | -------------------------- | ------------------------ |

@@ -5,7 +5,6 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
-import tkinter as tk
 from decimal import Decimal
 from pathlib import Path
 
@@ -912,92 +911,6 @@ def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
     names = list(tile_action.get_completer()(cmd_set))
 
     assert TILE in names
-
-
-@pytest.mark.parametrize(
-    ("deprecated", "arguments", "api_method", "expected_kwargs"),
-    [
-        (
-            "gen_tile_macro",
-            f"{TILE} --optimise",
-            "genTileMacro",
-            {"optimisation": OptMode.BALANCE},
-        ),
-        (
-            "gen_all_tile_macros",
-            "--optimise",
-            "genTileMacro",
-            {"optimisation": OptMode.BALANCE},
-        ),
-        ("gen_fabric_macro", "", "fabric_stitching", {}),
-        (
-            "run_FABulous_eFPGA_macro",
-            "--nlp-only",
-            "full_fabric_automation",
-            {"nlp_only": True},
-        ),
-    ],
-    ids=["tile", "all_tile", "stitch", "full"],
-)
-@pytest.mark.parametrize("through_tcl", [False, True], ids=["repl", "tcl"])
-def test_deprecated_macro_commands_forward(
-    cli: FABulousREPL,
-    mocker: MockerFixture,
-    caplog: pytest.LogCaptureFixture,
-    deprecated: str,
-    arguments: str,
-    api_method: str,
-    expected_kwargs: dict[str, object],
-    through_tcl: bool,
-) -> None:
-    """Each pre-subcommand name warns and runs its replacement with its arguments.
-
-    The TCL bridge calls the `do_*` method with a joined string rather than a
-    `Statement`, so both entry paths have to reach the replacement.
-    """
-    mocker.patch(
-        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
-    )
-    mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
-    api_mock = mocker.patch.object(cli.fabulousAPI, api_method)
-    # `gen_macro stitch` raises unless every tile in the fabric is hardened.
-    for tile in cli.fabulousAPI.fabric.get_all_unique_tiles():
-        (cli.projectDir / "Tile" / tile.name / "macro" / "final_views").mkdir(
-            parents=True
-        )
-    command = f"{deprecated} {arguments}".strip()
-
-    if through_tcl:
-        cli.tcl.eval(command)
-    else:
-        run_cmd(cli, command)
-
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert cli.exit_code == 0
-    assert api_mock.call_args_list
-    for call in api_mock.call_args_list:
-        assert call.kwargs.items() >= expected_kwargs.items()
-
-
-@pytest.mark.parametrize("through_tcl", [False, True], ids=["repl", "tcl"])
-def test_deprecated_macro_command_propagates_failure(
-    cli: FABulousREPL, mocker: MockerFixture, through_tcl: bool
-) -> None:
-    """A failing replacement stops a REPL script and raises in TCL."""
-    mocker.patch(
-        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
-    )
-    mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
-    mocker.patch.object(
-        cli.fabulousAPI, "genTileMacro", side_effect=RuntimeError("flow failed")
-    )
-
-    if through_tcl:
-        with pytest.raises(tk.TclError):
-            cli.tcl.eval(f"gen_tile_macro {TILE}")
-    else:
-        assert cli.onecmd_plus_hooks(f"gen_tile_macro {TILE}")
-    assert cli.exit_code != 0
 
 
 @pytest.mark.parametrize(
