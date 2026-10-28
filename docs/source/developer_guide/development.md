@@ -116,11 +116,12 @@ That last point bites the `task` targets, which hardcode `uv run`. Inside the de
 | Task | Devshell equivalent |
 | --- | --- |
 | `task test -- <args>` | `python scripts/run_tests.py <args>` |
-| `task ci` | `pre-commit run --all-files`, then `task docs-build` |
+| `task ci` | `pre-commit run --all-files`, then the `task docs-build` equivalent |
+| `task docs-build` | `sphinx-build -M html source build -q -n -W --keep-going`, run from `docs/` |
 | `task sync-demo` | `python scripts/sync_demo_tile_gds_config.py` |
 | `task smoke-test` | `FABULOUS=FABulous task smoke-test` |
 
-`task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` build the docs in a separate uv environment under `docs/`, driven by `docs/Makefile` rather than by the root `.venv/`.
+`task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` run Sphinx from `docs/` against the repository-root `pyproject.toml` and `uv.lock`, through `uv run --project ..` with the `docs` dependency group.
 
 :::{note}
 `FABulous nix-env` invoked without `--flake-dir` uses the `flake.nix` bundled into the installed `fabulous_nix` package, which is a build-time copy of the repository's. When developing the flake itself, run `nix develop` from the checkout so the file you are editing is the file being evaluated.
