@@ -199,8 +199,8 @@ It is planned to remove these limitations in future versions of FABulous.
 
     Specify a path to a supertile configuration file that will be loaded.
 
-    :::{warning}
-    Previously, tile definitions were contained in the fabric.csv file. This has been deprecated and it is recommended to move the tile descriptions to the respective tile.csv files.
+    :::{versionchanged} 3.0
+    `fabric.csv` can no longer contain `TILE` or `SuperTILE` blocks. Each block lives in its own CSV and is loaded through a `Tile` or `Supertile` parameter.
     :::
 
 (fabric-layout)=
@@ -673,8 +673,8 @@ rather than rereading the file. A tile without the line keeps its mapping in its
 directory under the name `<tile>_ConfigMem.csv`, which is where every project
 generated so far has it. The generated `<tile>_ConfigMem` module goes in that
 directory too, whatever `CONFIGMEM` names, because the tile's HDL is generated
-there. For the deprecated layout that declares tiles inside `fabric.csv`, where a
-tile owns no directory of its own, both follow the tile's switch matrix instead.
+there. For a tile whose CSV is not named after it, both follow the tile's switch
+matrix instead.
 
 A `BEL` statement can carry the additional keyword `ADD_AS_CUSTOM_PRIM`, which makes
 Yosys aware of the primitive. Whenever the tile is parsed, the BEL is added as a

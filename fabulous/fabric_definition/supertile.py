@@ -283,9 +283,8 @@ class SuperTile:
     def directory(self) -> Path:
         """The directory the supertile's wrapper and its child tiles sit in.
 
-        A supertile declared inside `fabric.csv` has no CSV of its own, so its
-        directory is the parent of its first child's, where `generateSuperTile`
-        expects it.
+        A supertile whose CSV is not named after it takes the parent of its
+        first child's directory instead, where `generateSuperTile` expects it.
 
         Returns
         -------

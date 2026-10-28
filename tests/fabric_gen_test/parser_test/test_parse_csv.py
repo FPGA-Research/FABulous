@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
+from fabulous.custom_exception import (
+    InvalidFabricDefinition,
+    InvalidFabricParameter,
+    InvalidPortType,
+)
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_generator.parser.parse_csv import (
     parse_port_line,
@@ -296,21 +300,36 @@ def test_only_a_frame_based_fabric_maps_its_configuration_bits(
     assert (fabric.tileDic["LUT4AB"].config_mem.config_bits > 0) is maps_bits
 
 
-def test_a_supertile_declared_in_the_fabric_csv_maps_into_its_own_directory(
+def test_a_supertile_in_a_csv_not_named_after_it_maps_beside_its_children(
     project: Path,
 ) -> None:
-    """A supertile declared in `fabric.csv` expects its mapping beside its children."""
+    """A supertile CSV named otherwise expects its mapping beside its children."""
     init_context(project)
-    fabric_csv = project / "fabric.csv"
-    fabric = parseFabricCSV(str(fabric_csv))
-    fabric_csv.write_text(
-        fabric_csv.read_text()
-        + "\nSuperTILE,DSP_INLINE,\nDSP_top,\nDSP_bot,\nEndSuperTILE,\n"
-    )
+    fabric = parseFabricCSV(str(project / "fabric.csv"))
+    csv = project / "Tile" / "other.csv"
+    csv.write_text("SuperTILE,DSP_OTHER,\nDSP_top,\nDSP_bot,\nEndSuperTILE,\n")
 
-    (super_tile,) = parseSupertilesCSV(fabric_csv, fabric.tileDic)
+    (super_tile,) = parseSupertilesCSV(csv, fabric.tileDic)
 
     assert super_tile.config_mem.source.parent == project / "Tile" / "DSP"
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        "TILE,INLINE\nEndTILE\n",
+        "SuperTILE,DSP_INLINE,\nDSP_top,\nDSP_bot,\nEndSuperTILE,\n",
+    ],
+    ids=["tile", "supertile"],
+)
+def test_fabric_csv_rejects_a_tile_block(project: Path, block: str) -> None:
+    """A TILE or SuperTILE block inside `fabric.csv` is a definition error."""
+    init_context(project)
+    fabric_csv = project / "fabric.csv"
+    fabric_csv.write_text(fabric_csv.read_text() + "\n" + block)
+
+    with pytest.raises(InvalidFabricDefinition, match="TILE or SuperTILE block"):
+        parseFabricCSV(str(fabric_csv))
 
 
 def test_a_chain_tile_parsed_from_its_directory_ignores_a_stale_mapping(

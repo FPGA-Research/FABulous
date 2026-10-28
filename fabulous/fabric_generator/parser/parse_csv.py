@@ -1020,20 +1020,11 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 )
             preserveListOrder = fields[1] == "TRUE"
 
-    # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_common_wire_pair = parseTilesCSV(fName, preserveListOrder)
-    tileTypes += [new_tile.name for new_tile in new_tiles]
-    tileDefs += new_tiles
-    common_wire_pair += new_common_wire_pair
-    tileDic = dict(zip(tileTypes, tileDefs, strict=False))
-
-    new_supertiles = parseSupertilesCSV(fName, tileDic)
-    for new_supertile in new_supertiles:
-        superTileDic[new_supertile.name] = new_supertile
-
-    if new_tiles or new_supertiles:
-        logger.warning(
-            f"Deprecation warning: {fName} should not contain tile descriptions."
+    if re.search(r"^\s*(Super)?TILE\s*,", file, re.MULTILINE):
+        raise InvalidFabricDefinition(
+            f"{fName} declares a TILE or SuperTILE block. Tiles are read only from "
+            "their own CSV: move each block into its own file and reference it "
+            "with a `Tile,<csv>` or `Supertile,<csv>` parameter."
         )
 
     # parse the parameters

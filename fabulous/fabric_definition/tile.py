@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 def tile_directory(name: str, tile_dir: Path, matrix_file: Path) -> Path:
     """Return the directory a tile's own files are written to and read from.
 
-    A tile declared inside `fabric.csv` has no CSV of its own, so its switch
-    matrix's directory is used. A free function because the parser needs it
-    before the `Tile` exists.
+    A tile whose CSV is not named after it is placed by its switch matrix's
+    directory instead. A free function because the parser needs it before the
+    `Tile` exists.
 
     Parameters
     ----------

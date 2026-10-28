@@ -150,9 +150,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         # tiles by their own name, supertiles by the wrapper name. Subtiles are
         # instantiated inside the wrapper, not the fabric, so they are skipped.
         # Every tile HDL lives at Tile/<name>/<name>.vhdl under the project root
-        # (fabric_dir is the fabric.csv, so its parent is that root). This is
-        # correct for both per-tile CSVs and the legacy inline fabric.csv, where
-        # every tileDir is the fabric.csv itself rather than a per-tile directory.
+        # (fabric_dir is the fabric.csv, so its parent is that root).
         tileRoot = fabric.fabric_dir.parent / "Tile"
         for tile in fabric.tileDic.values():
             if tile.partOfSuperTile:
