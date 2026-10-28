@@ -161,3 +161,25 @@ class TestGetSuperTileContaining:
         fabric = make_fabric()
 
         assert fabric.get_super_tile_containing("ANY") is None
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "expected"),
+    [
+        pytest.param("N1BEG", "N1END", ("N1BEG", "N1END"), id="both_named"),
+        pytest.param("NULL", "N1END", ("N1BEG", "N1END"), id="null_source"),
+        pytest.param("S1BEG", "NULL", ("S1BEG", "S1END"), id="null_destination"),
+        pytest.param("Xout", "NULL", ("Xout", "Xout"), id="unpaired"),
+    ],
+)
+def test_resolve_wire_pair(
+    make_fabric: Callable[..., Fabric],
+    source: str,
+    destination: str,
+    expected: tuple[str, str],
+) -> None:
+    """A NULL channel end is filled from `commonWirePair`."""
+    fabric = make_fabric()
+    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END")]
+
+    assert fabric.resolve_wire_pair(source, destination) == expected
