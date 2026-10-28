@@ -12,14 +12,11 @@ Key features:
 - Multiple configuration modes (FlipFlop chain, Frame-based)
 """
 
-import math
-
 from loguru import logger
 
 from fabulous.fabric_definition.define import (
     IO,
     SWITCH_MATRIX_CONSTANTS,
-    ConfigBitMode,
     Direction,
     MultiplexerStyle,
 )
@@ -80,7 +77,6 @@ def genTileSwitchMatrix(
     writer: CodeGenerator,
     tile: Tile,
     switch_matrix_debug_signal: bool,
-    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
 ) -> None:
@@ -99,8 +95,6 @@ def genTileSwitchMatrix(
         The tile object containing BELs and port information
     switch_matrix_debug_signal : bool
         Whether to generate debug signals for the switch matrix.
-    config_bit_mode : ConfigBitMode
-        The configuration-bit mode for the tile (frame-based or flip-flop chain).
     multiplexer_style : MultiplexerStyle
         The multiplexer style used to implement switch-matrix muxes.
     default_pip_delay : int
@@ -189,19 +183,8 @@ def genTileSwitchMatrix(
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
-        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
-            writer.addComment("global signal 1: configuration, 0: operation")
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+        writer.addPortVector("ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2)
+        writer.addPortVector("ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2)
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
@@ -209,8 +192,6 @@ def genTileSwitchMatrix(
         writer,
         tile.name,
         connections,
-        noConfigBits,
-        config_bit_mode,
         multiplexer_style,
         default_pip_delay,
         switch_matrix_debug_signal,
@@ -221,8 +202,6 @@ def _gen_switch_matrix_body(
     writer: CodeGenerator,
     name: str,
     connections: dict[str, list[str]],
-    noConfigBits: int,
-    config_bit_mode: ConfigBitMode,
     multiplexer_style: MultiplexerStyle,
     default_pip_delay: int,
     switch_matrix_debug_signal: bool,
@@ -241,10 +220,6 @@ def _gen_switch_matrix_body(
         Module/tile name used in log messages.
     connections : dict[str, list[str]]
         Mapping from sink port name to list of source port names.
-    noConfigBits : int
-        Total number of configuration bits for this matrix.
-    config_bit_mode : ConfigBitMode
-        Frame-based or flip-flop chain configuration.
     multiplexer_style : MultiplexerStyle
         Custom or generic multiplexer implementation.
     default_pip_delay : int
@@ -288,27 +263,7 @@ def _gen_switch_matrix_body(
         onNewLine=True,
     )
 
-    if noConfigBits > 0:
-        if config_bit_mode == "ff_chain":
-            writer.addConnectionVector("ConfigBits", noConfigBits)
-        if config_bit_mode == "FlipFlopChain":
-            writer.addConnectionVector(
-                "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
-            )
-            writer.addConnectionVector(
-                "ConfigBitsInput", int(math.ceil(noConfigBits / 2.0)) * 2
-            )
-
     writer.addLogicStart()
-
-    # TODO Should ff_chain be the same as FlipFlopChain?
-    if noConfigBits > 0:
-        if config_bit_mode == "ff_chain":
-            writer.addShiftRegister(noConfigBits)
-        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addFlipFlopChain(noConfigBits)
-        elif config_bit_mode == ConfigBitMode.FRAME_BASED:
-            pass
 
     # the switch matrix implementation
     # we use the following variable to count the configuration bits of a
@@ -426,7 +381,6 @@ def _gen_switch_matrix_body(
 def gen_super_tile_switch_matrix(
     writer: CodeGenerator,
     superTile: SuperTile,
-    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
 ) -> None:
@@ -443,8 +397,6 @@ def gen_super_tile_switch_matrix(
         Code generator instance for RTL output.
     superTile : SuperTile
         The supertile whose BELs and SJUMP ports drive this matrix.
-    config_bit_mode : ConfigBitMode
-        Frame-based or flipflop-chain configuration.
     multiplexer_style : MultiplexerStyle
         Custom or generic multiplexer implementation.
     default_pip_delay : int
@@ -503,18 +455,8 @@ def gen_super_tile_switch_matrix(
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
-        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-        if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+        writer.addPortVector("ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2)
+        writer.addPortVector("ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2)
     writer.addPortEnd()
     writer.addHeaderEnd(module_name)
     writer.addDesignDescriptionStart(module_name)
@@ -522,8 +464,6 @@ def gen_super_tile_switch_matrix(
         writer,
         superTile.name,
         connections,
-        noConfigBits,
-        config_bit_mode,
         multiplexer_style,
         default_pip_delay,
         switch_matrix_debug_signal=False,

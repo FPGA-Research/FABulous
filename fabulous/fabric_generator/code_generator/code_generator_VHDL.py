@@ -1,6 +1,5 @@
 """The VHDL code generator."""
 
-import math
 import re
 from pathlib import Path
 from typing import Never
@@ -575,56 +574,6 @@ end process;
         self._add("\n".join(resultList))
         self.addNewLine()
         return configPortUsed
-
-    def addFlipFlopChain(self, configBitCounter: int) -> None:
-        """Add a flip-flop chain for configuration bits.
-
-        Parameters
-        ----------
-        configBitCounter : int
-            Total number of configuration bits.
-        """
-        template = f"""
-ConfigBitsInput <= ConfigBits(ConfigBitsInput'high-1 downto 0) & CONFin;
--- for k in 0 to Conf/2 generate
-L: for k in 0 to {int(math.ceil(configBitCounter / 2.0)) - 1} generate
-        inst_config_latch_a : config_latch
-        Port Map(
-            D    => ConfigBitsInput(k*2),
-            E    => CLK,
-            Q    => ConfigBits(k*2) );
-        inst_config_latch_b : config_latch
-        Port Map(
-            D    => ConfigBitsInput((k*2)+1),
-            E    => MODE,
-            Q    => ConfigBits((k*2)+1) );
-end generate;
-CONFout <= ConfigBits(ConfigBits'high);
-    """
-        self._add(template)
-
-    def addShiftRegister(self, indentLevel: int = 0) -> None:
-        """Add a shift register for configuration bits.
-
-        Parameters
-        ----------
-        indentLevel : int, optional
-            The indentation level. Defaults to 0.
-        """
-        template = """
--- the configuration bits shift register
-process(CLK)
-begin
-    if CLK'event and CLK='1' then
-        if mode='1' then    --configuration mode
-            ConfigBits <= CONFin & ConfigBits(ConfigBits'high downto 1);
-        end if;
-    end if;
-end process;
-CONFout <= ConfigBits(ConfigBits'high);
-
-    """
-        self._add(template, indentLevel)
 
     def addPreprocIfDef(self, _macro: str, _indentLevel: int = 0) -> Never:
         """Define to keep parity with Verilog.

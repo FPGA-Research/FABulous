@@ -177,9 +177,7 @@ class TestEmitTileVerilog:
         ]
         assert actual_paths == expected
         gen_sm.assert_called_once()
-        # Config-bit mode and mux style flow through instead of being hard-coded.
         sm_kwargs = gen_sm.call_args.kwargs
-        assert sm_kwargs["config_bit_mode"] == config_bit_mode
         assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
         if config_bit_mode is ConfigBitMode.FRAME_BASED:
             gen_cm.assert_called_once_with(mock_writer, mock_tile)

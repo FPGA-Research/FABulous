@@ -9,7 +9,9 @@ interfaces.
 import re
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO
+from loguru import logger
+
+from fabulous.fabric_definition.define import IO, ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -26,6 +28,9 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
 
     This includes features that are not located inside the fabric such as BRAM.
     """
+    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        logger.info("Notice: Top wrapper generation is skipped for FlipFlopChain mode.")
+        return
 
     def split_port(p: str) -> tuple[tuple[int, int], tuple[int, ...], str]:
         """Parse and split a port name into components for sorting and grouping.

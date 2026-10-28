@@ -14,6 +14,7 @@ from fabulous.fabric_generator.parser.parse_csv import (
     parseTilesCSV,
 )
 from fabulous.fabulous_settings import init_context
+from tests.conftest import make_empty_tile
 
 # (kind, physical side of the OUTPUT/start port, physical side of the INPUT/end port)
 DIRECTIONAL_CASES = [
@@ -184,11 +185,11 @@ def test_supertile_bel_add_as_custom_prim(project: Path, prefix: str) -> None:
     prims.unlink(missing_ok=True)
     csv = project / "Tile" / "DSP" / "ST.csv"
     csv.write_text(
-        "SuperTILE,ST\nNull\n"
+        "SuperTILE,ST\nT\n"
         f"BEL,./DSP_bot/MULADD.v,{prefix},ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
     )
 
-    (supertile,) = parseSupertilesCSV(csv, {})
+    (supertile,) = parseSupertilesCSV(csv, {"T": make_empty_tile("T")})
 
     assert supertile.bels[0].prefix == prefix
     assert "module MULADD" in prims.read_text()
@@ -224,10 +225,10 @@ def test_supertile_prefix_add_as_custom_prim_warns(
     prims.unlink(missing_ok=True)
     csv = project / "Tile" / "DSP" / "ST.csv"
     csv.write_text(
-        "SuperTILE,ST\nNull\nBEL,./DSP_bot/MULADD.v,ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
+        "SuperTILE,ST\nT\nBEL,./DSP_bot/MULADD.v,ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
     )
 
-    (supertile,) = parseSupertilesCSV(csv, {})
+    (supertile,) = parseSupertilesCSV(csv, {"T": make_empty_tile("T")})
 
     assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
     assert supertile.bels[0].prefix == ""

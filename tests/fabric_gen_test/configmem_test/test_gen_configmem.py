@@ -580,11 +580,12 @@ class TestGenerateSuperTileConfigMem:
             source=tmp_path / "ST_ConfigMem.csv",
         )
         stale.to_csv()
+        child = make_empty_tile("C")
         super_tile = SuperTile(
             name="ST",
             tileDir=tmp_path / "ST.csv",
-            tiles=[],
-            tileMap=[[]],
+            tiles=[child],
+            tileMap=[[child]],
             switch_matrix=SwitchMatrix(
                 matrix_file=tmp_path / "ST_switch_matrix.csv",
                 connections={},
