@@ -24,7 +24,7 @@ calling the following command:
 
 ```console
 # Nextpnr backend synthesis (JSON)
-FABulous> synthesis <path_to_user_design>
+FABulous> compile_design <path_to_user_design> --synth-only
 ```
 
 The result of the synthesis will be located in the directory that contains the design file. For example, if the design
