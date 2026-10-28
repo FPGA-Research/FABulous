@@ -134,12 +134,7 @@ napoleon_include_special_with_doc = True
 napoleon_use_ivar = (
     True  # Use :ivar: instead of .. attribute:: to avoid duplicate warnings
 )
-napoleon_custom_sections = [
-    ("Command line arguments", "Parameters"),
-    ("Params", "Parameters"),
-    ("Verilog", "Other"),
-    ("VHDL", "Other"),
-]
+napoleon_custom_sections = [("Params", "Parameters")]
 
 # Modern Sphinx configuration
 html_title = f"{project} v{version}"
