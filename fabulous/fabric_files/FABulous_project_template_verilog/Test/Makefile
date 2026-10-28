@@ -39,7 +39,7 @@ run_simulation_emulation: run_emulation run_simulation
 run_FABulous_demo:
 	# Runs FABulous, generates the default fabric and generates a bitstream from the default user_design.
 	# Create build folders, since FABulous removes them after it runs its simulation.
-	FABulous ${FAB_PROJ_ROOT} -fs ${FAB_PROJ_ROOT}/FABulous.tcl
+	FABulous -p ${FAB_PROJ_ROOT} script --type fabulous ${FAB_PROJ_ROOT}/FABulous.tcl
 	mkdir -p ${BUILD_DIR}
 	mkdir -p ${FABRIC_FILES_DIR}
 	mv -f ${DESIGN}.hex ${BUILD_DIR}/
@@ -48,7 +48,7 @@ run_FABulous_demo:
 
 build_demo_fabric: mkdir_build
 	# Builds the default fabric
-	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
+	FABulous -p ${FAB_PROJ_ROOT} script --type tcl ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
 	${YOSYS} -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS}" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}

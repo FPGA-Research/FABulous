@@ -110,7 +110,7 @@ We assume, that you have already installed FABulous and the needed dependencies,
 as described in the [Quick start](#quick-start) section.
 
 ```console
-(venv)$ FABulous -c demo
+(venv)$ FABulous create-project demo
 (venv)$ mkdir demo/Tile/CRC5
 ```
 
@@ -986,7 +986,7 @@ We use Verilog as default language for the example, but the same can be done wit
 We first start with creating a new demo project:
 
 ```console
-(venv)$ FABulous -c demo
+(venv)$ FABulous create-project demo
 ```
 
 The demo project is created in the `demo` folder has the following structure (all unneeded files are hidden)

@@ -14,9 +14,9 @@ All environment variables can be set in the shell before running FABulous or can
 | Scope | Location | How to use |
 |-------|----------|------------|
 | User global | `~/.config/FABulous/.env` | Created automatically or manually |
-| Global (explicit) | Any path | Pass via `--globalDotEnv` CLI argument |
+| Global (explicit) | Any path | Pass via `--global-dot-env` CLI argument |
 | Project (auto-detected) | `<project_dir>/.FABulous/.env` | Placed inside your project |
-| Project (explicit) | Any path | Pass via `--projectDotEnv` CLI argument |
+| Project (explicit) | Any path | Pass via `--project-dot-env` CLI argument |
 
 :::{note}
 Environment variables set in the **shell** always have the **highest priority**, followed by project-specific `.env` files, then global `.env` files.

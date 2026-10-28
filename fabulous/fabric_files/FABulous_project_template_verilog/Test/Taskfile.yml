@@ -58,7 +58,7 @@ tasks:
   run-fabulous-demo:
     desc: Run FABulous to generate the default fabric
     cmds:
-      - FABulous {{.FAB_PROJ_ROOT}} -fs {{.FAB_PROJ_ROOT}}/FABulous.tcl
+      - FABulous -p {{.FAB_PROJ_ROOT}} script --type fabulous {{.FAB_PROJ_ROOT}}/FABulous.tcl
       # FABulous removes build dirs during simulation; re-create afterwards.
       - mkdir -p {{.BUILD_DIR}} {{.FABRIC_FILES_DIR}}
       - mv -f {{.DESIGN}}.hex {{.BUILD_DIR}}/
@@ -69,7 +69,7 @@ tasks:
     desc: Build the default fabric only (no simulation)
     cmds:
       - task: mkdir-build
-      - FABulous {{.FAB_PROJ_ROOT}} -ts ./build_fabulous_fabric.tcl
+      - FABulous -p {{.FAB_PROJ_ROOT}} script --type tcl ./build_fabulous_fabric.tcl
 
   run-yosys:
     desc: Run Yosys synthesis

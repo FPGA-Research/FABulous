@@ -49,16 +49,6 @@ def stub_fabric_loading(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
         pytest.param(["FABulous", "create-project"], None, 2, id="typer-no-project"),
         pytest.param(
-            ["FABulous", "--createProject", "{project}"], None, 0, id="legacy-no-writer"
-        ),
-        pytest.param(["FABulous", "--createProject"], None, 2, id="legacy-no-project"),
-        pytest.param(
-            ["FABulous", "-w", "vhdl", "--createProject", "{project}"],
-            "vhdl",
-            0,
-            id="legacy-writer",
-        ),
-        pytest.param(
             ["FABulous", "create-project", "-w", "vhdl", "{project}"],
             "vhdl",
             0,
@@ -69,18 +59,6 @@ def stub_fabric_loading(monkeypatch: pytest.MonkeyPatch) -> None:
             "vhdl",
             2,
             id="typer-invalid-writer",
-        ),
-        pytest.param(
-            ["FABulous", "-w", "invalid", "--createProject", "{project}"],
-            "vhdl",
-            2,
-            id="legacy-invalid-writer",
-        ),
-        pytest.param(
-            ["FABulous", "-w", "VERILOG", "--createProject", "{project}"],
-            "verilog",
-            0,
-            id="case-insensitive-legacy",
         ),
         pytest.param(
             ["FABulous", "create-project", "{project}", "-w", "VERILOG"],
@@ -121,12 +99,6 @@ def test_create_project(
     [
         # FAB script with explicit project
         pytest.param(
-            ["FABulous", "{project}", "--FABulousScript", "{file}"],
-            None,
-            0,
-            id="fab-legacy",
-        ),
-        pytest.param(
             ["FABulous", "-p", "{project}", "script", "{file}"],
             None,
             0,
@@ -134,7 +106,7 @@ def test_create_project(
         ),
         # FAB script in cwd in a project
         pytest.param(
-            ["FABulous", "--FABulousScript", "{file}"],
+            ["FABulous", "script", "{file}"],
             "project",
             0,
             id="fab-cwd-project",
@@ -148,12 +120,6 @@ def test_create_project(
         ),
         # TCL script with explicit project
         pytest.param(
-            ["FABulous", "{project}", "--TCLScript", "{tcl}"],
-            None,
-            0,
-            id="tcl-legacy",
-        ),
-        pytest.param(
             ["FABulous", "-p", "{project}", "script", "{tcl}"],
             None,
             0,
@@ -161,7 +127,7 @@ def test_create_project(
         ),
         # FAB script in non-project cwd (should fail)
         pytest.param(
-            ["FABulous", "--FABulousScript", "{file}"],
+            ["FABulous", "script", "{file}"],
             "nonproject",
             1,
             id="fab-cwd-nonproject",
@@ -223,18 +189,6 @@ def test_script_execution(
         pytest.param(
             lambda prj, log: [
                 "FABulous",
-                str(prj),
-                "--commands",
-                "help",
-                "-log",
-                str(log),
-            ],
-            0,
-            id="legacy",
-        ),
-        pytest.param(
-            lambda prj, log: [
-                "FABulous",
                 "-p",
                 str(prj),
                 "--log",
@@ -254,7 +208,7 @@ def test_logging_file_creation(
     argv_builder: Callable[[Path, Path], list[str]],
     expected_code: int,
 ) -> None:
-    """Logging creates file for both legacy and Typer styles."""
+    """`--log` writes the session output to the given file."""
     log_file = tmp_path / "cli_test.log"
     test_args = argv_builder(project, log_file)
     monkeypatch.setattr(sys, "argv", test_args)
@@ -330,16 +284,6 @@ def test_log_file_is_an_extra_sink(
     ("argv", "expected_code"),
     [
         pytest.param(
-            ["FABulous", "{project}", "--commands", "help", "-v"],
-            0,
-            id="legacy-v",
-        ),
-        pytest.param(
-            ["FABulous", "{project}", "--commands", "help", "-vv"],
-            0,
-            id="legacy-vv",
-        ),
-        pytest.param(
             ["FABulous", "-p", "{project}", "-v", "run", "help"],
             0,
             id="typer-v",
@@ -362,7 +306,7 @@ def test_verbose_mode(
     argv: list[str],
     expected_code: int,
 ) -> None:
-    """Verbose mode works in both legacy and Typer forms."""
+    """Verbose mode works before and after the subcommand."""
     test_args = [arg.replace("{project}", str(project)) for arg in argv]
     monkeypatch.setattr(sys, "argv", test_args)
 
@@ -375,11 +319,6 @@ def test_verbose_mode(
     ("argv", "expected_code"),
     [
         pytest.param(
-            ["FABulous", "{project}", "--commands", "help", "--debug"],
-            0,
-            id="legacy",
-        ),
-        pytest.param(
             ["FABulous", "-p", "{project}", "--debug", "run", "help"],
             0,
             id="typer",
@@ -389,7 +328,7 @@ def test_verbose_mode(
 def test_debug_mode(
     project: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str], expected_code: int
 ) -> None:
-    """Debug mode works in both legacy and Typer forms."""
+    """`--debug` runs a command to completion."""
     test_args = [arg.replace("{project}", str(project)) for arg in argv]
     monkeypatch.setattr(sys, "argv", test_args)
 
@@ -403,32 +342,25 @@ def test_debug_mode(
     ("argv_base", "commands_or_script", "expected_count", "search_text"),
     [
         pytest.param(
-            ["FABulous", "--force", "{project}", "--commands"],
+            ["FABulous", "-p", "{project}", "run", "--force"],
             "load_fabric non_existent",
             1,
             "non_existent",
             id="single-command",
         ),
         pytest.param(
-            ["FABulous", "--force", "{project}", "--commands"],
+            ["FABulous", "-p", "{project}", "run", "--force"],
             "load_fabric non_exist; load_fabric non_exist",
             2,
             "non_exist",
             id="multiple-commands",
         ),
         pytest.param(
-            ["FABulous", "--force", "{project}", "--FABulousScript"],
+            ["FABulous", "-p", "{project}", "script", "--force", "--type", "fabulous"],
             "load_fabric non_exist.csv\nload_fabric non_exist.csv\n",
             3,
             "INFO: Loading fabric",
             id="script",
-        ),
-        pytest.param(
-            ["FABulous", "-p", "{project}", "run", "--force"],
-            "load_fabric non_existent",
-            1,
-            "non_existent",
-            id="single-command",
         ),
     ],
 )
@@ -446,7 +378,7 @@ def test_force_flag(
     argv = [arg.replace("{project}", str(project)) for arg in argv_base]
 
     # Handle script vs commands
-    if "--FABulousScript" in argv:
+    if "script" in argv:
         # Create script file
         script_file = tmp_path / "test.fs"
         with script_file.open("w") as f:
@@ -465,9 +397,6 @@ def test_force_flag(
 @pytest.mark.parametrize(
     ("argv", "expected_requests", "expected_code"),
     [
-        pytest.param(
-            ["FABulous", "{project}", "--install_oss_cad_suite"], 2, 0, id="legacy"
-        ),
         pytest.param(
             ["FABulous", "install", "oss-cad-suite", "{project}"],
             2,
@@ -565,33 +494,6 @@ def test_install_oss_cad_suite(
 
     assert exc_info.value.code == expected_code
     assert m.call_count == expected_requests
-
-
-def test_script_mutually_exclusive(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that FABulous script and TCL script are mutually exclusive."""
-    # Create both script types
-    fab_script = tmp_path / "test.fab"
-    fab_script.write_text("help\n")
-    tcl_script = tmp_path / "test.tcl"
-    tcl_script.write_text("puts hello\n")
-
-    test_args = [
-        "FABulous",
-        str(project),
-        "--FABulousScript",
-        str(fab_script),
-        "--TCLScript",
-        str(tcl_script),
-    ]
-    monkeypatch.setattr(sys, "argv", test_args)
-
-    # Try to use both - should fail
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    assert exc_info.value.code != 0
 
 
 @pytest.mark.parametrize(
@@ -811,7 +713,7 @@ def test_start(
             id="version-eager",
         ),
         pytest.param(["FABulous", "--bogus"], 2, id="unknown-option"),
-        pytest.param(["FABulous", "unknown"], 1, id="unknown-command"),
+        pytest.param(["FABulous", "unknown"], 2, id="unknown-command"),
     ],
 )
 def test_global_parser_behaviors(
@@ -910,7 +812,7 @@ def test_default_writer_is_verilog(
                 "FABulous",
                 "-p",
                 "{project}",
-                "--commands",
+                "run",
                 "load_fabric non_exist; load_fabric non_exist",
             ],
             False,
@@ -918,7 +820,7 @@ def test_default_writer_is_verilog(
             id="stop-on-first-error",
         ),
         pytest.param(
-            ["FABulous", "{project}", "--commands", ""],
+            ["FABulous", "-p", "{project}", "run", ""],
             False,
             0,
             id="empty-commands",
@@ -1227,26 +1129,6 @@ def test_run_command_pipeline_error(
 
     # Should exit with non-zero code due to command failure
     assert exc_info.value.code != 0
-
-
-def test_legacy_logging_default_filename(project: Path) -> None:
-    """Using legacy -log without path should create FABulous.log in CWD."""
-    result = run(
-        [
-            "FABulous",
-            str(project),
-            "--commands",
-            "help",
-            "-log",  # triggers default const filename
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(project),
-    )
-    assert result.returncode == 0
-    log_file = Path(project) / "FABulous.log"
-    assert log_file.exists()
-    assert log_file.stat().st_size > 0
 
 
 def test_global_option_after_subcommand(project: Path) -> None:

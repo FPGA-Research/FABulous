@@ -63,11 +63,11 @@ build_test_design: run_yosys run_nextpnr run_bitgen
 
 run_FABulous_demo:
 	# Runs FABulous, generates the default fabric.
-	FABulous ${FAB_PROJ_ROOT} -fs ${FAB_PROJ_ROOT}/FABulous.tcl
+	FABulous -p ${FAB_PROJ_ROOT} script --type fabulous ${FAB_PROJ_ROOT}/FABulous.tcl
 
 build_demo_fabric: mkdir_build
 	# Builds the default fabric only (no simulation)
-	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
+	FABulous -p ${FAB_PROJ_ROOT} script --type tcl ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
 	${YOSYS} -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS};"
