@@ -229,7 +229,7 @@ def _resolve_task_binary() -> Path:
     ------
     EnvironmentNotSet
         If the `task` binary can be found neither next to the running
-        interpreter nor on ``PATH``.
+        interpreter nor on `PATH`.
     """
     # go-task-bin drops `task` into the environment's script directory, which is
     # not on PATH when FABulous is installed with `uv tool install`, so look
@@ -270,7 +270,7 @@ def run_task(
         If True, adds `--verbose` flag.
     taskfile : str | None
         Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
-        When None, ``task`` uses its default lookup (``Taskfile.yml``).
+        When None, `task` uses its default lookup (`Taskfile.yml`).
     """
     cmd: list[str] = [str(_resolve_task_binary()), task_name]
     if taskfile:
@@ -338,14 +338,14 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
 
     An argument that is absolute or contains a directory separator is treated as
     a filesystem path; otherwise it is treated as a bare tile name and looked up
-    under *tile_dir*.
+    under _tile_dir_.
 
     Parameters
     ----------
     arg : str
         Tile name or path supplied by the user.
     tile_dir : Path
-        Project ``Tile/`` directory used for name-based lookup.
+        Project `Tile/` directory used for name-based lookup.
 
     Returns
     -------

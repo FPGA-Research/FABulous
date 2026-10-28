@@ -430,13 +430,17 @@ class Tile:
         and `edge_offset` tracks are reserved at the start of the tile
         (see `tile_io_place.allocate_tracks`).
 
-        The minimum number of tracks on a side is therefore::
+        The minimum number of tracks on a side is therefore
 
-            required_tracks = pin_count * thickness_mult + edge_offset
+        ```text
+        required_tracks = pin_count * thickness_mult + edge_offset
+        ```
 
-        And the minimum physical dimension is::
+        And the minimum physical dimension is
 
-            min_dim = required_tracks * pitch
+        ```text
+        min_dim = required_tracks * pitch
+        ```
 
         Parameters
         ----------

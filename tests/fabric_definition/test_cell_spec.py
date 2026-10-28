@@ -22,14 +22,14 @@ from fabulous.fabric_definition.cell_spec import (
 
 
 def _write_std_cell_library(project_dir: Path, body: str) -> None:
-    """Write ``Fabric/std_cell_library.yaml`` under ``project_dir``."""
+    """Write `Fabric/std_cell_library.yaml` under `project_dir`."""
     fabric_dir = project_dir / "Fabric"
     fabric_dir.mkdir(parents=True, exist_ok=True)
     (fabric_dir / "std_cell_library.yaml").write_text(body)
 
 
 def _template_fabric_dir() -> Path:
-    """Return the shipped project-template ``Fabric`` directory."""
+    """Return the shipped project-template `Fabric` directory."""
     return (
         Path(fabulous.__file__).parent
         / "fabric_files"

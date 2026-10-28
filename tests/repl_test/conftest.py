@@ -22,7 +22,7 @@ MOCK_COMPLETED_PROCESS = subprocess.CompletedProcess(args=[], returncode=0)
 # the identical BEL sources would otherwise be re-synthesised dozens of times
 # across the suite. These regexes pull the source and JSON output paths out of
 # the Yosys command FABulous builds in
-# ``fabulous.fabric_definition.yosys_obj.YosysJson``.
+# `fabulous.fabric_definition.yosys_obj.YosysJson`.
 _YOSYS_SRC_RE = re.compile(r"read_verilog\s+-sv\s+([^;\s]+)")
 _YOSYS_OUT_RE = re.compile(r"write_json\s+-compat-int\s+([^;\s]+)")
 
@@ -42,7 +42,7 @@ def cache_yosys_synthesis(
     Each unique BEL source is synthesised by the real Yosys once; identical
     sources copied into later test projects reuse the cached JSON instead of
     spawning Yosys again. The produced JSON is byte-identical to a real Yosys
-    run, and every ``YosysJson`` still builds its own objects from it, so no
+    run, and every `YosysJson` still builds its own objects from it, so no
     parsed state is shared between tests. The fabric still loads and generates
     for real, so the end-to-end smoke tests keep their meaning.
     """
@@ -155,9 +155,9 @@ def simulation_mock(cli: FABulousREPL, mocker: MockerFixture) -> None:
 
 
 def find_task_calls() -> list[list[str]]:
-    """Return the command lists from subprocess calls that invoked ``task``.
+    """Return the command lists from subprocess calls that invoked `task`.
 
-    Must be called while ``subprocess.run`` is patched by ``simulation_mock``.
+    Must be called while `subprocess.run` is patched by `simulation_mock`.
     """
     mock = subprocess.run  # already patched by simulation_mock
     assert hasattr(mock, "call_args_list"), "subprocess.run is not mocked"

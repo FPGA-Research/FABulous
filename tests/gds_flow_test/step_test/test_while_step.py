@@ -18,7 +18,7 @@ class CustomError(Exception):
 
 
 class _InnerStep(Step):
-    """Minimal sub-step whose ``start`` is patched per-test."""
+    """Minimal sub-step whose `start` is patched per-test."""
 
     id = "Test.Inner"
     name = "Inner"
@@ -115,7 +115,7 @@ class TestWhileStep:
         """An exception in propagate_exceptions re-raises even when break_on_failure.
 
         propagate_exceptions must win over break_on_failure (and raise_on_failure
-        being False), which would otherwise swallow the error via ``break``.
+        being False), which would otherwise swallow the error via `break`.
         """
 
         class PropagatingWhileStep(WhileStep):
@@ -224,8 +224,8 @@ class TestWhileStep:
     def test_substitute_steps_var_compiles(self, payload: dict | None) -> None:
         """Test that every documented substitution payload survives compilation.
 
-        The test above builds ``Config(dict(...))`` directly, bypassing
-        ``Variable.compile``, so it passes for any declared type.
+        The test above builds `Config(dict(...))` directly, bypassing
+        `Variable.compile`, so it passes for any declared type.
         """
         _, final = _SUBSTITUTE_STEPS_VAR.compile(
             GenericDict({_SUBSTITUTE_STEPS_VAR.name: payload}),

@@ -30,6 +30,26 @@ in
         wheel = [ ];
       };
   });
+
+  # PyPI ships only sdists for these two, and uv.lock records no build system.
+  # Both come in through sphinxcontrib-wavedrom in the docs group.
+  wavedrom = prev.wavedrom.overrideAttrs (old: {
+    nativeBuildInputs =
+      (old.nativeBuildInputs or [ ])
+      ++ final.resolveBuildSystem {
+        setuptools = [ ];
+        wheel = [ ];
+      };
+  });
+  xcffib = prev.xcffib.overrideAttrs (old: {
+    nativeBuildInputs =
+      (old.nativeBuildInputs or [ ])
+      ++ final.resolveBuildSystem {
+        setuptools = [ ];
+        wheel = [ ];
+      };
+  });
+
   # The PyPI sdist builds with setuptools, the pinned git source poetry-core.
   librelane = prev.librelane.overrideAttrs (old: {
     nativeBuildInputs =

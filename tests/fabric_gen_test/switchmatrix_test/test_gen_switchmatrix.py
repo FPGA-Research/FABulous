@@ -389,7 +389,7 @@ class TestSuperTileSwitchMatrixConstants:
 class TestUnconnectedPortDiagnostic:
     """The 'not connected to anything' error should explain NULL-wire expansion.
 
-    A NULL-terminated spanning wire expands to ``wires x distance`` nested wires.
+    A NULL-terminated spanning wire expands to `wires x distance` nested wires.
     When a switch matrix leaves some of those nested wires unconnected, the
     diagnostic should point back to the originating wire spec instead of just
     naming the bare expanded wire.

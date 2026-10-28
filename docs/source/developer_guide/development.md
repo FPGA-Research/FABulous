@@ -12,9 +12,9 @@ FABulous has two development environments and they are alternatives, not layers.
 
 [uv](https://github.com/astral-sh/uv) manages the Python side: it owns `uv.lock`, resolves the same versions CI does, and builds the `.venv/` you work in. Use it on its own for Python work, that is the fabric model, the HDL and chip-database writers, the CLI and the test suite.
 
-[Nix](#nix-install) additionally pins the EDA toolchain (GHDL, Yosys, NextPNR, OpenROAD, LibreLane). Anything that shells out to those tools, the ASIC backend under `gds_flow_test`, `librelane_plugin_fabulous` and `fabulous/fabric_generator/gds_generator`, only works there. The Nix devshell builds its own virtualenv from `uv.lock` and activates it on entry, so inside it neither `uv sync` nor `uv run` has a job to do. See [Running commands inside the Nix devshell](#nix-devshell-commands).
+{ref}`Nix <nix-install>` additionally pins the EDA toolchain (GHDL, Yosys, NextPNR, OpenROAD, LibreLane). Anything that shells out to those tools, the ASIC backend under `gds_flow_test`, `librelane_plugin_fabulous` and `fabulous/fabric_generator/gds_generator`, only works there. The Nix devshell builds its own virtualenv from `uv.lock` and activates it on entry, so inside it neither `uv sync` nor `uv run` has a job to do. See {ref}`Running commands inside the Nix devshell <nix-devshell-commands>`.
 
-The [Dev Container](#dev-container) is a fallback for contributors who cannot install Nix. It behaves like the uv environment, with the editable install already in place.
+The {ref}`Dev Container <dev-container>` is a fallback for contributors who cannot install Nix. It behaves like the uv environment, with the editable install already in place.
 
 :::{note}
 Do not mix the two. `uv run` always targets the project's `.venv/` and ignores whatever virtualenv is active, so running it inside the Nix devshell silently executes against a different interpreter than the EDA tools were built for.
@@ -116,11 +116,12 @@ That last point bites the `task` targets, which hardcode `uv run`. Inside the de
 | Task | Devshell equivalent |
 | --- | --- |
 | `task test -- <args>` | `python scripts/run_tests.py <args>` |
-| `task ci` | `pre-commit run --all-files`, then `task docs-build` |
+| `task ci` | `pre-commit run --all-files`, then the `task docs-build` equivalent |
+| `task docs-build` | `sphinx-build -M html source build -q -n -W --keep-going`, run from `docs/` |
 | `task sync-demo` | `python scripts/sync_demo_tile_gds_config.py` |
 | `task smoke-test` | `FABULOUS=FABulous task smoke-test` |
 
-`task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` build the docs in a separate uv environment under `docs/`, driven by `docs/Makefile` rather than by the root `.venv/`.
+`task smoke-test` is parameterised for this and takes the launcher prefix as a variable. `task docs-build` and `task docs-server` run Sphinx from `docs/` against the repository-root `pyproject.toml` and `uv.lock`, through `uv run --project ..` with the `docs` dependency group.
 
 :::{note}
 `FABulous nix-env` invoked without `--flake-dir` uses the `flake.nix` bundled into the installed `fabulous_nix` package, which is a build-time copy of the repository's. When developing the flake itself, run `nix develop` from the checkout so the file you are editing is the file being evaluated.
@@ -192,7 +193,7 @@ git commit --no-verify
 
 ## Task Automation with Taskfile
 
-FABulous includes a root [Taskfile](https://taskfile.dev) to streamline common development and workflow tasks. In the uv environment, run them as `task <task-name>`; every target below invokes `uv run` for you, so no activation is needed. Inside the Nix devshell they need the substitutions in [Running commands inside the Nix devshell](#nix-devshell-commands).
+FABulous includes a root [Taskfile](https://taskfile.dev) to streamline common development and workflow tasks. In the uv environment, run them as `task <task-name>`; every target below invokes `uv run` for you, so no activation is needed. Inside the Nix devshell they need the substitutions in {ref}`Running commands inside the Nix devshell <nix-devshell-commands>`.
 
 ```console
 task test           # Run the pytest suite (supports forwarded args, see below)

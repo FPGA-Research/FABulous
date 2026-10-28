@@ -3,9 +3,9 @@
 # Fabric definition
 
 This section describes the process of modeling FABulous fabrics in a top-down manner.
-FABulous can reuse preimplemented tiles which allows it to define fabrics in a LEGO-like manner where it is sufficient to define the [fabric layout](#fabric-layout) in terms of IO and logic tiles or any other required block.
+FABulous can reuse preimplemented tiles which allows it to define fabrics in a LEGO-like manner where it is sufficient to define the {ref}`fabric layout <fabric-layout>` in terms of IO and logic tiles or any other required block.
 
-For customization of [tiles](#tiles) or the creation of new blocks, it is possible to model the routing [wires](#wires), a central [switch_matrix](#switch-matrix) and [primitives](#primitives)
+For customization of {ref}`tiles <tiles>` or the creation of new blocks, it is possible to model the routing {ref}`wires <wires>`, a central {ref}`switch_matrix <switch-matrix>` and {ref}`primitives <primitives>`
 
 The following figure shows a small fabric, which we will model throughout this section. It provides:
 
@@ -22,8 +22,8 @@ The following figure shows a small fabric, which we will model throughout this s
 
 The full model of a fabric is described by the following files:
 
-- A file [fabric csv](#fabric-csv) providing the [fabric layout](#fabric-layout) and some global settings
-- A file [tile csv](#tile-csv) for each tile describing wires, BELs and a link to the switch matrix
+- A file {ref}`fabric csv <fabric-csv>` providing the {ref}`fabric layout <fabric-layout>` and some global settings
+- A file {ref}`tile csv <tile-csv>` for each tile describing wires, BELs and a link to the switch matrix
 - A set of list files (`*.list`) describing the adjacency list of the switch matrix for each of the used tiles or the corresponding adjacency matrix as a CSV file
 - A set of optional bitstream mapping CSV files
 - A set of primitives used
@@ -110,7 +110,7 @@ It is planned to remove these limitations in future versions of FABulous.
 
 ## Fabric CSV description
 
-- For the section between `FabricBegin` and `FabricEnd`, refer to the [fabric layout](#fabric-layout) description.
+- For the section between `FabricBegin` and `FabricEnd`, refer to the {ref}`fabric layout <fabric-layout>` description.
 
 - Empty lines will be ignored as well as everything that follows a `#` (the **comment** symbol in all FABulous descriptions).
 
@@ -236,17 +236,14 @@ FabricEnd
   The specified tiles are references to tile descriptors (see {ref}`tiles`).
   The tiles form a coordinate system with the origin in the top-left:
 
-  ```{eval-rst}
-  +-------+-------+-------+------+
-  | X0Y0  | X1Y0  | X2Y0  | ...  |
-  +-------+-------+-------+------+
-  | X0Y1  | X1Y1  | X2Y1  | ...  |
-  +-------+-------+-------+------+
-  | ...   | ...   | ...   | ...  |
-  +-------+-------+-------+------+
-  ```
+  | X0Y0 | X1Y0 | X2Y0 | ... |
+  | ---- | ---- | ---- | --- |
+  | X0Y1 | X1Y1 | X2Y1 | ... |
+  | ...  | ...  | ...  | ... |
 
   `NULL` tiles are used for padding and no code will be generated for these. `NULL` tiles can be used to build non-rectangular shaped fabrics.
+
+The following pages describe each part of the fabric model in detail:
 
 (tiles)=
 
@@ -260,19 +257,19 @@ FabricEnd
 
 A tile is the smallest unit in a fabric and a tile provides
 
-- A description of [wires](#wires) to adjacent tiles
-- A central [switch matrix](#switch-matrix)
-- An optional list of [primitives](#primitives)
+- A description of {ref}`wires <wires>` to adjacent tiles
+- A central {ref}`switch matrix <switch-matrix>`
+- An optional list of {ref}`primitives <primitives>`
 - A central configuration storage module
 
 A tile typically hosts primitives like a CLB with LUTs or an I/O block.
-Multiple smaller tiles can be combined into [supertiles](#supertiles) to accommodate complex blocks like DSPs.
+Multiple smaller tiles can be combined into {ref}`supertiles <supertiles>` to accommodate complex blocks like DSPs.
 
 (tile-csv)=
 
-## Tile CSV description
+### Tile CSV description
 
-Each tile that is referred to in the [fabric layout](#fabric-layout) requires specification of the corresponding tile description in a tile.csv file that has the following format:
+Each tile that is referred to in the {ref}`fabric layout <fabric-layout>` requires specification of the corresponding tile description in a tile.csv file that has the following format:
 
 ```{code-block} text
 :emphasize-lines: 1,12
@@ -326,9 +323,9 @@ at `foo/bar/LUT4AB.csv` then the `INCLUDE` path will point to `foo/bar/../Base.c
 
 (wires)=
 
-### Wires
+#### Wires
 
-Wires are defined by 5-tuples:
+Wires are defined by 6-tuples:
 
 `direction`, `source_name`, `X-offset`, `Y-offset`, `destination_name`, `wires`
 
@@ -460,10 +457,10 @@ Note that a wire with a span greater 1 is usually nested.
 :width: 40%
 :::
 
-Each entry in the wire specification contributes with max(abs(`X-offset`),abs(`y-offset`)) x `wires` to the cut number.
+Each entry in the wire specification contributes with (abs(`X-offset`) + abs(`Y-offset`)) x `wires` to the cut number.
 In this example, the east single wire (E1Beg) is contributing with 1 x 6 = 6 and the west quad wire (W4Beg) with 4 x 3 = 12 wire segments to the cut.
 Therefore, even if we have only half the number of quad wires, these contribute double the number of ASIC routing tracks to the cut.
-Furthermore, the wires needed to write the configuration into the configuration memory cells are further contributing substantially to the cut (see parameter `FrameBitsPerRow` in section [fabric csv](#fabric-csv)).
+Furthermore, the wires needed to write the configuration into the configuration memory cells are further contributing substantially to the cut (see parameter `FrameBitsPerRow` in section {ref}`fabric csv <fabric-csv>`).
 
 The switch matrices see only the `wires` amount of wires, regardless of the span. However, the tile-to-tile interfaces include all nested wires concatenated together to a wide vector. FABulous connects the `wires` LSBs to the switch matrix inputs and the switch matrix outputs are connected to the `wires` MSBs. Inside the tile, the wide vector is shifted by `wires` before routing it to the next tile, as shown in the following figure for an EAST hex-wire example:
 
@@ -493,7 +490,7 @@ Because long distance wires contribute heavily to the cut number, it can be bene
 
 (switch-matrix)=
 
-### Switch matrix
+## Switch matrix
 
 FABulous usually implements all routing in a central switch matrix.
 The inputs to the switch matrix are the wire end ports of the local wires and JUMP wires and the outputs of the {ref}`primitives`.
@@ -616,7 +613,7 @@ When generating the adjacency matrix, FABulous will annotate for each row and co
 For the rows, this denotes the size of the multiplexers (e.g., MUX4) and by checking the column summary, we can inspect how well the wire usage is balanced.
 
 :::{note}
-Note that we can define the port names `VCC` and `GND` in [wires](#wires), which allows it to specify a configurable multiplexer setting to `1` or `0`. For instance, this is useful for BRAM pins where unused ports (e.g., some MSB address bits) have to be tied to `0` without the need of any further LUTs or routing.
+Note that we can define the port names `VCC` and `GND` in {ref}`wires <wires>`, which allows it to specify a configurable multiplexer setting to `1` or `0`. For instance, this is useful for BRAM pins where unused ports (e.g., some MSB address bits) have to be tied to `0` without the need of any further LUTs or routing.
 
 ```python
 #direction  source_name  X-offset  Y-offset  destination_name  wires
@@ -629,7 +626,7 @@ JUMP,       NULL,        0,        0,        VCC,              1
 :::{note}
 The multiplexers in the switch matrices are controlled by configuration bits only.
 
-The multiplexers in [primitives](#primitives) can either be controlled by configuration bits (e.g., to select if a LUT output is to be routed to a primitive output pin or through a flop) or by the user logic (e.g., to cascade adjacent LUTs for implementing larger LUTs, like the F7MUX and F8MUX multiplexers in Xilinx FPGAs with LUT6s).
+The multiplexers in {ref}`primitives <primitives>` can either be controlled by configuration bits (e.g., to select if a LUT output is to be routed to a primitive output pin or through a flop) or by the user logic (e.g., to cascade adjacent LUTs for implementing larger LUTs, like the F7MUX and F8MUX multiplexers in Xilinx FPGAs with LUT6s).
 :::
 
 :::{note}
@@ -644,7 +641,7 @@ Moreover, downstripping the routing fabric is easily possible by removing wires 
 
 (primitives)=
 
-### Primitives
+## Primitives
 
 Primitives are used to manipulate, store and input/output data. Examples for primitives include LUTs, slices (a cluster of LUTs that share a clock and that can be cascaded for arithmetic), flip-flops, individual gates or multiplexers, and complex blocks like DSPs, ALUs or BRAMs. A tile may have no primitives (e.g., the north and south terminate tiles in our example fabric) or as many as needed.
 
@@ -688,7 +685,7 @@ BEL,              crc5.v,          ,         ADD_AS_CUSTOM_PRIM
 ```
 
 The keyword works the same way on `BEL` lines of a `SuperTILE` block, see
-[supertile BELs](#supertile-custom-prim).
+{ref}`supertile BELs <supertile-custom-prim>`.
 
 Primitives that are already in `custom_prims.v` are left alone, so a hand-tuned
 description with an implementation or a techmap is not overwritten by this keyword.
@@ -698,7 +695,7 @@ philosophy than the usual VPR approach where primitives are generated by
 models. While the VPR path has advantages to drive automated design space
 exploration, the FABulous way is more convenient when modeling an existing
 fabric. However, this requires some adaptations to the FPGA CAD tools as
-described in [](#fabric-using).
+described in {ref}`fabric-using`.
 Complex blocks are usually not inferred by VHDL or Verilog constructs but
 through direct primitive instantiations, which is common for all commercial
 FPGAs. Nevertheless, Yosys can implement arrays specified in RTL automatically
@@ -708,7 +705,7 @@ The BEL statements in the previous example instantiate a LUT4 in VHDL:
 
 :::{note}
 This VHDL example uses the legacy inline comment style for port attributes.
-New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
+New BEL files should use {ref}`native VHDL attribute syntax <vhdl-attributes>` instead.
 :::
 
 ```VHDL
@@ -780,7 +777,7 @@ FABulous defines the following coding rules for BELs:
 
     :::{note}
     This VHDL example uses the legacy inline comment style for port attributes.
-    New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
+    New BEL files should use {ref}`native VHDL attribute syntax <vhdl-attributes>` instead.
     :::
 
     ```VHDL
@@ -892,7 +889,7 @@ FABulous defines the following coding rules for BELs:
 
 (vhdl-attributes)=
 
-#### VHDL attribute syntax
+### VHDL attribute syntax
 
 In VHDL, FABulous attributes are specified using native VHDL attribute
 declarations and assignments. The BEL file needs:
@@ -948,7 +945,9 @@ entity LUT4c_frame_config_dffesr is
 end entity LUT4c_frame_config_dffesr;
 ```
 
-:::{deprecated}
+:::{admonition} Deprecated
+:class: warning
+
 The older plain comment style for port attributes is deprecated and should
 not be used in new BEL files:
 
@@ -962,11 +961,11 @@ New BEL files should use native VHDL attribute assignments instead.
 
 (belmap-primitives)=
 
-#### BelMap Attribute
+### BelMap Attribute
 
 Each primitive that uses configuration bits must include a `BelMap` attribute to define how FASM feature names map to configuration bit positions. The `BelMap` maps each configurable feature to its bit index within the primitive's configuration bitstream. The number of entries in the mapping must match the `NoConfigBits` parameter, otherwise the tool will report an error.
 
-##### Verilog BelMap
+#### Verilog BelMap
 
 In Verilog, the `BelMap` is specified as an inline attribute before the module declaration:
 
@@ -1000,7 +999,7 @@ endmodule
 
 In this example, the LUT4 has 16 configuration bits for `INIT` values (mapping to indices 0-15), 1 bit for `FF` (the flip-flop bypass switch at index 16), 1 bit for `IOmux` (the carry input switch at index 17), and 1 bit for `SET_NORESET` (the SET or RESET switch at index 18), totaling 19 configuration bits.
 
-##### VHDL BelMap
+#### VHDL BelMap
 
 In VHDL, the BelMap is specified using entity-level attributes, with each
 feature mapped to its bit position:
@@ -1032,7 +1031,7 @@ Multi-bit features use underscore-suffixed index notation (e.g., `INIT_1`,
 
 (fab-attr-prefix)=
 
-##### The `FAB_ATTR_` prefix
+#### The `FAB_ATTR_` prefix
 
 Certain BelMap feature names may conflict with VHDL reserved words or synthesis
 tool keywords. To avoid such conflicts, VHDL BEL files use the `FAB_ATTR_`
@@ -1062,7 +1061,7 @@ The prefix removal is case-insensitive (`fab_attr_FF`, `FAB_ATTR_ff`, and
 
 (bitstream)=
 
-### Bitstream remapping
+## Bitstream remapping
 
 FABulous will take care when implementing the configuration logic and bitstream encoding and the mapping of this into configuration bitstreams. This can be done automatically.
 However, users can influence the mapping of configuration bits into the bitstream. For our first chip, we used remapping to create a human-readable bitstream which is more convenient to modify in a hex editor, as described later in this subsection.

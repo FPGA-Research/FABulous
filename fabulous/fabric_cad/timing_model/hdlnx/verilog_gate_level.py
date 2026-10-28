@@ -76,6 +76,11 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         Returns a list of hierarchical pin paths (strings).
 
+        Only gate-level, structural Verilog is supported: module/endmodule plus
+        simple instances of the form `CellType inst_name ( .PIN(net), ... );`.
+        Assign statements, generate blocks and functions are ignored, and module
+        port names are assumed to double as net names inside the module.
+
         Parameters
         ----------
         hier_pin_path : str
@@ -486,13 +491,15 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         have *all* nets in `nets` connected to any of their pins.
 
         - Only looks at direct instances inside the given module (no hierarchy).
-        - Assumes gate-level style instantiations like
+        - Assumes gate-level style instantiations like:
 
-            cell_type inst_name (
-                .A0(net1),
-                .A1(net2),
-                ...
-            );
+        ```
+        cell_type inst_name (
+            .A0(net1),
+            .A1(net2),
+            ...
+        );
+        ```
 
         Parameters
         ----------

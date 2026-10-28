@@ -275,9 +275,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
         pytest --gl --gl-fabric-project=<path>
         pytest --hdl-coverage
 
-    Without these flags, tests marked ``@pytest.mark.slow`` /
-    ``@pytest.mark.gl`` are excluded via the default ``addopts`` filter in
-    ``pyproject.toml``.
+    Without these flags, tests marked `@pytest.mark.slow` /
+    `@pytest.mark.gl` are excluded via the default `addopts` filter in
+    `pyproject.toml`.
     """
     parser.addoption(
         "--runslow",
@@ -418,9 +418,9 @@ def fabulous_test_environment(
 
 
 def make_default_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a fresh empty Verilog project and point ``FAB_PROJ_DIR`` at it.
+    """Create a fresh empty Verilog project and point `FAB_PROJ_DIR` at it.
 
-    Shared by the base ``fabulous_project`` fixture and any nested-conftest
+    Shared by the base `fabulous_project` fixture and any nested-conftest
     override that needs to reproduce the default (non-overridden) behaviour
     without re-entering the fixture by name.
     """
@@ -432,20 +432,20 @@ def make_default_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
 
 @pytest.fixture
 def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A FABulous project the ``cli`` fixture should bind to.
+    """A FABulous project the `cli` fixture should bind to.
 
     Default behaviour creates a fresh empty Verilog project under
-    ``tmp_path``. Override this fixture in a nested conftest to point ``cli``
+    `tmp_path`. Override this fixture in a nested conftest to point `cli`
     at a different project — e.g. the GL suite overrides it to return the
     per-test copy of a hardened LibreLane project. The override is what lets
-    GL tests reuse the global ``cli`` fixture without any further plumbing.
+    GL tests reuse the global `cli` fixture without any further plumbing.
     """
     return make_default_project(tmp_path, monkeypatch)
 
 
 @pytest.fixture
 def cli(fabulous_project: Path) -> FABulousREPL:
-    """Create a FABulous CLI instance bound to ``fabulous_project``."""
+    """Create a FABulous CLI instance bound to `fabulous_project`."""
     init_context(fabulous_project)
     cli = FABulousREPL(
         "verilog",

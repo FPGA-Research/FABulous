@@ -143,4 +143,4 @@ sudo systemctl restart x11vnc
 
 ## Next Steps
 
-Once your Codespace is set up, continue with the [Quick Start Guide](#quick-start) to learn how to use FABulous to create FPGA fabrics.
+Once your Codespace is set up, continue with the {ref}`Quick Start Guide <quick-start>` to learn how to use FABulous to create FPGA fabrics.

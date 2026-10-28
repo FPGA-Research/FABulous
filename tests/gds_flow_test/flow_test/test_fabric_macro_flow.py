@@ -511,14 +511,14 @@ class TestSpacingVariableTypes:
 
     The spacing variables accept either a scalar (applied to both axes) or a
     tuple (per-axis). Real example projects use *both* shapes:
-    - ``tt-fabulous-ihp-26a/fabrics/tiny_fabric_9x5/config.yaml`` uses
-      ``FABULOUS_TILE_SPACING: 0`` (scalar).
-    - ``tests/assets/librelane_plugin/.../config.yaml`` uses ``[0, 0]`` (tuple).
+    - `tt-fabulous-ihp-26a/fabrics/tiny_fabric_9x5/config.yaml` uses
+      `FABULOUS_TILE_SPACING: 0` (scalar).
+    - `tests/assets/librelane_plugin/.../config.yaml` uses `[0, 0]` (tuple).
 
-    YAML-loaded values reach LibreLane as bare ``int``/``str``/``list``, so
-    ``Variable.compile`` is invoked with ``permissive_typing=True``. These
+    YAML-loaded values reach LibreLane as bare `int`/`str`/`list`, so
+    `Variable.compile` is invoked with `permissive_typing=True`. These
     tests assert both shapes survive that pipeline and produce the
-    Decimal-typed shapes that ``run()``'s normalization expects.
+    Decimal-typed shapes that `run()`'s normalization expects.
     """
 
     @staticmethod
@@ -546,7 +546,7 @@ class TestSpacingVariableTypes:
         assert all(isinstance(x, Decimal) for x in v)
 
     def test_tile_spacing_default_compiles(self) -> None:
-        """Default ``(0, 0)`` must satisfy its own type."""
+        """Default `(0, 0)` must satisfy its own type."""
         from librelane.common import GenericDict
 
         var = next(v for v in configs if v.name == "FABULOUS_TILE_SPACING")
