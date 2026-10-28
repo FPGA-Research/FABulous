@@ -8,7 +8,7 @@ flow, linked against the PDK standard-cell models. The existing Verilog
 exact same testbench the RTL ``run_simulation`` uses.
 
 This mirrors the demo flow in the project ``FABulous.tcl`` (``load_fabric`` →
-``run_FABulous_fabric`` → ``gen_user_design_wrapper`` → ``compile_design`` →
+``run_fab`` → ``gen_user_design_wrapper`` → ``compile_design`` →
 ``run_simulation``), differing only in the final ``--gl`` step.
 
 Marked ``@pytest.mark.gl`` and skipped from the default suite. Opt in with
@@ -56,7 +56,7 @@ def test_gl_simulation_demo(
     user_design_dir.mkdir(exist_ok=True)
     shutil.copy(_DEMO_DESIGN, user_design_dir / f"{_DEMO_NAME}.v")
 
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
     run_cmd(
         cli,
         f"gen_user_design_wrapper user_design/{_DEMO_NAME}.v user_design/top_wrapper.v",

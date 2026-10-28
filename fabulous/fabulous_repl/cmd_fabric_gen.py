@@ -346,19 +346,6 @@ class FabricGenCommandSet(ReplCommandSet):
         if success:
             logger.info("FABulous fabric flow complete")
 
-    def do_run_FABulous_fabric(self, *_ignored: str) -> None:
-        """Generate the fabric based on the CSV file.
-
-        deprecated: Use ``run_fab`` instead.
-        """
-        repl = self._cmd
-        logger.warning(
-            "The 'run_FABulous_fabric' command is deprecated. Use 'run_fab' instead."
-        )
-        repl.onecmd_plus_hooks("run_fab")
-        if repl.exit_code != 0:
-            raise CommandError("FABulous fabric flow failed")
-
     def do_gen_routing_model(self, *_ignored: str) -> None:
         """Generate nextpnr routing model of fabric.
 

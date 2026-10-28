@@ -234,7 +234,7 @@ def test_design_pattern(
     run_cmd(cli, "load_fabric")
 
     user_design, pcf = stage_user_design(project_dir, design_name, lang=hdl_lang)
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
     bitstream = compile_user_design(cli, user_design, design_name, pcf)
 
     cocotb_runner(

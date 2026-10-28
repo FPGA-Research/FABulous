@@ -295,18 +295,6 @@ def test_run_fab(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_run_FABulous_fabric_deprecated(
-    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Test the deprecated `run_FABulous_fabric` alias delegates to `run_fab`."""
-    run_cmd(cli, "run_FABulous_fabric")
-
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert any("run_fab" in r.message for r in caplog.records)
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "FABulous fabric flow complete" in log[-1]
-
-
 def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating nextpnr model."""
     run_cmd(cli, "gen_routing_model")

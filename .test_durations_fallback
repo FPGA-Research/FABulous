@@ -1123,7 +1123,6 @@
   "tests/repl_test/test_cli.py::test_gen_top_wrapper": 0.6837963130674325,
   "tests/repl_test/test_cli.py::test_load_fabric": 1.029548074991908,
   "tests/repl_test/test_cli.py::test_run_FABulous_bitstream_deprecated": 1.1008514229906723,
-  "tests/repl_test/test_cli.py::test_run_FABulous_fabric_deprecated": 1.439708034042269,
   "tests/repl_test/test_cli.py::test_run_fab": 1.0800164639949799,
   "tests/repl_test/test_cli.py::test_run_fab_sv_extension": 1.0558416949934326,
   "tests/repl_test/test_cli.py::test_run_simulation": 1.1165257770335302,

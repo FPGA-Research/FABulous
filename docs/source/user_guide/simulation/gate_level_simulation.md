@@ -29,7 +29,7 @@ testbench, and runs it under `iverilog` / `vvp`. The waveform is written to
 From a fresh project the full path is:
 
 ```text
-run_FABulous_fabric                                  # 1. generate the fabric HDL
+run_fab                                              # 1. generate the fabric HDL
 gen_macro all_tile --parallel
 gen_macro stitch                                     # 2. harden it (long; see fabric_gds.md)
 compile_design ./user_design/<design>.v              # 3. build a bitstream
