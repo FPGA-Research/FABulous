@@ -609,23 +609,20 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog:
-        ::
-
+        ```text
+        Verilog
             always @ (posedge **clk**)
             begin
                 **reg** <= **inv** **regIn**;
             end
-
-        VHDL:
-        ::
-
+        VHDL
             process(**clk**)
             begin
                 if **clk**'event and **clk**='1' then
                         **reg** <= **inv** **regIn**;
                 end if;
             end process;
+        ```
         """
 
     @abc.abstractmethod

@@ -18,7 +18,10 @@ line.
 
 Napoleon has already rewritten the numpy sections into field lists by this point
 (AutoAPI emits `autodoc-process-docstring`), so MyST only needs the `fieldlist`
-extension to turn them into Sphinx parameter lists.
+extension to turn them into Sphinx parameter lists. The exception is the
+generic sections such as `Examples` and `Notes`, which napoleon heads with a
+reST `.. rubric::` line that MyST would print verbatim, so those lines are
+rewritten to the MyST `{rubric}` directive before parsing.
 """
 
 from collections.abc import Iterator
@@ -30,6 +33,8 @@ from docutils.utils import new_document
 from myst_parser.sphinx_ import Parser as MystParser
 from sphinx.application import Sphinx
 from sphinx.util.docutils import SphinxDirective
+
+_REST_RUBRIC = ".. rubric:: "
 
 
 @contextmanager
@@ -62,7 +67,14 @@ class MystDocstring(SphinxDirective):
         list[nodes.Node]
             The nodes MyST produced, spliced into the surrounding reST page.
         """
-        text = "\n".join(self.content)
+        lines: list[str] = []
+        for line in self.content:
+            if line.startswith(_REST_RUBRIC):
+                title = line.removeprefix(_REST_RUBRIC)
+                lines.extend([f"```{{rubric}} {title}", "```"])
+            else:
+                lines.append(line)
+        text = "\n".join(lines)
         if not text.strip():
             return []
 
