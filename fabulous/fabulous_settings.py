@@ -74,11 +74,6 @@ class FABulousSettings(BaseSettings):
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
     proj_version: Version = Version(meta_version("FABulous-FPGA"))
-    version: Version = Field(
-        default=Version(meta_version("FABulous-FPGA")),
-        deprecated=True,
-        description="Deprecated, use proj_version instead",
-    )
     max_worker: int | None = Field(
         default=2,
         ge=0,
@@ -150,7 +145,7 @@ class FABulousSettings(BaseSettings):
         )
         return None
 
-    @field_validator("proj_version", "proj_version_created", "version", mode="before")
+    @field_validator("proj_version", "proj_version_created", mode="before")
     @classmethod
     def parse_version_str(cls, value: str | Version) -> Version:
         """Parse version from string or Version object."""
