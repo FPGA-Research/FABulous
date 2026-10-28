@@ -114,7 +114,7 @@ class TestTileRealAsset:
         # The .list switch matrix is read directly into the model, so no
         # bootstrap-CSV round trip is emitted.
         # IO pin-order YAML produced in the run directory.
-        pin_yaml = Path(flow.run_dir) / f"{TILE_NAME}_io_pin_order.yaml"
+        pin_yaml = Path(flow.run_dir) / "io_pin_order.yaml"
         assert pin_yaml.exists()
 
         # Downstream-facing config keys are populated.
