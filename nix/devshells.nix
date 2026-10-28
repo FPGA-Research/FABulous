@@ -38,14 +38,6 @@ let
     devshell.packages = allPackages;
     env = [
       {
-        name = "FAB_YOSYS_PATH";
-        value = envVars.FAB_YOSYS_PATH;
-      }
-      {
-        name = "GHDL_PREFIX";
-        value = envVars.GHDL_PREFIX;
-      }
-      {
         # tkinter only. librelane is deliberately absent so the venv's
         # (uv.lock-pinned) librelane is authoritative and overridable, not
         # shadowed by the flake input.
@@ -145,8 +137,6 @@ in
         fi
         unset VIRTUAL_ENV CONDA_PREFIX CONDA_DEFAULT_ENV
 
-        export FAB_YOSYS_PATH="${envVars.FAB_YOSYS_PATH}"
-        export GHDL_PREFIX="${envVars.GHDL_PREFIX}"
 
         export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
         . ${virtualenv}/bin/activate
@@ -179,7 +169,7 @@ in
           return 0 2>/dev/null || exit 0
         fi
 
-        TOOLS="fab-yosys:yosys nextpnr-generic:nextpnr openroad:openroad"
+        TOOLS="yosys:yosys nextpnr-generic:nextpnr openroad:openroad"
         MISSING=""
         for entry in $TOOLS; do
           cmd="''${entry%%:*}"

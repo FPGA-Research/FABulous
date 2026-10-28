@@ -82,7 +82,7 @@ To verify the environment is set up correctly, you can run:
 
 ```bash
 which openroad
-which fab-yosys
+which yosys
 ```
 
 You should see paths pointing to the Nix store, for example:

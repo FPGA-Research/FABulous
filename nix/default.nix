@@ -40,14 +40,6 @@ in
 {
   inherit ghdl;
 
-  # fab-yosys: bundles the ghdl-yosys-plugin (built in yosys.nix's postInstall)
-  # so `fab-yosys -m ghdl` works with no wrapper.
-  yosys = pkgs.callPackage ./tools/yosys.nix {
-    prefetchedSrc = srcs.yosys;
-    ghdl-bin = ghdl;
-    ghdlYosysPluginSrc = srcs.ghdl-yosys-plugin;
-  };
-
   nextpnr = buildTool "nextpnr";
   fabulator = buildTool "fabulator";
 }

@@ -52,7 +52,7 @@ jobs:
           nix develop --command bash -c "FABulous --version"
           nix develop --command bash -c "openroad -version"
           nix develop --command bash -c "yosys --version"
-          nix develop --command bash -c "fab-yosys -m ghdl -p help"
+          nix develop --command bash -c "yosys -m ghdl -p help"
 
       - name: End-to-end flow
         # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
