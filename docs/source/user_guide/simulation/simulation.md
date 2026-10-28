@@ -202,9 +202,8 @@ custom steps or adjust the flow for your project. See the
 [Taskfile documentation](https://taskfile.dev/usage/) for the full reference.
 :::
 
-:::{deprecated} next release
-The legacy `Makefile` in `Test/` is deprecated and will be removed in the
-next release. Please migrate to `Taskfile.yml`. The FABulous CLI
-(`run_simulation`) will prefer `Taskfile.yml` when present and fall back to
-`make` with a deprecation warning.
+:::{versionchanged} 3.0
+`run_simulation` runs only `Test/Taskfile.yml` and no longer falls back to the
+`Makefile` in `Test/`. A project without `Test/Taskfile.yml` can copy it from a
+project made by `FABulous create-project`.
 :::

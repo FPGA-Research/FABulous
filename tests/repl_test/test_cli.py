@@ -366,30 +366,13 @@ def test_run_simulation(
 
 
 @pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_makefile_fallback(
-    cli: FABulousREPL,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test simulation falls back to Makefile with deprecation warning."""
-    # Remove Taskfile.yml so it falls back to Makefile
-    (cli.projectDir / "Test" / "Taskfile.yml").unlink()
-
-    caplog.clear()
-    run_cmd(cli, SIM_CMD)
-
-    assert any("deprecated" in r.message.lower() for r in caplog.records)
-    assert any("Simulation finished" in r.message for r in caplog.records)
-
-
-@pytest.mark.usefixtures("simulation_mock")
-def test_run_simulation_no_taskfile_no_makefile(
+def test_run_simulation_without_taskfile_ignores_makefile(
     cli: FABulousREPL,
 ) -> None:
-    """Test simulation errors when neither Taskfile.yml nor Makefile exists."""
-    # Remove both Taskfile.yml and Makefile
+    """Simulation fails without Taskfile.yml even when a Makefile is present."""
     test_dir = cli.projectDir / "Test"
     (test_dir / "Taskfile.yml").unlink()
-    (test_dir / "Makefile").unlink(missing_ok=True)
+    (test_dir / "Makefile").touch()
 
     run_cmd(cli, SIM_CMD)
     assert cli.exit_code != 0

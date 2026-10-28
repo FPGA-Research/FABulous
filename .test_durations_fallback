@@ -1124,8 +1124,6 @@
   "tests/repl_test/test_cli.py::test_run_fab": 1.0800164639949799,
   "tests/repl_test/test_cli.py::test_run_fab_sv_extension": 1.0558416949934326,
   "tests/repl_test/test_cli.py::test_run_simulation": 1.1165257770335302,
-  "tests/repl_test/test_cli.py::test_run_simulation_makefile_fallback": 1.6992831770330667,
-  "tests/repl_test/test_cli.py::test_run_simulation_no_taskfile_no_makefile": 1.1536568000447005,
   "tests/repl_test/test_cli.py::test_run_simulation_with_design_flag": 2.057635002071038,
   "tests/repl_test/test_cli.py::test_run_simulation_with_extra_flags": 1.127495191001799,
   "tests/repl_test/test_cli.py::test_run_simulation_with_extra_nvc_flag": 1.1202763830660842,
