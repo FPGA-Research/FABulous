@@ -20,8 +20,8 @@ from loguru import logger
 
 
 @cache
-def _template_env() -> Environment:
-    """Return the shared Jinja environment for tool script templates.
+def template_env() -> Environment:
+    """Return the shared Jinja environment for generated scripts and constraints.
 
     Templates live in the ``fabulous/template`` package directory.
     `StrictUndefined` makes a missing variable a render error rather than an
@@ -86,7 +86,7 @@ class Tool(ABC):
         str
             The rendered script.
         """
-        return _template_env().get_template(template_name).render(**context)
+        return template_env().get_template(template_name).render(**context)
 
     @classmethod
     @abstractmethod
