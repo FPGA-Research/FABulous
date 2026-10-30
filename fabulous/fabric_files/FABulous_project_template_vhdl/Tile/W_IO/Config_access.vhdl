@@ -23,7 +23,7 @@ entity Config_access is
   );
   port (
     -- Pin0
-    C : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
+    C_bit : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
@@ -33,7 +33,7 @@ entity Config_access is
   attribute C_bit1 of Config_access   : entity is 1;
   attribute C_bit2 of Config_access   : entity is 2;
   attribute C_bit3 of Config_access   : entity is 3;
-  attribute EXTERNAL of C             : signal is "TRUE";
+  attribute EXTERNAL of C_bit         : signal is "TRUE";
   attribute GLOBAL of ConfigBits      : signal is "TRUE";
 end entity Config_access;
 
@@ -42,9 +42,9 @@ architecture Behavioral of Config_access is
 begin
 
   -- we just wire configuration bits to fabric top
-  C(0) <= ConfigBits(0);
-  C(1) <= ConfigBits(1);
-  C(2) <= ConfigBits(2);
-  C(3) <= ConfigBits(3);
+  C_bit(0) <= ConfigBits(0);
+  C_bit(1) <= ConfigBits(1);
+  C_bit(2) <= ConfigBits(2);
+  C_bit(3) <= ConfigBits(3);
 
 end architecture Behavioral;
