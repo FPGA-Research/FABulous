@@ -126,7 +126,7 @@ Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, syn
 
 ### Pin Config
 
-During the generation process there will be an extra file generated under the `macro` folder, which is the `io_pin_order.yaml`. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
+During the generation process there will be an extra file generated in each tile's directory, which is the `io_pin_order.yaml`. It can also be generated without hardening, with `gen_io_pin_config <tile>` for one tile or `gen_all_io_pin_config` for every tile. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
 
 ```yaml
 fabulous_generated_sha256: 3f9a...

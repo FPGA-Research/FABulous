@@ -473,12 +473,30 @@ class FabricGenCommandSet(ReplCommandSet):
 
         output_path = output
         if output_path is None:
-            output_path = repl.projectDir / "Tile" / tile / f"{tile}_io_pin_order.yaml"
+            output_path = tile_obj.tileDir.parent / "io_pin_order.yaml"
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         repl.fabulousAPI.gen_io_pin_order_config(tile_obj, output_path)
 
         logger.info(f"Generated IO pin config at {output_path}")
+        logger.info("IO pin config generation complete")
+
+    def do_gen_all_io_pin_config(self, _args: str) -> None:
+        """Generate the IO pin configuration YAML for every tile and supertile.
+
+        Each file is written to `io_pin_order.yaml` in the tile's
+        directory, where the fabric GDS flow reads it.
+
+        Parameters
+        ----------
+        _args : str
+            Command arguments (unused for this command).
+        """
+        repl = self._cmd
+        for tile in repl.fabulousAPI.fabric.get_all_unique_tiles():
+            output_path = tile.tileDir.parent / "io_pin_order.yaml"
+            repl.fabulousAPI.gen_io_pin_order_config(tile, output_path)
+            logger.info(f"Generated IO pin config at {output_path}")
         logger.info("IO pin config generation complete")
 
     @with_category(CMD_TOOLS)

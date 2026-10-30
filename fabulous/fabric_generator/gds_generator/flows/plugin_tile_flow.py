@@ -147,7 +147,7 @@ class FABulousTile(SequentialFlow):
             multiplexer_style=multiplexer_style,
         )
 
-        pin_yaml = Path(self.run_dir) / f"{tile_name}_io_pin_order.yaml"
+        pin_yaml = Path(self.run_dir) / "io_pin_order.yaml"
         external_side_value = self.config.get("FABULOUS_EXTERNAL_SIDE")
         try:
             external_port_side = (

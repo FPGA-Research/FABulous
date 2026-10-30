@@ -1,6 +1,7 @@
 """Generate IO pin order configuration files for FABulous tiles and fabrics."""
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
@@ -11,6 +12,7 @@ from loguru import logger
 from fabulous.custom_exception import StaleIOPinConfigError
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
@@ -47,11 +49,61 @@ class PinOrderConfig:
         }
 
 
+def _channel_order(fabric: Fabric) -> Callable[[TilePort], int]:
+    """Return a sort key placing a port by its channel's fabric-wide index.
+
+    Abutting tiles must emit the pins of a shared edge in the same order, or the
+    pins do not meet. The tile CSV row order differs between tile types, so the
+    order is taken from `fabric.commonWirePair`, which is the same for every
+    tile. A terminal tile names only its own end of a channel, so the other end
+    is resolved with `Fabric.resolve_wire_pair`, as the fabric wiring does.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose `commonWirePair` defines the channel order.
+
+    Returns
+    -------
+    Callable[[TilePort], int]
+        Sort key mapping a port to its channel's index.
+    """
+    index = {src: i for i, (src, _) in enumerate(fabric.commonWirePair)}
+
+    def key(port: TilePort) -> int:
+        source, _ = fabric.resolve_wire_pair(port.source_name, port.destination_name)
+        # Channels without a fabric-wide pair cross no shared edge; keep them last.
+        return index.get(source, len(index))
+
+    return key
+
+
+def _ordered(
+    ports: list[TilePort], port_order: Callable[[TilePort], int] | None
+) -> list[TilePort]:
+    """Return `ports` sorted by `port_order`, or unchanged when it is `None`.
+
+    Parameters
+    ----------
+    ports : list[TilePort]
+        Ports on one side of a tile.
+    port_order : Callable[[TilePort], int] | None
+        Sort key, or `None` to keep the tile CSV order.
+
+    Returns
+    -------
+    list[TilePort]
+        The ordered ports.
+    """
+    return ports if port_order is None else sorted(ports, key=port_order)
+
+
 def _serialize_tile_ports(
     tile: Tile,
     prefix: str = "",
     external_port_side: Side = Side.SOUTH,
     user_clk_side: Side = Side.SOUTH,
+    port_order: Callable[[TilePort], int] | None = None,
 ) -> dict[str, list[dict]]:
     """Serialize a single tile's ports for IO pin placement."""
     port_dict = {
@@ -66,7 +118,7 @@ def _serialize_tile_ports(
         user_clk_side.opposite.name: PinOrderConfig()([f"{prefix}UserCLKo"]).to_dict(),
     }
 
-    for port in tile.getNorthSidePorts():
+    for port in _ordered(tile.getNorthSidePorts(), port_order):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
                 tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
@@ -77,7 +129,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getEastSidePorts():
+    for port in _ordered(tile.getEastSidePorts(), port_order):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
                 tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
@@ -88,7 +140,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getSouthSidePorts():
+    for port in _ordered(tile.getSouthSidePorts(), port_order):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
                 tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
@@ -99,7 +151,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getWestSidePorts():
+    for port in _ordered(tile.getWestSidePorts(), port_order):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
                 tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
@@ -128,6 +180,7 @@ def _serialize_supertile_ports(
     prefix: str = "",
     external_port_sides: dict[tuple[int, int], Side] | None = None,
     user_clk_side: Side = Side.SOUTH,
+    port_order: Callable[[TilePort], int] | None = None,
 ) -> dict[str, dict[str, list[dict]]]:
     """Serialize SuperTile ports, processing only perimeter sides."""
     config_payload: dict[str, dict[str, list[dict]]] = {}
@@ -160,7 +213,7 @@ def _serialize_supertile_ports(
                 continue
             side = port_list[0].side_of_tile
             perimeter_sides.add(side)
-            for port in port_list:
+            for port in _ordered(port_list, port_order):
                 if regex := port.get_port_regex(indexed=True, prefix=tile_prefix):
                     config_payload[tile_key][side.name].append(
                         tile.pinOrderConfig[side]([regex]).to_dict()
@@ -299,6 +352,7 @@ def generate_IO_pin_order_config(
         yield the same mapping plus that key, as with a leading `---` marker.
     """
     user_clk_side = fabric.userCLKSide if fabric is not None else Side.SOUTH
+    port_order = _channel_order(fabric) if fabric is not None else None
     if isinstance(tile_or_super_tile, SuperTile):
         sides: dict[tuple[int, int], Side] = {}
         if (fabric is not None) and (
@@ -327,7 +381,7 @@ def generate_IO_pin_order_config(
             }
 
         payload = _serialize_supertile_ports(
-            tile_or_super_tile, prefix, sides, user_clk_side
+            tile_or_super_tile, prefix, sides, user_clk_side, port_order
         )
     else:
         if fabric is not None and (
@@ -340,7 +394,7 @@ def generate_IO_pin_order_config(
 
         payload = {
             "X0Y0": _serialize_tile_ports(
-                tile_or_super_tile, prefix, side, user_clk_side
+                tile_or_super_tile, prefix, side, user_clk_side, port_order
             ),
         }
 

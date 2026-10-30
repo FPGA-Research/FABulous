@@ -332,14 +332,14 @@ class TestFABulousTileRunAdapter:
         assert gen_pin_yaml.call_count == 1
         assert gen_pin_yaml.call_args.args[:2] == (
             mock_tile,
-            Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml",
+            Path(flow.run_dir) / "io_pin_order.yaml",
         )
         # Adapter must set the downstream keys.
         assert flow.config["DESIGN_NAME"] == "LUT4AB"
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
         assert str(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]).endswith(
-            "LUT4AB_io_pin_order.yaml"
+            "io_pin_order.yaml"
         )
         assert isinstance(flow.config, Config)
         super_run.assert_called_once()
@@ -532,7 +532,7 @@ class TestFABulousTileEndToEnd:
         assert (tile_workspace / f"{name}.v").exists()
         assert (tile_workspace / f"{name}_switch_matrix.v").exists()
         # ...and produced the IO pin-order YAML in the run directory.
-        pin_yaml = Path(flow.run_dir) / f"{name}_io_pin_order.yaml"
+        pin_yaml = Path(flow.run_dir) / "io_pin_order.yaml"
         assert pin_yaml.exists()
         # And the downstream-facing config keys must be set.
         assert flow.config["DESIGN_NAME"] == name

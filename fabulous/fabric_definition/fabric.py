@@ -36,6 +36,7 @@ from fabulous.fabric_definition.define import (
     MultiplexerStyle,
     Side,
 )
+from fabulous.fabric_definition.port import NULL_PORT_NAME
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
@@ -334,13 +335,9 @@ class Fabric:
                                 )
                             )
                     elif port.source_name != "NULL" and port.destination_name == "NULL":
-                        source_name = port.source_name
-                        destName = port.source_name
-                        # if sourcename is not in a common pair wire we assume
-                        # the source name is the same as destination name
-                        wire_pair = dict(self.commonWirePair)
-                        if source_name in wire_pair:
-                            destName = wire_pair[source_name]
+                        source_name, destName = self.resolve_wire_pair(
+                            port.source_name, port.destination_name
+                        )
 
                         value = min(max(port.x_offset, -1), 1)
                         for i in range(port.wire_count * abs(port.x_offset)):
@@ -701,6 +698,34 @@ class Fabric:
             return Side.WEST
 
         return None
+
+    def resolve_wire_pair(
+        self, source_name: str, destination_name: str
+    ) -> tuple[str, str]:
+        """Return a channel's `(source, destination)` names with a NULL end filled.
+
+        A terminal tile names only its own end of a channel and leaves the other
+        end `NULL`. The missing end is looked up in `commonWirePair`; a name
+        without a pair is taken to be the same at both ends.
+
+        Parameters
+        ----------
+        source_name : str
+            The channel's source name, or `NULL`.
+        destination_name : str
+            The channel's destination name, or `NULL`.
+
+        Returns
+        -------
+        tuple[str, str]
+            The source and destination names of the channel.
+        """
+        if source_name == NULL_PORT_NAME:
+            source_of = {dst: src for src, dst in self.commonWirePair}
+            return source_of.get(destination_name, destination_name), destination_name
+        if destination_name == NULL_PORT_NAME:
+            return source_name, dict(self.commonWirePair).get(source_name, source_name)
+        return source_name, destination_name
 
     def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         """Get list of unique tile types used in the fabric.

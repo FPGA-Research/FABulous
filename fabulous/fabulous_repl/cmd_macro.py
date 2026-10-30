@@ -265,7 +265,7 @@ class MacroFlowCommandSet(ReplCommandSet):
         """
         repl = self._cmd
         tile_dir = repl.projectDir / "Tile" / tile
-        pin_order_file = tile_dir / f"{tile}_io_pin_order.yaml"
+        pin_order_file = tile_dir / "io_pin_order.yaml"
 
         if not tile_dir.exists():
             logger.error(f"Tile directory {tile_dir} does not exist")

@@ -24,6 +24,8 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     _serialize_tile_ports,
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
 class TestPinOrderConfig:
@@ -477,6 +479,7 @@ class TestGenerateIOPinOrderConfig:
     def mock_fabric(self, mocker: MockerFixture) -> Fabric:
         """Create a mock fabric for testing."""
         fabric = mocker.MagicMock(spec=Fabric)
+        fabric.commonWirePair = []
         fabric.find_tile_positions.return_value = [(0, 0)]
         fabric.determine_border_side.return_value = Side.SOUTH
         return fabric
@@ -757,6 +760,7 @@ class TestGenerateIOPinOrderConfig:
         mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         mock_fabric = mocker.MagicMock(spec=Fabric)
+        mock_fabric.commonWirePair = []
         mock_fabric.find_tile_positions.return_value = [(2, 0)]
         mock_fabric.determine_border_side.return_value = Side.EAST
 
@@ -855,3 +859,39 @@ class TestPinOrderConfigIntegration:
         assert len(configs) == 2
         assert configs[0]["pins"] == [r"Signal1\[\d+\]"]
         assert configs[1]["pins"] == [r"Signal2\[\d+\]"]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"],
+        ["NORTH,Co,0,-1,Ci,1", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,N1BEG,0,-1,N1END,4"],
+    ],
+)
+def test_abutting_edges_match_regardless_of_csv_row_order(
+    rows: list[str], tmp_path: Path
+) -> None:
+    """Pins on a shared edge come out in the same channel order on both tiles."""
+    term_rows = [
+        "SOUTH,S1BEG,0,1,NULL,4",
+        "NORTH,NULL,0,-1,N1END,4",
+        "NORTH,NULL,0,-1,Ci,1",
+    ]
+
+    def tile(name: str, lines: list[str]) -> Tile:
+        return make_empty_tile(
+            name, [port for line in lines for port in parse_port_line(line)[0]]
+        )
+
+    term, body = tile("N_term", term_rows), tile("Body", rows)
+    fabric = make_fabric_from_grid([[term], [body]])
+    # The reference tile fixes the fabric-wide channel order; `body` varies.
+    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END"), ("Co", "Ci")]
+
+    def edge(t: Tile, side: Side) -> list[str]:
+        generate_IO_pin_order_config(t, tmp_path / f"{t.name}.yaml", fabric=fabric)
+        segments = yaml.safe_load((tmp_path / f"{t.name}.yaml").read_text())
+        return [seg["pins"][0] for seg in segments["X0Y0"][side.name]][:3]
+
+    assert edge(body, Side.NORTH) == [r"N1BEG\[\d+\]", r"S1END\[\d+\]", "Co"]
+    assert edge(term, Side.SOUTH) == [r"N1END\[\d+\]", r"S1BEG\[\d+\]", "Ci"]
