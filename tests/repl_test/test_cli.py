@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from librelane.state.state import State
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
@@ -908,6 +909,122 @@ class TestGenMacroAllTile:
 
         gen_tile_macro_mock.assert_not_called()
         assert cli.exit_code != 0
+
+
+class TestGenMacroResume:
+    """`--from`, `--run-tag` and `--last-run` select the LibreLane run to resume."""
+
+    COMMANDS = [
+        (f"gen_macro tile {TILE}", "genTileMacro"),
+        ("gen_macro all_tile", "genTileMacro"),
+        ("gen_macro stitch", "fabric_stitching"),
+    ]
+    COMMAND_IDS = ["tile", "all_tile", "stitch"]
+
+    def _patch(
+        self, cli: FABulousREPL, mocker: MockerFixture, api_method: str
+    ) -> MockerFixture:
+        mocker.patch(
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+        )
+        mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
+        for tile in cli.fabulousAPI.fabric.get_all_unique_tiles():
+            (cli.projectDir / "Tile" / tile.name / "macro" / "final_views").mkdir(
+                parents=True, exist_ok=True
+            )
+        return mocker.patch.object(cli.fabulousAPI, api_method)
+
+    @pytest.mark.parametrize(("command", "api_method"), COMMANDS, ids=COMMAND_IDS)
+    @pytest.mark.parametrize(
+        ("flags", "expected"),
+        [
+            ("", {"frm": None, "run_tag": None, "last_run": False}),
+            (
+                "--from OpenROAD.Floorplan --last-run",
+                {"frm": "OpenROAD.Floorplan", "run_tag": None, "last_run": True},
+            ),
+            (
+                "--from OpenROAD.Floorplan --run-tag RUN_1",
+                {"frm": "OpenROAD.Floorplan", "run_tag": "RUN_1", "last_run": False},
+            ),
+            ("--run-tag RUN_1", {"frm": None, "run_tag": "RUN_1", "last_run": False}),
+        ],
+        ids=["defaults", "from-last-run", "from-run-tag", "run-tag-only"],
+    )
+    def test_forwards_run_selection(
+        self,
+        cli: FABulousREPL,
+        mocker: MockerFixture,
+        command: str,
+        api_method: str,
+        flags: str,
+        expected: dict[str, object],
+    ) -> None:
+        api_mock = self._patch(cli, mocker, api_method)
+
+        run_cmd(cli, f"{command} {flags}".strip())
+
+        assert cli.exit_code == 0
+        assert api_mock.call_args_list
+        for call in api_mock.call_args_list:
+            assert {k: call.kwargs[k] for k in expected} == expected
+
+    def test_tile_flow_forks_the_selected_run(
+        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        mocker.patch(
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
+        )
+        mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
+        step_dir = tmp_path / "runs" / "RUN_A" / "03-openroad-floorplan"
+        step_dir.mkdir(parents=True)
+        (step_dir / "state_in.json").write_text(State(metrics={"x": 1}).dumps())
+        flow = mocker.MagicMock(design_dir=str(tmp_path))
+        mocker.patch.object(
+            type(cli.fabulousAPI),
+            "tile_flow_cls",
+            new_callable=mocker.PropertyMock,
+            return_value=mocker.MagicMock(return_value=flow),
+        )
+
+        run_cmd(cli, f"gen_macro tile {TILE} --from OpenROAD.Floorplan --last-run")
+
+        assert cli.exit_code == 0
+        flow.start.assert_called_once()
+        assert flow.start.call_args.kwargs["frm"] == "OpenROAD.Floorplan"
+        assert flow.start.call_args.kwargs["with_initial_state"].metrics["x"] == 1
+        assert "tag" not in flow.start.call_args.kwargs
+
+    @pytest.mark.parametrize(
+        ("command", "own_step", "other_flow_step"),
+        [
+            (
+                f"gen_macro tile {TILE}",
+                "FABulous.TileAreaOptimisation",
+                "OpenROAD.GlobalRouting",
+            ),
+            (
+                "gen_macro all_tile",
+                "FABulous.TileAreaOptimisation",
+                "OpenROAD.GlobalRouting",
+            ),
+            (
+                "gen_macro stitch",
+                "OpenROAD.GlobalRouting",
+                "FABulous.TileAreaOptimisation",
+            ),
+        ],
+        ids=["tile", "all_tile", "stitch"],
+    )
+    def test_from_completes_the_subcommand_flow_steps(
+        self, cli: FABulousREPL, command: str, own_step: str, other_flow_step: str
+    ) -> None:
+        line = f"{command} --from "
+
+        step_ids = cli.complete("", line, len(line), len(line)).to_strings()
+
+        assert own_step in step_ids
+        assert other_flow_step not in step_ids
 
 
 def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:

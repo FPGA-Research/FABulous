@@ -368,7 +368,24 @@ fabulous> start_klayout_gui --tile <tile_name>
 fabulous> start_klayout_gui --fabric
 ```
 
-Resuming the LibreLane flow from a failed step is not supported yet. When a tile or fabric run fails, use `start_openroad_gui --last-run --tile <tile_name>` (or `--fabric`) to open the last `.odb` of that run and inspect where it went wrong.
+When a tile or fabric run fails, `start_openroad_gui --last-run --tile <tile_name>` (or `--fabric`) opens the last `.odb` of that run to inspect where it went wrong.
+
+### Resuming a run
+
+`gen_macro tile`, `gen_macro all_tile` and `gen_macro stitch` restart a LibreLane run at any step with `--from <step>`. `--last-run` selects the newest earlier run as the source and `--run-tag <tag>` selects it by name. FABulous forks the source: the step receives the `state_in.json` it had in the source run and runs in a new run directory with a timestamp tag, so the source run stays unchanged.
+
+```bash
+fabulous> gen_macro tile LUT4AB --last-run --from FABulous.TileAreaOptimisation
+fabulous> gen_macro stitch --run-tag RUN_2026-10-30_12-00-00 --from KLayout.DRC
+```
+
+Pressing Tab after `--from` lists the step IDs of the flow. A step that appears more than once carries a suffix on its later occurrences, such as `OpenROAD.STAMidPNR-1`. The step must have run in the source run. The input state points at view files inside the source run, so deleting the source run breaks the fork.
+
+Tile runs live in `Tile/<tile>/macro/<mode>/runs/`, where `<mode>` is the `--optimise` mode, and fabric runs in `Fabric/macro/runs/`. `--last-run` on a tile therefore only finds a run made with the same `--optimise` mode. The config is rebuilt from the current flags on every invocation, so forking with different sizing flags gives the remaining steps a config the earlier steps did not run under.
+
+Without `--from`, `--last-run` and `--run-tag` reuse the selected run in place. LibreLane appends a full pass of the flow to it, starting from the newest `state_out.json` in the run. `--from` without either flag starts a new run on an empty state, which fails at the first input the step requires.
+
+`gen_macro full` has no `--from`. It restarts through `--tile-opt-info` and `--nlp-only` instead.
 
 ## Troubleshooting
 

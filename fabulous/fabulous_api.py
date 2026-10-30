@@ -9,6 +9,7 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
+from librelane.flows.flow import Flow
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -50,6 +51,7 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.helper import start_flow
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
@@ -632,6 +634,20 @@ class FABulous_API:
             external_port_side=external_port_side,
         )
 
+    @property
+    def tile_flow_cls(self) -> type[Flow]:
+        """The tile macro flow for the project's HDL language."""
+        if isinstance(self.writer, VHDLCodeGenerator):
+            return FABulousTileVHDLMacroFlow
+        return FABulousTileVerilogMacroFlow
+
+    @property
+    def fabric_flow_cls(self) -> type[Flow]:
+        """The fabric stitching flow for the project's HDL language."""
+        if isinstance(self.writer, VHDLCodeGenerator):
+            return FABulousFabricVHDLMacroFlow
+        return FABulousFabricMacroFlow
+
     def genTileMacro(
         self,
         tile_dir: Path,
@@ -645,17 +661,20 @@ class FABulous_API:
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
+        frm: str | None = None,
+        run_tag: str | None = None,
+        last_run: bool = False,
     ) -> None:
-        """Run the macro flow to harden a tile, in the project's HDL language."""
+        """Run the macro flow to harden a tile, in the project's HDL language.
+
+        `frm`, `run_tag` and `last_run` go to `start_flow`, as in
+        `fabric_stitching`. `last_run` picks the newest run under
+        `macro/<optimisation>/runs`.
+        """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        tile_flow_cls = (
-            FABulousTileVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousTileVerilogMacroFlow
-        )
-        flow = tile_flow_cls(
+        flow = self.tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             OptMode(optimisation),
@@ -665,7 +684,7 @@ class FABulous_API:
             override_config_path=config_override_path,
             **custom_config_overrides or {},
         )
-        result = flow.start()
+        result = start_flow(flow, frm=frm, run_tag=run_tag, last_run=last_run)
         if final_view:
             logger.info(f"Saving final view to {final_view}")
             result.save_snapshot(final_view)
@@ -686,6 +705,9 @@ class FABulous_API:
         *,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
+        frm: str | None = None,
+        run_tag: str | None = None,
+        last_run: bool = False,
         **custom_config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS.
@@ -706,6 +728,17 @@ class FABulous_API:
             Path to base configuration YAML file.
         config_override_path : Path | None, optional
             Additional configuration overrides.
+        frm : str | None
+            LibreLane step ID to start from. With `run_tag` or `last_run`, the
+            selected run is forked: `frm` gets the input state it had there and
+            runs in a new run directory. Without either, it starts a new run with
+            an empty state and fails on its first missing input.
+        run_tag : str | None
+            Run directory under `out_folder/runs` to fork with `frm`, or to create
+            or resume without it.
+        last_run : bool
+            Select the newest run under `out_folder/runs`. Setting `run_tag` too
+            raises `FlowException`.
         **custom_config_overrides : dict
             software configuration overrides.
         """
@@ -713,12 +746,7 @@ class FABulous_API:
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
 
-        fabric_flow_cls = (
-            FABulousFabricVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousFabricMacroFlow
-        )
-        flow = fabric_flow_cls(
+        flow = self.fabric_flow_cls(
             fabric=self.fabric,
             fabric_hdl_paths=[fabric_path],
             tile_macro_dirs=tile_macro_paths,
@@ -729,7 +757,7 @@ class FABulous_API:
             pdk=pdk,
             **custom_config_overrides,
         )
-        result = flow.start()
+        result = start_flow(flow, frm=frm, run_tag=run_tag, last_run=last_run)
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")

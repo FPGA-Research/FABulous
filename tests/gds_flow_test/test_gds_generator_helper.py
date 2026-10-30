@@ -1,5 +1,6 @@
 """Tests for GDS generator helper utilities."""
 
+import os
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -7,6 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from librelane.config.config import Config
+from librelane.state.state import State
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.helper import (
@@ -16,6 +18,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_area,
     round_die_dimension,
     round_up_decimal,
+    start_flow,
 )
 
 
@@ -359,3 +362,67 @@ class TestGetRoutingObstructions:
 
         with pytest.raises(ValueError, match="Invalid obstruction"):
             get_routing_obstructions(mock_config)
+
+
+def _write_step(run_dir: Path, step_dir_name: str, mark: int) -> None:
+    (run_dir / step_dir_name).mkdir(parents=True)
+    (run_dir / step_dir_name / "state_in.json").write_text(
+        State(metrics={"mark": mark}).dumps()
+    )
+
+
+class TestStartFlow:
+    """`start_flow` forks the selected run only when `frm` is given."""
+
+    @pytest.fixture
+    def runs(self, tmp_path: Path) -> Path:
+        """Two runs; `RUN_B` is newer and `RUN_A` resumed `OpenROAD.Floorplan`."""
+        _write_step(tmp_path / "runs" / "RUN_A", "03-openroad-floorplan", 1)
+        _write_step(tmp_path / "runs" / "RUN_A", "12-openroad-floorplan", 2)
+        _write_step(tmp_path / "runs" / "RUN_A", "05-openroad-floorplan-1", 3)
+        _write_step(tmp_path / "runs" / "RUN_B", "03-openroad-floorplan", 4)
+        os.utime(tmp_path / "runs" / "RUN_A", (0, 0))
+        return tmp_path
+
+    @pytest.mark.parametrize(
+        ("frm", "run_tag", "last_run"),
+        [
+            (None, None, False),
+            (None, "RUN_A", False),
+            (None, None, True),
+            ("OpenROAD.Floorplan", None, False),
+            ("OpenROAD.Floorplan", "RUN_A", True),
+        ],
+    )
+    def test_passes_through_without_fork(
+        self,
+        mocker: MockerFixture,
+        frm: str | None,
+        run_tag: str | None,
+        last_run: bool,
+    ) -> None:
+        flow = mocker.MagicMock()
+        start_flow(flow, frm=frm, run_tag=run_tag, last_run=last_run)
+        flow.start.assert_called_once_with(tag=run_tag, last_run=last_run, frm=frm)
+
+    @pytest.mark.parametrize(
+        ("run_tag", "last_run", "mark"),
+        [
+            pytest.param("RUN_A", False, 2, id="run-tag-latest-ordinal"),
+            pytest.param(None, True, 4, id="last-run-newest"),
+        ],
+    )
+    def test_forks_from_step_input_state(
+        self,
+        mocker: MockerFixture,
+        runs: Path,
+        run_tag: str | None,
+        last_run: bool,
+        mark: int,
+    ) -> None:
+        flow = mocker.MagicMock(design_dir=str(runs))
+        start_flow(flow, frm="OpenROAD.Floorplan", run_tag=run_tag, last_run=last_run)
+        flow.start.assert_called_once()
+        kwargs = flow.start.call_args.kwargs
+        assert kwargs.keys() == {"with_initial_state", "frm"}
+        assert kwargs["with_initial_state"].metrics["mark"] == mark
