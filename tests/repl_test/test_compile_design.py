@@ -17,15 +17,18 @@ def compile_cli(
 ) -> FABulousREPL:
     """Extend the standard cli fixture with compile-specific project files.
 
-    Creates Test/Taskfile.yml and a design file so that do_compile_design can find
-    everything it needs. get_context is patched on the module under test.
+    Creates a Test/Taskfile.yml in the current form, which passes the Yosys
+    library, and a design file so that do_compile_design can find everything it
+    needs. get_context is patched on the module under test.
     """
     test_dir = cli.projectDir / "Test"
     test_dir.mkdir(exist_ok=True)
     (test_dir / "Taskfile.yml").write_text(
         "tasks:\n"
         "  build-test-design: {}\n"
-        "  run-yosys: {}\n"
+        "  run-yosys:\n"
+        "    vars:\n"
+        "      SYNTH_CMD: 'synth_fabulous {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}}'\n"
         "  run-nextpnr: {}\n"
         "  run-bitgen: {}\n"
     )
