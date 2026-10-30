@@ -1,0 +1,461 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "Top")
+ (DATE "Tue Oct 20 23:15:41 2026")
+ (VENDOR "Parallax")
+ (PROGRAM "STA")
+ (VERSION "2.7.0")
+ (DIVIDER /)
+ (VOLTAGE 1.800::1.800)
+ (PROCESS "1.000::1.000")
+ (TEMPERATURE 25.000::25.000)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "Top")
+  (INSTANCE)
+  (DELAY
+   (ABSOLUTE
+    (INTERCONNECT I[3] Inst_LA_FABULOUS_LC/LUT4/_0_/S (0.000::0.000))
+    (INTERCONNECT I[2] Inst_LA_FABULOUS_LC/_3_/C (0.000::0.000))
+    (INTERCONNECT I[2] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT I[2] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT I[1] Inst_LA_FABULOUS_LC/_3_/A (0.000::0.000))
+    (INTERCONNECT I[1] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT I[1] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT I[1] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT I[1] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT I[0] Inst_LA_FABULOUS_LC/_5_/A0 (0.000::0.000))
+    (INTERCONNECT Ci Inst_LA_FABULOUS_LC/_3_/B (0.000::0.000))
+    (INTERCONNECT Ci Inst_LA_FABULOUS_LC/_5_/A1 (0.000::0.000))
+    (INTERCONNECT SR Inst_LA_FABULOUS_LC/_4_/A (0.000::0.000))
+    (INTERCONNECT SR Inst_LA_FABULOUS_LC/_7_/S (0.000::0.000))
+    (INTERCONNECT EN Inst_LA_FABULOUS_LC/_4_/SLEEP (0.000::0.000))
+    (INTERCONNECT CLK Inst_A_IOBUF/EN_q\$_DFF_P_/CLK (0.000::0.000))
+    (INTERCONNECT CLK Inst_A_IOBUF/IN_q\$_DFF_P_/CLK (0.000::0.000))
+    (INTERCONNECT CLK Inst_A_IOBUF/OUT_top_q\$_DFF_P_/CLK (0.000::0.000))
+    (INTERCONNECT CLK Inst_LA_FABULOUS_LC/_8_/CLK (0.000::0.000))
+    (INTERCONNECT LC_CFG[18] Inst_LA_FABULOUS_LC/_7_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[17] Inst_LA_FABULOUS_LC/_5_/S (0.000::0.000))
+    (INTERCONNECT LC_CFG[16] Inst_LA_FABULOUS_LC/_6_/S (0.000::0.000))
+    (INTERCONNECT LC_CFG[15] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[14] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[13] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[12] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[11] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[10] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[9] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[8] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[7] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[6] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[5] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[4] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[3] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[2] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT LC_CFG[1] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT LC_CFG[0] Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT IO_IN Inst_A_IOBUF/_1_/A0 (0.000::0.000))
+    (INTERCONNECT IO_IN Inst_A_IOBUF/IN_q\$_DFF_P_/D (0.000::0.000))
+    (INTERCONNECT IO_EN Inst_A_IOBUF/_2_/A0 (0.000::0.000))
+    (INTERCONNECT IO_EN Inst_A_IOBUF/EN_q\$_DFF_P_/D (0.000::0.000))
+    (INTERCONNECT OUT_top Inst_A_IOBUF/_0_/A0 (0.000::0.000))
+    (INTERCONNECT OUT_top Inst_A_IOBUF/OUT_top_q\$_DFF_P_/D (0.000::0.000))
+    (INTERCONNECT IO_CFG[2] Inst_A_IOBUF/_0_/S (0.000::0.000))
+    (INTERCONNECT IO_CFG[1] Inst_A_IOBUF/_1_/S (0.000::0.000))
+    (INTERCONNECT IO_CFG[0] Inst_A_IOBUF/_2_/S (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/EN_q\$_DFF_P_/Q Inst_A_IOBUF/_2_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/IN_q\$_DFF_P_/Q Inst_A_IOBUF/_1_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/OUT_top_q\$_DFF_P_/Q Inst_A_IOBUF/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/_0_/X IO_OUT (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/_1_/X IN_top (0.000::0.000))
+    (INTERCONNECT Inst_A_IOBUF/_2_/X EN_top (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/_0_/X Inst_LA_FABULOUS_LC/_6_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/_0_/X Inst_LA_FABULOUS_LC/_7_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/LUT_flop\$_DFFE_PP_/Q Inst_LA_FABULOUS_LC/_6_/A1 (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_3_/X Co (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_4_/X Inst_LA_FABULOUS_LC/_8_/GATE (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_5_/X Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_/S (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_6_/X O (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_7_/X Inst_LA_FABULOUS_LC/LUT_flop\$_DFFE_PP_/D (0.000::0.000))
+    (INTERCONNECT Inst_LA_FABULOUS_LC/_8_/GCLK Inst_LA_FABULOUS_LC/LUT_flop\$_DFFE_PP_/CLK (0.000::0.000))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__dfxtp_1")
+  (INSTANCE Inst_A_IOBUF/EN_q\$_DFF_P_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH CLK Q (0.277::0.277) (0.269::0.269))
+   )
+  )
+  (TIMINGCHECK
+    (HOLD (posedge D) (posedge CLK) (-0.028::-0.028))
+    (HOLD (negedge D) (posedge CLK) (-0.045::-0.045))
+    (SETUP (posedge D) (posedge CLK) (0.050::0.050))
+    (SETUP (negedge D) (posedge CLK) (0.101::0.101))
+    (WIDTH (posedge CLK) (0.155::0.155))
+    (WIDTH (negedge CLK) (0.195::0.195))
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__dfxtp_1")
+  (INSTANCE Inst_A_IOBUF/IN_q\$_DFF_P_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH CLK Q (0.277::0.277) (0.269::0.269))
+   )
+  )
+  (TIMINGCHECK
+    (HOLD (posedge D) (posedge CLK) (-0.028::-0.028))
+    (HOLD (negedge D) (posedge CLK) (-0.045::-0.045))
+    (SETUP (posedge D) (posedge CLK) (0.050::0.050))
+    (SETUP (negedge D) (posedge CLK) (0.101::0.101))
+    (WIDTH (posedge CLK) (0.155::0.155))
+    (WIDTH (negedge CLK) (0.195::0.195))
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__dfxtp_1")
+  (INSTANCE Inst_A_IOBUF/OUT_top_q\$_DFF_P_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH CLK Q (0.277::0.277) (0.269::0.269))
+   )
+  )
+  (TIMINGCHECK
+    (HOLD (posedge D) (posedge CLK) (-0.028::-0.028))
+    (HOLD (negedge D) (posedge CLK) (-0.045::-0.045))
+    (SETUP (posedge D) (posedge CLK) (0.050::0.050))
+    (SETUP (negedge D) (posedge CLK) (0.101::0.101))
+    (WIDTH (posedge CLK) (0.155::0.155))
+    (WIDTH (negedge CLK) (0.195::0.195))
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_A_IOBUF/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.074::0.074) (0.235::0.235))
+    (IOPATH A1 X (0.089::0.089) (0.251::0.251))
+    (IOPATH S X (0.148::0.148) (0.260::0.260))
+    (IOPATH S X (0.086::0.086) (0.259::0.259))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_A_IOBUF/_1_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.074::0.074) (0.235::0.235))
+    (IOPATH A1 X (0.089::0.089) (0.251::0.251))
+    (IOPATH S X (0.148::0.148) (0.260::0.260))
+    (IOPATH S X (0.086::0.086) (0.259::0.259))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_A_IOBUF/_2_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.074::0.074) (0.235::0.235))
+    (IOPATH A1 X (0.089::0.089) (0.251::0.251))
+    (IOPATH S X (0.148::0.148) (0.260::0.260))
+    (IOPATH S X (0.086::0.086) (0.259::0.259))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.114::0.115) (0.279::0.280))
+    (IOPATH A1 X (0.118::0.118) (0.291::0.291))
+    (IOPATH S X (0.174::0.174) (0.292::0.292))
+    (IOPATH S X (0.112::0.112) (0.292::0.292))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.101::0.102) (0.265::0.266))
+    (IOPATH A1 X (0.105::0.106) (0.277::0.277))
+    (IOPATH S X (0.162::0.162) (0.278::0.278))
+    (IOPATH S X (0.100::0.100) (0.278::0.278))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.101::0.102) (0.265::0.266))
+    (IOPATH A1 X (0.105::0.106) (0.277::0.277))
+    (IOPATH S X (0.162::0.162) (0.278::0.278))
+    (IOPATH S X (0.100::0.100) (0.278::0.278))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.089::0.089) (0.252::0.252))
+    (IOPATH A1 X (0.092::0.092) (0.265::0.265))
+    (IOPATH S X (0.231::0.232) (0.337::0.337))
+    (IOPATH S X (0.168::0.168) (0.333::0.333))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.092::0.092) (0.255::0.255))
+    (IOPATH A1 X (0.095::0.095) (0.268::0.268))
+    (IOPATH S X (0.234::0.234) (0.339::0.339))
+    (IOPATH S X (0.171::0.171) (0.335::0.336))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.104::0.105) (0.268::0.269))
+    (IOPATH A1 X (0.108::0.108) (0.279::0.280))
+    (IOPATH S X (0.165::0.165) (0.281::0.281))
+    (IOPATH S X (0.102::0.102) (0.281::0.281))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.089::0.089) (0.252::0.252))
+    (IOPATH A1 X (0.092::0.092) (0.265::0.265))
+    (IOPATH S X (0.231::0.232) (0.337::0.337))
+    (IOPATH S X (0.168::0.168) (0.333::0.333))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.092::0.092) (0.255::0.255))
+    (IOPATH A1 X (0.095::0.095) (0.268::0.268))
+    (IOPATH S X (0.234::0.234) (0.339::0.339))
+    (IOPATH S X (0.171::0.171) (0.335::0.336))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.104::0.105) (0.268::0.268))
+    (IOPATH A1 X (0.108::0.108) (0.279::0.280))
+    (IOPATH S X (0.165::0.165) (0.281::0.281))
+    (IOPATH S X (0.102::0.102) (0.281::0.281))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.101::0.102) (0.265::0.266))
+    (IOPATH A1 X (0.105::0.106) (0.277::0.277))
+    (IOPATH S X (0.162::0.162) (0.278::0.278))
+    (IOPATH S X (0.100::0.100) (0.278::0.278))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.089::0.089) (0.252::0.252))
+    (IOPATH A1 X (0.092::0.092) (0.265::0.265))
+    (IOPATH S X (0.231::0.232) (0.337::0.337))
+    (IOPATH S X (0.168::0.168) (0.333::0.333))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.092::0.092) (0.255::0.255))
+    (IOPATH A1 X (0.095::0.095) (0.268::0.268))
+    (IOPATH S X (0.234::0.234) (0.339::0.339))
+    (IOPATH S X (0.171::0.171) (0.335::0.336))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.104::0.105) (0.268::0.269))
+    (IOPATH A1 X (0.108::0.108) (0.279::0.280))
+    (IOPATH S X (0.165::0.165) (0.281::0.281))
+    (IOPATH S X (0.102::0.102) (0.281::0.281))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_lower/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.089::0.089) (0.252::0.252))
+    (IOPATH A1 X (0.092::0.092) (0.265::0.265))
+    (IOPATH S X (0.231::0.232) (0.337::0.337))
+    (IOPATH S X (0.168::0.168) (0.333::0.333))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT4/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/split_LUT\.LUTK_upper/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.092::0.092) (0.255::0.255))
+    (IOPATH A1 X (0.095::0.095) (0.268::0.268))
+    (IOPATH S X (0.234::0.234) (0.339::0.339))
+    (IOPATH S X (0.171::0.171) (0.335::0.336))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__dfxtp_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/LUT_flop\$_DFFE_PP_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH CLK Q (0.291::0.291) (0.283::0.283))
+   )
+  )
+  (TIMINGCHECK
+    (HOLD (posedge D) (posedge CLK) (-0.030::-0.030))
+    (HOLD (negedge D) (posedge CLK) (-0.057::-0.057))
+    (SETUP (posedge D) (posedge CLK) (0.052::0.053))
+    (SETUP (negedge D) (posedge CLK) (0.114::0.114))
+    (WIDTH (posedge CLK) (0.207::0.207))
+    (WIDTH (negedge CLK) (0.227::0.227))
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__maj3_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_3_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A X (0.106::0.106) (0.292::0.292))
+    (IOPATH B X (0.098::0.098) (0.284::0.284))
+    (IOPATH C X (0.110::0.110) (0.306::0.306))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__lpflow_inputiso1p_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_4_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A X (0.063::0.063) (0.183::0.183))
+    (IOPATH SLEEP X (0.066::0.066) (0.198::0.198))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_5_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.258::0.258) (0.386::0.386))
+    (IOPATH A1 X (0.260::0.260) (0.400::0.400))
+    (IOPATH S X (0.329::0.329) (0.413::0.413))
+    (IOPATH S X (0.264::0.264) (0.412::0.412))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_6_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.090::0.091) (0.251::0.251))
+    (IOPATH A1 X (0.089::0.089) (0.251::0.251))
+    (IOPATH S X (0.148::0.148) (0.260::0.260))
+    (IOPATH S X (0.086::0.086) (0.259::0.259))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__mux2_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_7_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.106::0.107) (0.270::0.270))
+    (IOPATH A1 X (0.093::0.093) (0.267::0.267))
+    (IOPATH S X (0.163::0.163) (0.280::0.280))
+    (IOPATH S X (0.100::0.100) (0.279::0.279))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sky130_fd_sc_hd__dlclkp_1")
+  (INSTANCE Inst_LA_FABULOUS_LC/_8_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH CLK GCLK (0.099::0.099) (0.097::0.097))
+   )
+  )
+  (TIMINGCHECK
+    (HOLD (posedge GATE) (posedge CLK) (-0.060::-0.060))
+    (HOLD (negedge GATE) (posedge CLK) (-0.134::-0.134))
+    (SETUP (posedge GATE) (posedge CLK) (0.107::0.107))
+    (SETUP (negedge GATE) (posedge CLK) (0.139::0.139))
+    (WIDTH (negedge CLK) (0.119::0.119))
+  )
+ )
+)
