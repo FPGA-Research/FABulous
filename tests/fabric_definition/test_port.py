@@ -4,6 +4,7 @@ import pytest
 
 from fabulous.fabric_definition.define import (
     IO,
+    Direction,
     FeatureType,
     FeatureValue,
     Side,
@@ -362,3 +363,43 @@ class TestTilePort:
             name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
         )
         assert port.tile is None
+
+
+class TestTilePortExpandTop:
+    """Tests for `TilePort.expand_port_info_by_name_top`."""
+
+    def test_multi_hop_port_returns_top_slice(self) -> None:
+        """A wire spanning two tiles exposes only its last `wire_count` wires."""
+        port = TilePort(
+            name="N2BEG",
+            io_direction=IO.OUTPUT,
+            width=8,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.NORTH,
+            source_name="N2BEG",
+            destination_name="N2END",
+            x_offset=0,
+            y_offset=-2,
+            wire_count=4,
+        )
+        assert port.expand_port_info_by_name_top(indexed=True) == [
+            "N2BEG[4]",
+            "N2BEG[5]",
+            "N2BEG[6]",
+            "N2BEG[7]",
+        ]
+
+    def test_jump_port_raises(self) -> None:
+        """A JUMP port has no top slice instead of yielding negative indices."""
+        port = TilePort(
+            name="J_BEG",
+            io_direction=IO.OUTPUT,
+            width=4,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.JUMP,
+            source_name="J_BEG",
+            destination_name="J_END",
+            wire_count=4,
+        )
+        with pytest.raises(ValueError, match="JUMP port"):
+            port.expand_port_info_by_name_top(indexed=True)
