@@ -454,7 +454,18 @@ class TilePort(Port):
         -------
         list[str]
             List of individual wire names for top-level connections.
+
+        Raises
+        ------
+        ValueError
+            If the port is a JUMP port. A JUMP wire does not leave the tile, so it
+            has no top slice; its offsets are 0 and the slice would start at a
+            negative index.
         """
+        if self.wire_direction == Direction.JUMP:
+            raise ValueError(
+                f"Port {self.name!r} is a JUMP port, which has no top slice of wires"
+            )
         if self.wire_direction == Direction.SJUMP:
             startIndex = 0
             total_wires = self.wire_count
