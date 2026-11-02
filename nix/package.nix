@@ -2,9 +2,9 @@
 # (FABulous, fabulous) wrapped so the EDA toolchain is on PATH and the runtime
 # environment is preset. This is the non-editable counterpart to the dev shell.
 #
-# `passthru.includedTools` and `passthru.env` are the composition surface: both
-# `fabulous-shell` and downstream projects read them instead of re-deriving the
-# toolchain, mirroring how `librelane.includedTools` is consumed.
+# `passthru.includedTools` and `passthru.env` carry the toolchain and runtime
+# environment, so anything built on this package reads them instead of
+# re-deriving them, as with `librelane.includedTools`.
 {
   lib,
   stdenv,
@@ -24,7 +24,6 @@
   zsh,
   gtkwave,
   nvc,
-  coreutils,
 }:
 
 let
@@ -40,9 +39,6 @@ let
     platforms == [ ] || builtins.elem stdenv.hostPlatform.system platforms;
 
   includedTools = [
-    # The venv's own `activate` calls `uname`, so coreutils is a hard
-    # requirement, not a convenience.
-    coreutils
     uv
     which
     git
@@ -82,10 +78,7 @@ runCommand "fabulous-${version}"
       homepage = "https://github.com/FPGA-Research/FABulous";
       license = lib.licenses.asl20;
       mainProgram = "FABulous";
-      platforms = [
-        "x86_64-linux"
-        "aarch64-darwin"
-      ];
+      inherit (fab-ghdl.meta) platforms;
     };
   }
   ''
