@@ -13,6 +13,8 @@
   # Names of every package uv.lock resolved. Read from the lock rather than
   # listed here, so it tracks `uv lock` with no Nix edit.
   lockedPackages,
+  # Build fixups from `./python.nix`.
+  pythonFixups,
   uv2nix,
   pyproject-nix,
   pyproject-build-systems,
@@ -22,8 +24,6 @@ final: prev:
 
 let
   inherit (final) lib;
-
-  pythonFixups = import ./python.nix { inherit lib; };
 
   hacks = final.callPackages pyproject-nix.build.hacks { };
 

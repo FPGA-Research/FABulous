@@ -1,5 +1,5 @@
 {
-  description = "A chip project built on FABulous";
+  description = "A chip or fabric project built on FABulous";
 
   # librelane, nix-eda and the nixpkgs closure they share come from the
   # fossi-foundation cache. FABulous's own derivations are not published to a

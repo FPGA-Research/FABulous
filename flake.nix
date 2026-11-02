@@ -102,8 +102,7 @@
       # source edits apply without a rebuild. Dev shells only.
       editableOverlay = workspace.mkEditablePyprojectOverlay { root = "$REPO_ROOT"; };
 
-      # Imported here as well as in the overlay, only so `checks` can see which
-      # packages the fixups claim to patch. Pure, so evaluating it twice is free.
+      # Shared by the overlay and `checks.python-fixups`.
       pythonFixups = import ./nix/overlay/python.nix { inherit lib; };
 
       lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
@@ -116,6 +115,7 @@
           pyproject-nix
           pyproject-build-systems
           lockedPackages
+          pythonFixups
           ;
         srcs = {
           ghdl-bin = {
