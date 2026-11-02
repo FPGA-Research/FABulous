@@ -38,9 +38,6 @@ let
         # `toNixpkgs` builds from wheels, so editable development stays on the
         # uv2nix virtualenv (see `python-env` in create-shell.nix).
         python-env = editableVenv;
-        # That virtualenv's interpreter has no tkinter; the withPackages
-        # environment consumers get includes it directly.
-        extra-python-path = [ "${pkgs.python3.pkgs.tkinter}/${pkgs.python3.sitePackages}" ];
         editable-root = toString repoRoot;
         materialize-plugin = true;
       }

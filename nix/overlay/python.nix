@@ -2,7 +2,7 @@
 #
 # uv.lock records *what* to install, never *how* to build it, so every package
 # that resolves to an sdist has to be told its build system here. Everything
-# else — versions, sources, hashes — comes from the lock and needs no Nix edit.
+# else (versions, sources, hashes) comes from the lock and needs no Nix edit.
 #
 # Split in two because the two halves have different audiences:
 #
@@ -58,7 +58,7 @@ let
       });
 
   # Every package `deps` patches. `checks.python-fixups` asserts each still
-  # resolves from uv.lock — a rename upstream otherwise turns a fixup into a
+  # resolves from uv.lock, since a rename upstream otherwise turns a fixup into a
   # silent no-op rather than an error (see the check in flake.nix).
   depFixups = {
     about-time = dropTopLevelLicense;
@@ -75,7 +75,7 @@ let
 
   # Reapplied after `toNixpkgs` conversion. That conversion reinstalls each
   # package from the wheel the uv2nix build produced, so anything a fixup did in
-  # `postInstall` is undone — only changes baked into the wheel survive. These
+  # `postInstall` is undone and only changes baked into the wheel survive. These
   # two collide on a file the wheel legitimately contains, so they need fixing
   # on both sides.
   nixpkgsFixups = [
@@ -93,7 +93,7 @@ let
   # put the alias back as a symlink: it collapses onto the original where the
   # two collide, so the same expression works on either kind of store.
   #
-  # The grep is the guard — if the entry point is ever renamed this fails here
+  # The grep is the guard: if the entry point is ever renamed this fails here
   # rather than silently leaving the collision in place.
   dropAliasScript = ''
     grep -q '^fabulous = "fabulous.fabulous:main"$' pyproject.toml
@@ -122,7 +122,7 @@ in
     final: prev:
     # Applied only where the package is present. Which packages a lock resolves
     # is a property of the workspace, and a downstream one legitimately differs,
-    # so absence is not an error *here* — `checks.python-fixups` is what holds
+    # so absence is not an error *here*. `checks.python-fixups` is what holds
     # this list to FABulous's own lock.
     lib.mapAttrs (name: fixup: fixup final prev.${name}) (
       lib.filterAttrs (name: _: prev ? ${name}) depFixups

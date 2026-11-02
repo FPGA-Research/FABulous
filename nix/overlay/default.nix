@@ -83,8 +83,8 @@ in
   };
 
   # An ordinary nixpkgs Python whose package set is uv.lock's, so FABulous
-  # composes the way any other Python package does — `withPackages`,
-  # `propagatedBuildInputs`, `.override` — instead of only as a sealed
+  # composes the way any other Python package does (`withPackages`,
+  # `propagatedBuildInputs`, `.override`) instead of only as a sealed
   # virtualenv. This is the surface downstream projects build on.
   #
   # The versions still come from uv.lock: `toNixpkgs` resolves each converted
@@ -114,8 +114,8 @@ in
     in
     python;
 
-  # What `fabulous` and `fabulous-shell` actually run: FABulous plus tkinter,
-  # which the CLI needs and which is not a uv.lock dependency because it ships
+  # What the `fabulous` wrapper runs: FABulous plus tkinter, which the CLI
+  # imports at startup and which is not a uv.lock dependency because it ships
   # with CPython everywhere except nixpkgs.
   fabulous-python-env = final.fabulous-python.withPackages (ps: [
     ps.fabulous-fpga
