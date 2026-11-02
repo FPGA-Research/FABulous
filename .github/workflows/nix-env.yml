@@ -79,7 +79,7 @@ jobs:
 
       - name: Build the uv.lock-matched Python environment
         # Builds fabulous-fpga's full dependency closure as ordinary nixpkgs
-        # Python packages, linked into one environment — the check that the
+        # Python packages, linked into one environment. This is the check that the
         # `toNixpkgs` conversion actually holds together. Runs on every
         # supported platform: macOS stores are frequently case-insensitive,
         # which is exactly where the `FABulous`/`fabulous` collision bites, so
