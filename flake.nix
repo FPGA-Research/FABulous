@@ -87,14 +87,15 @@
     let
       inherit (nixpkgs) lib;
 
+      ghdlBin = {
+        x86_64-linux = ghdl-bin-x86_64-linux;
+        aarch64-darwin = ghdl-bin-aarch64-darwin;
+      };
+
       # Only the systems a prebuilt GHDL tarball exists for. Claiming
       # `lib.systems.flakeExposed` would make `nix flake check` fail to evaluate
       # on every system that has no toolchain.
-      supportedSystems = [
-        "x86_64-linux"
-        "aarch64-darwin"
-      ];
-      forAllSystems = lib.genAttrs supportedSystems;
+      forAllSystems = lib.genAttrs (lib.attrNames ghdlBin);
 
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
@@ -108,7 +109,9 @@
       lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
     in
     {
-      overlays.default = import ./nix/overlay {
+      # FABulous's own attributes. They need the nix-eda, devshell and
+      # librelane overlays underneath, which `default` adds.
+      overlays.fabulous = import ./nix/overlay {
         inherit
           workspace
           uv2nix
@@ -118,10 +121,7 @@
           pythonFixups
           ;
         srcs = {
-          ghdl-bin = {
-            x86_64-linux = ghdl-bin-x86_64-linux;
-            aarch64-darwin = ghdl-bin-aarch64-darwin;
-          };
+          ghdl-bin = ghdlBin;
           yosys = yosys-src;
           ghdl-yosys-plugin = ghdl-yosys-plugin-src;
           nextpnr = nextpnr-src;
@@ -129,19 +129,21 @@
         };
       };
 
-      # The composition surface downstream projects build on: a nixpkgs instance
-      # carrying the EDA toolchain, librelane, and FABulous. A chip project adds
-      # this flake as one input and takes `pkgs.fabulous-shell` from here.
+      # Applies to any nixpkgs instance on its own.
+      overlays.default = lib.composeManyExtensions [
+        nix-eda.overlays.default
+        librelane.inputs.devshell.overlays.default
+        librelane.overlays.default
+        self.overlays.fabulous
+      ];
+
+      # A nixpkgs instance carrying the EDA toolchain, librelane, and FABulous,
+      # on the nixpkgs pin the fossi-foundation cache is built from.
       legacyPackages = forAllSystems (
         system:
         import nixpkgs {
           inherit system;
-          overlays = [
-            nix-eda.overlays.default
-            librelane.inputs.devshell.overlays.default
-            librelane.overlays.default
-            self.overlays.default
-          ];
+          overlays = [ self.overlays.default ];
         }
       );
 
@@ -182,10 +184,9 @@
 
           # Every fixup in `nix/overlay/python.nix` must still name a package
           # uv.lock resolves. Nix only forces an override when something depends
-          # on the package, so a rename upstream otherwise turns a fixup into a
-          # silent no-op rather than an error, as the `fasm` fixup did after that
-          # package became `fabulous-fasm`. Checked against the lock rather than
-          # the Python set, which also holds build-system-pkgs' packages.
+          # on the package, so a renamed package otherwise leaves its fixup a
+          # silent no-op. Checked against the lock rather than the Python set,
+          # which also holds build-system-pkgs' packages.
           stale = lib.filter (name: !(builtins.elem name lockedPackages)) pythonFixups.patchedPackages;
         in
         self.packages.${system}
