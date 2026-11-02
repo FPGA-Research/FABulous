@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/FPGA-Research/FABulous/main/docs/source/figs/FABulouslogo_wide_2.png" alt="FABulous logo" width="400">
+</p>
+
 # FABulous: an Embedded FPGA Framework
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
