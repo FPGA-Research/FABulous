@@ -351,6 +351,7 @@ exclude_patterns = [
 html_theme = "furo"
 
 html_logo = "figs/FABulouslogo_wide_2.png"
+html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
     # Sidebar
