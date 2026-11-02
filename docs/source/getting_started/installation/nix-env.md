@@ -97,7 +97,7 @@ If the commands point back to your system's default installation paths, the Nix 
 
 The sections above cover developing FABulous itself. If you are instead building a project _on top of_ FABulous, such as a chip or fabric that you harden to GDS, you do not vendor the toolchain yourself. You add FABulous's flake as an input, compose its overlay, and build your project shell from `pkgs.fabulous-shell`.
 
-FABulous exposes `overlays.default`, which contributes the following to any nixpkgs instance you apply it to:
+FABulous exposes `overlays.default`, which adds the following to any nixpkgs instance you apply it to. It brings the nix-eda, devshell and librelane overlays it builds on, and `overlays.fabulous` holds FABulous's attributes alone for a stack that already applies those.
 
 | Attribute | What it is |
 | --- | --- |
@@ -115,7 +115,9 @@ It is overridden the same way `librelane-shell` is, with the same argument names
 - `extra-packages`, the non-Python tools your project needs (simulators, waveform viewers, `make`), as a list.
 - `extra-python-packages`, your project's own Python packages, as a function `ps: [ ... ]`.
 - `extra-env`, additional environment variables, as a list of `{ name; value; }`.
-- `python-env`, the Python environment wholesale, covered under [Bringing your own uv.lock](#bringing-your-own-uvlock) below.
+- `python-env`, the Python environment wholesale, covered under [Bringing your own uv.lock](#bringing-your-own-uvlock) below. It replaces `extra-python-packages`, and passing both is an evaluation error.
+
+The shell keeps your `PYTHONPATH` and puts tkinter, which the FABulous CLI imports at startup, in front of it.
 
 `extra-python-packages` selects from `pkgs.fabulous-python`, described next: an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`.
 
@@ -141,10 +143,8 @@ Every attribute above is also a flake output, so `nix build github:FPGA-Research
     { self, fabulous, ... }:
     let
       system = "x86_64-linux";
-      # FABulous's own composed package set: nixpkgs plus nix-eda, librelane,
-      # and FABulous. `fabulous.overlays.default` expects those other overlays
-      # already applied, so prefer this unless you compose the full stack
-      # yourself.
+      # nixpkgs with `fabulous.overlays.default` applied, on the pin the
+      # fossi-foundation cache is built from.
       pkgs = fabulous.legacyPackages.${system};
     in
     {
