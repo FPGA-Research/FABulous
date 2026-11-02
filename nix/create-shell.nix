@@ -105,7 +105,10 @@ devshell.mkShell {
       if [ -z "''${REPO_ROOT:-}" ]; then
         export REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "${editable-root}")"
       fi
-      export PYTHONPATH="$PYTHONPATH:$REPO_ROOT"
+      # $LIBRELANE_EXTRA_PYTHONPATH is read at shell startup so out-of-tree
+      # librelane_plugin_* trees stay discoverable. builtins.getEnv at eval time
+      # is always empty under the flake's pure evaluation.
+      export PYTHONPATH="$PYTHONPATH:$REPO_ROOT''${LIBRELANE_EXTRA_PYTHONPATH:+:$LIBRELANE_EXTRA_PYTHONPATH}"
       ${materializePlugin}
     '';
   }

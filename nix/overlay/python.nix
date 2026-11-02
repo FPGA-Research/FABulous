@@ -63,7 +63,12 @@ let
   depFixups = {
     about-time = dropTopLevelLicense;
     alive-progress = dropTopLevelLicense;
-    librelane = setuptoolsBuild;
+    # The PyPI sdist builds with setuptools, the pinned git source poetry-core.
+    librelane = addBuildSystem {
+      setuptools = [ ];
+      wheel = [ ];
+      poetry-core = [ ];
+    };
     pyperclip = setuptoolsBuild;
     sdf-timing = setuptoolsScmBuild;
   };
