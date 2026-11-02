@@ -36,6 +36,15 @@ let
       d = src.lastModifiedDate;
     in
     "0-unstable-${lib.substring 0 4 d}-${lib.substring 4 2 d}-${lib.substring 6 2 d}";
+
+  # Tool sources must be commit pins. yosys stamps `rev` into its version, and
+  # an override without one would otherwise fail deep inside a build.
+  pinned =
+    name: src:
+    if src ? rev && builtins.match "[0-9a-f]{40}" src.rev != null then
+      src
+    else
+      throw "${name}: source is not pinned to a commit SHA (rev = ${src.rev or "none"}). Override it with a git or github input.";
 in
 {
   # Parameterised over the workspace rather than closed over FABulous's own:
@@ -63,11 +72,9 @@ in
       )
     );
 
-  # Re-exported so a downstream flake needs FABulous as its *only* input.
-  # Loading a workspace otherwise means taking uv2nix, pyproject-nix and
-  # build-system-pkgs as inputs too and keeping their revisions in step with the
-  # ones FABulous built its own set from; a mismatch there surfaces as an
-  # obscure eval error rather than as a version conflict.
+  # Re-exported so a downstream flake needs FABulous as its only input instead
+  # of also pinning uv2nix, pyproject-nix and build-system-pkgs in step with it.
+  # A mismatch there surfaces as an obscure eval error.
   loadFabulousWorkspace =
     workspaceRoot: uv2nix.lib.workspace.loadWorkspace { inherit workspaceRoot; };
 
@@ -76,16 +83,15 @@ in
   # interpreter identical to the one the rest of this overlay uses.
   fabulous-python-set = final.mkFabulousPythonSet {
     inherit workspace;
-    # Only meaningful for this repo's own workspace: it stamps the version onto
-    # a `fabulous-fpga` built from a source checkout. A downstream lock resolves
-    # `fabulous-fpga` from a released wheel, which already carries its version.
+    # Stamps the version onto a `fabulous-fpga` built from source. A lock that
+    # resolves `fabulous-fpga` to a released wheel needs none of it.
     overrides = [ pythonFixups.source ];
   };
 
   # An ordinary nixpkgs Python whose package set is uv.lock's, so FABulous
   # composes the way any other Python package does (`withPackages`,
   # `propagatedBuildInputs`, `.override`) instead of only as a sealed
-  # virtualenv. This is the surface downstream projects build on.
+  # virtualenv.
   #
   # The versions still come from uv.lock: `toNixpkgs` resolves each converted
   # package's dependencies from the set it is applied to, so converting the whole
@@ -96,12 +102,9 @@ in
     let
       converted = hacks.toNixpkgs {
         pythonSet = final.fabulous-python-set;
-        # Restricted to packages uv.lock actually resolved. `toNixpkgs` probes
-        # `isDerivation` on every candidate, and build-system-pkgs contributes
-        # fixups for packages absent from this lock (`oldest-supported-numpy`)
-        # that fail when probed. `&&` short-circuits before that happens.
-        packages =
-          name: builtins.elem name lockedPackages && !builtins.elem name pythonFixups.bootstrapPackages;
+        # Named explicitly, because build-system-pkgs adds entries absent from
+        # the lock (`oldest-supported-numpy`) that fail to evaluate.
+        packages = lib.subtractLists pythonFixups.bootstrapPackages lockedPackages;
       };
       python = final.python3.override {
         packageOverrides = lib.composeExtensions converted pythonFixups.nixpkgs;
@@ -133,7 +136,7 @@ in
   # Bundles the ghdl-yosys-plugin so `fab-yosys -m ghdl` works with no wrapper.
   # Installed under a `fab-` prefix so it never collides with a system yosys.
   fab-yosys = final.callPackage ../tools/yosys.nix {
-    src = srcs.yosys;
+    src = pinned "fab-yosys" srcs.yosys;
     version = unstableVersion srcs.yosys;
     ghdl-bin = final.fab-ghdl;
     ghdlYosysPluginSrc = srcs.ghdl-yosys-plugin;
@@ -142,12 +145,12 @@ in
   # Prefixed so composing this overlay does not silently replace nixpkgs'
   # nextpnr; the installed binary is still `nextpnr-generic`.
   fab-nextpnr = final.callPackage ../tools/nextpnr.nix {
-    src = srcs.nextpnr;
+    src = pinned "fab-nextpnr" srcs.nextpnr;
     version = unstableVersion srcs.nextpnr;
   };
 
   fabulator = final.callPackage ../tools/fabulator.nix {
-    src = srcs.fabulator;
+    src = pinned "fabulator" srcs.fabulator;
     version = unstableVersion srcs.fabulator;
   };
 

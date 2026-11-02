@@ -49,9 +49,8 @@ let
       (old: {
         # setuptools_scm derives the version from git metadata, which the
         # fetched source tree does not carry. Take the version uv.lock already
-        # resolved rather than a literal: a hand-written one goes stale on the
-        # next `uv lock` without failing anything (this read 0.0.post134 while
-        # the lock said 0.0.post136).
+        # resolved rather than a literal, which goes stale on the next `uv lock`
+        # without failing anything.
         env = (old.env or { }) // {
           SETUPTOOLS_SCM_PRETEND_VERSION = old.version;
         };
