@@ -210,6 +210,23 @@
         description = "A chip or fabric project built on FABulous";
       };
 
+      # The v2.2.0 consumer API, kept so flakes written against it still
+      # evaluate. New code should use `pkgs.fabulous-shell.override`.
+      lib = forAllSystems (system: {
+        mkConsumerShell =
+          {
+            extraPackages ? [ ],
+            extraPythonPackages ? (ps: [ ]),
+          }:
+          let
+            pkgs = self.legacyPackages.${system};
+          in
+          pkgs.fabulous-shell.override {
+            extra-packages = if builtins.isFunction extraPackages then extraPackages pkgs else extraPackages;
+            extra-python-packages = extraPythonPackages;
+          };
+      });
+
       formatter = forAllSystems (system: nix-eda.formatter.${system});
 
       apps = forAllSystems (
