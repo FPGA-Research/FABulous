@@ -19,46 +19,54 @@
   fabulous-python,
   fabulous,
   extra-packages ? [ ],
-  extra-python-packages ? (ps: [ ]),
-  # The environment to put on PATH. Defaults to FABulous plus whatever the
-  # caller asked for, built from `fabulous-python`. This repo's own `devShells`
-  # replace it wholesale with an editable uv2nix virtualenv, which is the one
-  # thing the converted set cannot express: `toNixpkgs` builds from wheels, and
-  # a wheel is by definition not an editable checkout.
-  python-env ? fabulous-python.withPackages (ps: [ ps.fabulous-fpga ] ++ extra-python-packages ps),
+  # `ps: [ ... ]`, selected from `fabulous-python`.
+  extra-python-packages ? null,
+  # A complete environment in place of FABulous plus `extra-python-packages`,
+  # such as a uv2nix virtualenv. An editable checkout needs one, because
+  # `toNixpkgs` builds from wheels and a wheel is not an editable checkout.
+  python-env ? null,
   extra-env ? [ ],
   # Repository checkout to make importable, for editable installs. Null for the
   # hermetic consumer shell, which has no checkout to resolve against.
   editable-root ? null,
-  # Generate `librelane_plugin_fabulous` into $REPO_ROOT on startup. Only ever
-  # true for an editable checkout *of this repo*: the hook imports FABulous's
-  # own `build_hooks`, which no downstream checkout has. A downstream venv gets
-  # the plugin from the wheel instead.
+  # Generate `librelane_plugin_fabulous` into a FABulous source checkout at
+  # $REPO_ROOT on startup. An installed wheel already carries the plugin.
   materialize-plugin ? false,
-  # Additional `devshell.startup` / `devshell.interactive` entries. Used by this
-  # repo's own shells; downstream projects should not need them.
+  # Additional `devshell.startup` / `devshell.interactive` entries.
   extra-startup ? { },
   extra-interactive ? { },
 }:
 
 assert lib.assertMsg (!materialize-plugin || editable-root != null)
   "fabulous-shell: materialize-plugin needs editable-root, because the plugin is generated into $REPO_ROOT.";
+assert lib.assertMsg (python-env == null || extra-python-packages == null)
+  "fabulous-shell: extra-python-packages has no effect when python-env is given. Add the packages to python-env instead.";
 
 let
+  pythonEnv =
+    if python-env != null then
+      python-env
+    else
+      fabulous-python.withPackages (
+        ps: [ ps.fabulous-fpga ] ++ lib.optionals (extra-python-packages != null) (extra-python-packages ps)
+      );
+
   inherit (fabulous.passthru) includedTools;
 
   # The FABulous CLI imports tkinter at startup, and neither a uv.lock nor a
   # uv2nix virtualenv can carry it, so the shell supplies it for any
   # `python-env`. The checkout is appended by the startup hook once $REPO_ROOT
   # is known.
-  pythonPath = "${fabulous-python.pkgs.tkinter}/${fabulous-python.sitePackages}";
+  tkinterPath = "${fabulous-python.pkgs.tkinter}/${fabulous-python.sitePackages}";
 
   # `librelane_plugin_fabulous` is generated at build time. pip/uv build from
   # the checkout, so an editable install writes it straight there; Nix builds in
   # a sandboxed copy of the source that is discarded, leaving nothing for the
-  # editable finder to import. Generate it on startup instead.
+  # editable finder to import. Generate it on startup instead. Skipped for the
+  # read-only store copy and for an installed wheel's site-packages, which
+  # `FABulous nix-env` passes as $REPO_ROOT and which has no `build_hooks.py`.
   materializePlugin = lib.optionalString materialize-plugin ''
-    if [ -w "$REPO_ROOT" ]; then
+    if [ -w "$REPO_ROOT" ] && [ -f "$REPO_ROOT/build_hooks.py" ]; then
       python -c "import sys; sys.path.insert(0, '$REPO_ROOT'); import build_hooks; build_hooks.materialize_librelane_plugin()"
     fi
   '';
@@ -67,7 +75,7 @@ let
 in
 
 devshell.mkShell {
-  devshell.packages = [ python-env ] ++ includedTools ++ extra-packages;
+  devshell.packages = [ pythonEnv ] ++ includedTools ++ extra-packages;
 
   # Taken wholesale from `fabulous.passthru.env` rather than re-spelled, so a
   # variable added to the wrapper's runtime environment reaches every shell
@@ -76,13 +84,25 @@ devshell.mkShell {
     lib.mapAttrsToList (name: value: { inherit name value; }) (
       fabulous.passthru.env
       // {
-        PYTHONPATH = pythonPath;
         PYTHONNOUSERSITE = "1";
         UV_NO_SYNC = "1";
-        UV_PYTHON = "${python-env}/bin/python";
+        UV_PYTHON = "${pythonEnv}/bin/python";
         UV_PYTHON_DOWNLOADS = "never";
       }
     )
+    ++ [
+      {
+        name = "PYTHONPATH";
+        # A consumer shell keeps the caller's PYTHONPATH. An editable shell
+        # replaces it, because `FABulous nix-env` is entered from a shell that
+        # may carry another Python's paths.
+        eval =
+          if editable-root == null then
+            ''"${tkinterPath}''${PYTHONPATH:+:$PYTHONPATH}"''
+          else
+            ''"${tkinterPath}"'';
+      }
+    ]
     ++ extra-env;
 
   devshell.startup = {
