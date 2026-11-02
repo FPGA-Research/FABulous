@@ -25,17 +25,7 @@
   # replace it wholesale with an editable uv2nix virtualenv, which is the one
   # thing the converted set cannot express: `toNixpkgs` builds from wheels, and
   # a wheel is by definition not an editable checkout.
-  python-env ? fabulous-python.withPackages (
-    ps:
-    [
-      ps.fabulous-fpga
-      ps.tkinter
-    ]
-    ++ extra-python-packages ps
-  ),
-  # Extra site-packages directories to prepend. Only needed alongside a
-  # `python-env` that is a uv2nix virtualenv, whose interpreter has no tkinter.
-  extra-python-path ? [ ],
+  python-env ? fabulous-python.withPackages (ps: [ ps.fabulous-fpga ] ++ extra-python-packages ps),
   extra-env ? [ ],
   # Repository checkout to make importable, for editable installs. Null for the
   # hermetic consumer shell, which has no checkout to resolve against.
@@ -52,16 +42,16 @@
 }:
 
 assert lib.assertMsg (!materialize-plugin || editable-root != null)
-  "fabulous-shell: materialize-plugin needs editable-root — the plugin is generated into $REPO_ROOT.";
+  "fabulous-shell: materialize-plugin needs editable-root, because the plugin is generated into $REPO_ROOT.";
 
 let
   inherit (fabulous.passthru) includedTools;
 
-  # `python-env` puts its own site-packages on the interpreter's path, so
-  # nothing has to be reconstructed here. Only the extras a virtualenv-shaped
-  # env cannot carry get prepended, and the checkout is deliberately absent:
-  # it is known only once the startup hook has resolved $REPO_ROOT.
-  pythonPath = lib.concatStringsSep ":" extra-python-path;
+  # The FABulous CLI imports tkinter at startup, and neither a uv.lock nor a
+  # uv2nix virtualenv can carry it, so the shell supplies it for any
+  # `python-env`. The checkout is appended by the startup hook once $REPO_ROOT
+  # is known.
+  pythonPath = "${fabulous-python.pkgs.tkinter}/${fabulous-python.sitePackages}";
 
   # `librelane_plugin_fabulous` is generated at build time. pip/uv build from
   # the checkout, so an editable install writes it straight there; Nix builds in

@@ -96,10 +96,9 @@ runCommand "fabulous-${version}"
     # Python environment, not the flake input, so uv.lock controls its version.
     #
     # `fabulous` is the lowercase alias of `FABulous`; both come from the same
-    # entry point. The existence guard keeps this from failing on an
-    # environment that is missing one of the three.
+    # entry point. makeWrapper fails on a missing target, so a dropped entry
+    # point fails this build rather than leaving `apps.librelane` dangling.
     for prog in FABulous fabulous librelane; do
-      [ -e ${fabulous-python-env}/bin/$prog ] || continue
       makeWrapper ${fabulous-python-env}/bin/$prog $out/bin/$prog \
         --prefix PATH : ${lib.makeBinPath includedTools} \
         --set FAB_YOSYS_PATH ${env.FAB_YOSYS_PATH} \

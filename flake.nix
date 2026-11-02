@@ -105,6 +105,8 @@
       # Imported here as well as in the overlay, only so `checks` can see which
       # packages the fixups claim to patch. Pure, so evaluating it twice is free.
       pythonFixups = import ./nix/overlay/python.nix { inherit lib; };
+
+      lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
     in
     {
       overlays.default = import ./nix/overlay {
@@ -113,8 +115,8 @@
           uv2nix
           pyproject-nix
           pyproject-build-systems
+          lockedPackages
           ;
-        lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
         srcs = {
           ghdl-bin = {
             x86_64-linux = ghdl-bin-x86_64-linux;
@@ -181,9 +183,10 @@
           # Every fixup in `nix/overlay/python.nix` must still name a package
           # uv.lock resolves. Nix only forces an override when something depends
           # on the package, so a rename upstream otherwise turns a fixup into a
-          # silent no-op rather than an error — which is exactly what the `fasm`
-          # fixup did after that package became `fabulous-fasm`.
-          stale = lib.filter (name: !(pkgs.fabulous-python-set ? ${name})) pythonFixups.patchedPackages;
+          # silent no-op rather than an error, as the `fasm` fixup did after that
+          # package became `fabulous-fasm`. Checked against the lock rather than
+          # the Python set, which also holds build-system-pkgs' packages.
+          stale = lib.filter (name: !(builtins.elem name lockedPackages)) pythonFixups.patchedPackages;
         in
         self.packages.${system}
         // {
