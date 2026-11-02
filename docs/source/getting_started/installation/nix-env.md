@@ -177,20 +177,20 @@ pkgs.fabulous-python.pkgs.fabulous-fpga            # as a propagatedBuildInput
 pkgs.fabulous-python-env                           # FABulous + tkinter, prebuilt
 ```
 
-The conversion is generated from `uv.lock`, so `uv lock` on FABulous's side is the only thing that moves it — there is no hand-written list of packages or versions to keep in step.
+The conversion is generated from `uv.lock`, so `uv lock` on FABulous's side is the only thing that moves it. No hand-written list of packages or versions has to be kept in step.
 
 Scoping matters here: the converted packages live on this interpreter only. `pkgs.python3` in the same nixpkgs instance is untouched, so applying FABulous's overlay does not change the Python anything else in your flake builds against.
 
 Three packages deliberately keep nixpkgs' versions rather than the lock's: `wheel`, `packaging` and `tomli`. nixpkgs' own `buildPythonPackage` is built from them, so converting them would require them to build themselves. All three are build tooling rather than anything FABulous imports, and nixpkgs' versions satisfy its constraints.
 
 ```{note}
-FABulous ships both a `FABulous` and a `fabulous` command, which are one path rather than two on a case-insensitive `/nix` — the kind of store some macOS installs end up with. The wheel therefore carries only the canonical `FABulous`, and the alias is added afterwards as a symlink, so it collapses onto the original there instead of colliding with it. Both spellings work on either kind of store; only the link count differs.
+FABulous ships both a `FABulous` and a `fabulous` command, which are one path on a case-insensitive `/nix`, the kind of store some macOS installs end up with. FABulous's own build therefore drops the alias from the wheel and adds it back as a symlink, which collapses onto the original there instead of colliding with it. This covers `fabulous-python`, `fabulous` and `fabulous-shell`. A `python-env` built from your own `uv.lock` installs the released wheel without this fix, and that route is untested on a case-insensitive store.
 ```
 
 (bringing-your-own-uvlock)=
 ### Bringing your own uv.lock
 
-`extra-python-packages` covers a project whose Python dependencies FABulous's lock already resolves. When that is not true — you need a package the lock does not contain, or a different version of one it pins — build the environment from your own `uv.lock` instead and pass it as `python-env`.
+`extra-python-packages` covers a project whose Python dependencies FABulous's lock already resolves. When you need a package the lock does not contain, or a different version of one it pins, build the environment from your own `uv.lock` instead and pass it as `python-env`.
 
 Your lock resolves `fabulous-fpga` as an ordinary dependency alongside your own, so `uv` settles every shared version in a single resolution and a real conflict surfaces as a `uv` resolution error rather than at runtime:
 
@@ -212,8 +212,8 @@ in
 
 | Attribute | What it does |
 | --- | --- |
-| `loadFabulousWorkspace` | Loads a `uv.lock` into a uv2nix workspace. Re-exported so FABulous stays your only flake input — otherwise you would take `uv2nix`, `pyproject-nix` and `build-system-pkgs` as inputs too and have to keep their revisions in step with the ones FABulous built against. |
-| `mkFabulousPythonSet` | Turns that workspace into a Python package set with FABulous's build fixups already composed in. Takes `sourcePreference` (default `"wheel"`) and `overrides`, a list of extra uv2nix overlays applied last — that is where `workspace.mkEditablePyprojectOverlay` goes if your own sources should be editable. |
+| `loadFabulousWorkspace` | Loads a `uv.lock` into a uv2nix workspace. Re-exported so FABulous stays your only flake input. Otherwise you would take `uv2nix`, `pyproject-nix` and `build-system-pkgs` as inputs too and have to keep their revisions in step with the ones FABulous built against. |
+| `mkFabulousPythonSet` | Turns that workspace into a Python package set with FABulous's build fixups already composed in. Takes `sourcePreference` (default `"wheel"`) and `overrides`, a list of extra uv2nix overlays applied last. `workspace.mkEditablePyprojectOverlay` goes there if your own sources should be editable. |
 
 This route trades away the nixpkgs composability above: the result is a sealed virtualenv, not a Python set, so it cannot be passed to `withPackages` or taken as a `propagatedBuildInput`. Prefer `extra-python-packages` unless you specifically need your own lock.
 
