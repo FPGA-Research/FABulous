@@ -41,6 +41,12 @@ if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 MAX_BITBYTES = 16384
+# Angle brackets would be read as loguru colour tags when logged.
+PRE_2_PROJECT_MIGRATION = (
+    "Create a new project with `FABulous create-project NEW_PROJECT_DIR -w verilog` "
+    "(or `-w vhdl`), then copy `fabric.csv`, `Tile/` and `user_design/` from the old "
+    "project into it."
+)
 
 # Yosys master broke FABulous; pin the OSS-CAD-Suite install to a known-good
 # release. Set to None to track the latest nightly again.
@@ -647,10 +653,7 @@ def update_project_version(project_dir: Path) -> bool:
         raise ProjectUpgradeError(
             f"{env_file} has no FAB_PROJ_VERSION, so the project was not created by "
             "FABulous 2 or later, and projects from FABulous 1 cannot be upgraded. "
-            # Angle brackets would be read as loguru colour tags when logged.
-            "Create a new project with `FABulous create-project NEW_PROJECT_DIR -w "
-            "verilog` (or `-w vhdl`), then copy `fabric.csv`, `Tile/` and "
-            "`user_design/` from this project into it."
+            + PRE_2_PROJECT_MIGRATION
         )
     if Version(project_version).major != package_version.major:
         logger.error(

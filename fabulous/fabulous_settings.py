@@ -73,7 +73,8 @@ class FABulousSettings(BaseSettings):
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
-    proj_version: Version = Version(meta_version("FABulous-FPGA"))
+    # None when the project sets no FAB_PROJ_VERSION, which no 2.x project lacks.
+    proj_version: Version | None = None
     version: Version = Field(
         default=Version(meta_version("FABulous-FPGA")),
         deprecated=True,

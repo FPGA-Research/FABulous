@@ -3,6 +3,7 @@
 import hashlib
 import re
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -108,7 +109,7 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         models_pack_file = project_dir / "models_pack.v"
         models_pack_file.touch()
         set_key(env_file, "FAB_PROJ_LANG", "verilog")
-        set_key(env_file, "FAB_PROJ_VERSION", "1.0.0")
+        set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
         set_key(env_file, "FAB_MODELS_PACK", str(models_pack_file))
         set_key(env_file, "FAB_PROJ_DIR", str(project_dir))
 

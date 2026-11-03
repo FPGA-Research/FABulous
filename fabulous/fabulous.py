@@ -24,6 +24,7 @@ from fabulous.custom_exception import PipelineCommandError, ProjectUpgradeError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import (
+    PRE_2_PROJECT_MIGRATION,
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -262,28 +263,53 @@ def common_options(
         _log_settings_validation_error(e, resolved_dir)
         raise typer.Exit(1) from None
 
+    # update-project-version is how an outdated project gets current.
+    if subcommand != "update-project-version":
+        check_version_compatibility()
 
-def check_version_compatibility(_: Path) -> None:
-    """Check version compatibility between package and project."""
+
+def check_version_compatibility() -> None:
+    """Stop on a project this FABulous cannot run and warn on an outdated one.
+
+    Raises
+    ------
+    typer.Exit
+        If the project sets no `FAB_PROJ_VERSION`, comes from an older major
+        version, or is newer than the installed package.
+    """
     settings = get_context()
     project_version = settings.proj_version
     package_version = Version(version("FABulous-FPGA"))
 
+    if project_version is None:
+        logger.error(
+            f"{settings.proj_dir} sets no FAB_PROJ_VERSION, so it was not created by "
+            f"FABulous 2 or later, and FABulous {package_version} cannot run "
+            f"projects from FABulous 1. {PRE_2_PROJECT_MIGRATION}"
+        )
+        raise typer.Exit(1)
+
+    if project_version.major < package_version.major:
+        logger.error(
+            f"{settings.proj_dir} was created by FABulous {project_version}, and "
+            f"FABulous {package_version} cannot run projects from an older major "
+            f"version. {PRE_2_PROJECT_MIGRATION}"
+        )
+        raise typer.Exit(1)
+
     if package_version.release < project_version.release:
         logger.error(
-            f"Version incompatible! FABulous-FPGA version: {package_version}, "
-            f"Project version: {project_version}\n"
-            r'Please run "FABulous \<project_dir> --update-project-version" '
-            r"to update the project version."
+            f"{settings.proj_dir} was created by FABulous {project_version}, which is "
+            f"newer than the installed FABulous {package_version}. Install FABulous "
+            f"{project_version} or newer."
         )
-        raise typer.Exit(1) from None
+        raise typer.Exit(1)
 
-    if project_version.major != package_version.major:
-        logger.error(
-            f"Major version mismatch! FABulous-FPGA major version: "
-            f"{package_version.major}, Project major version: {project_version.major}\n"
-            "This may lead to compatibility issues. Please ensure the project is "
-            "compatible with the current FABulous-FPGA version."
+    if project_version.release < package_version.release:
+        logger.warning(
+            f"{settings.proj_dir} was created by FABulous {project_version}. Run "
+            f"`FABulous -p {settings.proj_dir} update-project-version` to upgrade it "
+            f"to FABulous {package_version}."
         )
 
 

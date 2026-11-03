@@ -57,6 +57,12 @@ changing the project if:
 
 Running the upgrade again on an upgraded project changes nothing.
 
+Every `FABulous` command except `update-project-version` checks
+`FAB_PROJ_VERSION` when it loads the project. It warns when the project comes
+from an older release of the same major version. It stops when the project sets
+no version, comes from an older major version, or is newer than the installed
+FABulous.
+
 The upgrade does not support projects from FABulous 1. Every FABulous release
 since 2.0.0b1 writes `FAB_PROJ_VERSION` to `.FABulous/.env`, so the upgrade
 refuses a project without it and changes nothing. To move such a project to the

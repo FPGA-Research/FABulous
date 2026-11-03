@@ -69,7 +69,7 @@ class TestFABulousSettings:
         # Note: oss_cad_suite might be set from previous tests or environment
         assert isinstance(settings.proj_version_created, Version)
         assert settings.proj_version_created == Version("0.0.1")  # Default value
-        assert isinstance(settings.proj_version, Version)
+        assert settings.proj_version is None
         assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
         assert settings.pdk_root is None
