@@ -344,12 +344,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # output signal name is same as the output port name
             if superTile:
                 ports_around = superTile.get_ports_around_tile()
-                cord = [
-                    (i.split(",")[0], i.split(",")[1])
-                    for i in list(ports_around.keys())
-                ]
-                cord = list(zip(cord, ports_around.values(), strict=False))
-                for (i, j), around in cord:
+                for key, around in ports_around.items():
+                    i, j = key.split(",")
                     for ports in around:
                         for port in ports:
                             if port.is_output and port.name != "NULL":

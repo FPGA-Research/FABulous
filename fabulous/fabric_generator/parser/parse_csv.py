@@ -1177,11 +1177,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
             max_frames_per_col=maxFramesPerCol,
         )
 
-    common_wire_pair = list(dict.fromkeys(common_wire_pair))
-    common_wire_pair = [
-        (i, j) for (i, j) in common_wire_pair if "NULL" not in i and "NULL" not in j
-    ]
-
     return Fabric(
         fabric_dir=fName,
         tile=fabricTiles,
