@@ -84,6 +84,7 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
         test_module_path: Path,
         *,
         coverage: bool = False,
+        parameters: dict[str, int] | None = None,
     ) -> None:
         """Build and run a cocotb simulation.
 
@@ -122,6 +123,7 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
         os.environ.setdefault("COCOTB_RESOLVE_X", "ZEROS")
 
         runner = get_runner(sim)
+        parameters = parameters or {}
 
         test_dir = tmp_path / "tests"
         test_dir.mkdir(exist_ok=True)
@@ -141,6 +143,7 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
                 defines={"NOTIMESCALE": 1},
                 timescale=("1ns", "1ps"),
                 build_args=build_args,
+                parameters=parameters,
             )
         else:
             # GHDL converts identifiers to lowercase for elaboration and execution
@@ -153,6 +156,7 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
                 defines={"NOTIMESCALE": 1},
                 build_args=GHDL_FLAGS,
                 timescale=("1ns", "1ps"),
+                parameters=parameters,
             )
 
             # GHDL mcode backend requires running from the build directory.
@@ -197,7 +201,6 @@ def sjump_port(
     case the width fix in `expand_port_info*` has to handle.
     """
     return TilePort(
-        name=name,
         io_direction=in_out,
         width=wire_count,
         side_of_tile=Side.ANY,
@@ -207,6 +210,7 @@ def sjump_port(
         y_offset=y_offset,
         destination_name=name if in_out == IO.INPUT else "NULL",
         wire_count=wire_count,
+        name=name,
     )
 
 
