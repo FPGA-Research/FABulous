@@ -201,7 +201,7 @@ in
       # that fish's config may have reordered (nix-darwin#1607).
       fishInitScript = pkgs.writeText "fab-fish-init.fish" ''
         for p in (string split ":" "$_FAB_NIX_BIN_PATH")
-          test -n "$p"; and fish_add_path --prepend --move $p
+          test -n "$p"; and fish_add_path --global --prepend --move $p
         end
         set -e _FAB_NIX_BIN_PATH
       '';
