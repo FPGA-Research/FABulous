@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from fabulous.custom_exception import InvalidPortType
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import Direction, Side
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.bel_geometry import BelGeometry
 from fabulous.geometry_generator.geometry_obj import Border, Location
@@ -100,11 +99,7 @@ class TileGeometry:
     westMiddleY: int = 0
 
     def generateGeometry(
-        self,
-        tile: Tile,
-        padding: int,
-        extra_bels: list[Bel] | None = None,
-        fabric: Fabric | None = None,
+        self, tile: Tile, padding: int, extra_bels: list[Bel] | None = None
     ) -> None:
         """Generate the geometry for a tile.
 
@@ -121,9 +116,6 @@ class TileGeometry:
         extra_bels : list[Bel] | None, optional
             Additional BELs to draw in this tile (e.g. a supertile-level BEL
             hosted in this tile when it is the supertile's master tile).
-        fabric : Fabric | None, optional
-            Fabric whose channel order the switch matrix side ports follow.
-            Defaults to None, which keeps the tile CSV order.
         """
         self.name = tile.name
 
@@ -132,9 +124,7 @@ class TileGeometry:
             belGeom.generateGeometry(bel, padding)
             self.belGeomList.append(belGeom)
 
-        self.smGeometry.generateGeometry(
-            tile, self.border, self.belGeomList, padding, fabric
-        )
+        self.smGeometry.generateGeometry(tile, self.border, self.belGeomList, padding)
 
         maxBelWidth = max([belGeom.width for belGeom in self.belGeomList] + [0])
         self.width = (

@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric, resolve_wire_pair
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import make_fabric_from_grid
 from tests.fabric_definition.conftest import make_empty_tile
 
 
@@ -117,6 +117,7 @@ class TestFabricValidation:
         should_raise: bool,
     ) -> None:
         tile = MagicMock(spec=Tile)
+        tile.portsInfo = []
         tile.name = "test_tile"
         tile.bels = [MagicMock() for _ in range(num_bels)]
         if should_raise:
@@ -183,21 +184,37 @@ def test_resolve_wire_pair(
     assert resolve_wire_pair(pairs, source, destination) == expected
 
 
-def test_sort_by_channel_follows_common_wire_pair_order(
-    make_fabric: Callable[..., Fabric],
-) -> None:
-    """Ports sort by their channel's position in `commonWirePair`."""
-    fabric = make_fabric()
-    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END"), ("Co", "Ci")]
-    ports = [
-        port
-        for row in ["NORTH,Co,0,-1,Ci,1", "NORTH,N1BEG,0,-1,N1END,4"]
-        for port in parse_port_line(row)[0]
-        if port.io_direction == IO.INPUT
+def test_fabric_puts_tile_ports_in_channel_order() -> None:
+    """Constructing a fabric sorts each tile's ports by direction, then channel."""
+
+    def tile(name: str, rows: list[str]) -> Tile:
+        return make_empty_tile(
+            name, [port for row in rows for port in parse_port_line(row)[0]]
+        )
+
+    # `T` names only the S2END/S2MID ends; `U` above declares their sources.
+    upper = tile("U", ["SOUTH,S2BEGb,0,1,S2END,8", "SOUTH,S2BEG,0,1,S2MID,8"])
+    middle = tile(
+        "T",
+        [
+            "SOUTH,NULL,0,1,S2END,8",
+            "SOUTH,NULL,0,1,S2MID,8",
+            "SOUTH,S1BEG,0,1,S1END,4",
+            "NORTH,N1BEG,0,-1,N1END,4",
+            "NORTH,Co,0,-1,Ci,1",
+        ],
+    )
+
+    make_fabric_from_grid([[upper], [middle], [tile("V", [])]])
+
+    # S2MID and S2END sort as their sources S2BEG and S2BEGb, not by own name.
+    assert [p.name for p in middle.portsInfo if not p.name_is_null] == [
+        "Co",
+        "Ci",
+        "N1BEG",
+        "N1END",
+        "S1BEG",
+        "S1END",
+        "S2MID",
+        "S2END",
     ]
-    term_port = parse_port_line("SOUTH,S1BEG,0,1,NULL,4")[0][0]
-    unpaired = parse_port_line("NORTH,Xout,0,-1,NULL,1")[0][0]
-
-    ordered = fabric.sort_by_channel([unpaired, *ports, term_port])
-
-    assert [p.name for p in ordered] == ["N1END", "S1BEG", "Ci", "Xout"]

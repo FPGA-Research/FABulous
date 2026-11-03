@@ -274,8 +274,24 @@ class Fabric:
 
         self.commonWirePair = list(dict.fromkeys(self.commonWirePair))
         self.commonWirePair = [
-            (i, j) for i, j in self.commonWirePair if i != "NULL" and j != "NULL"
+            (i, j) for i, j in self.commonWirePair if NULL_PORT_NAME not in (i, j)
         ]
+
+        # Order ports by channel, not CSV row, so abutting tiles list a shared edge
+        # alike. Grid cells and subtiles are copies, so each is sorted. The switch
+        # matrix keeps its read order, which fixes the config bit layout.
+        def channel_key(port: TilePort) -> tuple[Direction, str]:
+            source, _ = resolve_wire_pair(
+                self.commonWirePair, port.source_name, port.destination_name
+            )
+            return port.wire_direction, source
+
+        for tile in [
+            *self.tileDic.values(),
+            *(t for row in self.tile for t in row if t is not None),
+            *(t for st in self.superTileDic.values() for t in st.tiles),
+        ]:
+            tile.portsInfo = sorted(tile.portsInfo, key=channel_key)
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
@@ -285,8 +301,8 @@ class Fabric:
                     if (
                         abs(port.x_offset) <= 1
                         and abs(port.y_offset) <= 1
-                        and port.source_name != "NULL"
-                        and port.destination_name != "NULL"
+                        and port.source_name != NULL_PORT_NAME
+                        and port.destination_name != NULL_PORT_NAME
                     ):
                         for i in range(port.wire_count):
                             tile.wireList.append(
@@ -300,7 +316,10 @@ class Fabric:
                                     destinationTile="",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name != "NULL":
+                    elif NULL_PORT_NAME not in (
+                        port.source_name,
+                        port.destination_name,
+                    ):
                         # clamp the x_offset to 1 or -1
                         value = min(max(port.x_offset, -1), 1)
                         cascadedI = 0
@@ -366,7 +385,10 @@ class Fabric:
                                     destinationTile=f"X{x + port.x_offset}Y{y + value}",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name == "NULL":
+                    elif (
+                        port.source_name != NULL_PORT_NAME
+                        and port.destination_name == NULL_PORT_NAME
+                    ):
                         source_name, destName = resolve_wire_pair(
                             self.commonWirePair, port.source_name, port.destination_name
                         )
@@ -730,35 +752,6 @@ class Fabric:
             return Side.WEST
 
         return None
-
-    def sort_by_channel(self, ports: list[TilePort]) -> list[TilePort]:
-        """Return `ports` in the fabric-wide channel order.
-
-        Abutting tiles must list the ports of a shared edge in the same order, but
-        tile CSV row order differs between tile types. The order is therefore
-        taken from `commonWirePair`, which is the same for every tile, with a
-        terminal tile's channel resolved by `resolve_wire_pair`.
-
-        Parameters
-        ----------
-        ports : list[TilePort]
-            Ports of one tile, e.g. those on one side.
-
-        Returns
-        -------
-        list[TilePort]
-            The ports, sorted by channel.
-        """
-        index = {src: i for i, (src, _) in enumerate(self.commonWirePair)}
-
-        def key(port: TilePort) -> int:
-            source, _ = resolve_wire_pair(
-                self.commonWirePair, port.source_name, port.destination_name
-            )
-            # Channels without a fabric-wide pair cross no shared edge; keep them last.
-            return index.get(source, len(index))
-
-        return sorted(ports, key=key)
 
     def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         """Get list of unique tile types used in the fabric.

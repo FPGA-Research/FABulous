@@ -180,10 +180,7 @@ class FabricGeometry:
             tile = self.fabric.getTileByName(tileName)
             tileGeom = self.tileGeomMap[tileName]
             tileGeom.generateGeometry(
-                tile,
-                self.padding,
-                extra_bels=master_bels.get(tileName),
-                fabric=self.fabric,
+                tile, self.padding, extra_bels=master_bels.get(tileName)
             )
 
         # This step is for figuring out, which tile

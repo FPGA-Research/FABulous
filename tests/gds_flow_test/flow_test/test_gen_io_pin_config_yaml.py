@@ -885,13 +885,11 @@ def test_abutting_edges_match_regardless_of_csv_row_order(
 
     term, body = tile("N_term", term_rows), tile("Body", rows)
     fabric = make_fabric_from_grid([[term], [body]])
-    # The reference tile fixes the fabric-wide channel order; `body` varies.
-    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END"), ("Co", "Ci")]
 
     def edge(t: Tile, side: Side) -> list[str]:
         generate_IO_pin_order_config(t, tmp_path / f"{t.name}.yaml", fabric=fabric)
         segments = yaml.safe_load((tmp_path / f"{t.name}.yaml").read_text())
         return [seg["pins"][0] for seg in segments["X0Y0"][side.name]][:3]
 
-    assert edge(body, Side.NORTH) == [r"N1BEG\[\d+\]", r"S1END\[\d+\]", "Co"]
-    assert edge(term, Side.SOUTH) == [r"N1END\[\d+\]", r"S1BEG\[\d+\]", "Ci"]
+    assert edge(body, Side.NORTH) == ["Co", r"N1BEG\[\d+\]", r"S1END\[\d+\]"]
+    assert edge(term, Side.SOUTH) == ["Ci", r"N1END\[\d+\]", r"S1BEG\[\d+\]"]

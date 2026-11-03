@@ -11,7 +11,6 @@ from loguru import logger
 from fabulous.custom_exception import StaleIOPinConfigError
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
@@ -48,30 +47,11 @@ class PinOrderConfig:
         }
 
 
-def _ordered(ports: list[TilePort], fabric: Fabric | None) -> list[TilePort]:
-    """Return `ports` in the fabric-wide channel order, or unchanged without one.
-
-    Parameters
-    ----------
-    ports : list[TilePort]
-        Ports on one side of a tile.
-    fabric : Fabric | None
-        Fabric defining the order, or `None` to keep the tile CSV order.
-
-    Returns
-    -------
-    list[TilePort]
-        The ordered ports.
-    """
-    return ports if fabric is None else fabric.sort_by_channel(ports)
-
-
 def _serialize_tile_ports(
     tile: Tile,
     prefix: str = "",
     external_port_side: Side = Side.SOUTH,
     user_clk_side: Side = Side.SOUTH,
-    fabric: Fabric | None = None,
 ) -> dict[str, list[dict]]:
     """Serialize a single tile's ports for IO pin placement."""
     port_dict = {
@@ -86,7 +66,7 @@ def _serialize_tile_ports(
         user_clk_side.opposite.name: PinOrderConfig()([f"{prefix}UserCLKo"]).to_dict(),
     }
 
-    for port in _ordered(tile.getNorthSidePorts(), fabric):
+    for port in tile.getNorthSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
                 tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
@@ -97,7 +77,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe_O\[\d+\]"]).to_dict()
     )
 
-    for port in _ordered(tile.getEastSidePorts(), fabric):
+    for port in tile.getEastSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
                 tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
@@ -108,7 +88,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
     )
 
-    for port in _ordered(tile.getSouthSidePorts(), fabric):
+    for port in tile.getSouthSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
                 tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
@@ -119,7 +99,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe\[\d+\]"]).to_dict()
     )
 
-    for port in _ordered(tile.getWestSidePorts(), fabric):
+    for port in tile.getWestSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
                 tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
@@ -148,7 +128,6 @@ def _serialize_supertile_ports(
     prefix: str = "",
     external_port_sides: dict[tuple[int, int], Side] | None = None,
     user_clk_side: Side = Side.SOUTH,
-    fabric: Fabric | None = None,
 ) -> dict[str, dict[str, list[dict]]]:
     """Serialize SuperTile ports, processing only perimeter sides."""
     config_payload: dict[str, dict[str, list[dict]]] = {}
@@ -181,7 +160,7 @@ def _serialize_supertile_ports(
                 continue
             side = port_list[0].side_of_tile
             perimeter_sides.add(side)
-            for port in _ordered(port_list, fabric):
+            for port in port_list:
                 if regex := port.get_port_regex(indexed=True, prefix=tile_prefix):
                     config_payload[tile_key][side.name].append(
                         tile.pinOrderConfig[side]([regex]).to_dict()
@@ -348,7 +327,7 @@ def generate_IO_pin_order_config(
             }
 
         payload = _serialize_supertile_ports(
-            tile_or_super_tile, prefix, sides, user_clk_side, fabric
+            tile_or_super_tile, prefix, sides, user_clk_side
         )
     else:
         if fabric is not None and (
@@ -361,7 +340,7 @@ def generate_IO_pin_order_config(
 
         payload = {
             "X0Y0": _serialize_tile_ports(
-                tile_or_super_tile, prefix, side, user_clk_side, fabric
+                tile_or_super_tile, prefix, side, user_clk_side
             ),
         }
 
