@@ -8,7 +8,7 @@ import pytest
 from dotenv import set_key
 from pytest_mock import MockerFixture
 
-from fabulous.custom_exception import EnvironmentNotSet
+from fabulous.custom_exception import EnvironmentNotSet, ProjectUpgradeError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import (
@@ -82,14 +82,28 @@ def test_update_project_version_success(
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
 
 
-def test_update_project_version_missing_version(tmp_path: Path) -> None:
-    """Test version update when version is missing from `.env` file."""
-    env_dir = tmp_path / "proj" / ".FABulous"
+@pytest.mark.parametrize(
+    "env_text",
+    [
+        pytest.param("FAB_PROJ_LANG=verilog\n", id="no-version"),
+        pytest.param("FAB_PROJ_LANG=verilog\nFAB_VERSION=1.3.1\n", id="fab-version-1x"),
+    ],
+)
+def test_update_project_version_rejects_pre_2_project(
+    tmp_path: Path, env_text: str
+) -> None:
+    """Test that a project without `FAB_PROJ_VERSION` is refused and left as is."""
+    project_dir = tmp_path / "proj"
+    env_dir = project_dir / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
-    env_file.write_text("FAB_PROJ_LANG=verilog\n")
+    env_file.write_text(env_text)
 
-    assert update_project_version(tmp_path / "proj") is False
+    with pytest.raises(ProjectUpgradeError, match="FABulous create-project"):
+        update_project_version(project_dir)
+
+    assert env_file.read_text() == env_text
+    assert not (project_dir / "yosys").exists()
 
 
 def test_update_project_version_major_mismatch(

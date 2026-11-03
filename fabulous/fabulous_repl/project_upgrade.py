@@ -27,13 +27,9 @@ _TASKFILE_ANCHORS = (
     '        sh: \'[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo '
     '"-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true\'\n',
 )
-# The 2.x Makefile indents the assignment with two tabs, the 1.x one with one.
 _MAKEFILE_ANCHORS = (
     "ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)\n"
     "\t\tCUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v\n"
-    "endif\n",
-    "ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)\n"
-    "\tCUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v\n"
     "endif\n",
 )
 
@@ -229,7 +225,7 @@ def upgrade_to_yosys_library(project_dir: Path) -> None:
         raise ProjectUpgradeError(f"Neither {taskfile} nor {makefile} found")
 
     upgrades: dict[Path, str] = {}
-    # A 1.x project has no Taskfile.
+    # FABulous 2.0.0b1 to 2.0.0b4 ship no Taskfile.
     if not taskfile.is_file():
         logger.info(f"{taskfile} not found, nothing to upgrade")
     else:

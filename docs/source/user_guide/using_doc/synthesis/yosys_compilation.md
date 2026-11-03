@@ -57,10 +57,16 @@ changing the project if:
 
 Running the upgrade again on an upgraded project changes nothing.
 
-FABulous 1.x wrote no `.FABulous/.env`. A 1.x project with a hand-written
-`.FABulous/.env` that sets `FAB_PROJ_LANG` and `FAB_VERSION=1.x` but no
-`FAB_PROJ_VERSION` is also accepted. The upgrade patches its `Test/Makefile`,
-since such a project has no `Test/Taskfile.yml`, and writes `FAB_PROJ_VERSION`.
+The upgrade does not support projects from FABulous 1. Every FABulous release
+since 2.0.0b1 writes `FAB_PROJ_VERSION` to `.FABulous/.env`, so the upgrade
+refuses a project without it and changes nothing. To move such a project to the
+current version, create a new project and copy the fabric definition and the
+user designs into it:
+
+```console
+FABulous create-project <new_project_dir> -w <verilog|vhdl>
+cp -r <old_project_dir>/fabric.csv <old_project_dir>/Tile <old_project_dir>/user_design <new_project_dir>/
+```
 
 ## User guide
 

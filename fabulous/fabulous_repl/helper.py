@@ -26,7 +26,11 @@ from loguru import logger
 from packaging.version import Version
 from pick import pick
 
-from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
+from fabulous.custom_exception import (
+    EnvironmentNotSet,
+    PipelineCommandError,
+    ProjectUpgradeError,
+)
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
 from fabulous.fabulous_settings import add_var_to_global_env
@@ -622,39 +626,37 @@ def update_project_version(project_dir: Path) -> bool:
     bool
         `True` if the version was successfully updated, `False` otherwise.
 
+    Raises
+    ------
+    ProjectUpgradeError
+        If the `.env` file has no `FAB_PROJ_VERSION`, or if the project cannot be
+        upgraded. The project is left unchanged.
+
     Notes
     -----
     The function will refuse to update if there is a major version mismatch between
     the project version and the package version, as this could indicate incompatibility.
-    The exception is a project without `FAB_PROJ_VERSION` whose `FAB_VERSION` is
-    1.x, as in the hand-written `.env` of the FABulous-demo-projects legacy demos;
-    no FABulous release writes `FAB_VERSION`. Such a project is moved to the
-    package version. A project that cannot be upgraded raises `ProjectUpgradeError`
-    and keeps its version.
+    Every FABulous release since 2.0.0b1 writes `FAB_PROJ_VERSION` when it creates a
+    project, so a project without it predates FABulous 2 and is not upgraded.
     """
     env_file = project_dir / ".FABulous" / ".env"
     package_version = Version(version("FABulous-FPGA"))
 
     project_version = get_key(env_file, "FAB_PROJ_VERSION")
-    if project_version is not None:
-        if Version(project_version).major != package_version.major:
-            logger.error(
-                "There is a major version mismatch, cannot update project version."
-            )
-            return False
-    else:
-        # TODO(3.0): drop. FABulous already runs a 1.x project as a current one,
-        # and the upgrade below brings its Makefile to the current synthesis form.
-        legacy_version = get_key(env_file, "FAB_VERSION")
-        if legacy_version is None:
-            logger.error("VERSION not found in .env file.")
-            return False
-        if Version(legacy_version).major != 1:
-            logger.error(
-                f"FAB_VERSION is {legacy_version} and FAB_PROJ_VERSION is missing; "
-                "only a 1.x project can be updated without FAB_PROJ_VERSION."
-            )
-            return False
+    if project_version is None:
+        raise ProjectUpgradeError(
+            f"{env_file} has no FAB_PROJ_VERSION, so the project was not created by "
+            "FABulous 2 or later, and projects from FABulous 1 cannot be upgraded. "
+            # Angle brackets would be read as loguru colour tags when logged.
+            "Create a new project with `FABulous create-project NEW_PROJECT_DIR -w "
+            "verilog` (or `-w vhdl`), then copy `fabric.csv`, `Tile/` and "
+            "`user_design/` from this project into it."
+        )
+    if Version(project_version).major != package_version.major:
+        logger.error(
+            "There is a major version mismatch, cannot update project version."
+        )
+        return False
 
     upgrade_to_yosys_library(project_dir)
     set_key(env_file, "FAB_PROJ_VERSION", str(package_version))
