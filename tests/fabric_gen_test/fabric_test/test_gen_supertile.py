@@ -31,6 +31,7 @@ from pathlib import Path
 
 import pytest
 
+from fabulous.custom_exception import InvalidSupertileDefinition
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import (
@@ -48,8 +49,18 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 from tests.fabric_definition.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
+
+_ROWS = ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"]
+
+
+def _tile_from_rows(name: str, rows: list[str]) -> Tile:
+    """Build a tile whose ports come from tile CSV port rows."""
+    return make_empty_tile(
+        name, [port for row in rows for port in parse_port_line(row)[0]]
+    )
 
 
 def grid(rows: int, cols: int) -> list[list[Tile]]:
@@ -522,7 +533,7 @@ class TestInterTileRouting:
                     source_name="E_out",
                     x_offset=1,
                     y_offset=0,
-                    destination_name="E_out",
+                    destination_name="E_in",
                     wire_count=2,
                 )
             ],
@@ -542,7 +553,7 @@ class TestInterTileRouting:
                     width=2,
                     side_of_tile=Side.WEST,
                     wire_direction=Direction.EAST,
-                    source_name="E_in",
+                    source_name="E_out",
                     x_offset=1,
                     y_offset=0,
                     destination_name="E_in",
@@ -561,6 +572,45 @@ class TestInterTileRouting:
         e_out = net.cell_net(0, 0, "E_out")
         assert len(e_out) == 2
         assert e_out == net.cell_net(1, 0, "E_in")
+
+    @pytest.mark.parametrize("bottom_rows", [_ROWS, list(reversed(_ROWS))])
+    def test_inner_edge_wired_by_channel_regardless_of_csv_row_order(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        bottom_rows: list[str],
+    ) -> None:
+        """Subtiles whose CSVs list the shared channels in another order."""
+        top, bottom = _tile_from_rows("Top", _ROWS), _tile_from_rows("Bot", bottom_rows)
+        net = supertile_netlist([[top], [bottom]])
+
+        assert net.cell_net(0, 1, "N1BEG") == net.cell_net(0, 0, "N1END")
+        assert net.cell_net(0, 1, "Co") == net.cell_net(0, 0, "Ci")
+        assert net.cell_net(0, 0, "S1BEG") == net.cell_net(0, 1, "S1END")
+
+    def test_inner_edge_channel_named_at_one_end_per_subtile(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        """Each subtile names only its own end, as the DSP subtiles do."""
+        top = _tile_from_rows("Top", ["NORTH,NULL,0,-1,bot2top,2"])
+        bottom = _tile_from_rows("Bot", ["NORTH,bot2top,0,-1,NULL,2"])
+        net = supertile_netlist([[top], [bottom]])
+
+        assert net.cell_net(0, 1, "bot2top") == net.cell_net(0, 0, "bot2top")
+
+    def test_inner_edge_input_without_matching_output_raises(
+        self, tmp_path: Path
+    ) -> None:
+        """An input whose channel the neighbouring subtile does not drive."""
+        top = _tile_from_rows("Top", _ROWS)
+        bottom = _tile_from_rows("Bot", _ROWS[:2])
+        st = SuperTile(
+            name="ST", tileDir=Path(), tiles=[top, bottom], tileMap=[[top], [bottom]]
+        )
+        writer = VerilogCodeGenerator()
+        writer.outFileName = tmp_path / "ST.v"
+
+        with pytest.raises(InvalidSupertileDefinition, match="Ci"):
+            generateSuperTile(writer, st)
 
 
 class TestSingleTile:

@@ -68,6 +68,12 @@ Plugin configuration variables:
 | `FABULOUS_CONFIG_BIT_MODE` | `ConfigBitMode` | Config-bit storage mode used when regenerating the tile switch matrix and config memory. Must match the parent fabric. Defaults to `FRAME_BASED`. |
 | `FABULOUS_MULTIPLEXER_STYLE` | `MultiplexerStyle` | Multiplexer implementation style used when regenerating the tile switch matrix. Must match the parent fabric. Defaults to `CUSTOM`. |
 
+The IO pin order comes from the first of these that exists:
+
+1. The file set in `FABULOUS_IO_PIN_ORDER_CFG`.
+2. `io_pin_order.yaml` in the tile directory, as written by the fabric flow, `gen_io_pin_config` or `gen_all_io_pin_config`. These order the pins by the fabric's channels, so the macro lines up with its neighbours.
+3. A pin order generated from the tile CSV alone, with a warning. Its pins only line up with neighbours whose tile CSVs list the shared channels in the same order.
+
 Set `DESIGN_NAME` to the tile name (for example `LUT4x8_ha`) and `CLOCK_PORT` to the tile's clock port. Add the models and cells the tile depends on to `VERILOG_FILES`. Any other LibreLane variable, such as `DIE_AREA`, `CLOCK_PERIOD`, or `SYNTH_STRATEGY`, is set as usual.
 
 Example `config.yaml`:

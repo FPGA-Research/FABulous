@@ -36,9 +36,42 @@ from fabulous.fabric_definition.define import (
     MultiplexerStyle,
     Side,
 )
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
+
+
+def resolve_wire_pair(
+    pairs: list[tuple[str, str]], source_name: str, destination_name: str
+) -> tuple[str, str]:
+    """Return a channel's `(source, destination)` names with a NULL end filled.
+
+    A terminal tile names only its own end of a channel and leaves the other end
+    `NULL`. The missing end is looked up in `pairs`, the `(source, destination)`
+    names of channels whose both ends are known; a name without a pair is taken
+    to be the same at both ends.
+
+    Parameters
+    ----------
+    pairs : list[tuple[str, str]]
+        Known `(source, destination)` channel name pairs.
+    source_name : str
+        The channel's source name, or `NULL`.
+    destination_name : str
+        The channel's destination name, or `NULL`.
+
+    Returns
+    -------
+    tuple[str, str]
+        The source and destination names of the channel.
+    """
+    if source_name == NULL_PORT_NAME:
+        source_of = {dst: src for src, dst in pairs}
+        return source_of.get(destination_name, destination_name), destination_name
+    if destination_name == NULL_PORT_NAME:
+        return source_name, dict(pairs).get(source_name, source_name)
+    return source_name, destination_name
 
 
 @dataclass
@@ -241,8 +274,24 @@ class Fabric:
 
         self.commonWirePair = list(dict.fromkeys(self.commonWirePair))
         self.commonWirePair = [
-            (i, j) for i, j in self.commonWirePair if i != "NULL" and j != "NULL"
+            (i, j) for i, j in self.commonWirePair if NULL_PORT_NAME not in (i, j)
         ]
+
+        # Order ports by channel, not CSV row, so abutting tiles list a shared edge
+        # alike. Grid cells and subtiles are copies, so each is sorted. The switch
+        # matrix keeps its read order, which fixes the config bit layout.
+        def channel_key(port: TilePort) -> tuple[Direction, str]:
+            source, _ = resolve_wire_pair(
+                self.commonWirePair, port.source_name, port.destination_name
+            )
+            return port.wire_direction, source
+
+        for tile in [
+            *self.tileDic.values(),
+            *(t for row in self.tile for t in row if t is not None),
+            *(t for st in self.superTileDic.values() for t in st.tiles),
+        ]:
+            tile.portsInfo = sorted(tile.portsInfo, key=channel_key)
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
@@ -252,8 +301,8 @@ class Fabric:
                     if (
                         abs(port.x_offset) <= 1
                         and abs(port.y_offset) <= 1
-                        and port.source_name != "NULL"
-                        and port.destination_name != "NULL"
+                        and port.source_name != NULL_PORT_NAME
+                        and port.destination_name != NULL_PORT_NAME
                     ):
                         for i in range(port.wire_count):
                             tile.wireList.append(
@@ -267,7 +316,10 @@ class Fabric:
                                     destinationTile="",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name != "NULL":
+                    elif NULL_PORT_NAME not in (
+                        port.source_name,
+                        port.destination_name,
+                    ):
                         # clamp the x_offset to 1 or -1
                         value = min(max(port.x_offset, -1), 1)
                         cascadedI = 0
@@ -333,14 +385,13 @@ class Fabric:
                                     destinationTile=f"X{x + port.x_offset}Y{y + value}",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name == "NULL":
-                        source_name = port.source_name
-                        destName = port.source_name
-                        # if sourcename is not in a common pair wire we assume
-                        # the source name is the same as destination name
-                        wire_pair = dict(self.commonWirePair)
-                        if source_name in wire_pair:
-                            destName = wire_pair[source_name]
+                    elif (
+                        port.source_name != NULL_PORT_NAME
+                        and port.destination_name == NULL_PORT_NAME
+                    ):
+                        source_name, destName = resolve_wire_pair(
+                            self.commonWirePair, port.source_name, port.destination_name
+                        )
 
                         value = min(max(port.x_offset, -1), 1)
                         for i in range(port.wire_count * abs(port.x_offset)):

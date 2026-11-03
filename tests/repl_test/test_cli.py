@@ -317,7 +317,7 @@ def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
 
 def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating an IO pin configuration YAML file for a tile."""
-    output_file = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+    output_file = cli.projectDir / "Tile" / TILE / "io_pin_order.yaml"
 
     assert not output_file.exists()
 
@@ -327,6 +327,21 @@ def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     assert f"Generating IO pin config for {TILE}" in log[0]
     assert "IO pin config generation complete" in log[-1]
     assert output_file.exists()
+
+
+def test_gen_all_io_pin_config(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test generating the IO pin configuration YAML for every tile."""
+    tiles = cli.fabulousAPI.fabric.get_all_unique_tiles()
+    output_files = [tile.tileDir.parent / "io_pin_order.yaml" for tile in tiles]
+    assert not any(f.exists() for f in output_files)
+
+    run_cmd(cli, "gen_all_io_pin_config")
+    log = normalize_and_check_for_errors(caplog.text)
+
+    assert "IO pin config generation complete" in log[-1]
+    assert all(f.exists() for f in output_files)
 
 
 def test_gen_macro_tile_with_io_pin_config_skips_generation(
@@ -361,7 +376,7 @@ def test_gen_macro_tile_without_io_pin_config_generates_for_tile(
 
     run_cmd(cli, f"gen_macro tile {TILE}")
 
-    expected_pin_order = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+    expected_pin_order = cli.projectDir / "Tile" / TILE / "io_pin_order.yaml"
     gen_pin_order_mock.assert_called_once()
     assert gen_pin_order_mock.call_args.args[1] == expected_pin_order
     assert gen_tile_macro_mock.call_args.args[1] == expected_pin_order

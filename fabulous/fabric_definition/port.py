@@ -12,7 +12,6 @@ in the FPGA fabric:
 
 from __future__ import annotations
 
-from functools import total_ordering
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.define import (
@@ -185,14 +184,10 @@ class Port:
         }
 
 
-@total_ordering
 class TilePort(Port):
     """TilePort represents a port on a tile with a side and termination status.
 
-    It is an immutable and comparable class. When sorting a list of TilePort instances,
-    the order is determined first by the side of the tile in order of
-    [north, east, south, west] then by the IO type in the order of
-    [output, input, inout].
+    It is an immutable class.
 
     Parameters
     ----------
@@ -265,9 +260,6 @@ class TilePort(Port):
         self._destination_name = destination_name
         self._wire_count = wire_count
 
-    __order = {Side.NORTH: 0, Side.EAST: 1, Side.SOUTH: 2, Side.WEST: 3, Side.ANY: 4}
-    __io = {IO.OUTPUT: 0, IO.INPUT: 1, IO.INOUT: 2}
-
     @property
     def side_of_tile(self) -> Side:
         """The side of the tile where the port is located."""
@@ -321,22 +313,6 @@ class TilePort(Port):
             f"TilePort({{{name}}} {self.io_direction.value} "
             f"{self.name}[{self.width - 1}:0])"
         )
-
-    @property
-    def _sort_key(self) -> tuple[int, int]:
-        """The [north, east, south, west] then [output, input, inout] sort key."""
-        return (self.__order[self.side_of_tile], self.__io[self.io_direction])
-
-    def __lt__(self, other: object, /) -> bool:
-        """Less than comparison.
-
-        `total_ordering` derives the remaining comparisons from this and the
-        identity-based `__eq__` inherited from `Port`, so two distinct ports of
-        equal rank compare as neither less than nor equal to each other.
-        """
-        if not isinstance(other, TilePort):
-            raise TypeError(f"Cannot compare {self} with {other}")
-        return self._sort_key < other._sort_key
 
     def serialize(self) -> dict:
         """Serialize the tile port to a dictionary."""

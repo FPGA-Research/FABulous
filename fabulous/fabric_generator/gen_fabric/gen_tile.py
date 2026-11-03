@@ -16,6 +16,7 @@ Key features:
 from collections import defaultdict
 from pathlib import Path
 
+from fabulous.custom_exception import InvalidSupertileDefinition
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -24,6 +25,8 @@ from fabulous.fabric_definition.define import (
     Side,
     grid_at,
 )
+from fabulous.fabric_definition.fabric import resolve_wire_pair
+from fabulous.fabric_definition.port import NULL_PORT_NAME
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -634,6 +637,9 @@ def generateSuperTile(
         If the supertile's switch matrix or ConfigMem HDL file is expected
         (per the instantiation conditions) but missing; run matrix / config_mem
         generation first.
+    InvalidSupertileDefinition
+        If an input on an inner edge has no output of the same channel on the
+        neighbouring subtile.
     """
     writer.addHeader(f"{superTile.name}")
     writer.addParameterStart(indentLevel=1)
@@ -907,68 +913,53 @@ def generateSuperTile(
 
     last_confout_wire = "CONFin"
 
+    # Channel name pairs known inside the supertile, to fill in a subtile's NULL
+    # channel end the same way the fabric does.
+    wire_pairs = [
+        (p.source_name, p.destination_name)
+        for t in superTile.tiles
+        for p in t.portsInfo
+        if NULL_PORT_NAME not in (p.source_name, p.destination_name)
+    ]
+
     # pair up the connection for tile instantiation
     for y, row in enumerate(superTile.tileMap):
         for x, tile in enumerate(row):
-            north_input, south_input, east_input, west_input = [], [], [], []
             ports_pairs = []
             if tile is None:
                 continue
 
-            # north direction input connection
-            north_port = [i.name for i in tile.getNorthPorts(IO.INPUT)]
-            if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
+            # Inputs on each side come from the neighbouring subtile's outputs,
+            # or from the wrapper port of the same name on the supertile edge.
+            for get_ports, ox, oy in (
+                (Tile.getNorthPorts, 0, 1),
+                (Tile.getEastPorts, -1, 0),
+                (Tile.getSouthPorts, 0, -1),
+                (Tile.getWestPorts, 1, 0),
             ):
-                for p in superTile.tileMap[y + 1][x].getNorthPorts(IO.OUTPUT):
-                    north_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
-            else:
-                for p in tile.getNorthPorts(IO.INPUT):
-                    north_input.append(f"Tile_X{x}Y{y}_{p.name}")
-
-            ports_pairs += list(zip(north_port, north_input, strict=False))
-            # east direction input connection
-            east_port = [i.name for i in tile.getEastPorts(IO.INPUT)]
-            if (
-                0 <= x - 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x - 1] is not None
-            ):
-                for p in superTile.tileMap[y][x - 1].getEastPorts(IO.OUTPUT):
-                    east_input.append(f"Tile_X{x - 1}Y{y}_{p.name}")
-            else:
-                for p in tile.getEastPorts(IO.INPUT):
-                    east_input.append(f"Tile_X{x}Y{y}_{p.name}")
-
-            ports_pairs += list(zip(east_port, east_input, strict=False))
-
-            # south direction input connection
-            south_port = [i.name for i in tile.getSouthPorts(IO.INPUT)]
-            if (
-                0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
-            ):
-                for p in superTile.tileMap[y - 1][x].getSouthPorts(IO.OUTPUT):
-                    south_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
-            else:
-                for p in tile.getSouthPorts(IO.INPUT):
-                    south_input.append(f"Tile_X{x}Y{y}_{p.name}")
-
-            ports_pairs += list(zip(south_port, south_input, strict=False))
-
-            # west direction input connection
-            west_port = [i.name for i in tile.getWestPorts(IO.INPUT)]
-            if (
-                0 <= x + 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x + 1] is not None
-            ):
-                for p in superTile.tileMap[y][x + 1].getWestPorts(IO.OUTPUT):
-                    west_input.append(f"Tile_X{x + 1}Y{y}_{p.name}")
-            else:
-                for p in tile.getWestPorts(IO.INPUT):
-                    west_input.append(f"Tile_X{x}Y{y}_{p.name}")
-
-            ports_pairs += list(zip(west_port, west_input, strict=False))
+                nx, ny = x + ox, y + oy
+                neighbour = grid_at(superTile.tileMap, nx, ny)
+                if neighbour is None:
+                    ports_pairs += [
+                        (p.name, f"Tile_X{x}Y{y}_{p.name}")
+                        for p in get_ports(tile, IO.INPUT)
+                    ]
+                    continue
+                # Match by the channel's source name, not by position: the
+                # subtile CSVs may list the shared channels in a different order.
+                outputs = {p.name for p in get_ports(neighbour, IO.OUTPUT)}
+                for p in get_ports(tile, IO.INPUT):
+                    source, _ = resolve_wire_pair(
+                        wire_pairs, p.source_name, p.destination_name
+                    )
+                    if source not in outputs:
+                        raise InvalidSupertileDefinition(
+                            f"Input {p.name} of subtile {tile.name} at X{x}Y{y} in "
+                            f"supertile {superTile.name} expects {source} from "
+                            f"subtile {neighbour.name} at X{nx}Y{ny}, which has no "
+                            "such output."
+                        )
+                    ports_pairs.append((p.name, f"Tile_X{nx}Y{ny}_{source}"))
 
             for p in (
                 tile.getNorthPorts(IO.OUTPUT)
