@@ -5,6 +5,7 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.bel_geometry import BelGeometry
@@ -246,7 +247,12 @@ class SmGeometry:
         self.jumpPorts = mergedJumpPorts
 
     def generateGeometry(
-        self, tile: Tile, tileBorder: Border, belGeoms: list[BelGeometry], padding: int
+        self,
+        tile: Tile,
+        tileBorder: Border,
+        belGeoms: list[BelGeometry],
+        padding: int,
+        fabric: Fabric | None = None,
     ) -> None:
         """Generate the geometry for a switch matrix.
 
@@ -266,6 +272,10 @@ class SmGeometry:
             List of BEL geometries within the same tile
         padding : int
             The padding space to add around the switch matrix
+        fabric : Fabric | None, optional
+            Fabric whose channel order the side ports follow, so they line up
+            with the neighbouring tiles. Defaults to None, which keeps the tile
+            CSV order.
         """
         self.name = f"{tile.name}_switch_matrix"
         self.src = tile.tileDir.parent.joinpath(f"{self.name}.v")
@@ -279,6 +289,11 @@ class SmGeometry:
         self.southPorts = tile.getSouthSidePorts()
         self.eastPorts = tile.getEastSidePorts()
         self.westPorts = tile.getWestSidePorts()
+        if fabric is not None:
+            self.northPorts = fabric.sort_by_channel(self.northPorts)
+            self.southPorts = fabric.sort_by_channel(self.southPorts)
+            self.eastPorts = fabric.sort_by_channel(self.eastPorts)
+            self.westPorts = fabric.sort_by_channel(self.westPorts)
         self.preprocessPorts(tileBorder)
 
         # Counting the total number of wires for each direction

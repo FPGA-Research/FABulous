@@ -6,9 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.fabric import Fabric, resolve_wire_pair
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 from tests.fabric_definition.conftest import make_empty_tile
 
 
@@ -173,13 +175,29 @@ class TestGetSuperTileContaining:
     ],
 )
 def test_resolve_wire_pair(
-    make_fabric: Callable[..., Fabric],
-    source: str,
-    destination: str,
-    expected: tuple[str, str],
+    source: str, destination: str, expected: tuple[str, str]
 ) -> None:
-    """A NULL channel end is filled from `commonWirePair`."""
-    fabric = make_fabric()
-    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END")]
+    """A NULL channel end is filled from the known channel pairs."""
+    pairs = [("N1BEG", "N1END"), ("S1BEG", "S1END")]
 
-    assert fabric.resolve_wire_pair(source, destination) == expected
+    assert resolve_wire_pair(pairs, source, destination) == expected
+
+
+def test_sort_by_channel_follows_common_wire_pair_order(
+    make_fabric: Callable[..., Fabric],
+) -> None:
+    """Ports sort by their channel's position in `commonWirePair`."""
+    fabric = make_fabric()
+    fabric.commonWirePair = [("N1BEG", "N1END"), ("S1BEG", "S1END"), ("Co", "Ci")]
+    ports = [
+        port
+        for row in ["NORTH,Co,0,-1,Ci,1", "NORTH,N1BEG,0,-1,N1END,4"]
+        for port in parse_port_line(row)[0]
+        if port.io_direction == IO.INPUT
+    ]
+    term_port = parse_port_line("SOUTH,S1BEG,0,1,NULL,4")[0][0]
+    unpaired = parse_port_line("NORTH,Xout,0,-1,NULL,1")[0][0]
+
+    ordered = fabric.sort_by_channel([unpaired, *ports, term_port])
+
+    assert [p.name for p in ordered] == ["N1END", "S1BEG", "Ci", "Xout"]

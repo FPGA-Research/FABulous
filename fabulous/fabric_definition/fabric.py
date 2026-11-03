@@ -36,10 +36,42 @@ from fabulous.fabric_definition.define import (
     MultiplexerStyle,
     Side,
 )
-from fabulous.fabric_definition.port import NULL_PORT_NAME
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
+
+
+def resolve_wire_pair(
+    pairs: list[tuple[str, str]], source_name: str, destination_name: str
+) -> tuple[str, str]:
+    """Return a channel's `(source, destination)` names with a NULL end filled.
+
+    A terminal tile names only its own end of a channel and leaves the other end
+    `NULL`. The missing end is looked up in `pairs`, the `(source, destination)`
+    names of channels whose both ends are known; a name without a pair is taken
+    to be the same at both ends.
+
+    Parameters
+    ----------
+    pairs : list[tuple[str, str]]
+        Known `(source, destination)` channel name pairs.
+    source_name : str
+        The channel's source name, or `NULL`.
+    destination_name : str
+        The channel's destination name, or `NULL`.
+
+    Returns
+    -------
+    tuple[str, str]
+        The source and destination names of the channel.
+    """
+    if source_name == NULL_PORT_NAME:
+        source_of = {dst: src for src, dst in pairs}
+        return source_of.get(destination_name, destination_name), destination_name
+    if destination_name == NULL_PORT_NAME:
+        return source_name, dict(pairs).get(source_name, source_name)
+    return source_name, destination_name
 
 
 @dataclass
@@ -335,8 +367,8 @@ class Fabric:
                                 )
                             )
                     elif port.source_name != "NULL" and port.destination_name == "NULL":
-                        source_name, destName = self.resolve_wire_pair(
-                            port.source_name, port.destination_name
+                        source_name, destName = resolve_wire_pair(
+                            self.commonWirePair, port.source_name, port.destination_name
                         )
 
                         value = min(max(port.x_offset, -1), 1)
@@ -699,33 +731,34 @@ class Fabric:
 
         return None
 
-    def resolve_wire_pair(
-        self, source_name: str, destination_name: str
-    ) -> tuple[str, str]:
-        """Return a channel's `(source, destination)` names with a NULL end filled.
+    def sort_by_channel(self, ports: list[TilePort]) -> list[TilePort]:
+        """Return `ports` in the fabric-wide channel order.
 
-        A terminal tile names only its own end of a channel and leaves the other
-        end `NULL`. The missing end is looked up in `commonWirePair`; a name
-        without a pair is taken to be the same at both ends.
+        Abutting tiles must list the ports of a shared edge in the same order, but
+        tile CSV row order differs between tile types. The order is therefore
+        taken from `commonWirePair`, which is the same for every tile, with a
+        terminal tile's channel resolved by `resolve_wire_pair`.
 
         Parameters
         ----------
-        source_name : str
-            The channel's source name, or `NULL`.
-        destination_name : str
-            The channel's destination name, or `NULL`.
+        ports : list[TilePort]
+            Ports of one tile, e.g. those on one side.
 
         Returns
         -------
-        tuple[str, str]
-            The source and destination names of the channel.
+        list[TilePort]
+            The ports, sorted by channel.
         """
-        if source_name == NULL_PORT_NAME:
-            source_of = {dst: src for src, dst in self.commonWirePair}
-            return source_of.get(destination_name, destination_name), destination_name
-        if destination_name == NULL_PORT_NAME:
-            return source_name, dict(self.commonWirePair).get(source_name, source_name)
-        return source_name, destination_name
+        index = {src: i for i, (src, _) in enumerate(self.commonWirePair)}
+
+        def key(port: TilePort) -> int:
+            source, _ = resolve_wire_pair(
+                self.commonWirePair, port.source_name, port.destination_name
+            )
+            # Channels without a fabric-wide pair cross no shared edge; keep them last.
+            return index.get(source, len(index))
+
+        return sorted(ports, key=key)
 
     def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         """Get list of unique tile types used in the fabric.

@@ -15,6 +15,7 @@ Key features:
 
 from collections.abc import Generator
 
+from fabulous.custom_exception import InvalidFabricDefinition
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -22,7 +23,7 @@ from fabulous.fabric_definition.define import (
     Direction,
     grid_at,
 )
-from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.fabric import Fabric, resolve_wire_pair
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -297,15 +298,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 here = fabric.tile[base_y + j][base_x + i]
                 in_super = here.partOfSuperTile
 
-                def _local_names(
-                    ports: list, _i: int = i, _j: int = j, in_super: bool = in_super
-                ) -> list[str]:
-                    """Return local port names."""
-                    return (
-                        [f"Tile_X{_i}Y{_j}_{p.name}" for p in ports]
-                        if in_super
-                        else [p.name for p in ports]
-                    )
+                local_prefix = f"Tile_X{i}Y{j}_" if in_super else ""
 
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
@@ -313,21 +306,40 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     neighbor_x, neighbor_y = base_x + i + dx, base_y + j + dy
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
-                    localPorts = _local_names(get_side_ports(here, IO.INPUT))
-                    if (
+                    local_ports = get_side_ports(here, IO.INPUT)
+                    if not (
                         0 <= neighbor_y < len(fabric.tile)
                         and 0 <= neighbor_x < len(fabric.tile[0])
                         and fabric.tile[neighbor_y][neighbor_x] is not None
                     ):
-                        neighborInput = [
-                            f"Tile_X{neighbor_x}Y{neighbor_y}_{p.name}"
-                            for p in get_side_ports(
-                                fabric.tile[neighbor_y][neighbor_x], IO.OUTPUT
-                            )
+                        portsPairs += [
+                            (f"{local_prefix}{p.name}", "") for p in local_ports
                         ]
-                        portsPairs += list(zip(localPorts, neighborInput, strict=False))
-                    else:
-                        portsPairs += [(p, "") for p in localPorts]
+                        continue
+                    neighbor = fabric.tile[neighbor_y][neighbor_x]
+                    # Match each input to the neighbour output of the same channel by
+                    # name, as the routing model does; the tile CSVs may list the
+                    # channels in a different order.
+                    neighbor_outputs = {
+                        p.name for p in get_side_ports(neighbor, IO.OUTPUT)
+                    }
+                    for p in local_ports:
+                        source, _ = resolve_wire_pair(
+                            fabric.commonWirePair, p.source_name, p.destination_name
+                        )
+                        if source not in neighbor_outputs:
+                            raise InvalidFabricDefinition(
+                                f"Input {p.name} of tile {here.name} at "
+                                f"X{base_x + i}Y{base_y + j} expects {source} from "
+                                f"tile {neighbor.name} at X{neighbor_x}Y{neighbor_y}, "
+                                "which has no such output."
+                            )
+                        portsPairs.append(
+                            (
+                                f"{local_prefix}{p.name}",
+                                f"Tile_X{neighbor_x}Y{neighbor_y}_{source}",
+                            )
+                        )
 
             # output signal name is same as the output port name
             if superTile:

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import InvalidFabricDefinition
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -30,7 +31,13 @@ from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateSuperTile,
     generateTile,
 )
-from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import (
+    make_empty_tile,
+    make_fabric_from_grid,
+    make_muladd_bel,
+    sjump_port,
+)
 from tests.fabric_gen_test.conftest import create_switchmatrix_list
 
 
@@ -391,3 +398,57 @@ def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
         for x, y in re.findall(r"Tile_X(\d+)Y(\d+)_", instantiation.group(0))
     }
     assert named == {(1, 0), (0, 1), (1, 1)}
+
+
+def _tile_from_rows(name: str, rows: list[str]) -> Tile:
+    """Build a tile whose ports come from tile CSV port rows."""
+    return make_empty_tile(
+        name, [port for row in rows for port in parse_port_line(row)[0]]
+    )
+
+
+_TERM_ROWS = [
+    "SOUTH,S1BEG,0,1,NULL,4",
+    "NORTH,NULL,0,-1,N1END,4",
+    "NORTH,NULL,0,-1,Ci,1",
+]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"],
+        ["NORTH,Co,0,-1,Ci,1", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,N1BEG,0,-1,N1END,4"],
+    ],
+)
+def test_neighbour_inputs_wired_by_channel_regardless_of_csv_row_order(
+    rows: list[str],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """Each input is driven by the neighbour output of the same channel."""
+    fabric = make_fabric_from_grid(
+        [[_tile_from_rows("N_term", _TERM_ROWS)], [_tile_from_rows("Body", rows)]]
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    term = rtl[rtl.index("Tile_X0Y0_N_term") : rtl.index("Tile_X0Y1_Body (")]
+    assert ".N1END(Tile_X0Y1_N1BEG)" in term
+    assert ".Ci(Tile_X0Y1_Co)" in term
+    body = rtl[rtl.index("Tile_X0Y1_Body (") :]
+    assert ".S1END(Tile_X0Y0_S1BEG)" in body
+
+
+def test_neighbour_input_without_matching_output_raises(
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """An input whose channel the neighbour does not drive is an error."""
+    body_rows = ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4"]
+    fabric = make_fabric_from_grid(
+        [[_tile_from_rows("N_term", _TERM_ROWS)], [_tile_from_rows("Body", body_rows)]]
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+
+    with pytest.raises(InvalidFabricDefinition, match="Ci"):
+        generateFabric(writer, fabric)
