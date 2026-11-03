@@ -10,6 +10,7 @@ from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
 from librelane.state.state import State
 from librelane.steps.step import Step
+from loguru import logger
 
 from fabulous.custom_exception import (
     InvalidSupertileDefinition,
@@ -113,6 +114,11 @@ class FABulousTile(SequentialFlow):
         tile_dir = Path(tile_dir_entries[0]).resolve()
         if not tile_dir.is_dir():
             raise FlowException(f"FABULOUS_TILE_DIR={tile_dir} is not a directory")
+        user_pin_yaml = self.config.get("FABULOUS_IO_PIN_ORDER_CFG")
+        if user_pin_yaml is not None and not Path(user_pin_yaml).is_file():
+            raise FlowException(
+                f"FABULOUS_IO_PIN_ORDER_CFG={user_pin_yaml} is not a file"
+            )
 
         init_context(api_mode=True)
 
@@ -147,7 +153,6 @@ class FABulousTile(SequentialFlow):
             multiplexer_style=multiplexer_style,
         )
 
-        pin_yaml = Path(self.run_dir) / "io_pin_order.yaml"
         external_side_value = self.config.get("FABULOUS_EXTERNAL_SIDE")
         try:
             external_port_side = (
@@ -157,11 +162,28 @@ class FABulousTile(SequentialFlow):
             raise FlowException(
                 f"Invalid FABULOUS_EXTERNAL_SIDE={external_side_value!r}"
             ) from exc
-        generate_IO_pin_order_config(
-            tile,
-            pin_yaml,
-            external_port_side=external_port_side,
-        )
+
+        # Without a fabric only the CSV order is known, so prefer a pin file
+        # written with the fabric.
+        tile_pin_yaml = tile_dir / "io_pin_order.yaml"
+        if user_pin_yaml is not None:
+            pin_yaml = Path(user_pin_yaml)
+        elif tile_pin_yaml.is_file():
+            pin_yaml = tile_pin_yaml
+        else:
+            pin_yaml = Path(self.run_dir) / "io_pin_order.yaml"
+            logger.warning(
+                f"No {tile_pin_yaml}; generating the pin order of {tile_name} from "
+                "its tile CSV, which may not line up with its neighbours. Run "
+                "`gen_all_io_pin_config` in the project to generate it with the "
+                "fabric's channel order."
+            )
+            generate_IO_pin_order_config(
+                tile,
+                pin_yaml,
+                external_port_side=external_port_side,
+            )
+        logger.info(f"Using IO pin order {pin_yaml}")
 
         file_list = [str(f) for f in self.config.get("VERILOG_FILES", []) or []]
         if isinstance(tile, SuperTile):

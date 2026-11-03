@@ -247,11 +247,13 @@ class TestFABulousTileRunAdapter:
         (tile_dir.parent / "shared.v").write_text("", encoding="utf-8")
         return {"project": project, "tile_dir": tile_dir}
 
+    @pytest.mark.parametrize("pin_source", ["generated", "tile_dir", "user"])
     def test_run_populates_config_and_delegates(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
         project_tree: dict[str, Path],
+        pin_source: str,
     ) -> None:
         from decimal import Decimal
 
@@ -293,12 +295,22 @@ class TestFABulousTileRunAdapter:
             side_effect=lambda cfg: cfg,
         )
 
+        config = {
+            "DESIGN_NAME": "LUT4AB",
+            "FABULOUS_TILE_DIR": [str(tile_dir)],
+            "DESIGN_DIR": str(tile_dir),
+        }
+        expected_pin_yaml = tmp_path / "run" / "io_pin_order.yaml"
+        if pin_source == "tile_dir":
+            expected_pin_yaml = tile_dir / "io_pin_order.yaml"
+            expected_pin_yaml.write_text("X0Y0: {}\n")
+        elif pin_source == "user":
+            expected_pin_yaml = tmp_path / "custom_pins.yaml"
+            expected_pin_yaml.write_text("X0Y0: {}\n")
+            config["FABULOUS_IO_PIN_ORDER_CFG"] = str(expected_pin_yaml)
+
         flow = FABulousTile(
-            config={
-                "DESIGN_NAME": "LUT4AB",
-                "FABULOUS_TILE_DIR": [str(tile_dir)],
-                "DESIGN_DIR": str(tile_dir),
-            },
+            config=config,
             design_dir=str(tile_dir),
             pdk="sky130A",
             pdk_root=str(tmp_path / "pdk"),
@@ -328,21 +340,37 @@ class TestFABulousTileRunAdapter:
             max_frames_per_col=20,
         )
         emit_verilog.assert_called_once()
-        # Pin YAML should be generated below run_dir.
-        assert gen_pin_yaml.call_count == 1
-        assert gen_pin_yaml.call_args.args[:2] == (
-            mock_tile,
-            Path(flow.run_dir) / "io_pin_order.yaml",
-        )
+        # Only without an existing pin file is one generated, below run_dir.
+        if pin_source == "generated":
+            assert gen_pin_yaml.call_count == 1
+            assert gen_pin_yaml.call_args.args[:2] == (mock_tile, expected_pin_yaml)
+        else:
+            gen_pin_yaml.assert_not_called()
+        assert Path(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]) == expected_pin_yaml
         # Adapter must set the downstream keys.
         assert flow.config["DESIGN_NAME"] == "LUT4AB"
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
-        assert str(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]).endswith(
-            "io_pin_order.yaml"
-        )
         assert isinstance(flow.config, Config)
         super_run.assert_called_once()
+
+    def test_run_raises_on_missing_user_pin_file(
+        self, tmp_path: Path, project_tree: dict[str, Path]
+    ) -> None:
+        tile_dir: Path = project_tree["tile_dir"]
+        flow = FABulousTile(
+            config={
+                "DESIGN_NAME": "LUT4AB",
+                "FABULOUS_TILE_DIR": [str(tile_dir)],
+                "DESIGN_DIR": str(tile_dir),
+                "FABULOUS_IO_PIN_ORDER_CFG": str(tmp_path / "missing.yaml"),
+            },
+            design_dir=str(tile_dir),
+            pdk="sky130A",
+            pdk_root=str(tmp_path / "pdk"),
+        )
+        with pytest.raises(FlowException, match="is not a file"):
+            flow.run(initial_state=None)
 
     def test_run_raises_on_bad_tile_dir(
         self, mocker: MockerFixture, tmp_path: Path
