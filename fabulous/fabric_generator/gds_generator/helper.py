@@ -9,10 +9,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from librelane.common.misc import slugify
 from librelane.config.config import Config
-from librelane.flows.flow import FlowException
+from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import Substitution, SubstitutionsObject
 from librelane.logging.logger import info
+from librelane.state.state import State
 from librelane.steps.step import Step
 
 
@@ -314,3 +316,51 @@ def apply_step_substitutions(
     for id, with_step in items:  # noqa: A001
         _substitute_one(result, id, with_step)
     return result
+
+
+def start_flow(
+    flow: Flow,
+    *,
+    frm: str | None = None,
+    run_tag: str | None = None,
+    last_run: bool = False,
+) -> State:
+    """Start `flow`, forking the selected run when starting from a step.
+
+    With `frm` and one of `run_tag` or `last_run`, the run they select is forked:
+    `frm` gets the `state_in.json` it had there and runs in a new run directory,
+    leaving the source run untouched. Every other combination goes to
+    `Flow.start` unchanged, which rejects `run_tag` together with `last_run`.
+
+    Parameters
+    ----------
+    flow : Flow
+        The flow to start.
+    frm : str | None
+        LibreLane step ID to start from.
+    run_tag : str | None
+        Run directory under `runs/` to fork, or to create or resume without `frm`.
+    last_run : bool
+        Select the newest run under `runs/`.
+
+    Returns
+    -------
+    State
+        The final state of the flow.
+    """
+    if frm is None or bool(run_tag) == last_run:
+        return flow.start(tag=run_tag, last_run=last_run, frm=frm)
+
+    runs_dir = Path(flow.design_dir) / "runs"
+    if run_tag is None:
+        source = max(runs_dir.iterdir(), key=lambda run: run.stat().st_mtime)
+    else:
+        source = runs_dir / run_tag
+    # A run resumed in place can hold the same step twice; the latest one wins.
+    step_dir = max(
+        source.glob(f"[0-9]*-{slugify(frm)}"),
+        key=lambda step: int(step.name.split("-", maxsplit=1)[0]),
+    )
+    state = State.loads((step_dir / "state_in.json").read_text())
+    info(f"Forking '{source.name}' at '{frm}' into a new run.")
+    return flow.start(with_initial_state=state, frm=frm)
