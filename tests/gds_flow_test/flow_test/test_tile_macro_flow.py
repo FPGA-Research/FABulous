@@ -23,7 +23,9 @@ import yaml
 from librelane.flows.flow import FlowException
 
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileMacroFlow,
     FABulousTileVerilogMacroFlow,
+    FABulousTileVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
@@ -40,8 +42,9 @@ class TestFABulousTileVerilogMacroFlowInit:
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
         opt_mode: OptMode | None = OptMode.FIND_MIN_WIDTH,
+        flow_cls: type[FABulousTileMacroFlow] = FABulousTileVerilogMacroFlow,
         **kwargs: dict,
-    ) -> FABulousTileVerilogMacroFlow:
+    ) -> FABulousTileMacroFlow:
         """Create a flow with shared defaults used across tests."""
         flow_kwargs: dict[str, Any] = {
             "tile_type": tile_type,
@@ -52,7 +55,7 @@ class TestFABulousTileVerilogMacroFlowInit:
             "models_pack_path": Path("/fake/models/pack"),
         }
         flow_kwargs.update(kwargs)
-        return FABulousTileVerilogMacroFlow(**flow_kwargs)
+        return flow_cls(**flow_kwargs)
 
     def test_init_with_basic_tile(
         self,
@@ -596,6 +599,37 @@ class TestFABulousTileVerilogMacroFlowInit:
 
         verilog_files: list[str] = flow.config["VERILOG_FILES"]
         assert str(bel_src) in verilog_files
+
+    @pytest.mark.parametrize(
+        ("flow_cls", "expected"),
+        [
+            pytest.param(FABulousTileVerilogMacroFlow, ["LUT4c"], id="verilog"),
+            pytest.param(FABulousTileVHDLMacroFlow, ["lut4c_B*"], id="vhdl"),
+        ],
+    )
+    def test_bel_modules_kept_by_synthesised_name(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        tmp_path: Path,
+        flow_cls: type[FABulousTileMacroFlow],
+        expected: list[str],
+    ) -> None:
+        """BEL modules are kept by a pattern matching the name synthesis gives them."""
+        bel_src: Path = tmp_path / "LUT4c.v"
+        bel_src.write_text("module LUT4c(); endmodule")
+        mock_tile.bels = [MagicMock(src=bel_src, module_name="LUT4c")]
+
+        flow: FABulousTileMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            flow_cls=flow_cls,
+        )
+
+        assert flow.config["SYNTH_KEEP_HIERARCHY_MODULES"] == expected
+        assert flow.config["FABULOUS_BEL_MODULES"] == expected
 
     def test_nonexistent_config_files_ignored(
         self,
