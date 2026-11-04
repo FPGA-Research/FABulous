@@ -1,7 +1,7 @@
 """Test FABulousSettings class."""
 
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pytest
@@ -378,6 +378,59 @@ class TestToolPathResolution:
 
         assert result == "yosys"
         mock_which.assert_called_once_with("yosys")
+
+    @pytest.mark.parametrize(
+        "create_shadow",
+        [
+            pytest.param(Path.mkdir, id="directory"),
+            pytest.param(Path.touch, id="file"),
+        ],
+    )
+    def test_resolve_tool_paths_bare_name_ignores_cwd(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        create_shadow: Callable[[Path], None],
+    ) -> None:
+        """A project's `yosys/` folder must not shadow the `yosys` command."""
+        create_shadow(tmp_path / "yosys")
+        monkeypatch.chdir(tmp_path)
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mocker.patch("fabulous.fabulous_settings.which", return_value="/usr/bin/yosys")
+
+        result = FABulousSettings.resolve_tool_paths("yosys", mock_info)
+
+        assert result == Path("/usr/bin/yosys").resolve()
+
+    @pytest.mark.parametrize(
+        "relative_path",
+        [
+            pytest.param("./yosys", id="dot-prefix"),
+            pytest.param("bin/yosys", id="subdirectory"),
+        ],
+    )
+    def test_resolve_tool_paths_relative_path_uses_cwd(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        relative_path: str,
+    ) -> None:
+        """A value with a directory part stays a path relative to the cwd."""
+        tool = tmp_path / relative_path
+        tool.parent.mkdir(exist_ok=True)
+        tool.touch()
+        monkeypatch.chdir(tmp_path)
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mock_which = mocker.patch("fabulous.fabulous_settings.which")
+
+        result = FABulousSettings.resolve_tool_paths(relative_path, mock_info)
+
+        assert result == tool.resolve()
+        mock_which.assert_not_called()
 
 
 class TestModelsPackValidation:

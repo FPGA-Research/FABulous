@@ -5,6 +5,7 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import sys
 import tkinter as tk
 from decimal import Decimal
 from pathlib import Path
@@ -18,10 +19,11 @@ from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
+from fabulous.fabulous import main
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
-from fabulous.fabulous_settings import init_context, reset_context
+from fabulous.fabulous_settings import get_context, init_context, reset_context
 from tests.conftest import (
     normalize_and_check_for_errors,
     run_cmd,
@@ -38,6 +40,45 @@ def test_load_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> Non
     log = normalize_and_check_for_errors(caplog.text)
     assert "Loading fabric" in log[0]
     assert "Complete" in log[-1]
+
+
+@pytest.mark.parametrize(
+    ("argv", "use_cwd"),
+    [
+        pytest.param(["FABulous", "run", "load_fabric"], True, id="inside-project"),
+        pytest.param(
+            ["FABulous", "-p", "{project}", "run", "load_fabric"],
+            False,
+            id="outside-project",
+        ),
+    ],
+)
+def test_run_loads_fabric_from_any_directory(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: list[str],
+    use_cwd: bool,
+) -> None:
+    """The project's `yosys/` folder must not replace the Yosys tool.
+
+    `run` exits 0 when `load_fabric` fails, and a warm `cache_yosys_synthesis` never
+    executes the tool, so neither the exit code nor the log alone shows the failure.
+    """
+    if use_cwd:
+        monkeypatch.chdir(project)
+    monkeypatch.setattr(
+        sys, "argv", [arg.replace("{project}", str(project)) for arg in argv]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+    assert get_context().yosys_path != project / "yosys"
+    log = capsys.readouterr().out
+    assert "Complete" in log
+    assert "ERROR" not in log
 
 
 def test_gen_config_mem(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
