@@ -60,8 +60,8 @@ def pre_rework_synth_compat_args(
 
     Yosys 0.67 stopped bundling the FABulous library and rejects `-iopad`.
     A `Test/Taskfile.yml` that never references `SYNTH_LIB_ARGS` passes no
-    library options, so the packaged copy is injected for it. Older Yosys gets
-    the arguments unchanged.
+    library options, so the packaged copy is injected through
+    `SYNTH_EXTRA_ARGS`. Older Yosys gets the arguments unchanged.
 
     Parameters
     ----------
@@ -76,9 +76,16 @@ def pre_rework_synth_compat_args(
     -------
     str
         The arguments to forward to `synth_fabulous` through the Taskfile.
+
+    Raises
+    ------
+    CommandError
+        If the Yosys needs the library and the Taskfile reads neither
+        `SYNTH_LIB_ARGS` nor `SYNTH_EXTRA_ARGS`.
     """
     taskfile = project_dir / "Test" / "Taskfile.yml"
-    passes_lib = "{{.SYNTH_LIB_ARGS}}" in taskfile.read_text()
+    taskfile_text = taskfile.read_text()
+    passes_lib = "{{.SYNTH_LIB_ARGS}}" in taskfile_text
     tokens = synth_extra_args.split()
     if passes_lib and "-iopad" not in tokens:
         return synth_extra_args
@@ -104,6 +111,13 @@ def pre_rework_synth_compat_args(
         tokens = [token for token in tokens if token != "-iopad"]
     if passes_lib:
         return " ".join(tokens)
+    if "{{.SYNTH_EXTRA_ARGS" not in taskfile_text:
+        raise CommandError(
+            f"{taskfile} reads neither SYNTH_LIB_ARGS nor SYNTH_EXTRA_ARGS, so it "
+            "cannot pass the library this Yosys needs. Run "
+            f"`FABulous -p {project_dir} update-project-version` to upgrade the "
+            "project."
+        )
 
     logger.warning(
         f"{taskfile} predates the Yosys synth_fabulous rework and passes no "
@@ -112,23 +126,25 @@ def pre_rework_synth_compat_args(
         "to upgrade the project."
     )
     lib = PACKAGED_YOSYS_LIB
-    lib_args = [
-        f"-extra-plib {lib / 'primitives' / 'prims.v'}",
-        f"-cells-map {lib / 'techmap' / 'cells_map.v'}",
-        f"-arith-map {lib / 'techmap' / 'arith_map.v'}",
-        f"-extra-map {lib / 'techmap' / 'ff_map.v'}",
-        f"-extra-map {lib / 'techmap' / 'latches_map.v'}",
-        f"-extra-map {lib / 'techmap' / 'io_map.v'}",
-        f"-extra-mlibmap {lib / 'memlib' / 'ram_regfile.txt'}",
-        f"-extra-map {lib / 'techmap' / 'regfile_map.v'}",
+    lib_files = [
+        ("-extra-plib", lib / "primitives" / "prims.v"),
+        ("-cells-map", lib / "techmap" / "cells_map.v"),
+        ("-arith-map", lib / "techmap" / "arith_map.v"),
+        ("-extra-map", lib / "techmap" / "ff_map.v"),
+        ("-extra-map", lib / "techmap" / "latches_map.v"),
+        ("-extra-map", lib / "techmap" / "io_map.v"),
+        ("-extra-mlibmap", lib / "memlib" / "ram_regfile.txt"),
+        ("-extra-map", lib / "techmap" / "regfile_map.v"),
     ]
     # The Taskfile reads custom_prims.v before these options; reading it again
     # lets the project's BEL blackboxes replace the library's copies.
     custom_prims = project_dir / "user_design" / "custom_prims.v"
     if custom_prims.is_file():
-        lib_args.append(f"-extra-plib {custom_prims}")
-    # The Taskfile quotes the synth command for the shell, so `$` is escaped.
-    lib_args.append(r"-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x")
+        lib_files.append(("-extra-plib", custom_prims))
+    # The Taskfile wraps the synth command in shell double quotes, so `$` and the
+    # quotes that keep a path with spaces in one Yosys token are escaped.
+    lib_args = [rf"{option} \"{path}\"" for option, path in lib_files]
+    lib_args.append(r"-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn")
     return " ".join([*lib_args, *tokens])
 
 

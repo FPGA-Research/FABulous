@@ -36,7 +36,7 @@ SYNTH_LIB_OPTS=-extra-plib ${YOSYS_LIB_DIR}/primitives/prims.v \
     -extra-map ${YOSYS_LIB_DIR}/techmap/io_map.v \
     -extra-mlibmap ${YOSYS_LIB_DIR}/memlib/ram_regfile.txt \
     -extra-map ${YOSYS_LIB_DIR}/techmap/regfile_map.v \
-    -ff \$$_DFF_P_ 0 -ff \$$_DLATCH_?_ x
+    -ff \$$_DFF_P_ 0 -ff \$$_DLATCH_?_ x -latches warn
 checked_yosys_probe=$(if $(findstring FAB_YOSYS_PROBE_FAILED,$1),$(error ${YOSYS} -p "help synth_fabulous" failed),$1)
 # Recursively expanded, so only run_yosys starts Yosys.
 SYNTH_LIB_ARGS=$(call checked_yosys_probe,$(shell \

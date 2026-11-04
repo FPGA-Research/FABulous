@@ -97,7 +97,7 @@ tasks:
               "-extra-map $lib/techmap/io_map.v" \
               "-extra-mlibmap $lib/memlib/ram_regfile.txt" \
               "-extra-map $lib/techmap/regfile_map.v" \
-              '-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x'
+              '-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn'
           else
             echo "WARNING: Yosys 0.66 and older is deprecated; support ends in FABulous 3.0." >&2
             echo "-iopad"

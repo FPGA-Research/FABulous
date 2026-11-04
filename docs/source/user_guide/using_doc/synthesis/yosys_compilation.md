@@ -20,7 +20,9 @@ and older ends in FABulous 3.0.
 A project created before the rework has no `yosys/` folder, and its
 `Test/Taskfile.yml` and `Test/Makefile` pass no library to `synth_fabulous`.
 `compile_design` still works in such a project, because FABulous adds the
-library it ships with and logs a deprecation warning. Running `task` or `make`
+library it ships with and logs a deprecation warning. A `Test/Taskfile.yml` that
+does not read `SYNTH_EXTRA_ARGS` cannot take that library, so on Yosys 0.67 and
+newer `compile_design` stops and asks for the upgrade. Running `task` or `make`
 by hand in `Test/` fails on Yosys 0.67 and newer, with an error such as
 ``Module `\Global_Clock' ... is not part of the design``. To fix this, upgrade
 the project:
@@ -127,8 +129,11 @@ yosys -p "synth_fabulous -top <toplevel> -json <out.json> \
   -extra-map ../yosys/techmap/io_map.v \
   -extra-mlibmap ../yosys/memlib/ram_regfile.txt \
   -extra-map ../yosys/techmap/regfile_map.v \
-  -ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x" <files.v>
+  -ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn" <files.v>
 ```
+
+`latches_map.v` builds latches from LUT logic, which the default `-latches error`
+of `synth_fabulous` aborts on, so `-latches warn` is required for such designs.
 
 For VHDL projects, elaborate the design with GHDL first and pass the same
 options:

@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous_repl.cmd_user_design import UserDesignCommandSet
+from fabulous.custom_exception import CommandError
+from fabulous.fabulous_repl.cmd_user_design import (
+    UserDesignCommandSet,
+    pre_rework_synth_compat_args,
+)
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
 
@@ -311,3 +315,55 @@ def test_compile_design_nonexistent_file(
     run_cmd(compile_cli, f"compile_design {bogus}")
 
     mock_run_task.assert_not_called()
+
+
+@pytest.fixture
+def reworked_yosys(mocker: MockerFixture) -> None:
+    """Make the `-cells-map` probe report a Yosys after the rework."""
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_user_design.sp.run",
+        return_value=mocker.Mock(stdout="-cells-map"),
+    )
+
+
+@pytest.mark.usefixtures("reworked_yosys")
+@pytest.mark.parametrize(
+    "synth_cmd",
+    [
+        pytest.param(
+            "synth_fabulous -top {{.TOP_WRAPPER}} {{.CUSTOM_PRIMS}}", id="verilog"
+        ),
+        pytest.param(
+            "ghdl a.vhdl -e a; synth_fabulous -top a {{.CUSTOM_PRIMS}};", id="vhdl"
+        ),
+    ],
+)
+def test_pre_rework_compat_refuses_taskfile_without_extra_args(
+    tmp_path: Path, synth_cmd: str
+) -> None:
+    """Test that a Taskfile unable to take the library stops with the way out."""
+    (tmp_path / "Test").mkdir()
+    (tmp_path / "Test" / "Taskfile.yml").write_text(f"SYNTH_CMD: '{synth_cmd}'\n")
+
+    with pytest.raises(CommandError, match="update-project-version"):
+        pre_rework_synth_compat_args(tmp_path, "yosys", "")
+
+
+@pytest.mark.usefixtures("reworked_yosys")
+def test_pre_rework_compat_quotes_library_and_allows_latches(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Test that injected paths survive spaces and latches reach their map."""
+    (tmp_path / "Test").mkdir()
+    (tmp_path / "Test" / "Taskfile.yml").write_text(
+        "SYNTH_CMD: '{{.SYNTH_EXTRA_ARGS | default \"\"}}'\n"
+    )
+    mocker.patch(
+        "fabulous.fabulous_repl.cmd_user_design.PACKAGED_YOSYS_LIB",
+        Path("/opt/fab ulous/yosys"),
+    )
+
+    args = pre_rework_synth_compat_args(tmp_path, "yosys", "-nofsm")
+
+    assert r"-cells-map \"/opt/fab ulous/yosys/techmap/cells_map.v\"" in args
+    assert args.endswith("-latches warn -nofsm")
