@@ -1187,6 +1187,7 @@ def test_check_version_compatibility_cases(
     reset_context()
     init_context(project_dir=project)
     monkeypatch.setattr("fabulous.fabulous.version", lambda _: package_ver)
+    caplog.clear()
 
     if should_exit:
         with pytest.raises(typer.Exit):
