@@ -405,9 +405,6 @@ html_sidebars = {
     "development": [],
 }
 
-# -- Options for EPUB output
-epub_show_urls = "footnote"
-
 bibtex_bibfiles = ["misc/publications.bib"]
 copybutton_prompt_text = r"\$ |FABulous> |\(venv\)\$ "
 copybutton_prompt_is_regexp = True
