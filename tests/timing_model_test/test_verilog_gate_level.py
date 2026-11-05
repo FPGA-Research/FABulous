@@ -290,8 +290,7 @@ def test_resolve_hier_pin_escaped_instance_uses_sdf_path_name(
     assert resolved_leaf_pins == [expected_leaf_pin]
     assert all(pin in graph.graph for pin in resolved_leaf_pins)
     assert graph.has_path(resolved_leaf_pins[0], "OUT")
-    with pytest.warns(DeprecationWarning, match="query_timing_paths"):
-        assert graph.single_delay(resolved_leaf_pins[0], "OUT") == 1.0
+    assert graph.single_delay(resolved_leaf_pins[0], "OUT") == 1.0
 
 
 def test_resolve_hier_pin_missing_target_pin(

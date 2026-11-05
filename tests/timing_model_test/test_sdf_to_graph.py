@@ -244,30 +244,30 @@ def test_has_path_true_and_false(sdf_graph: SDFTimingGraph) -> None:
     assert sdf_graph.has_path("A", "H") is False
 
 
-def test_single_delay_returns_shortest_weighted_path_and_info(
+def test_single_delay_returns_shortest_weighted_path_and_logs_deprecation(
     sdf_graph: SDFTimingGraph,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    with pytest.warns(DeprecationWarning, match="query_timing_paths"):
-        length = sdf_graph.single_delay("A", "E")
+    length = sdf_graph.single_delay("A", "E")
 
     assert length == 7.0
+    assert caplog.records[-1].levelname == "WARNING"
+    assert (
+        "single_delay() is deprecated. Use query_timing_paths() instead." in caplog.text
+    )
 
 
 def test_single_delay_prefers_lower_total_delay_not_fewer_edges(
     sdf_graph: SDFTimingGraph,
 ) -> None:
-    with pytest.warns(DeprecationWarning, match="query_timing_paths"):
-        length = sdf_graph.single_delay("A", "D")
+    length = sdf_graph.single_delay("A", "D")
     assert length == 3.0
 
 
 def test_single_delay_raises_when_no_path_exists(
     sdf_graph: SDFTimingGraph,
 ) -> None:
-    with (
-        pytest.warns(DeprecationWarning, match="query_timing_paths"),
-        pytest.raises(nx.NetworkXNoPath),
-    ):
+    with pytest.raises(nx.NetworkXNoPath):
         sdf_graph.single_delay("A", "H")
 
 

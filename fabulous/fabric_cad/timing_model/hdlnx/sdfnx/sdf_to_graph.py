@@ -15,7 +15,7 @@ from itertools import islice, pairwise
 from math import isclose
 
 import networkx as nx
-from typing_extensions import deprecated
+from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import (
     SDFTimingGraphBase,
@@ -61,7 +61,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
         """
         return nx.has_path(self.graph, source=source, target=target)
 
-    @deprecated("Use query_timing_paths() instead.")
     def single_delay(self, source: str, target: str) -> float:
         """Find path with delay between source and target nodes in the timing graph.
 
@@ -88,6 +87,9 @@ class SDFTimingGraph(SDFTimingGraphBase):
         --------
             length = sdf_graph.single_delay("nodeA/pin", "nodeB/pin")
         """
+        logger.warning(
+            "single_delay() is deprecated. Use query_timing_paths() instead."
+        )
         length: float = nx.dijkstra_path_length(
             self.graph, source=source, target=target, weight="weight"
         )
