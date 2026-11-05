@@ -20,7 +20,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.tile import Tile
+from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
 @pytest.fixture
@@ -57,23 +57,13 @@ def lut_fabric() -> Fabric:
         carry={},
         localShared={},
     )
-    tile = Tile(
-        name="LUT4AB",
-        ports=[],
-        bels=[bel],
-        tileDir=Path(),
-        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={"LA_O": ["J_BEG"]}),
-        gen_ios=[],
-        userCLK=True,
-        pinOrderConfig={},
+    tile = make_empty_tile("LUT4AB", pinOrderConfig={})
+    tile.bels = [bel]
+    tile.withUserCLK = True
+    tile.switch_matrix = SwitchMatrix(
+        matrix_file=Path(), connections={"LA_O": ["J_BEG"]}
     )
-    return Fabric(
-        fabric_dir=Path(),
-        tile=[[tile]],
-        numberOfRows=1,
-        numberOfColumns=1,
-        tileDic={tile.name: tile},
-    )
+    return make_fabric_from_grid([[tile]])
 
 
 def test_gen_routing_model_returns_five_with_timing(lut_fabric: Fabric) -> None:
