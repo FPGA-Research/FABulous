@@ -22,7 +22,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # Self-hosted runners carry a preinstalled multi-user Nix with a persistent store
+    # and no sudo, so the install, disk cleanup and store cache steps are hosted-only.
     - name: Install Nix
+      if: ${{ runner.environment == 'github-hosted' }}
       uses: nixbuild/nix-quick-install-action@v35
       with:
         nix_version: ${{ inputs.nix_version }}
@@ -31,7 +34,7 @@ runs:
           extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
 
     - name: Free up disk space
-      if: ${{ inputs.free_disk_space == 'true' && runner.os == 'Linux' }}
+      if: ${{ inputs.free_disk_space == 'true' && runner.os == 'Linux' && runner.environment == 'github-hosted' }}
       shell: bash
       run: |
         sudo rm -rf /usr/share/dotnet
@@ -43,6 +46,7 @@ runs:
         sudo rm -rf /usr/share/swift
 
     - name: Cache Nix store
+      if: ${{ runner.environment == 'github-hosted' }}
       uses: nix-community/cache-nix-action@v7
       with:
         primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'uv.lock', 'pyproject.toml') }}
@@ -65,4 +69,9 @@ runs:
 
     - name: Build nix environment
       shell: bash
+      # nix-eda fetches some sources (magic) through the GitHub API; anonymous calls
+      # share the runner IP's 60/h quota and fail with 403. Single-user Nix passes this
+      # to the fixed-output derivation; a multi-user daemon ignores it.
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: nix develop --command true

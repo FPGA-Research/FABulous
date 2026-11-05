@@ -37,6 +37,7 @@ FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
 MODELS_PACK_REQUIRED_MODULES: list[str] = [
     "config_latch",
     "my_buf",
+    "config_dff",
     "clk_buf",
     "cus_mux41",
     "cus_mux21",
@@ -72,7 +73,8 @@ class FABulousSettings(BaseSettings):
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
-    proj_version: Version = Version(meta_version("FABulous-FPGA"))
+    # None when the project sets no FAB_PROJ_VERSION, which no 2.x project lacks.
+    proj_version: Version | None = None
     version: Version = Field(
         default=Version(meta_version("FABulous-FPGA")),
         deprecated=True,
@@ -363,7 +365,8 @@ class FABulousSettings(BaseSettings):
 
         This method is used as a field validator to automatically resolve tool paths
         during settings initialization. If a tool path is not explicitly provided,
-        it searches for the tool in the system `PATH`.
+        it searches for the tool in the system `PATH`. A value without a directory
+        part counts as not provided, so the current directory never supplies a tool.
 
         Parameters
         ----------
@@ -384,7 +387,13 @@ class FABulousSettings(BaseSettings):
         """
         if isinstance(value, Path):
             return value
-        if isinstance(value, str) and value != "" and Path(value).exists():
+        # A bare name is a command for `PATH`, not a path: a project's `yosys/` folder
+        # would otherwise replace the tool whenever FABulous runs inside the project.
+        if (
+            isinstance(value, str)
+            and Path(value).name != value
+            and Path(value).exists()
+        ):
             return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
@@ -481,9 +490,9 @@ class FABulousSettings(BaseSettings):
         # Import librelane lazily: a module-level import pulls in librelane's
         # plugin discovery, which imports librelane_plugin_fabulous (and thus the
         # gds flows that import this module), forming an import cycle.
-        from librelane.common.misc import get_pdk_hash  # noqa: PLC0415
+        from librelane.common.misc import get_ciel_pdk_hash  # noqa: PLC0415
 
-        recommended_hash = get_pdk_hash(ciel_family.name)
+        recommended_hash = get_ciel_pdk_hash(ciel_family.name)
         if self.pdk_hash is None:
             self.pdk_hash = recommended_hash
 
@@ -491,7 +500,7 @@ class FABulousSettings(BaseSettings):
             logger.warning(
                 f"PDK hash mismatch: configured '{self.pdk_hash}' "
                 f"vs recommended '{recommended_hash}' for "
-                f"family '{ciel_family}'. "
+                f"family '{ciel_family.name}'. "
                 "You may experience compatibility issues."
             )
 

@@ -19,7 +19,7 @@ package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
   attribute INIT_14     : integer;
   attribute INIT_15     : integer;
   attribute FAB_ATTR_FF : integer;
-  attribute IOmux       : integer;
+  attribute I0mux       : integer;
   attribute SET_NORESET : integer;
   attribute EXTERNAL    : string;
   attribute SHARED_PORT : string;
@@ -35,7 +35,7 @@ library IEEE;
 -- (* FABulous, BelMap,
 -- INIT=0, INIT_1=1, INIT_2=2, INIT_3=3, INIT_4=4, INIT_5=5, INIT_6=6, INIT_7=7, INIT_8=8,
 -- INIT_9=9, INIT_10=10, INIT_11=11,INIT_12=12, INIT_13=13, INIT_14=14, INIT_15=15,
--- FAB_ATTR_FF=16, IOmux=17, SET_NORESET=18 *)
+-- FAB_ATTR_FF=16, I0mux=17, SET_NORESET=18 *)
 
 entity LUT4c_frame_config_dffesr is
   generic (
@@ -75,7 +75,7 @@ entity LUT4c_frame_config_dffesr is
   attribute INIT_14 of LUT4c_frame_config_dffesr     : entity is 14;
   attribute INIT_15 of LUT4c_frame_config_dffesr     : entity is 15;
   attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
-  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute I0mux of LUT4c_frame_config_dffesr       : entity is 17;
   attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
   attribute EXTERNAL of UserCLK                      : signal is "TRUE";
   attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
@@ -96,7 +96,7 @@ architecture Behavioral of LUT4c_frame_config_dffesr is
 
   signal LUT_out       : std_logic;
   signal LUT_flop      : std_logic;
-  signal I0mux         : std_logic; -- normal input '0', or carry input '1'
+  signal I0mux_out     : std_logic; -- normal input '0', or carry input '1'
   signal c_out_mux     : std_logic;
   signal c_I0mux       : std_logic;
   signal c_reset_value : std_logic; -- extra configuration bits
@@ -149,7 +149,7 @@ begin
 
   -- CONFout <= c_I0mux;
 
-  -- I0mux <= I(0) when (c_I0mux = '0') else
+  -- I0mux_out <= I(0) when (c_I0mux = '0') else
   --   Ci;
 
   inst_cus_mux21_i0mux : component cus_mux21
@@ -157,10 +157,10 @@ begin
       A0 => I(0),
       A1 => Ci,
       S  => c_I0mux,
-      X  => I0mux
+      X  => I0mux_out
     );
 
-  LUT_index <= I(3) & I(2) & I(1) & I0mux;
+  LUT_index <= I(3) & I(2) & I(1) & I0mux_out;
 
   -- The LUT is just a multiplexer
   -- for a first shot, I am using a 16:1

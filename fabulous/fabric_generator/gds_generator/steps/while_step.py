@@ -3,10 +3,12 @@
 Will be replaced into librelane eventually.
 """
 
+import dataclasses
 from pathlib import Path
 from typing import Optional
 
 from librelane.common.misc import slugify
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.flow import FlowProgressBar
 from librelane.logging.logger import warn
@@ -171,8 +173,15 @@ class WhileStep(Step):
             progress_bar.end_stage()
         current_state = self.post_loop_callback(current_state)
 
-        # Persist final config — post_loop_callback may have updated it
-        (Path(self.step_dir) / "config.json").write_text(self.config.dumps())
+        # Persist final config, since post_loop_callback may have updated it. Keep
+        # the `meta.step` that `Step.start` wrote: `Flow.start` reloads finished
+        # steps by that ID when resuming a run.
+        step_meta = dataclasses.replace(
+            self.config.meta, step=type(self).get_implementation_id()
+        )
+        (Path(self.step_dir) / "config.json").write_text(
+            Config(self.config, meta=step_meta).dumps()
+        )
 
         for key in current_state:
             if (

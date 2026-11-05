@@ -3,6 +3,7 @@
 import hashlib
 import re
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -108,7 +109,7 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         models_pack_file = project_dir / "models_pack.v"
         models_pack_file.touch()
         set_key(env_file, "FAB_PROJ_LANG", "verilog")
-        set_key(env_file, "FAB_PROJ_VERSION", "1.0.0")
+        set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
         set_key(env_file, "FAB_MODELS_PACK", str(models_pack_file))
         set_key(env_file, "FAB_PROJ_DIR", str(project_dir))
 
@@ -164,5 +165,8 @@ def find_task_calls() -> list[list[str]]:
     return [
         c.args[0]
         for c in mock.call_args_list
-        if c.args and isinstance(c.args[0], list | tuple) and c.args[0][0] == "task"
+        # run_task invokes the resolved absolute path, not a bare "task"
+        if c.args
+        and isinstance(c.args[0], list | tuple)
+        and Path(c.args[0][0]).stem == "task"
     ]

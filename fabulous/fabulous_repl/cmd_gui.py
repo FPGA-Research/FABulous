@@ -25,11 +25,13 @@ from fabulous.fabulous_repl.helper import (
 from fabulous.fabulous_settings import get_context
 
 # klayout layer property file naming differs by PDK:
-# - ihp-sg13g2 ships sg13g2.lyp under its single-variant install dir.
+# - the ihp-sg13 variant names keep the `ihp-` prefix but the file drops it, so
+#   ihp-sg13g2 ships sg13g2.lyp and ihp-sg13cmos5l ships sg13cmos5l.lyp.
 # - gf180mcu ships a single gf180mcu.lyp shared by every variant (A/B/C/D).
 # - Other PDKs (e.g. sky130A/B) follow the variant-name convention.
 KLAYOUT_LAYER_FILE_NAMES: dict[str, str] = {
     "ihp-sg13g2": "sg13g2.lyp",
+    "ihp-sg13cmos5l": "sg13cmos5l.lyp",
     "gf180mcuA": "gf180mcu.lyp",
     "gf180mcuB": "gf180mcu.lyp",
     "gf180mcuC": "gf180mcu.lyp",

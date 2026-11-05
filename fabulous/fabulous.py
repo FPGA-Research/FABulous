@@ -20,10 +20,11 @@ from packaging.version import Version
 from pydantic import ValidationError
 from typer.main import get_command
 
-from fabulous.custom_exception import PipelineCommandError
+from fabulous.custom_exception import PipelineCommandError, ProjectUpgradeError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import (
+    PRE_2_PROJECT_MIGRATION,
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -262,28 +263,53 @@ def common_options(
         _log_settings_validation_error(e, resolved_dir)
         raise typer.Exit(1) from None
 
+    # update-project-version is how an outdated project gets current.
+    if subcommand != "update-project-version":
+        check_version_compatibility()
 
-def check_version_compatibility(_: Path) -> None:
-    """Check version compatibility between package and project."""
+
+def check_version_compatibility() -> None:
+    """Stop on a project this FABulous cannot run and warn on an outdated one.
+
+    Raises
+    ------
+    typer.Exit
+        If the project sets no `FAB_PROJ_VERSION`, comes from an older major
+        version, or is newer than the installed package.
+    """
     settings = get_context()
     project_version = settings.proj_version
     package_version = Version(version("FABulous-FPGA"))
 
+    if project_version is None:
+        logger.error(
+            f"{settings.proj_dir} sets no FAB_PROJ_VERSION, so it was not created by "
+            f"FABulous 2 or later, and FABulous {package_version} cannot run "
+            f"projects from FABulous 1. {PRE_2_PROJECT_MIGRATION}"
+        )
+        raise typer.Exit(1)
+
+    if project_version.major < package_version.major:
+        logger.error(
+            f"{settings.proj_dir} was created by FABulous {project_version}, and "
+            f"FABulous {package_version} cannot run projects from an older major "
+            f"version. {PRE_2_PROJECT_MIGRATION}"
+        )
+        raise typer.Exit(1)
+
     if package_version.release < project_version.release:
         logger.error(
-            f"Version incompatible! FABulous-FPGA version: {package_version}, "
-            f"Project version: {project_version}\n"
-            r'Please run "FABulous \<project_dir> --update-project-version" '
-            r"to update the project version."
+            f"{settings.proj_dir} was created by FABulous {project_version}, which is "
+            f"newer than the installed FABulous {package_version}. Install FABulous "
+            f"{project_version} or newer."
         )
-        raise typer.Exit(1) from None
+        raise typer.Exit(1)
 
-    if project_version.major != package_version.major:
-        logger.error(
-            f"Major version mismatch! FABulous-FPGA major version: "
-            f"{package_version.major}, Project major version: {project_version.major}\n"
-            "This may lead to compatibility issues. Please ensure the project is "
-            "compatible with the current FABulous-FPGA version."
+    if project_version.release < package_version.release:
+        logger.warning(
+            f"{settings.proj_dir} was created by FABulous {project_version}. Run "
+            f"`FABulous -p {settings.proj_dir} update-project-version` to upgrade it "
+            f"to FABulous {package_version}."
         )
 
 
@@ -478,7 +504,12 @@ def nix_env_cmd(
 def update_project_version_cmd() -> None:
     """Update project version to match package version."""
     logger.info(f"Using {get_context().proj_dir} directory as project directory")
-    if not update_project_version(get_context().proj_dir):
+    try:
+        updated = update_project_version(get_context().proj_dir)
+    except ProjectUpgradeError as e:
+        logger.error(f"Project upgrade failed, nothing was changed: {e}")
+        raise typer.Exit(1) from None
+    if not updated:
         logger.error(
             "Failed to update project version. Please check the logs for more details."
         )
@@ -498,26 +529,38 @@ def script_cmd(
         ),
     ],
     script_type: Annotated[
-        ScriptType,
+        ScriptType | None,
         typer.Option(
             "--type",
             "-t",
             help="Override script type detection",
             case_sensitive=False,
         ),
-    ] = ScriptType.TCL,
+    ] = None,
     force: ForceType = False,
 ) -> None:
     """Execute a script file with auto-detection of script type.
 
-    Automatically detects whether the script is a FABulous (.fab, .fs) or TCL (.tcl)
-    script based on file extension and content. You can override the detection with
-    --type.
+    Detects whether the script is a FABulous (.fab, .fs) or TCL (.tcl) script from
+    its file extension. --type overrides the detection and is required for any other
+    extension.
 
     If no project directory is specified, uses the current directory.
     """
-    # Initialize context
     script_file = script_file.absolute()
+    if script_type is None:
+        match script_file.suffix.lower():
+            case ".fab" | ".fs":
+                script_type = ScriptType.FABULOUS
+            case ".tcl":
+                script_type = ScriptType.TCL
+            case _:
+                logger.error(
+                    f"Cannot detect the script type of {script_file} from its "
+                    "extension. Use .fab, .fs or .tcl, or pass --type fabulous|tcl."
+                )
+                raise typer.Exit(1)
+
     repl = FABulousREPL(
         writerType=get_context().proj_lang,
         force=force,
@@ -533,32 +576,25 @@ def script_cmd(
         logger.error(f"Script file {script_file} does not exist")
         raise typer.Exit(1)
 
-    # Execute the script based on type
-    if (
-        script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
-    ) or script_type == "fabulous":
-        repl.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
-        if repl.exit_code:
-            logger.error(
-                f"FABulous script {script_file} execution failed with "
-                f"exit code {repl.exit_code}"
-            )
-            raise typer.Exit(repl.exit_code)
-        logger.info(f"FABulous script {script_file} executed successfully")
-    elif (
-        script_file.suffix.lower() == ".tcl" and script_type is None
-    ) or script_type == "tcl":
-        repl.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
-        if repl.exit_code:
-            logger.error(
-                f"TCL script {script_file} execution failed with "
-                f"exit code {repl.exit_code}"
-            )
-            raise typer.Exit(repl.exit_code)
-        logger.info(f"TCL script {script_file} executed successfully")
-    else:
-        logger.error(f"Unknown script type: {script_type}")
-        raise typer.Exit(1)
+    match script_type:
+        case ScriptType.FABULOUS:
+            repl.onecmd_plus_hooks(f"run_script {script_file}")
+            if repl.exit_code:
+                logger.error(
+                    f"FABulous script {script_file} execution failed with "
+                    f"exit code {repl.exit_code}"
+                )
+                raise typer.Exit(repl.exit_code)
+            logger.info(f"FABulous script {script_file} executed successfully")
+        case ScriptType.TCL:
+            repl.onecmd_plus_hooks(f"run_tcl {script_file}")
+            if repl.exit_code:
+                logger.error(
+                    f"TCL script {script_file} execution failed with "
+                    f"exit code {repl.exit_code}"
+                )
+                raise typer.Exit(repl.exit_code)
+            logger.info(f"TCL script {script_file} executed successfully")
 
 
 @app.command("start")
@@ -930,7 +966,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         project_dot_env=args.projectDotEnv,
     )
     if args.update_project_version:
-        update_project_version_cmd(project_dir)
+        update_project_version_cmd()
     elif args.FABulousScript:
         # Convert legacy --FABulousScript to new typer script command
         # Use the new Typer script command internally
@@ -938,7 +974,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         try:
             script_cmd(
                 script_file=args.FABulousScript,
-                script_type="fabulous",
+                script_type=ScriptType.FABULOUS,
                 force=args.force,
             )
         except typer.Exit as e:
@@ -950,7 +986,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         try:
             script_cmd(
                 script_file=args.TCLScript,
-                script_type="tcl",
+                script_type=ScriptType.TCL,
                 force=args.force,
             )
         except typer.Exit as e:

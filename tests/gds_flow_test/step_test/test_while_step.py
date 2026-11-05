@@ -147,6 +147,7 @@ class TestWhileStep:
         """With empty propagate_exceptions, break_on_failure swallows the error."""
 
         class SwallowingWhileStep(WhileStep):
+            id = "Test.Swallowing"
             Steps = [_InnerStep]  # noqa: RUF012
             outputs = []  # noqa: RUF012
             propagate_exceptions = ()
@@ -232,3 +233,34 @@ class TestWhileStep:
             warning_list_ref=[],
         )
         assert final == payload
+
+    def test_final_config_keeps_step_id(
+        self,
+        mock_config: Config,
+        mock_state: State,
+        mocker: MockerFixture,
+        tmp_path,  # noqa: ANN001
+    ) -> None:
+        """The persisted `config.json` names the step, as `Step.start` wrote it.
+
+        `Flow.start` reloads finished steps from `meta.step` when resuming a run,
+        so a missing ID makes every resume of that run fail.
+        """
+
+        class NamedWhileStep(WhileStep):
+            id = "Test.While"
+            name = "While"
+            Steps = [_InnerStep]  # noqa: RUF012
+            outputs = []  # noqa: RUF012
+            max_iterations = 1
+
+        mocker.patch.object(_InnerStep, "start", return_value=mock_state)
+        step = NamedWhileStep(mock_config)
+        step.config = mock_config
+        step.step_dir = str(tmp_path)
+        step.toolbox = mocker.MagicMock()
+
+        step.run(mock_state)
+
+        step_id, _ = Step.factory.from_step_config(tmp_path / "config.json")
+        assert step_id == NamedWhileStep.get_implementation_id()

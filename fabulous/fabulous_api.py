@@ -9,11 +9,12 @@ import shutil
 from collections.abc import Iterable
 from pathlib import Path
 
+from librelane.flows.flow import Flow
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
-from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
+from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
@@ -51,11 +52,11 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.gds_generator.helper import start_flow
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_super_tile_config_mem,
-    generateConfigMem,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
@@ -183,33 +184,6 @@ class FABulous_API:
             matrix, matrix.stem, preserve_list_order=preserve_list_order
         ).to_list_file(listFile)
 
-    def genConfigMem(self, tileName: str, configMem: Path) -> None:
-        """Generate configuration memory for specified tile.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the tile for which configuration memory will be generated.
-        configMem : Path
-            File path where the configuration memory will be saved.
-
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
-        """
-        if tile := self.fabric.getTileByName(tileName):
-            generateConfigMem(
-                self.writer,
-                tile.name,
-                tile.globalConfigBits,
-                configMem,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
-
     def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix RTL for the specified tile.
 
@@ -234,7 +208,6 @@ class FABulous_API:
                 self.writer,
                 tile,
                 switch_matrix_debug_signal,
-                config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
             )
@@ -355,7 +328,6 @@ class FABulous_API:
             gen_super_tile_switch_matrix(
                 self.writer,
                 tile,
-                config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
             )
@@ -377,20 +349,36 @@ class FABulous_API:
         Raises
         ------
         ValueError
-            If the super tile is not found in the fabric.
+            If the super tile is not found in the fabric, if its master is not
+            a tile, or if the master's mapping is not generated yet.
         """
         if tile := self.fabric.getSuperTileByName(tileName):
+            if tile.total_config_bits <= 0:
+                logger.info(f"{tileName} has no configuration bits of its own")
+                return
             mx, my = tile.get_master_tile_coords()
             master_tile = tile.tileMap[my][mx]
-            master_config_mem_csv = (
-                master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
-            )
+            # tileMap holds a copy; the memory lives on the tile type.
+            master_type = self.fabric.getTileByName(master_tile.name)
+            if not isinstance(master_type, Tile):
+                raise ValueError(
+                    f"{master_tile.name}, the master tile of {tileName}, is a "
+                    "supertile; a supertile cannot be the master of another."
+                )
+            master = master_type.config_mem
+            if master.config_bits != master_type.globalConfigBits:
+                # An ungenerated master reads as all free crosspoints.
+                raise ValueError(
+                    f"{master_tile.name}, the master tile of {tileName}, maps "
+                    f"{master.config_bits} of its {master_type.globalConfigBits} "
+                    "configuration bits. Generate its mapping before the "
+                    "supertile takes the crosspoints it leaves free."
+                )
             generate_super_tile_config_mem(
                 self.writer,
                 tile,
-                master_config_mem_csv,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
+                master,
+                config_bit_mode=self.fabric.configBitMode,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")
@@ -428,7 +416,7 @@ class FABulous_API:
         dict
             Bitstream specification object generated by 'fabricGenerator'.
         """
-        return generateBitstreamSpec(self.fabric)
+        return generate_bitstream_spec(self.fabric)
 
     def gen_routing_model(self) -> tuple[str, str, str, str, str]:
         """Generate model for Nextpnr based on fabric data.
@@ -647,6 +635,20 @@ class FABulous_API:
             external_port_side=external_port_side,
         )
 
+    @property
+    def tile_flow_cls(self) -> type[Flow]:
+        """The tile macro flow for the project's HDL language."""
+        if isinstance(self.writer, VHDLCodeGenerator):
+            return FABulousTileVHDLMacroFlow
+        return FABulousTileVerilogMacroFlow
+
+    @property
+    def fabric_flow_cls(self) -> type[Flow]:
+        """The fabric stitching flow for the project's HDL language."""
+        if isinstance(self.writer, VHDLCodeGenerator):
+            return FABulousFabricVHDLMacroFlow
+        return FABulousFabricMacroFlow
+
     def genTileMacro(
         self,
         tile_dir: Path,
@@ -660,17 +662,20 @@ class FABulous_API:
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
+        frm: str | None = None,
+        run_tag: str | None = None,
+        last_run: bool = False,
     ) -> None:
-        """Run the macro flow to harden a tile, in the project's HDL language."""
+        """Run the macro flow to harden a tile, in the project's HDL language.
+
+        `frm`, `run_tag` and `last_run` go to `start_flow`, as in
+        `fabric_stitching`. `last_run` picks the newest run under
+        `macro/<optimisation>/runs`.
+        """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        tile_flow_cls = (
-            FABulousTileVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousTileVerilogMacroFlow
-        )
-        flow = tile_flow_cls(
+        flow = self.tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             OptMode(optimisation),
@@ -680,7 +685,7 @@ class FABulous_API:
             override_config_path=config_override_path,
             **custom_config_overrides or {},
         )
-        result = flow.start()
+        result = start_flow(flow, frm=frm, run_tag=run_tag, last_run=last_run)
         if final_view:
             logger.info(f"Saving final view to {final_view}")
             result.save_snapshot(final_view)
@@ -701,6 +706,9 @@ class FABulous_API:
         *,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
+        frm: str | None = None,
+        run_tag: str | None = None,
+        last_run: bool = False,
         **custom_config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS.
@@ -721,6 +729,17 @@ class FABulous_API:
             Path to base configuration YAML file.
         config_override_path : Path | None, optional
             Additional configuration overrides.
+        frm : str | None
+            LibreLane step ID to start from. With `run_tag` or `last_run`, the
+            selected run is forked: `frm` gets the input state it had there and
+            runs in a new run directory. Without either, it starts a new run with
+            an empty state and fails on its first missing input.
+        run_tag : str | None
+            Run directory under `out_folder/runs` to fork with `frm`, or to create
+            or resume without it.
+        last_run : bool
+            Select the newest run under `out_folder/runs`. Setting `run_tag` too
+            raises `FlowException`.
         **custom_config_overrides : dict
             software configuration overrides.
         """
@@ -728,12 +747,7 @@ class FABulous_API:
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
 
-        fabric_flow_cls = (
-            FABulousFabricVHDLMacroFlow
-            if isinstance(self.writer, VHDLCodeGenerator)
-            else FABulousFabricMacroFlow
-        )
-        flow = fabric_flow_cls(
+        flow = self.fabric_flow_cls(
             fabric=self.fabric,
             fabric_hdl_paths=[fabric_path],
             tile_macro_dirs=tile_macro_paths,
@@ -744,7 +758,7 @@ class FABulous_API:
             pdk=pdk,
             **custom_config_overrides,
         )
-        result = flow.start()
+        result = start_flow(flow, frm=frm, run_tag=run_tag, last_run=last_run)
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")
@@ -867,6 +881,18 @@ class FABulous_API:
                     pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
+
+            case "ihp-sg13cmos5l":
+                liberty_files: Path = (
+                    pdk_root
+                    / "libs.ref/sg13cmos5l_stdcell/lib"
+                    / "sg13cmos5l_stdcell_typ_1p20V_25C.lib"
+                )
+                techmap_files: list[Path] = [
+                    pdk_root / "libs.tech/librelane/sg13cmos5l_stdcell/latch_map.v",
+                    pdk_root / "libs.tech/librelane/sg13cmos5l_stdcell/tribuff_map.v",
+                ]
+                min_buf_cell_and_ports: str = "sg13cmos5l_buf_1 A X"
 
             case "sky130A" | "sky130B":
                 liberty_files: Path = (

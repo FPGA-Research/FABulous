@@ -30,12 +30,14 @@ in
         wheel = [ ];
       };
   });
+  # The PyPI sdist builds with setuptools, the pinned git source poetry-core.
   librelane = prev.librelane.overrideAttrs (old: {
     nativeBuildInputs =
       (old.nativeBuildInputs or [ ])
       ++ final.resolveBuildSystem {
         setuptools = [ ];
         wheel = [ ];
+        poetry-core = [ ];
       };
   });
 

@@ -18,11 +18,24 @@ To take advantage of fabric stitching, there are two limitations to the tile phy
 Once the [prerequisites](#prerequisites) are met (Nix environment and a PDK), the quickest way to get a plain GDS is to harden every tile with no size optimisation and stitch them together:
 
 ```bash
-fabulous> gen_all_tile_macros
-fabulous> gen_fabric_macro
+fabulous> gen_macro all_tile
+fabulous> gen_macro stitch
 ```
 
 This uses the default `no_opt` mode, so each tile takes the `DIE_AREA` from its `gds_config.yaml` as-is. For automatically optimised tile sizes, use the [Full Automated Flow](#full-automated-flow) instead.
+:::
+
+:::{admonition} Renamed commands
+:class: note
+
+The macro commands are now subcommands of `gen_macro`. The old names still run, printing a deprecation warning and forwarding their arguments unchanged.
+
+| Old command                | Replacement              |
+| -------------------------- | ------------------------ |
+| `gen_tile_macro <tile>`    | `gen_macro tile <tile>`  |
+| `gen_all_tile_macros`      | `gen_macro all_tile`     |
+| `gen_fabric_macro`         | `gen_macro stitch`       |
+| `run_FABulous_eFPGA_macro` | `gen_macro full`         |
 :::
 
 (prerequisites)=
@@ -52,7 +65,7 @@ This sets up all EDA tools (Yosys, NextPNR, OpenROAD, GHDL, etc.) and verifies t
 
 ### Install PDK
 
-To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
+To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `ihp-sg13cmos5l`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
 
 For details on how the PDK is resolved and when manual configuration is needed, see the [PDK Resolution Logic](#pdk-resolution-logic) section.
 
@@ -74,17 +87,17 @@ For any other PDK, you will need to bring up the PDK to be supported by librelan
 To convert a tile into a GDSII file, run the following command:
 
 ```bash
-fabulous> gen_tile_macro <tile_name>
+fabulous> gen_macro tile <tile_name>
 ```
 
 This will generate the tile GDS for you under the tile macro folder (`<project>/Tile/<tile_name>/macro/`).
 
 ### Command Options
 
-The `gen_tile_macro` command supports an optimisation flag:
+The `gen_macro tile` command supports an optimisation flag:
 
 ```bash
-fabulous> gen_tile_macro <tile_name> --optimise [mode]
+fabulous> gen_macro tile <tile_name> --optimise [mode]
 ```
 
 Where `[mode]` is one of the optimisation modes described in the [Tile Size optimisation](#tile-size-optimisation) section. If `--optimise` is provided without a mode, `balance` is used by default.
@@ -92,9 +105,9 @@ Where `[mode]` is one of the optimisation modes described in the [Tile Size opti
 To generate all tiles at once:
 
 ```bash
-fabulous> gen_all_tile_macros
-fabulous> gen_all_tile_macros --parallel      # Run in parallel for faster compilation
-fabulous> gen_all_tile_macros --optimise      # With optimisation (balance mode)
+fabulous> gen_macro all_tile
+fabulous> gen_macro all_tile --parallel      # Run in parallel for faster compilation
+fabulous> gen_macro all_tile --optimise      # With optimisation (balance mode)
 ```
 
 ### Tile Config
@@ -113,9 +126,10 @@ Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, syn
 
 ### Pin Config
 
-During the generation process there will be an extra file generated under the `macro` folder, which is the `io_pin_order.yaml`. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
+During the generation process there will be an extra file generated in each tile's directory, which is the `io_pin_order.yaml`. It can also be generated without hardening, with `gen_io_pin_config <tile>` for one tile or `gen_all_io_pin_config` for every tile. This file controls the placement of the IO pins along the tile. This is auto-populated to make sure all the pins of a tile align with the adjacent tiles. But one can modify it for whatever means, such as optimisation. The following is an example of the IO config file:
 
 ```yaml
+fabulous_generated_sha256: 3f9a...
 X0Y0:
     EAST:
     - max_distance: null
@@ -137,6 +151,8 @@ X0Y0:
 X0Y1:
     ...
 ```
+
+The first line, `fabulous_generated_sha256`, records the hash of the content FABulous generated, so a rerun can tell your edits apart from a fabric change. A file you have not edited is regenerated on every run. An edited file is kept while the fabric is unchanged, and the run fails if the fabric changes underneath it, telling you to move the file aside and reapply your edits to the regenerated one. A file without this line, such as a hand-written one, is kept and gains the line on the next run. Leave the line in place when editing.
 
 The entry key `X0Y0` represents the location of the pins on a tile. For a normal tile, it will just have `X0Y0`. This is mainly useful for supertiles, where you need to set where the pins should be located relative to the tile shape. Having this control allows us to also align supertile and normal tile pins automatically.
 
@@ -178,7 +194,7 @@ data_bus[1]  # Index 1 second (different bus)
 Once all the tiles are compiled to GDS format with correct sizing, we then can stitch them together. This can be done by using the following command:
 
 ```bash
-fabulous>gen_fabric_macro
+fabulous>gen_macro stitch
 ```
 
 And the full fabric will be stitched together.
@@ -201,7 +217,7 @@ Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric
 For a fully automated flow that handles tile size optimisation and fabric stitching, use:
 
 ```bash
-fabulous> run_FABulous_eFPGA_macro
+fabulous> gen_macro full
 ```
 
 :::{note}
@@ -236,7 +252,7 @@ The automated flow is designed for **fast bring-up of a custom fabric with custo
 
 If you instead need **fine control**, for example you are iterating on a single tile, or some tiles are already hardened, the manual per-tile flow gives more predictable, repeatable results. A good greedy recipe that gets close to the automated result is:
 
-1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_tile_macro <tile> --optimise balance`.
+1. Harden the **majority tile** (the most repeated tile, usually the LUT/CLB tile) with `gen_macro tile <tile> --optimise balance`.
 2. For the **other tiles in the same row**, fix their height to the majority tile's height and optimise width only (`find_min_width`).
 3. For **tiles at the edge** of a row or column, fix the width and optimise height only (`find_min_height`).
 
@@ -252,7 +268,7 @@ This pre-hardened-macro path through the automated flow has not been tested yet.
 
 In the manual flow, harden the macro tile with fixed dimensions (`FABULOUS_OPT_MODE: no_opt` and an explicit `DIE_AREA`), then size the remaining tiles around it. Because tiles in a row must share a height (and tiles in a column a width) for seamless stitching, match the macro height to the majority tile height. As there are usually more logic tiles than macro tiles, matching the macro to the logic tile (rather than the reverse) wastes the least area. If a single tile height cannot fit the macro, model it as a [supertile](#stitching-the-tiles) spanning two or more tile heights and adjust the width accordingly.  For the general mechanism of integrating macros into a LibreLane run, see the [LibreLane macro guide](https://librelane.readthedocs.io/en/latest/usage/using_macros.html).
 
-The `io_pin_order.yaml` for each tile is generated during `gen_tile_macro` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
+The `io_pin_order.yaml` for each tile is generated during `gen_macro tile` (see [Pin Config](#pin-config)), using the fabric structure to align with adjacent tiles, so pin placement is handled in the manual per-tile flow as well as the automated flow.
 
 (tile-size-optimisation)=
 
@@ -352,7 +368,24 @@ fabulous> start_klayout_gui --tile <tile_name>
 fabulous> start_klayout_gui --fabric
 ```
 
-Resuming the LibreLane flow from a failed step is not supported yet. When a tile or fabric run fails, use `start_openroad_gui --last-run --tile <tile_name>` (or `--fabric`) to open the last `.odb` of that run and inspect where it went wrong.
+When a tile or fabric run fails, `start_openroad_gui --last-run --tile <tile_name>` (or `--fabric`) opens the last `.odb` of that run to inspect where it went wrong.
+
+### Resuming a run
+
+`gen_macro tile`, `gen_macro all_tile` and `gen_macro stitch` restart a LibreLane run at any step with `--from <step>`. `--last-run` selects the newest earlier run as the source and `--run-tag <tag>` selects it by name. FABulous forks the source: the step receives the `state_in.json` it had in the source run and runs in a new run directory with a timestamp tag, so the source run stays unchanged.
+
+```bash
+fabulous> gen_macro tile LUT4AB --last-run --from FABulous.TileAreaOptimisation
+fabulous> gen_macro stitch --run-tag RUN_2026-10-30_12-00-00 --from KLayout.DRC
+```
+
+Pressing Tab after `--from` lists the step IDs of the flow. A step that appears more than once carries a suffix on its later occurrences, such as `OpenROAD.STAMidPNR-1`. The step must have run in the source run. The input state points at view files inside the source run, so deleting the source run breaks the fork.
+
+Tile runs live in `Tile/<tile>/macro/<mode>/runs/`, where `<mode>` is the `--optimise` mode, and fabric runs in `Fabric/macro/runs/`. `--last-run` on a tile therefore only finds a run made with the same `--optimise` mode. The config is rebuilt from the current flags on every invocation, so forking with different sizing flags gives the remaining steps a config the earlier steps did not run under.
+
+Without `--from`, `--last-run` and `--run-tag` reuse the selected run in place. LibreLane appends a full pass of the flow to it, starting from the newest `state_out.json` in the run. `--from` without either flag starts a new run on an empty state, which fails at the first input the step requires.
+
+`gen_macro full` has no `--from`. It restarts through `--tile-opt-info` and `--nlp-only` instead.
 
 ## Troubleshooting
 

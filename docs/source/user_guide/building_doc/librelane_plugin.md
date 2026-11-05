@@ -10,7 +10,7 @@ The plugin adds no hardening capability the CLI flow lacks. It only swaps the dr
 
 FABulous ships a [LibreLane](https://github.com/librelane/librelane) plugin, `librelane_plugin_fabulous`, that exposes the tile-hardening and fabric-stitching flows as native LibreLane flows. This lets you drive the ASIC flow directly with `librelane` and a `config.yaml`, rather than through the FABulous CLI. It is a thin adapter over the same steps as the CLI flow, so the [flow variable table](#gds-variables), [pin configuration](#pin-config), and [tile stitching](#stitching-the-tiles) sections of the GDS guide apply here as well.
 
-Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `run_FABulous_eFPGA_macro` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the [Full Automated Flow](#full-automated-flow)). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
+Because it hands control to `librelane`, the plugin does not follow the usual FABulous project structure and does not provide the fabric-wide automated bring-up that the CLI's `gen_macro full` offers (the multi-mode design-space exploration and NLP joint tile sizing described in the [Full Automated Flow](#full-automated-flow)). Per-tile size optimisation via `FABULOUS_OPT_MODE` is still available, since it is a step in the shared flow. You lay out the `config.yaml` files and manage the tile macros yourself.
 
 The plugin provides two flows:
 
@@ -67,6 +67,12 @@ Plugin configuration variables:
 | `FABULOUS_SUPERTILE` | `bool` | If true, `FABULOUS_TILE_DIR` refers to a supertile and a supertile wrapper is generated. Defaults to `false`. |
 | `FABULOUS_CONFIG_BIT_MODE` | `ConfigBitMode` | Config-bit storage mode used when regenerating the tile switch matrix and config memory. Must match the parent fabric. Defaults to `FRAME_BASED`. |
 | `FABULOUS_MULTIPLEXER_STYLE` | `MultiplexerStyle` | Multiplexer implementation style used when regenerating the tile switch matrix. Must match the parent fabric. Defaults to `CUSTOM`. |
+
+The IO pin order comes from the first of these that exists:
+
+1. The file set in `FABULOUS_IO_PIN_ORDER_CFG`.
+2. `io_pin_order.yaml` in the tile directory, as written by the fabric flow, `gen_io_pin_config` or `gen_all_io_pin_config`. These order the pins by the fabric's channels, so the macro lines up with its neighbours.
+3. A pin order generated from the tile CSV alone, with a warning. Its pins only line up with neighbours whose tile CSVs list the shared channels in the same order.
 
 Set `DESIGN_NAME` to the tile name (for example `LUT4x8_ha`) and `CLOCK_PORT` to the tile's clock port. Add the models and cells the tile depends on to `VERILOG_FILES`. Any other LibreLane variable, such as `DIE_AREA`, `CLOCK_PERIOD`, or `SYNTH_STRATEGY`, is set as usual.
 

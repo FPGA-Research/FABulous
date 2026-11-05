@@ -309,10 +309,9 @@ jobs:
         id: failure_body
         shell: bash
         run: |
-          DATE=$(date -u +%Y-%m-%d)
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          echo "title=Nightly pytest suite failed - ${DATE}" >> "$GITHUB_OUTPUT"
+          echo "title=Nightly pytest suite failed" >> "$GITHUB_OUTPUT"
 
           {
             echo 'body<<ISSUE_BODY_EOF'

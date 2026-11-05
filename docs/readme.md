@@ -9,7 +9,6 @@ The upstream FABulous documentation is available at [https://fabulous.readthedoc
 ```bash
 git clone https://github.com/FPGA-Research/FABulous
 cd FABulous/docs
-uv sync
 make html
 xdg-open build/html/index.html
 ```
@@ -31,11 +30,9 @@ The documentation is written in [reStructuredText](https://docutils.sourceforge.
 
 To build the documentation, you should already have set up your environment and installed the required packages to use FABulous as described in the [README](../README.md). Make sure you have picked the right FABulous branch you want to build the documentation for.
 
-Install the documentation dependencies with uv:
-
-```bash
-uv sync
-```
+`make html` installs the documentation dependencies from `uv.lock`, so a lock
+that no longer matches `pyproject.toml` fails the build rather than resolving
+around it. Run `uv lock` after editing the dependencies.
 
 ## Building the documentation
 

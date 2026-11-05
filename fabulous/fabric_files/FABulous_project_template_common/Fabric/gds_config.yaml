@@ -56,6 +56,26 @@ pdk::ihp-sg13g2:
   RT_CLOCK_MAX_LAYER: TopMetal1
   RT_MAX_LAYER: TopMetal1
 
+pdk::ihp-sg13cmos5l:
+  # cmos5l tops out at TopMetal1, so the vertical straps share Metal4 with
+  # routing, as sky130A does with met4. Geometry from the PDK's config.tcl.
+  PDN_VERTICAL_LAYER: Metal4
+  PDN_HORIZONTAL_LAYER: TopMetal1
+
+  PDN_VWIDTH: 1.0
+  PDN_VSPACING: 2.0
+  PDN_VPITCH: 50.0
+  PDN_VOFFSET: 10.0
+
+  PDN_HWIDTH: 2.0
+  PDN_HSPACING: 4.0
+  PDN_HPITCH: 50.0
+  PDN_HOFFSET: 10.0
+
+  # Routing
+  RT_CLOCK_MAX_LAYER: Metal4
+  RT_MAX_LAYER: Metal4
+
 pdk::gf180mcuD:
   # Routing
   RT_MAX_LAYER: Metal4

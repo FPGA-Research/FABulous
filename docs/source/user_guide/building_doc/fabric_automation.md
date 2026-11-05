@@ -618,7 +618,7 @@ a carry chain:
 ```verilog
 (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2, INIT_3=3, INIT_4=4, INIT_5=5, INIT_6=6,
 INIT_7=7, INIT_8=8, INIT_9=9, INIT_10=10, INIT_11=11, INIT_12=12, INIT_13=13, INIT_14=14,
-INIT_15=15, FF=16, IOmux=17, SET_NORESET=18 *)
+INIT_15=15, FF=16, I0mux=17, SET_NORESET=18 *)
 module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     input [3:0]  I,   // Vector for I0, I1, I2, I3
     output       O,           // Single output for LUT result
@@ -751,7 +751,7 @@ Our annotated port list of our `` LUT4_test` `` looks like following:
 ```verilog
 (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2, INIT_3=3, INIT_4=4, INIT_5=5, INIT_6=6,
 INIT_7=7, INIT_8=8, INIT_9=9, INIT_10=10, INIT_11=11, INIT_12=12, INIT_13=13, INIT_14=14,
-INIT_15=15, FF=16, IOmux=17, SET_NORESET=18 *)
+INIT_15=15, FF=16, I0mux=17, SET_NORESET=18 *)
 module LUT4c_test #(parameter NoConfigBits = 19)(
     input [3:0]  I,           // Vector for I0, I1, I2, I3
     output       O,           // Single output for LUT result
@@ -1005,7 +1005,9 @@ demo
 │       ├── IO_1_bidirectional_frame_config_pass.v
 │       ├── W_IO.csv
 │       └── W_IO_switch_matrix.list
-└── user_design   # User Design Files
+├── user_design   # User Design Files
+│   └── ...
+└── yosys         # Yosys Primitives and Technology Maps
     └── ...
 ```
 

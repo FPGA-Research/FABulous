@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import InvalidFabricDefinition
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -19,12 +20,24 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
+    VerilogCodeGenerator,
+)
 from fabulous.fabric_generator.gen_fabric.gen_fabric import (
     generateFabric,
     iter_super_tile_anchors,
 )
-from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
-from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
+from fabulous.fabric_generator.gen_fabric.gen_tile import (
+    generateSuperTile,
+    generateTile,
+)
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import (
+    make_empty_tile,
+    make_fabric_from_grid,
+    make_muladd_bel,
+    sjump_port,
+)
 from tests.fabric_gen_test.conftest import create_switchmatrix_list
 
 
@@ -169,6 +182,27 @@ def test_supertile_vhdl_declares_all_instantiated_components(
         assert f"component {entity}" in rtl, f"{entity} component not declared"
 
 
+def test_vhdl_chain_tile_declares_no_config_mem_component(
+    tmp_path: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """A chain tile's VHDL declares no ConfigMem component."""
+    tile = make_empty_tile(
+        "T",
+        [sjump_port("A", IO.OUTPUT)],
+        config_bits=4,
+        tileDir=tmp_path / "T.csv",
+        matrixDir=tmp_path / "T_switch_matrix.list",
+        pinOrderConfig={},
+    )
+    _stub_entity(tmp_path / "T_switch_matrix.vhdl", "T_switch_matrix")
+
+    writer = code_generator_factory(".vhd", "T")
+    generateTile(writer, tile, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+    assert "component T_ConfigMem" not in writer.outFileName.read_text()
+
+
 def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     """Each supertile placement yields one anchor at its top-left child tile.
 
@@ -192,6 +226,109 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
 
     # One placement; anchor is the top-left child at (0, 0), i.e. DSP_top.
     assert anchors == [(0, 0, supertile)]
+
+
+def test_flipflop_chain_declares_chain_ports(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """FF-chain mode must expose CONFin/CONFout/CONF_CLK and no Frame ports."""
+    tile = mk_tile("T")
+    fabric = Fabric(
+        fabric_dir=tile.tileDir,
+        tile=[[tile]],
+        numberOfRows=1,
+        numberOfColumns=1,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    assert "CONFin" in rtl
+    assert "CONFout" in rtl
+    assert "CONF_CLK" in rtl
+    # Frame-based ports must NOT leak in.
+    assert "FrameData" not in rtl
+    assert "FrameStrobe" not in rtl
+
+
+def test_flipflop_chain_conf_data_width_matches_tile_count(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """conf_data must have one net per chain junction: N tiles -> N+1 nets.
+
+    The chain convention is: `conf_data[i]` is the net between tile i-1's
+    CONFout and tile i's CONFin, so N tiles use conf_data[0..N]. The head is
+    driven by `assign conf_data[0] = CONFin`, the tail drives
+    `assign CONFout = conf_data[N]`.
+    """
+    t = mk_tile("T")
+    # 2x3 grid with one NULL hole -> 5 instantiated tiles.
+    grid = [[t, t, None], [t, t, t]]
+    fabric = Fabric(
+        fabric_dir=t.tileDir,
+        tile=grid,
+        numberOfRows=2,
+        numberOfColumns=3,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    # 5 tiles -> 6 nets -> wire[5:0] conf_data;
+    assert re.search(r"wire\s*\[\s*5\s*:\s*0\s*\]\s*conf_data\b", rtl), rtl[:400]
+    # And the chain ends must be tied to the top-level ports.
+    assert "assign conf_data[0] = CONFin;" in rtl
+    assert "assign CONFout = conf_data[5];" in rtl
+
+
+def test_flipflop_chain_links_consecutive_tiles(
+    mk_tile: Callable[[str], Tile],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """Tiles are chained through conf_data nets; head/tail hit top-level ports.
+
+    The fabric wires `conf_data[i]` between consecutive tiles and then ties
+    the two endpoints to the fabric's top-level `CONFin` / `CONFout` ports
+    with `assign`. Without those assigns the chain is floating at both ends
+    (the first tile's CONFin and the fabric's CONFout are undriven).
+    """
+    t = mk_tile("T")
+    fabric = Fabric(
+        fabric_dir=t.tileDir,
+        tile=[[t, t, t]],
+        numberOfRows=1,
+        numberOfColumns=3,
+        configBitMode=ConfigBitMode.FLIPFLOP_CHAIN,
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    # Head: fabric-level CONFin drives conf_data[0], which is the first
+    # tile's CONFin. (Generator uses the inter-tile net convention, not a
+    # direct `.CONFin(CONFin)` on the first instantiation.)
+    assert "assign conf_data[0] = CONFin;" in rtl
+    first = rtl[rtl.index("Tile_X0Y0_T") :]
+    assert ".CONFin(conf_data[0])" in first
+    assert ".CONFout(conf_data[1])" in first
+
+    # Middle: chained from conf_data[1], drives conf_data[2].
+    mid = rtl[rtl.index("Tile_X1Y0_T") :]
+    assert ".CONFin(conf_data[1])" in mid
+    assert ".CONFout(conf_data[2])" in mid
+
+    # Tail: last tile drives conf_data[3], tied to fabric-level CONFout.
+    last = rtl[rtl.index("Tile_X2Y0_T") :]
+    assert ".CONFin(conf_data[2])" in last
+    assert ".CONFout(conf_data[3])" in last
+    assert "assign CONFout = conf_data[3];" in rtl
+
+    # CONF_CLK is fanned out to every tile.
+    assert rtl.count(".CONF_CLK(CONF_CLK)") == 3
 
 
 @pytest.mark.parametrize("side", sorted(USER_CLK_PREDECESSOR))
@@ -225,3 +362,93 @@ def test_user_clk_chains_from_side(
     ey = 1 + dy
     edge = rtl[rtl.index(f"Tile_X{ex}Y{ey}_T") :]
     assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]
+
+
+def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
+    """Child offsets count from the placement base, not the anchor at (1, 0)."""
+    a, b, c = (
+        make_empty_tile(name, tileDir=tmp_path, pinOrderConfig={})
+        for name in ("A", "B", "C")
+    )
+    for tile in (a, b, c):
+        tile.partOfSuperTile = True
+    tileMap: list[list[Tile | None]] = [[None, a], [b, c]]
+    supertile = SuperTile(
+        name="Holed", tileDir=tmp_path, tiles=[a, b, c], tileMap=tileMap
+    )
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=tileMap,
+        numberOfRows=2,
+        numberOfColumns=2,
+        superTileDic={"Holed": supertile},
+        configBitMode=ConfigBitMode.FRAME_BASED,
+    )
+
+    writer = VerilogCodeGenerator()
+    writer.outFileName = tmp_path / "fabric.v"
+    generateFabric(writer, fabric)
+
+    instantiation = re.search(
+        r"Holed Tile_X\dY\d_Holed \(.*?\n\);", writer.outFileName.read_text(), re.DOTALL
+    )
+    assert instantiation is not None, "supertile wrapper not instantiated"
+    named = {
+        (int(x), int(y))
+        for x, y in re.findall(r"Tile_X(\d+)Y(\d+)_", instantiation.group(0))
+    }
+    assert named == {(1, 0), (0, 1), (1, 1)}
+
+
+def _tile_from_rows(name: str, rows: list[str]) -> Tile:
+    """Build a tile whose ports come from tile CSV port rows."""
+    return make_empty_tile(
+        name, [port for row in rows for port in parse_port_line(row)[0]]
+    )
+
+
+_TERM_ROWS = [
+    "SOUTH,S1BEG,0,1,NULL,4",
+    "NORTH,NULL,0,-1,N1END,4",
+    "NORTH,NULL,0,-1,Ci,1",
+]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"],
+        ["NORTH,Co,0,-1,Ci,1", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,N1BEG,0,-1,N1END,4"],
+    ],
+)
+def test_neighbour_inputs_wired_by_channel_regardless_of_csv_row_order(
+    rows: list[str],
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """Each input is driven by the neighbour output of the same channel."""
+    fabric = make_fabric_from_grid(
+        [[_tile_from_rows("N_term", _TERM_ROWS)], [_tile_from_rows("Body", rows)]]
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+    generateFabric(writer, fabric)
+    rtl = writer.outFileName.read_text()
+
+    term = rtl[rtl.index("Tile_X0Y0_N_term") : rtl.index("Tile_X0Y1_Body (")]
+    assert ".N1END(Tile_X0Y1_N1BEG)" in term
+    assert ".Ci(Tile_X0Y1_Co)" in term
+    body = rtl[rtl.index("Tile_X0Y1_Body (") :]
+    assert ".S1END(Tile_X0Y0_S1BEG)" in body
+
+
+def test_neighbour_input_without_matching_output_raises(
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """An input whose channel the neighbour does not drive is an error."""
+    body_rows = ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4"]
+    fabric = make_fabric_from_grid(
+        [[_tile_from_rows("N_term", _TERM_ROWS)], [_tile_from_rows("Body", body_rows)]]
+    )
+    writer = code_generator_factory(".v", "eFPGA")
+
+    with pytest.raises(InvalidFabricDefinition, match="Ci"):
+        generateFabric(writer, fabric)

@@ -1,7 +1,7 @@
 """Test FABulousSettings class."""
 
 import os
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 
 import pytest
@@ -69,7 +69,7 @@ class TestFABulousSettings:
         # Note: oss_cad_suite might be set from previous tests or environment
         assert isinstance(settings.proj_version_created, Version)
         assert settings.proj_version_created == Version("0.0.1")  # Default value
-        assert isinstance(settings.proj_version, Version)
+        assert settings.proj_version is None
         assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
         assert settings.pdk_root is None
@@ -221,7 +221,9 @@ class TestFABulousSettings:
             ("sky130", "sky130A"),
             ("sky130B", "sky130B"),
             ("sky130A", "sky130A"),
+            ("ihp-sg13", "ihp-sg13g2"),
             ("ihp-sg13g2", "ihp-sg13g2"),
+            ("ihp-sg13cmos5l", "ihp-sg13cmos5l"),
             ("gf180mcu", "gf180mcuD"),
         ],
     )
@@ -242,7 +244,9 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_PDK_HASH", "deadbeef" * 5)
 
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-        mocker.patch("librelane.common.misc.get_pdk_hash", return_value="deadbeef" * 5)
+        mocker.patch(
+            "librelane.common.misc.get_ciel_pdk_hash", return_value="deadbeef" * 5
+        )
         mocker.patch("ciel.manage.enable")
 
         settings = init_context(project)
@@ -374,6 +378,59 @@ class TestToolPathResolution:
 
         assert result == "yosys"
         mock_which.assert_called_once_with("yosys")
+
+    @pytest.mark.parametrize(
+        "create_shadow",
+        [
+            pytest.param(Path.mkdir, id="directory"),
+            pytest.param(Path.touch, id="file"),
+        ],
+    )
+    def test_resolve_tool_paths_bare_name_ignores_cwd(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        create_shadow: Callable[[Path], None],
+    ) -> None:
+        """A project's `yosys/` folder must not shadow the `yosys` command."""
+        create_shadow(tmp_path / "yosys")
+        monkeypatch.chdir(tmp_path)
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mocker.patch("fabulous.fabulous_settings.which", return_value="/usr/bin/yosys")
+
+        result = FABulousSettings.resolve_tool_paths("yosys", mock_info)
+
+        assert result == Path("/usr/bin/yosys").resolve()
+
+    @pytest.mark.parametrize(
+        "relative_path",
+        [
+            pytest.param("./yosys", id="dot-prefix"),
+            pytest.param("bin/yosys", id="subdirectory"),
+        ],
+    )
+    def test_resolve_tool_paths_relative_path_uses_cwd(
+        self,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        relative_path: str,
+    ) -> None:
+        """A value with a directory part stays a path relative to the cwd."""
+        tool = tmp_path / relative_path
+        tool.parent.mkdir(exist_ok=True)
+        tool.touch()
+        monkeypatch.chdir(tmp_path)
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mock_which = mocker.patch("fabulous.fabulous_settings.which")
+
+        result = FABulousSettings.resolve_tool_paths(relative_path, mock_info)
+
+        assert result == tool.resolve()
+        mock_which.assert_not_called()
 
 
 class TestModelsPackValidation:
@@ -986,7 +1043,7 @@ class TestCheckPdkAutoResolution:
         """Test warning behavior for configured vs recommended pdk hash."""
         self._setup_pdk_env(project, monkeypatch, mocker)
         mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
+            "librelane.common.misc.get_ciel_pdk_hash",
             return_value=recommended_hash,
         )
         monkeypatch.setenv("FAB_PDK_HASH", configured_hash)
@@ -998,26 +1055,28 @@ class TestCheckPdkAutoResolution:
         )
         assert has_mismatch_warning is expect_mismatch_warning
 
-    def test_system_exit_from_get_pdk_hash(
+    def test_error_from_get_ciel_pdk_hash_propagates(
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
-        """Test graceful handling when get_pdk_hash raises SystemExit."""
+        """A family with no librelane-validated PDK hash fails settings validation."""
         self._setup_pdk_env(project, monkeypatch, mocker)
         mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
-            side_effect=SystemExit(1),
+            "librelane.common.misc.get_ciel_pdk_hash",
+            side_effect=ValueError("no validated version"),
         )
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(ValidationError, match="no validated version"):
             init_context(project)
 
     @pytest.mark.parametrize(
-        ("pdk_name", "is_known_family"),
+        ("pdk_name", "expected_family"),
         [
-            ("sky130", True),
-            ("gf180mcu", True),
-            ("ihp-sg13g2", True),
-            ("custom_unknown_pdk", False),
+            ("sky130", "sky130"),
+            ("gf180mcu", "gf180mcu"),
+            ("ihp-sg13", "ihp-sg13"),
+            ("ihp-sg13g2", "ihp-sg13"),
+            ("ihp-sg13cmos5l", "ihp-sg13"),
+            ("custom_unknown_pdk", None),
         ],
     )
     def test_pdk_resolution_by_family(
@@ -1026,9 +1085,10 @@ class TestCheckPdkAutoResolution:
         monkeypatch: pytest.MonkeyPatch,
         mocker: MockerFixture,
         pdk_name: str,
-        is_known_family: bool,
+        expected_family: str | None,
     ) -> None:
-        """Test hash resolution for known families and skipping for unknown ones."""
+        """A variant resolves to its ciel family; unknown PDKs skip resolution."""
+        is_known_family = expected_family is not None
         pdk_root = None if is_known_family else project.parent / "custom_pdk"
         self._setup_pdk_env(
             project,
@@ -1040,7 +1100,7 @@ class TestCheckPdkAutoResolution:
         )
         expected_hash = f"hash_for_{pdk_name}_abc123"
         mock_get_hash = mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
+            "librelane.common.misc.get_ciel_pdk_hash",
             return_value=expected_hash,
         )
         mock_enable = mocker.patch("ciel.manage.enable")
@@ -1051,7 +1111,7 @@ class TestCheckPdkAutoResolution:
             assert settings.pdk_hash == expected_hash
             mock_enable.assert_called_once()
             call_kwargs = mock_enable.call_args[1]
-            assert call_kwargs["pdk"] == pdk_name
+            assert call_kwargs["pdk"] == expected_family
             assert call_kwargs["version"] == expected_hash
         else:
             assert settings.pdk_hash is None
@@ -1069,7 +1129,7 @@ class TestCheckPdkAutoResolution:
             mock_ciel_enable=False,
         )
         mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
+            "librelane.common.misc.get_ciel_pdk_hash",
             return_value="bad_hash_no_manifest",
         )
         mocker.patch(
@@ -1087,7 +1147,7 @@ class TestCheckPdkAutoResolution:
         pdk_root = project.parent / "nonexistent_pdk_root"
         self._setup_pdk_env(project, monkeypatch, mocker, pdk_root=pdk_root)
         mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
+            "librelane.common.misc.get_ciel_pdk_hash",
             return_value="some_hash_abc",
         )
         # _setup_pdk_env creates pdk_root; remove it so the exists() check fails
@@ -1114,18 +1174,18 @@ class TestCheckPdkAutoResolution:
         ciel_home = tmp_path / "ciel_home"
         ciel_home.mkdir()
         # Simulate the directory that ciel.manage.enable would create
-        (ciel_home / "ihp-sg13g2").mkdir()
+        (ciel_home / "ihp-sg13").mkdir()
         mocker.patch(
             "fabulous.fabulous_settings.get_ciel_home",
             return_value=str(ciel_home),
         )
         mocker.patch(
-            "librelane.common.misc.get_pdk_hash",
+            "librelane.common.misc.get_ciel_pdk_hash",
             return_value="auto_hash",
         )
 
         settings = init_context(project)
-        assert settings.pdk_root == ciel_home / "ihp-sg13g2"
+        assert settings.pdk_root == ciel_home / "ihp-sg13"
         assert settings.pdk_hash == "auto_hash"
 
     @pytest.mark.parametrize(

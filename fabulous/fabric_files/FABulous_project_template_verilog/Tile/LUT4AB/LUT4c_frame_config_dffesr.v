@@ -33,7 +33,7 @@
     INIT_14=14,
     INIT_15=15,
     FF=16,
-    IOmux=17,
+    I0mux=17,
     SET_NORESET=18
 *)
 module LUT4c_frame_config_dffesr #(

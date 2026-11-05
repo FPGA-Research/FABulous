@@ -11,14 +11,67 @@ from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
+    DEFAULT_CONFIG_BIT_MODE,
+    DEFAULT_DISABLE_USER_CLK,
+    DEFAULT_FABRIC_NAME,
+    DEFAULT_MULTI_CLK_DOMAINS,
+    DEFAULT_MULTIPLEXER_STYLE,
+    DEFAULT_NUMBER_OF_BRAMS,
+    DEFAULT_NUMBER_OF_COLUMNS,
+    DEFAULT_NUMBER_OF_ROWS,
+    DEFAULT_PACKAGE,
+    DEFAULT_SUPER_TILE_ENABLE,
+    DEFAULT_SWITCH_MATRIX_DELAY,
+    DEFAULT_SYNC_HEADER_HEX,
+    DEFAULT_USER_CLK_SIDE,
+    DESYNC_FLAG,
+    FRAME_BITS_PER_ROW,
+    FRAME_SELECT_WIDTH,
+    MAX_FABRIC_COLUMNS,
+    MAX_FABRIC_ROWS,
+    MAX_FRAMES_PER_COL,
+    ROW_SELECT_WIDTH,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
     Side,
 )
+from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
+
+
+def resolve_wire_pair(
+    pairs: list[tuple[str, str]], source_name: str, destination_name: str
+) -> tuple[str, str]:
+    """Return a channel's `(source, destination)` names with a NULL end filled.
+
+    A terminal tile names only its own end of a channel and leaves the other end
+    `NULL`. The missing end is looked up in `pairs`, the `(source, destination)`
+    names of channels whose both ends are known; a name without a pair is taken
+    to be the same at both ends.
+
+    Parameters
+    ----------
+    pairs : list[tuple[str, str]]
+        Known `(source, destination)` channel name pairs.
+    source_name : str
+        The channel's source name, or `NULL`.
+    destination_name : str
+        The channel's destination name, or `NULL`.
+
+    Returns
+    -------
+    tuple[str, str]
+        The source and destination names of the channel.
+    """
+    if source_name == NULL_PORT_NAME:
+        source_of = {dst: src for src, dst in pairs}
+        return source_of.get(destination_name, destination_name), destination_name
+    if destination_name == NULL_PORT_NAME:
+        return source_name, dict(pairs).get(source_name, source_name)
+    return source_name, destination_name
 
 
 @dataclass
@@ -96,24 +149,24 @@ class Fabric:
     fabric_dir: Path
     tile: list[list[Tile]] = field(default_factory=list)
 
-    name: str = "eFPGA"
-    numberOfRows: int = 15
-    numberOfColumns: int = 15
-    configBitMode: ConfigBitMode = ConfigBitMode.FRAME_BASED
-    frameBitsPerRow: int = 32
-    maxFramesPerCol: int = 20
-    package: str = "use work.my_package.all"
-    generateDelayInSwitchMatrix: int = 80
-    multiplexerStyle: MultiplexerStyle = MultiplexerStyle.CUSTOM
-    frameSelectWidth: int = 5
-    rowSelectWidth: int = 5
-    desync_flag: int = 20
-    numberOfBRAMs: int = 10
-    superTileEnable: bool = True
-    disableUserCLK: bool = False
-    userCLKSide: Side = Side.SOUTH
-    multiClkDomains: bool = False
-    syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
+    name: str = DEFAULT_FABRIC_NAME
+    numberOfRows: int = DEFAULT_NUMBER_OF_ROWS
+    numberOfColumns: int = DEFAULT_NUMBER_OF_COLUMNS
+    configBitMode: ConfigBitMode = DEFAULT_CONFIG_BIT_MODE
+    frameBitsPerRow: int = FRAME_BITS_PER_ROW
+    maxFramesPerCol: int = MAX_FRAMES_PER_COL
+    package: str = DEFAULT_PACKAGE
+    generateDelayInSwitchMatrix: int = DEFAULT_SWITCH_MATRIX_DELAY
+    multiplexerStyle: MultiplexerStyle = DEFAULT_MULTIPLEXER_STYLE
+    frameSelectWidth: int = FRAME_SELECT_WIDTH
+    rowSelectWidth: int = ROW_SELECT_WIDTH
+    desync_flag: int = DESYNC_FLAG
+    numberOfBRAMs: int = DEFAULT_NUMBER_OF_BRAMS
+    superTileEnable: bool = DEFAULT_SUPER_TILE_ENABLE
+    disableUserCLK: bool = DEFAULT_DISABLE_USER_CLK
+    userCLKSide: Side = DEFAULT_USER_CLK_SIDE
+    multiClkDomains: bool = DEFAULT_MULTI_CLK_DOMAINS
+    syncHeaderHex: str = DEFAULT_SYNC_HEADER_HEX
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
@@ -130,38 +183,47 @@ class Fabric:
         The wires are used during model generation to work with wire that going cross
         tile.
         """
-        if self.numberOfRows > 32:
+        if self.numberOfRows > MAX_FABRIC_ROWS:
             raise ValueError(
                 "Due to bitstream limitations, "
-                "numberOfRows must be less than or equal to 32."
+                f"numberOfRows must be less than or equal to {MAX_FABRIC_ROWS}."
             )
 
-        if self.numberOfColumns > 32:
+        if self.numberOfColumns > MAX_FABRIC_COLUMNS:
             raise ValueError(
                 "Due to bitstream limitations, "
-                "numberOfColumns must be less than or equal to 32."
+                f"numberOfColumns must be less than or equal to "
+                f"{MAX_FABRIC_COLUMNS}."
             )
 
-        if self.frameBitsPerRow != 32:
+        if self.frameBitsPerRow != FRAME_BITS_PER_ROW:
             raise ValueError(
-                "Due to bitstream limitations, frameBitsPerRow must be 32."
+                "Due to bitstream limitations, frameBitsPerRow must be "
+                f"{FRAME_BITS_PER_ROW}."
             )
 
-        if self.maxFramesPerCol != 20:
+        if self.maxFramesPerCol != MAX_FRAMES_PER_COL:
             raise ValueError(
-                "Due to bitstream limitations, maxFramesPerCol must be 20."
+                "Due to bitstream limitations, maxFramesPerCol must be "
+                f"{MAX_FRAMES_PER_COL}."
             )
 
-        if self.frameSelectWidth != 5:
+        if self.frameSelectWidth != FRAME_SELECT_WIDTH:
             raise ValueError(
-                "Due to bitstream limitations, frameSelectWidth must be 5."
+                "Due to bitstream limitations, frameSelectWidth must be "
+                f"{FRAME_SELECT_WIDTH}."
             )
 
-        if self.rowSelectWidth != 5:
-            raise ValueError("Due to bitstream limitations, rowSelectWidth must be 5.")
+        if self.rowSelectWidth != ROW_SELECT_WIDTH:
+            raise ValueError(
+                "Due to bitstream limitations, rowSelectWidth must be "
+                f"{ROW_SELECT_WIDTH}."
+            )
 
-        if self.desync_flag != 20:
-            raise ValueError("Due to bitstream limitations, desync_flag must be 20.")
+        if self.desync_flag != DESYNC_FLAG:
+            raise ValueError(
+                f"Due to bitstream limitations, desync_flag must be {DESYNC_FLAG}."
+            )
 
         for tile in self.tileDic.values():
             if len(tile.bels) > 26:
@@ -212,8 +274,24 @@ class Fabric:
 
         self.commonWirePair = list(dict.fromkeys(self.commonWirePair))
         self.commonWirePair = [
-            (i, j) for i, j in self.commonWirePair if i != "NULL" and j != "NULL"
+            (i, j) for i, j in self.commonWirePair if NULL_PORT_NAME not in (i, j)
         ]
+
+        # Order ports by channel, not CSV row, so abutting tiles list a shared edge
+        # alike. Grid cells and subtiles are copies, so each is sorted. The switch
+        # matrix keeps its read order, which fixes the config bit layout.
+        def channel_key(port: TilePort) -> tuple[Direction, str]:
+            source, _ = resolve_wire_pair(
+                self.commonWirePair, port.source_name, port.destination_name
+            )
+            return port.wire_direction, source
+
+        for tile in [
+            *self.tileDic.values(),
+            *(t for row in self.tile for t in row if t is not None),
+            *(t for st in self.superTileDic.values() for t in st.tiles),
+        ]:
+            tile.portsInfo = sorted(tile.portsInfo, key=channel_key)
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
@@ -223,8 +301,8 @@ class Fabric:
                     if (
                         abs(port.x_offset) <= 1
                         and abs(port.y_offset) <= 1
-                        and port.source_name != "NULL"
-                        and port.destination_name != "NULL"
+                        and port.source_name != NULL_PORT_NAME
+                        and port.destination_name != NULL_PORT_NAME
                     ):
                         for i in range(port.wire_count):
                             tile.wireList.append(
@@ -238,7 +316,10 @@ class Fabric:
                                     destinationTile="",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name != "NULL":
+                    elif NULL_PORT_NAME not in (
+                        port.source_name,
+                        port.destination_name,
+                    ):
                         # clamp the x_offset to 1 or -1
                         value = min(max(port.x_offset, -1), 1)
                         cascadedI = 0
@@ -304,14 +385,13 @@ class Fabric:
                                     destinationTile=f"X{x + port.x_offset}Y{y + value}",
                                 )
                             )
-                    elif port.source_name != "NULL" and port.destination_name == "NULL":
-                        source_name = port.source_name
-                        destName = port.source_name
-                        # if sourcename is not in a common pair wire we assume
-                        # the source name is the same as destination name
-                        wire_pair = dict(self.commonWirePair)
-                        if source_name in wire_pair:
-                            destName = wire_pair[source_name]
+                    elif (
+                        port.source_name != NULL_PORT_NAME
+                        and port.destination_name == NULL_PORT_NAME
+                    ):
+                        source_name, destName = resolve_wire_pair(
+                            self.commonWirePair, port.source_name, port.destination_name
+                        )
 
                         value = min(max(port.x_offset, -1), 1)
                         for i in range(port.wire_count * abs(port.x_offset)):

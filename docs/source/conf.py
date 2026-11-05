@@ -66,6 +66,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_llm.txt",
     "sphinxcontrib.mermaid",
+    "sphinxcontrib.wavedrom",
     # Custom FABulous extensions
     "generate_repl_docs",
     "generate_configvar_docs",
@@ -75,6 +76,11 @@ extensions = [
 myst_enable_extensions = [
     "colon_fence",
 ]
+
+# Render WaveJSON to an SVG at build time rather than shipping the wavedrom.com
+# client-side renderer, so the diagrams survive an offline or PDF build.
+wavedrom_html_jsinline = False
+render_using_wavedrompy = True
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
@@ -241,7 +247,8 @@ autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True
 autoapi_template_dir = "_templates/autoapi"
 autoapi_ignore = [
-    "**/fabric_files/**",  # Exclude fabric_files directory (template files, not code)
+    # Project templates are not API; the package itself is, as code imports it.
+    "**/fabric_files/*/**",
 ]
 autoapi_add_toctree_entry = (
     True  # Auto-insert AutoAPI index into our main toctree to reduce toc.not_included
@@ -345,6 +352,7 @@ exclude_patterns = [
 html_theme = "furo"
 
 html_logo = "figs/FABulouslogo_wide_2.png"
+html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
     # Sidebar
@@ -397,9 +405,6 @@ html_sidebars = {
     "simulation/index": [],
     "development": [],
 }
-
-# -- Options for EPUB output
-epub_show_urls = "footnote"
 
 bibtex_bibfiles = ["misc/publications.bib"]
 copybutton_prompt_text = r"\$ |FABulous> |\(venv\)\$ "

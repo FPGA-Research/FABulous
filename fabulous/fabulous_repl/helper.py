@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tarfile
 from collections.abc import Callable
-from concurrent import futures
 from importlib import resources
 from importlib.metadata import version
 from importlib.resources.abc import Traversable
@@ -27,8 +26,13 @@ from loguru import logger
 from packaging.version import Version
 from pick import pick
 
-from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
+from fabulous.custom_exception import (
+    EnvironmentNotSet,
+    PipelineCommandError,
+    ProjectUpgradeError,
+)
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
 from fabulous.fabulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
@@ -37,6 +41,12 @@ if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 MAX_BITBYTES = 16384
+# Angle brackets would be read as loguru colour tags when logged.
+PRE_2_PROJECT_MIGRATION = (
+    "Create a new project with `FABulous create-project NEW_PROJECT_DIR -w verilog` "
+    "(or `-w vhdl`), then copy `fabric.csv`, `Tile/` and `user_design/` from the old "
+    "project into it."
+)
 
 # Yosys master broke FABulous; pin the OSS-CAD-Suite install to a known-good
 # release. Set to None to track the latest nightly again.
@@ -218,6 +228,38 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     )
 
 
+def _resolve_task_binary() -> Path:
+    """Locate the `task` (go-task) binary shipped with FABulous.
+
+    Returns
+    -------
+    Path
+        Path to the `task` executable.
+
+    Raises
+    ------
+    EnvironmentNotSet
+        If the `task` binary can be found neither next to the running
+        interpreter nor on ``PATH``.
+    """
+    # go-task-bin drops `task` into the environment's script directory, which is
+    # not on PATH when FABulous is installed with `uv tool install`, so look
+    # beside the interpreter before falling back to PATH.
+    script_dir = Path(sys.executable).parent
+    local = shutil.which("task", path=str(script_dir))
+    if local:
+        return Path(local)
+
+    on_path = shutil.which("task")
+    if on_path is None:
+        raise EnvironmentNotSet(
+            "The 'task' command (go-task) was found neither in the Python "
+            f"environment ({script_dir}) nor on PATH. It ships with FABulous; "
+            "reinstall with 'uv tool install FABulous-FPGA'."
+        )
+    return Path(on_path)
+
+
 def run_task(
     task_name: str,
     task_dir: Path,
@@ -240,20 +282,8 @@ def run_task(
     taskfile : str | None
         Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
         When None, ``task`` uses its default lookup (``Taskfile.yml``).
-
-    Raises
-    ------
-    EnvironmentNotSet
-        If the ``task`` binary is not found on ``PATH``.
     """
-    if shutil.which("task") is None:
-        raise EnvironmentNotSet(
-            "The 'task' command (go-task) is not found on PATH. "
-            "It ships with FABulous; reinstall with "
-            "'uv tool install FABulous-FPGA'."
-        )
-
-    cmd: list[str] = ["task", task_name]
+    cmd: list[str] = [str(_resolve_task_binary()), task_name]
     if taskfile:
         cmd.extend(["--taskfile", taskfile])
     if verbose:
@@ -589,7 +619,8 @@ def update_project_version(project_dir: Path) -> bool:
 
     This function reads the current project version from the .env file and updates it
     to match the currently installed FABulous package version, provided there are no
-    major version mismatches.
+    major version mismatches. Before the version is bumped, the project is upgraded
+    to carry its own Yosys library (see `upgrade_to_yosys_library`).
 
     Parameters
     ----------
@@ -601,27 +632,36 @@ def update_project_version(project_dir: Path) -> bool:
     bool
         `True` if the version was successfully updated, `False` otherwise.
 
+    Raises
+    ------
+    ProjectUpgradeError
+        If the `.env` file has no `FAB_PROJ_VERSION`, or if the project cannot be
+        upgraded. The project is left unchanged.
+
     Notes
     -----
     The function will refuse to update if there is a major version mismatch between
     the project version and the package version, as this could indicate incompatibility.
+    Every FABulous release since 2.0.0b1 writes `FAB_PROJ_VERSION` when it creates a
+    project, so a project without it predates FABulous 2 and is not upgraded.
     """
     env_file = project_dir / ".FABulous" / ".env"
+    package_version = Version(version("FABulous-FPGA"))
 
     project_version = get_key(env_file, "FAB_PROJ_VERSION")
-
     if project_version is None:
-        logger.error("VERSION not found in .env file.")
-        return False
-
-    project_version = Version(project_version)
-    package_version = Version(version("FABulous-FPGA"))
-    if package_version.major != project_version.major:
+        raise ProjectUpgradeError(
+            f"{env_file} has no FAB_PROJ_VERSION, so the project was not created by "
+            "FABulous 2 or later, and projects from FABulous 1 cannot be upgraded. "
+            + PRE_2_PROJECT_MIGRATION
+        )
+    if Version(project_version).major != package_version.major:
         logger.error(
             "There is a major version mismatch, cannot update project version."
         )
         return False
 
+    upgrade_to_yosys_library(project_dir)
     set_key(env_file, "FAB_PROJ_VERSION", str(package_version))
     return True
 
@@ -693,61 +733,6 @@ class CommandPipeline:
                     raise PipelineCommandError(error_message)
 
         return self.final_exit_code == 0
-
-    def execute_parallel(self) -> bool:
-        """Execute all steps in the pipeline concurrently using threads.
-
-        If any command fails (raises or sets a non-zero exit code), a
-        PipelineCommandError is raised (unless `force` is True).
-        """
-        # Use ThreadPoolExecutor because the REPL instance cannot be pickled for
-        # ProcessPoolExecutor; thread-based concurrency is sufficient here since
-        # the heavy work (GDS generation) likely releases the GIL via I/O or
-        # underlying C extensions.
-        with futures.ThreadPoolExecutor(max_workers=self.repl.max_job) as executor:
-            future_map: dict[futures.Future, tuple[str, str]] = {
-                executor.submit(self._run_command_threadsafe, command): (
-                    command,
-                    error_message,
-                )
-                for command, error_message in self.steps
-            }
-
-            for future in futures.as_completed(future_map):
-                cmd, err_msg = future_map[future]
-                if future.exception() is not None:
-                    exc = future.exception()
-                    # try to extract exit_code when available,
-                    # otherwise set generic code
-                    self.final_exit_code = getattr(exc, "exit_code", 1)
-                    logger.error(
-                        f"Command '{cmd}' execution failed with exception: {exc}"
-                    )
-                    if not self.force:
-                        raise PipelineCommandError(err_msg)
-                else:
-                    # If the callable ran without raising, check the REPL exit code
-                    # that the command may have set.
-                    if self.repl.exit_code != 0:
-                        self.final_exit_code = self.repl.exit_code
-                        logger.error(
-                            f"Command '{cmd}' execution failed with exit code "
-                            f"{self.final_exit_code}"
-                        )
-                        if not self.force:
-                            raise PipelineCommandError(err_msg)
-
-        return self.final_exit_code == 0
-
-    def _run_command_threadsafe(self, command: str) -> None:
-        """Run a REPL command in a thread.
-
-        Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so
-        the caller can handle them.
-        """
-        # Run the command on the REPL instance. onecmd_plus_hooks will set
-        # `self.repl.exit_code` appropriately.
-        self.repl.onecmd_plus_hooks(command)
 
     def get_exit_code(self) -> int:
         """Get the final exit code from pipeline execution."""

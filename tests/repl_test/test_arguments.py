@@ -5,6 +5,7 @@ covering project creation, script execution, command-line flags, and error handl
 """
 
 import io
+import logging
 import sys
 import tarfile
 from collections.abc import Callable
@@ -14,12 +15,13 @@ from typing import Self
 
 import pytest
 import typer
-from dotenv import set_key
+from dotenv import set_key, unset_key
 from loguru import logger
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous import main
 from fabulous.fabulous_api import FABulous_API
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
@@ -117,19 +119,21 @@ def test_create_project(
 
 
 @pytest.mark.parametrize(
-    ("argv", "start_dir", "expected_code"),
+    ("argv", "start_dir", "expected_code", "expected_runner"),
     [
         # FAB script with explicit project
         pytest.param(
             ["FABulous", "{project}", "--FABulousScript", "{file}"],
             None,
             0,
+            "run_script",
             id="fab-legacy",
         ),
         pytest.param(
             ["FABulous", "-p", "{project}", "script", "{file}"],
             None,
             0,
+            "run_script",
             id="fab-typer",
         ),
         # FAB script in cwd in a project
@@ -137,6 +141,7 @@ def test_create_project(
             ["FABulous", "--FABulousScript", "{file}"],
             "project",
             0,
+            "run_script",
             id="fab-cwd-project",
         ),
         # FAB script with nonexistent file
@@ -144,6 +149,7 @@ def test_create_project(
             ["FABulous", "-p", "{project}", "script", "{missing}"],
             None,
             2,
+            None,
             id="fab-nonexistent",
         ),
         # TCL script with explicit project
@@ -151,12 +157,14 @@ def test_create_project(
             ["FABulous", "{project}", "--TCLScript", "{tcl}"],
             None,
             0,
+            "run_tcl",
             id="tcl-legacy",
         ),
         pytest.param(
             ["FABulous", "-p", "{project}", "script", "{tcl}"],
             None,
             0,
+            "run_tcl",
             id="tcl-typer",
         ),
         # FAB script in non-project cwd (should fail)
@@ -164,13 +172,36 @@ def test_create_project(
             ["FABulous", "--FABulousScript", "{file}"],
             "nonproject",
             1,
+            None,
             id="fab-cwd-nonproject",
         ),
         pytest.param(
             ["FABulous", "-p", "{project}", "script", "nonexistent.fab"],
             None,
             2,
+            None,
             id="tcl-typer",
+        ),
+        pytest.param(
+            ["FABulous", "-p", "{project}", "script", "{fs}"],
+            None,
+            0,
+            "run_script",
+            id="detect-fs",
+        ),
+        pytest.param(
+            ["FABulous", "-p", "{project}", "script", "-t", "tcl", "{file}"],
+            None,
+            0,
+            "run_tcl",
+            id="type-overrides-suffix",
+        ),
+        pytest.param(
+            ["FABulous", "-p", "{project}", "script", "{other}"],
+            None,
+            1,
+            None,
+            id="unknown-suffix-no-type",
         ),
     ],
 )
@@ -178,9 +209,11 @@ def test_script_execution(
     tmp_path: Path,
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
     argv: list[str],
     start_dir: str | None,
     expected_code: int,
+    expected_runner: str | None,
 ) -> None:
     fab_script = tmp_path / "test_script.fab"
     # Default content succeeds; override below for failure scenarios
@@ -193,12 +226,18 @@ def test_script_execution(
     tcl_script.write_text(
         '# TCL script with FABulous commands\nputs "Hello from TCL"\n'
     )
+    fs_script = tmp_path / "test_script.fs"
+    fs_script.write_text(fab_content)
+    other_script = tmp_path / "test_script.txt"
+    other_script.write_text(fab_content)
     missing = tmp_path / "missing_script.fab"
 
     test_argv = [
         s.replace("{project}", str(project))
         .replace("{file}", str(fab_script))
         .replace("{tcl}", str(tcl_script))
+        .replace("{fs}", str(fs_script))
+        .replace("{other}", str(other_script))
         .replace("{missing}", str(missing))
         for s in argv
     ]
@@ -211,10 +250,17 @@ def test_script_execution(
         monkeypatch.chdir(nonproj)
 
     monkeypatch.setattr(sys, "argv", test_argv)
+    onecmd_spy = mocker.spy(FABulousREPL, "onecmd_plus_hooks")
     with pytest.raises(SystemExit) as exc_info:
         main()
 
     assert exc_info.value.code == expected_code
+    runners = [
+        call.args[1].split()[0]
+        for call in onecmd_spy.call_args_list
+        if call.args[1].startswith("run_")
+    ]
+    assert runners == ([] if expected_runner is None else [expected_runner])
 
 
 @pytest.mark.parametrize(
@@ -689,6 +735,18 @@ def test_project_dir_precedence(
             id="explicit-failure",
         ),
         pytest.param(["FABulous", "update-project-version"], True, 0, id="cwd-success"),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            0,
+            id="legacy-success",
+        ),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            1,
+            id="legacy-failure",
+        ),
     ],
 )
 def test_update_project_version_cases(
@@ -1093,45 +1151,56 @@ def test_log_settings_validation_error_messages(
 
 
 @pytest.mark.parametrize(
-    ("package_ver", "project_ver", "should_exit"),
+    ("package_ver", "project_ver", "should_exit", "expected_log"),
     [
-        pytest.param("2.0.0", "1.0.0", False, id="package-newer-minor"),
-        pytest.param("1.0.0", "2.0.0", True, id="package-older"),
-        pytest.param("2.0.0", "1.0.0", False, id="major-version-mismatch"),
-        pytest.param("1.1.0", "1.0.0", False, id="same-major-newer-minor"),
+        pytest.param("2.1.0", "2.1.0", False, None, id="same-version"),
+        pytest.param(
+            "2.1.0", "2.0.0", False, "update-project-version", id="project-older-minor"
+        ),
+        pytest.param("2.0.0", "2.1.0", True, "Install FABulous", id="package-older"),
+        pytest.param(
+            "2.0.0", "3.0.0", True, "Install FABulous", id="project-newer-major"
+        ),
+        pytest.param(
+            "2.0.0", "1.0.0", True, "FABulous create-project", id="project-1x"
+        ),
+        pytest.param("2.0.0", None, True, "FABulous create-project", id="no-version"),
     ],
 )
 def test_check_version_compatibility_cases(
     project: Path,
     package_ver: str,
-    project_ver: str,
+    project_ver: str | None,
     should_exit: bool,
+    expected_log: str | None,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test version compatibility checking with different version scenarios."""
-
+    """Test that a project load stops or warns by project and package version."""
     from fabulous.fabulous import check_version_compatibility
-    from fabulous.fabulous_settings import init_context, reset_context
 
-    reset_context()
-
-    # Set up project version in .env file
     env_file = project / ".FABulous" / ".env"
-
-    set_key(env_file, "FAB_PROJ_VERSION", project_ver)
-
-    # Initialize context
+    if project_ver is None:
+        unset_key(env_file, "FAB_PROJ_VERSION")
+    else:
+        set_key(env_file, "FAB_PROJ_VERSION", project_ver)
+    reset_context()
     init_context(project_dir=project)
-
     monkeypatch.setattr("fabulous.fabulous.version", lambda _: package_ver)
-    monkeypatch.setattr("importlib.metadata.version", lambda _: package_ver)
-    # Mock the package version
+    caplog.clear()
+
     if should_exit:
         with pytest.raises(typer.Exit):
-            check_version_compatibility(project)
+            check_version_compatibility()
     else:
-        # Should not raise an exception
-        check_version_compatibility(project)
+        check_version_compatibility()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    if expected_log is None:
+        assert warnings == []
+    else:
+        assert len(warnings) == 1
+        assert expected_log in warnings[0]
 
 
 @pytest.mark.parametrize(
@@ -1168,7 +1237,7 @@ def test_script_execution_with_content(
         pytest.param(".fab", 0, id="fab-extension"),
         pytest.param(".fs", 0, id="fs-extension"),
         pytest.param(".tcl", 0, id="tcl-extension"),
-        pytest.param(".txt", 0, id="unknown-extension-defaults-tcl"),
+        pytest.param(".txt", 1, id="unknown-extension-fails"),
     ],
 )
 def test_script_type_detection(

@@ -13,6 +13,7 @@ import pytest
 import yaml
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import StaleIOPinConfigError
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -23,6 +24,8 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     _serialize_tile_ports,
     generate_IO_pin_order_config,
 )
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
 class TestPinOrderConfig:
@@ -476,6 +479,7 @@ class TestGenerateIOPinOrderConfig:
     def mock_fabric(self, mocker: MockerFixture) -> Fabric:
         """Create a mock fabric for testing."""
         fabric = mocker.MagicMock(spec=Fabric)
+        fabric.commonWirePair = []
         fabric.find_tile_positions.return_value = [(0, 0)]
         fabric.determine_border_side.return_value = Side.SOUTH
         return fabric
@@ -517,6 +521,84 @@ class TestGenerateIOPinOrderConfig:
             config = yaml.safe_load(f)
 
         assert "X0Y0" in config
+
+    @pytest.mark.parametrize(
+        ("user_edit", "fabric_changed", "expect_kept"),
+        [
+            pytest.param(False, True, False, id="untouched-regenerated"),
+            pytest.param(True, False, True, id="edited-kept"),
+        ],
+    )
+    def test_generate_io_pin_order_config_existing_file(
+        self,
+        mock_tile: Tile,
+        mock_fabric: Fabric,
+        tmp_path: Path,
+        user_edit: bool,
+        fabric_changed: bool,
+        expect_kept: bool,
+    ) -> None:
+        """Test which existing files are regenerated and which are kept."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        mock_fabric.userCLKSide = Side.SOUTH
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+        if user_edit:
+            outfile.write_text(
+                outfile.read_text().replace(
+                    "reverse_result: false", "reverse_result: true", 1
+                )
+            )
+        existing = outfile.read_text()
+
+        if fabric_changed:
+            mock_fabric.userCLKSide = Side.WEST
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+
+        assert (outfile.read_text() == existing) == expect_kept
+
+    def test_generate_io_pin_order_config_stamps_file_without_hash(
+        self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path
+    ) -> None:
+        """Test that a file without the hash key keeps its body and gains the key."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+        generated = outfile.read_text()
+        hash_line, _, body = generated.partition("\n")
+        hand_written = "# hand-written\n" + body.replace(
+            "reverse_result: false", "reverse_result: true", 1
+        )
+        outfile.write_text(hand_written)
+
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+
+        assert outfile.read_text() == f"{hash_line}\n{hand_written}"
+
+    def test_generate_io_pin_order_config_unstampable_file_raises(
+        self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path
+    ) -> None:
+        """Test that a file the hash key cannot be prepended to raises."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        outfile.write_text("---\nX0Y0: {}\n")
+
+        with pytest.raises(ValueError, match="single block mapping"):
+            generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+
+    def test_generate_io_pin_order_config_edited_and_stale_raises(
+        self, mock_tile: Tile, mock_fabric: Fabric, tmp_path: Path
+    ) -> None:
+        """Test that user edits made against an older fabric raise."""
+        outfile = tmp_path / "io_pin_order.yaml"
+        mock_fabric.userCLKSide = Side.SOUTH
+        generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
+        outfile.write_text(
+            outfile.read_text().replace(
+                "reverse_result: false", "reverse_result: true", 1
+            )
+        )
+
+        mock_fabric.userCLKSide = Side.WEST
+        with pytest.raises(StaleIOPinConfigError):
+            generate_IO_pin_order_config(mock_tile, outfile, fabric=mock_fabric)
 
     def test_generate_io_pin_order_config_tile_structure(
         self, mock_tile: Tile, tmp_path: Path
@@ -678,6 +760,7 @@ class TestGenerateIOPinOrderConfig:
         mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         mock_fabric = mocker.MagicMock(spec=Fabric)
+        mock_fabric.commonWirePair = []
         mock_fabric.find_tile_positions.return_value = [(2, 0)]
         mock_fabric.determine_border_side.return_value = Side.EAST
 
@@ -776,3 +859,37 @@ class TestPinOrderConfigIntegration:
         assert len(configs) == 2
         assert configs[0]["pins"] == [r"Signal1\[\d+\]"]
         assert configs[1]["pins"] == [r"Signal2\[\d+\]"]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"],
+        ["NORTH,Co,0,-1,Ci,1", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,N1BEG,0,-1,N1END,4"],
+    ],
+)
+def test_abutting_edges_match_regardless_of_csv_row_order(
+    rows: list[str], tmp_path: Path
+) -> None:
+    """Pins on a shared edge come out in the same channel order on both tiles."""
+    term_rows = [
+        "SOUTH,S1BEG,0,1,NULL,4",
+        "NORTH,NULL,0,-1,N1END,4",
+        "NORTH,NULL,0,-1,Ci,1",
+    ]
+
+    def tile(name: str, lines: list[str]) -> Tile:
+        return make_empty_tile(
+            name, [port for line in lines for port in parse_port_line(line)[0]]
+        )
+
+    term, body = tile("N_term", term_rows), tile("Body", rows)
+    fabric = make_fabric_from_grid([[term], [body]])
+
+    def edge(t: Tile, side: Side) -> list[str]:
+        generate_IO_pin_order_config(t, tmp_path / f"{t.name}.yaml", fabric=fabric)
+        segments = yaml.safe_load((tmp_path / f"{t.name}.yaml").read_text())
+        return [seg["pins"][0] for seg in segments["X0Y0"][side.name]][:3]
+
+    assert edge(body, Side.NORTH) == ["Co", r"N1BEG\[\d+\]", r"S1END\[\d+\]"]
+    assert edge(term, Side.SOUTH) == ["Ci", r"N1END\[\d+\]", r"S1BEG\[\d+\]"]

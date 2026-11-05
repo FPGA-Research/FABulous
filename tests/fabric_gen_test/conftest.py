@@ -11,7 +11,8 @@ import pytest
 from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.configmem import ConfigMemFrame, empty_config_mem
+from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -27,6 +28,7 @@ class FabricConfig(NamedTuple):
     name: str
     frame_bits_per_row: int
     max_frames_per_col: int
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED
 
 
 class TileConfig(NamedTuple):
@@ -56,7 +58,16 @@ def mk_tile(tmp_path: Path) -> Callable[[str], Tile]:
         switch_matrix = SwitchMatrix(
             matrix_file=tmp_path / f"{name}.list", connections={}
         )
-        return Tile(name, [], [], tmp_path, switch_matrix, [], False)
+        return Tile(
+            name,
+            [],
+            [],
+            tmp_path,
+            switch_matrix,
+            empty_config_mem(tmp_path / f"{name}_ConfigMem.csv"),
+            [],
+            False,
+        )
 
     return _create
 
@@ -68,6 +79,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
     fabric.name = "DefaultFabric"
+    fabric.configBitMode = ConfigBitMode.FRAME_BASED
     return fabric
 
 
@@ -152,6 +164,61 @@ def switch_matrix_tile(parsed_default_fabric: Fabric) -> Tile:
         FabricConfig(
             frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"
         ),
+        # --- Duplicated FLIPFLOP_CHAIN configs ---
+        FabricConfig(
+            frame_bits_per_row=32,
+            max_frames_per_col=20,
+            name="StandardFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=8,
+            max_frames_per_col=5,
+            name="SmallFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=1,
+            name="MinimalFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=1,
+            max_frames_per_col=64,
+            name="ThinFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=64,
+            max_frames_per_col=1,
+            name="WideFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=5,
+            max_frames_per_col=7,
+            name="IrregularSmall_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=33,
+            max_frames_per_col=21,
+            name="IrregularLarge_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=7,
+            max_frames_per_col=13,
+            name="PrimeFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
+        FabricConfig(
+            frame_bits_per_row=256,
+            max_frames_per_col=100,
+            name="VeryLargeFabric_FF",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+        ),
     ],
     ids=lambda config: config.name,
 )
@@ -162,6 +229,7 @@ def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabr
     fabric.frameBitsPerRow = config.frame_bits_per_row
     fabric.maxFramesPerCol = config.max_frames_per_col
     fabric.name = config.name
+    fabric.configBitMode = config.config_bit_mode
     return fabric
 
 
@@ -336,10 +404,10 @@ def connections_factory() -> Callable[..., dict[str, list[str]]]:
 @pytest.fixture(params=[1, 2, 3, 4, 5], ids=lambda param: f"ConfigMemPattern{param}")
 def configmem_list(
     request: pytest.FixtureRequest,
-) -> Callable[[Fabric, Tile], list[ConfigMem]]:
+) -> Callable[[Fabric, Tile], list[ConfigMemFrame]]:
     """Parameterized fixture returning various ConfigMem object lists."""
 
-    def _create(fabric: Fabric, tile: Tile) -> list[ConfigMem]:
+    def _create(fabric: Fabric, tile: Tile) -> list[ConfigMemFrame]:
         import itertools
         import random
         from random import shuffle
@@ -391,12 +459,11 @@ def configmem_list(
         for frame_index in range(fabric.maxFramesPerCol):
             if frame_index not in frame_groups:
                 configmems.append(
-                    ConfigMem(
-                        frameName=f"frame{frame_index}",
-                        frameIndex=frame_index,
-                        bitsUsedInFrame=0,
-                        usedBitMask=generate_mask(0, fabric.frameBitsPerRow),
-                        configBitRanges=[],
+                    ConfigMemFrame(
+                        frame_name=f"frame{frame_index}",
+                        frame_index=frame_index,
+                        width=fabric.frameBitsPerRow,
+                        bits={},
                     )
                 )
                 continue
@@ -410,13 +477,16 @@ def configmem_list(
                     range(total_bits_assigned, total_bits_assigned + bits_used)
                 )
                 random.shuffle(bit_ranges)
+                mask = generate_mask(bits_used, fabric.frameBitsPerRow)
+                lines = [
+                    len(mask) - 1 - k for k, char in enumerate(mask) if char == "1"
+                ]
                 configmems.append(
-                    ConfigMem(
-                        frameName=f"frame{frame_index}",
-                        frameIndex=frame_index,
-                        bitsUsedInFrame=bits_used,
-                        usedBitMask=generate_mask(bits_used, fabric.frameBitsPerRow),
-                        configBitRanges=bit_ranges,
+                    ConfigMemFrame(
+                        frame_name=f"frame{frame_index}",
+                        frame_index=frame_index,
+                        width=fabric.frameBitsPerRow,
+                        bits=dict(zip(lines, bit_ranges, strict=True)),
                     )
                 )
                 total_bits_assigned += bits_used
@@ -512,6 +582,8 @@ def cocotb_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable:
                 "1g",
                 "--ieee-warnings=off",
             ]
+        elif sim == "ghdl":
+            build_kwargs["build_args"] = ["--std=08"]
         runner.build(**build_kwargs)
 
         if sim == "ghdl":

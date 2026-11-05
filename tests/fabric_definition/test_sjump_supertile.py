@@ -11,8 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
+from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
@@ -128,10 +129,31 @@ class TestSuperTileHelpers:
         st = self._supertile(master_tile_coords=(0, 0))
         assert st.get_master_tile_coords() == (0, 0)
 
-    def test_master_raises_on_empty(self) -> None:
-        st = self._supertile(tiles=[], tileMap=[[None]])
+    @pytest.mark.parametrize(
+        ("holes", "expected"),
+        [([], (0, 0)), ([(0, 0)], (1, 0)), ([(0, 0), (1, 0)], (0, 1))],
+        ids=["no-hole", "hole-at-origin", "empty-first-row"],
+    )
+    def test_anchor_is_first_tile_in_row_major_order(
+        self, holes: list[tuple[int, int]], expected: tuple[int, int]
+    ) -> None:
+        tile = _tile("T", [])
+        tileMap: list[list[Tile | None]] = [[tile, tile], [tile, tile]]
+        for x, y in holes:
+            tileMap[y][x] = None
+        st = self._supertile(tiles=[tile], tileMap=tileMap)
+        assert st.get_anchor_tile_coords() == expected
+
+    @pytest.mark.parametrize(
+        "tileMap",
+        [[], [[None]], [[None, None], [None, None]]],
+        ids=["no-rows", "single-hole", "all-holes"],
+    )
+    def test_construction_rejects_a_map_with_no_tiles(
+        self, tileMap: list[list[Tile | None]]
+    ) -> None:
         with pytest.raises(ValueError, match="has no tiles"):
-            st.get_master_tile_coords()
+            self._supertile(tiles=[], tileMap=tileMap)
 
     def test_get_all_sjump_ports_only_outputs(self) -> None:
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
@@ -389,8 +411,18 @@ class TestGenBitstreamSpecSupertileMux:
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
-        fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
-        return generateBitstreamSpec(fabric)
+        fabric = make_fabric(
+            tile=[[top], [bot]],
+            superTileDic={"DSP": supertile},
+            tileDic={t.name: t for t in (top, bot)},
+        )
+        # Built directly, so read the memory the parser would have.
+        supertile.config_mem = ConfigMem.from_csv(
+            configmem,
+            frame_bits_per_row=fabric.frameBitsPerRow,
+            max_frames_per_col=fabric.maxFramesPerCol,
+        )
+        return generate_bitstream_spec(fabric)
 
     def test_mux_select_bits_mapped_at_master_tile(self, spec: dict) -> None:
         # The master tile is DSP_bot at X0Y1.

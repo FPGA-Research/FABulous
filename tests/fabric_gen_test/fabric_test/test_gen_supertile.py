@@ -26,11 +26,14 @@ skip cleanly when it is absent.
 """
 
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
 
+from fabulous.custom_exception import InvalidSupertileDefinition
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -46,8 +49,18 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
+from fabulous.fabric_generator.parser.parse_csv import parse_port_line
 from tests.fabric_definition.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
+
+_ROWS = ["NORTH,N1BEG,0,-1,N1END,4", "SOUTH,S1BEG,0,1,S1END,4", "NORTH,Co,0,-1,Ci,1"]
+
+
+def _tile_from_rows(name: str, rows: list[str]) -> Tile:
+    """Build a tile whose ports come from tile CSV port rows."""
+    return make_empty_tile(
+        name, [port for row in rows for port in parse_port_line(row)[0]]
+    )
 
 
 def grid(rows: int, cols: int) -> list[list[Tile]]:
@@ -86,7 +99,10 @@ SHAPES = {
 }
 
 
-def _tile_stub(tile: Tile) -> str:
+def _tile_stub(
+    tile: Tile,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+) -> str:
     """Emit a body-less module matching `tile`'s wrapper-facing interface.
 
     Yosys needs each instantiated sub-tile defined so it can resolve the
@@ -111,11 +127,20 @@ def _tile_stub(tile: Tile) -> str:
     decls += [
         "    input  UserCLK",
         "    output UserCLKo",
-        "    output [19:0] FrameStrobe_O",
-        "    input  [31:0] FrameData",
-        "    input  [19:0] FrameStrobe",
-        "    output [31:0] FrameData_O",
     ]
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        decls += [
+            "    output [19:0] FrameStrobe_O",
+            "    input  [31:0] FrameData",
+            "    input  [19:0] FrameStrobe",
+            "    output [31:0] FrameData_O",
+        ]
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        decls += [
+            "    input  CONFin",
+            "    output CONFout",
+            "    input  CONF_CLK",
+        ]
     body = ",\n".join(decls)
     return (
         f"\nmodule {tile.name} #(parameter [639:0] Emulate_Bitstream=640'b0) (\n"
@@ -164,8 +189,9 @@ def supertile_netlist(
         writer.outFileName = out
         generateSuperTile(writer, st, **kwargs)
         text = out.read_text()
+        mode = kwargs.get("config_bit_mode", ConfigBitMode.FRAME_BASED)
         for tile in {t.name: t for t in tiles}.values():
-            text += _tile_stub(tile)
+            text += _tile_stub(tile, config_bit_mode=mode)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build
@@ -318,7 +344,9 @@ class TestClockMode:
 
 
 class TestConfigBitMode:
-    """`FLIPFLOP_CHAIN` has no frame-based configuration interface."""
+    """`FLIPFLOP_CHAIN` has no frame-based configuration interface
+    and `FRAME_BASED` has no flipflop chain configuration interface.
+    """
 
     def test_flipflop_chain_has_no_frame_ports(
         self, supertile_netlist: Callable[..., GridConnectivity]
@@ -328,6 +356,124 @@ class TestConfigBitMode:
         )
         assert not any("FrameData" in p for p in net.top_port_names())
         assert not any("FrameStrobe" in p for p in net.top_port_names())
+
+    def test_frame_based_has_no_flipflop_chain_ports(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        net = supertile_netlist(grid(1, 2), config_bit_mode=ConfigBitMode.FRAME_BASED)
+        assert not any("CONF" in p for p in net.top_port_names())
+
+
+class TestFlipFlopChainConfClkBraodcast:
+    """In FlopFlopChain mode, CONF_CLK is one global net, not a chain.
+
+    Every tile's `CONF_CLK` input must resolve to the same net as the top-level
+    `CONF_CLK` boundary port.
+    """
+
+    @pytest.mark.parametrize(("rows", "cols"), GRIDS)
+    def test_conf_clk_is_broadcast_to_every_tile(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        rows: int,
+        cols: int,
+    ) -> None:
+        tileMap = grid(rows, cols)
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+        top_conf_clk = net.top_port_net("CONF_CLK")
+
+        for y in range(rows):
+            for x in range(cols):
+                assert net.cell_net(x, y, "CONF_CLK") == top_conf_clk
+
+    @pytest.mark.parametrize("name", sorted(SHAPES))
+    def test_conf_clk_broadcast_irregular_shapes(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+    ) -> None:
+        tileMap = shape(SHAPES[name])
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+
+        top_conf_clk = net.top_port_net("CONF_CLK")
+
+        for y, row in enumerate(tileMap):
+            for x, t in enumerate(row):
+                if t is None:
+                    continue
+                assert net.cell_net(x, y, "CONF_CLK") == top_conf_clk
+
+
+class TestFlipFlopChainSingleTile:
+    """A 1x1 FF-mode supertile is a transparent wrapper around one tile."""
+
+    def test_conf_in_reaches_tile_and_conf_out_reaches_boundary(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        net = supertile_netlist(
+            grid(1, 1), config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN
+        )
+        assert net.cell_net(0, 0, "CONFin") == net.top_port_net("CONFin")
+        assert net.cell_net(0, 0, "CONFout") == net.top_port_net("CONFout")
+
+
+class TestFlipFlopChainConnectivity:
+    """In FlipFlopChain mode, CONFin/CONFout form one row-major chain.
+
+    The top-level `CONFin` feeds the first occupied tile in row-major order;
+    each tile's `CONFout` feeds the next occupied tile's `CONFin`; the last
+    tile's `CONFout` drives the top-level `CONFout`. Holes are skipped, but
+    the chain continues across them.
+    """
+
+    @staticmethod
+    def _chain_order(tileMap: list[list[Tile | None]]) -> list[tuple[int, int]]:
+        """Occupied cells in the same row-major order generateSuperTile uses."""
+        return [
+            (x, y)
+            for y, row in enumerate(tileMap)
+            for x, tile in enumerate(row)
+            if tile is not None
+        ]
+
+    def _check(self, net: GridConnectivity, tileMap: list[list[Tile | None]]) -> None:
+        chain = self._chain_order(tileMap)
+        assert chain, "test grid must have at least one occupied cell"
+
+        first_x, first_y = chain[0]
+        last_x, last_y = chain[-1]
+
+        # Boundary -> first tile.
+        assert net.cell_net(first_x, first_y, "CONFin") == net.top_port_net("CONFin")
+
+        # Tile -> tile, in row-major order.
+        for (px, py), (cx, cy) in pairwise(chain):
+            assert net.cell_net(px, py, "CONFout") == net.cell_net(cx, cy, "CONFin")
+
+        # Last tile -> boundary.
+        assert net.cell_net(last_x, last_y, "CONFout") == net.top_port_net("CONFout")
+
+    @pytest.mark.parametrize(("rows", "cols"), GRIDS)
+    def test_rectangular_grids(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        rows: int,
+        cols: int,
+    ) -> None:
+        tileMap = grid(rows, cols)
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+        self._check(net, tileMap)
+
+    @pytest.mark.parametrize("name", sorted(SHAPES))
+    def test_irregular_shapes(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        name: str,
+    ) -> None:
+        tileMap = shape(SHAPES[name])
+        net = supertile_netlist(tileMap, config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN)
+        self._check(net, tileMap)
 
 
 class TestBelExternalPorts:
@@ -357,6 +503,7 @@ class TestBelExternalPorts:
             bels=[bel],
             tileDir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+            config_mem=empty_config_mem(Path("ConfigMem.csv")),
             gen_ios=[],
             userCLK=False,
         )
@@ -386,13 +533,14 @@ class TestInterTileRouting:
                     source_name="E_out",
                     x_offset=1,
                     y_offset=0,
-                    destination_name="E_out",
+                    destination_name="E_in",
                     wire_count=2,
                 )
             ],
             bels=[],
             tileDir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+            config_mem=empty_config_mem(Path("ConfigMem.csv")),
             gen_ios=[],
             userCLK=False,
         )
@@ -405,7 +553,7 @@ class TestInterTileRouting:
                     width=2,
                     side_of_tile=Side.WEST,
                     wire_direction=Direction.EAST,
-                    source_name="E_in",
+                    source_name="E_out",
                     x_offset=1,
                     y_offset=0,
                     destination_name="E_in",
@@ -415,6 +563,7 @@ class TestInterTileRouting:
             bels=[],
             tileDir=Path(),
             switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+            config_mem=empty_config_mem(Path("ConfigMem.csv")),
             gen_ios=[],
             userCLK=False,
         )
@@ -423,6 +572,45 @@ class TestInterTileRouting:
         e_out = net.cell_net(0, 0, "E_out")
         assert len(e_out) == 2
         assert e_out == net.cell_net(1, 0, "E_in")
+
+    @pytest.mark.parametrize("bottom_rows", [_ROWS, list(reversed(_ROWS))])
+    def test_inner_edge_wired_by_channel_regardless_of_csv_row_order(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        bottom_rows: list[str],
+    ) -> None:
+        """Subtiles whose CSVs list the shared channels in another order."""
+        top, bottom = _tile_from_rows("Top", _ROWS), _tile_from_rows("Bot", bottom_rows)
+        net = supertile_netlist([[top], [bottom]])
+
+        assert net.cell_net(0, 1, "N1BEG") == net.cell_net(0, 0, "N1END")
+        assert net.cell_net(0, 1, "Co") == net.cell_net(0, 0, "Ci")
+        assert net.cell_net(0, 0, "S1BEG") == net.cell_net(0, 1, "S1END")
+
+    def test_inner_edge_channel_named_at_one_end_per_subtile(
+        self, supertile_netlist: Callable[..., GridConnectivity]
+    ) -> None:
+        """Each subtile names only its own end, as the DSP subtiles do."""
+        top = _tile_from_rows("Top", ["NORTH,NULL,0,-1,bot2top,2"])
+        bottom = _tile_from_rows("Bot", ["NORTH,bot2top,0,-1,NULL,2"])
+        net = supertile_netlist([[top], [bottom]])
+
+        assert net.cell_net(0, 1, "bot2top") == net.cell_net(0, 0, "bot2top")
+
+    def test_inner_edge_input_without_matching_output_raises(
+        self, tmp_path: Path
+    ) -> None:
+        """An input whose channel the neighbouring subtile does not drive."""
+        top = _tile_from_rows("Top", _ROWS)
+        bottom = _tile_from_rows("Bot", _ROWS[:2])
+        st = SuperTile(
+            name="ST", tileDir=Path(), tiles=[top, bottom], tileMap=[[top], [bottom]]
+        )
+        writer = VerilogCodeGenerator()
+        writer.outFileName = tmp_path / "ST.v"
+
+        with pytest.raises(InvalidSupertileDefinition, match="Ci"):
+            generateSuperTile(writer, st)
 
 
 class TestSingleTile:

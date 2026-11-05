@@ -1,6 +1,5 @@
 """The Verilog code generator."""
 
-import math
 import re
 from pathlib import Path
 
@@ -340,54 +339,6 @@ class VerilogCodeGenerator(CodeGenerator):
                 configPortUsed = 0
 
         return configPortUsed
-
-    def addShiftRegister(self, configBits: int, indentLevel: int = 0) -> None:
-        """Add a shift register for configuration bits.
-
-        Args:
-            configBits: Number of configuration bits
-            indentLevel: The indentation level
-        """
-        template = f"""
-// the configuration bits shift register
-    always @ (posedge CLK)
-        begin
-            if (MODE=1b'1) begin    //configuration mode
-                ConfigBits <= {{CONFin,ConfigBits[{configBits}-1:1]}};
-            end
-        end
-    assign CONFout = ConfigBits[{configBits}-1];
-
-        """
-        self._add(template, indentLevel)
-
-    def addFlipFlopChain(self, configBits: int, indentLevel: int = 0) -> None:
-        """Add a flip-flop chain for configuration bits.
-
-        Args:
-            configBits: Number of configuration bits
-            indentLevel: The indentation level
-        """
-        cfgBit = int(math.ceil(configBits / 2.0)) * 2
-        template = f"""
-    genvar k;
-    assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin}};
-    // for k in 0 to Conf/2 generate
-    for (k=0; k < {cfgBit - 1}; k = k + 1) begin: L
-        config_latch inst_config_latch_a(
-            .D(ConfigBitsInput[k*2]),
-            .E(CLK),
-            .Q(ConfigBits[k*2])
-        );
-        config_latch inst_config_latch_b(
-            .D(ConfigBitsInput[(k*2)+1]),
-            .E(MODE),
-            .Q(ConfigBits[(k*2)+1])
-        );
-    end
-    assign CONFout = ConfigBits[{cfgBit}-1];
-"""
-        self._add(template, indentLevel)
 
     def addRegister(
         self,

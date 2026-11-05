@@ -662,8 +662,19 @@ BEL,              LUT4.vhdl,       LA_
 BEL,              LUT4.vhdl,       LB_
 ...
 MATRIX,           LUT4AB_switch_matrix.vhdl
+CONFIGMEM,        LUT4AB_ConfigMem.csv
 EndTILE
 ```
+
+A `CONFIGMEM` line names the file holding the tile's configuration memory mapping,
+resolved relative to the tile CSV. `gen_config_mem` writes that file, and the parser
+reads it once into the tile, so every later command works from the tile's mapping
+rather than rereading the file. A tile without the line keeps its mapping in its own
+directory under the name `<tile>_ConfigMem.csv`, which is where every project
+generated so far has it. The generated `<tile>_ConfigMem` module goes in that
+directory too, whatever `CONFIGMEM` names, because the tile's HDL is generated
+there. For the deprecated layout that declares tiles inside `fabric.csv`, where a
+tile owns no directory of its own, both follow the tile's switch matrix instead.
 
 A `BEL` statement can carry the additional keyword `ADD_AS_CUSTOM_PRIM`, which makes
 Yosys aware of the primitive. Whenever the tile is parsed, the BEL is added as a
@@ -675,6 +686,9 @@ prefix, so the prefix column has to be present, even if it is empty:
 # bel keyword     RTL code         prefix    optional keyword
 BEL,              crc5.v,          ,         ADD_AS_CUSTOM_PRIM
 ```
+
+The keyword works the same way on `BEL` lines of a `SuperTILE` block, see
+[supertile BELs](#supertile-custom-prim).
 
 Primitives that are already in `custom_prims.v` are left alone, so a hand-tuned
 description with an implementation or a techmap is not overwritten by this keyword.
@@ -900,7 +914,7 @@ package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
   attribute INIT_1      : integer;
   -- ... one attribute per BelMap feature ...
   attribute FAB_ATTR_FF : integer;
-  attribute IOmux       : integer;
+  attribute I0mux       : integer;
   attribute SET_NORESET : integer;
   attribute EXTERNAL    : string;
   attribute SHARED_PORT : string;
@@ -926,7 +940,7 @@ entity LUT4c_frame_config_dffesr is
   attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
   -- ... remaining BelMap feature attributes ...
   attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
-  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute I0mux of LUT4c_frame_config_dffesr       : entity is 17;
   attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
   attribute EXTERNAL of UserCLK                      : signal is "TRUE";
   attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
@@ -975,7 +989,7 @@ INIT[13]=13,
 INIT[14]=14,
 INIT[15]=15,
 FF=16,
-IOmux=17,
+I0mux=17,
 SET_NORESET=18
 *)
 module LUT4c_frame_config (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBits);
@@ -984,7 +998,7 @@ parameter NoConfigBits = 19 ;
 endmodule
 ```
 
-In this example, the LUT4 has 16 configuration bits for `INIT` values (mapping to indices 0-15), 1 bit for `FF` (the flip-flop bypass switch at index 16), 1 bit for `IOmux` (the carry input switch at index 17), and 1 bit for `SET_NORESET` (the SET or RESET switch at index 18), totaling 19 configuration bits.
+In this example, the LUT4 has 16 configuration bits for `INIT` values (mapping to indices 0-15), 1 bit for `FF` (the flip-flop bypass switch at index 16), 1 bit for `I0mux` (the carry input switch at index 17), and 1 bit for `SET_NORESET` (the SET or RESET switch at index 18), totaling 19 configuration bits.
 
 ##### VHDL BelMap
 
@@ -1001,7 +1015,7 @@ entity LUT4c_frame_config_dffesr is
   attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
   -- ...
   attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
-  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute I0mux of LUT4c_frame_config_dffesr       : entity is 17;
   attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
 end entity LUT4c_frame_config_dffesr;
 ```
@@ -1263,7 +1277,7 @@ EndTILE
 SuperTILE   DSP  # declace supertile  (Functionality concentrated in DSP_bot)
 DSP_top
 DSP_bot
-EndTILE
+EndSuperTILE
 ```
 
 **Approach B (BEL on the supertile).** The right example hosts the functionality in the supertile wrapper: the BEL is declared on the `SuperTILE` block and lives in the supertile's master tile. The recommended way to wire it is with `SJUMP` wires and a dedicated supertile switch matrix; the supertile declaration carries both the `BEL` and a `MATRIX` line pointing at that switch matrix:
@@ -1276,10 +1290,25 @@ DSP_top
 DSP_bot
 BEL,        MULADD.vhdl
 MATRIX,     DSP_supertile_matrix.list
-EndTILE
+EndSuperTILE
 ```
 
 The basic tiles declare their `SJUMP` ports and the supertile switch matrix is written as described in {ref}`supertile-bel-routing`.
+
+(supertile-custom-prim)=
+
+A supertile `BEL` line accepts the same `ADD_AS_CUSTOM_PRIM` keyword as a tile `BEL` line
+(see {ref}`primitives`). When the supertile is parsed, the BEL is added as a blackbox
+to `user_design/custom_prims.v`, so Yosys can instantiate it:
+
+```{code-block} python
+SuperTILE   DSP
+DSP_top
+DSP_bot
+BEL,        MULADD.v,   ,   ADD_AS_CUSTOM_PRIM
+MATRIX,     DSP_supertile_matrix.list
+EndSuperTILE
+```
 
 ```{admonition} Legacy modelling: LOCAL wires + ConfigBits BEL
 :class: note

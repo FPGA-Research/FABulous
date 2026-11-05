@@ -6,6 +6,7 @@ import random
 import re
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 import cocotb
 import pytest
@@ -198,17 +199,23 @@ async def cocotb_test_sys_reset(dut: FabricClockedDUT) -> None:
 
 
 @pytest.mark.parametrize(
-    ("design_name", "testcase"),
+    ("design_name", "testcase", "carry"),
     [
-        pytest.param("passthrough", "cocotb_test_passthrough", id="passthrough"),
-        pytest.param("addition", "cocotb_test_addition", id="addition"),
         pytest.param(
-            "multiplication", "cocotb_test_multiplication", id="multiplication"
+            "passthrough", "cocotb_test_passthrough", "none", id="passthrough"
         ),
-        pytest.param("all_ones", "cocotb_test_all_ones", id="all_ones"),
-        pytest.param("all_zeros", "cocotb_test_all_zeros", id="all_zeros"),
-        pytest.param("counter", "cocotb_test_counter", id="counter"),
-        pytest.param("sys_reset", "cocotb_test_sys_reset", id="sys_reset"),
+        pytest.param("addition", "cocotb_test_addition", "none", id="addition"),
+        pytest.param(
+            "multiplication",
+            "cocotb_test_multiplication",
+            "none",
+            id="multiplication",
+        ),
+        pytest.param("all_ones", "cocotb_test_all_ones", "none", id="all_ones"),
+        pytest.param("all_zeros", "cocotb_test_all_zeros", "none", id="all_zeros"),
+        pytest.param("counter", "cocotb_test_counter", "none", id="counter"),
+        pytest.param("counter", "cocotb_test_counter", "ha", id="counter_carry_ha"),
+        pytest.param("sys_reset", "cocotb_test_sys_reset", "none", id="sys_reset"),
     ],
 )
 @pytest.mark.parametrize("lang", ["verilog", "vhdl"])
@@ -219,6 +226,7 @@ def test_design_pattern(
     lang: str,
     mux_style: str,
     testcase: str,
+    carry: Literal["none", "ha"],
     project_factory: Callable[..., Path],
     cocotb_runner: Callable[..., None],
 ) -> None:
@@ -235,7 +243,7 @@ def test_design_pattern(
 
     user_design, pcf = stage_user_design(project_dir, design_name, lang=hdl_lang)
     run_cmd(cli, "run_FABulous_fabric")
-    bitstream = compile_user_design(cli, user_design, design_name, pcf)
+    bitstream = compile_user_design(cli, user_design, design_name, pcf, carry=carry)
 
     cocotb_runner(
         sources=_collect_fabric_sources(project_dir, suffix=_FABRIC_SUFFIX[lang]),

@@ -126,25 +126,33 @@ class TestEmitTileVerilog:
     def mock_writer(self, mocker: MockerFixture) -> MagicMock:
         return mocker.MagicMock()
 
+    @pytest.mark.parametrize(
+        "config_bit_mode", [ConfigBitMode.FRAME_BASED, ConfigBitMode.FLIPFLOP_CHAIN]
+    )
     def test_regular_tile_emits_switch_matrix_config_mem_and_tile(
-        self, mock_writer: MagicMock, mocker: MockerFixture, tmp_path: Path
+        self,
+        mock_writer: MagicMock,
+        mocker: MockerFixture,
+        tmp_path: Path,
+        config_bit_mode: ConfigBitMode,
     ) -> None:
+        """Tiles emit configuration memory modules for all configuration modes."""
         from fabulous.fabric_definition.tile import Tile
 
         tile_dir: Path = tmp_path / "LUT4AB"
         tile_dir.mkdir()
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.name = "LUT4AB"
+        mock_tile.tileDir = tile_dir / "LUT4AB.csv"
+        mock_tile.globalConfigBits = 16
 
         actual_paths: list[Path] = []
         gen_sm = mocker.patch.object(plugin_tile_flow, "genTileSwitchMatrix")
         gen_sm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
         )
-        gen_cm = mocker.patch.object(plugin_tile_flow, "generateConfigMem")
-        gen_cm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
-            mock_writer.outFileName
-        )
+        # The config-mem module names its own file, from the tile directory.
+        gen_cm = mocker.patch.object(plugin_tile_flow, "generate_tile_config_mem")
         gen_tile = mocker.patch.object(plugin_tile_flow, "generateTile")
         gen_tile.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
@@ -159,26 +167,20 @@ class TestEmitTileVerilog:
             mock_writer,
             mock_tile,
             tile_dir,
-            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+            config_bit_mode=config_bit_mode,
             multiplexer_style=MultiplexerStyle.GENERIC,
         )
 
         expected: list[Path] = [
             tile_dir / "LUT4AB_switch_matrix.v",
-            tile_dir / "LUT4AB_ConfigMem.v",
             tile_dir / "LUT4AB.v",
         ]
         assert actual_paths == expected
         gen_sm.assert_called_once()
-        # Config-bit mode and mux style flow through instead of being hard-coded.
         sm_kwargs = gen_sm.call_args.kwargs
-        assert sm_kwargs["config_bit_mode"] == ConfigBitMode.FLIPFLOP_CHAIN
         assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
         gen_cm.assert_called_once_with(
-            mock_writer,
-            mock_tile.name,
-            mock_tile.globalConfigBits,
-            tile_dir / "LUT4AB_ConfigMem.csv",
+            mock_writer, mock_tile, config_bit_mode=config_bit_mode
         )
         gen_tile.assert_called_once()
 
@@ -245,11 +247,13 @@ class TestFABulousTileRunAdapter:
         (tile_dir.parent / "shared.v").write_text("", encoding="utf-8")
         return {"project": project, "tile_dir": tile_dir}
 
+    @pytest.mark.parametrize("pin_source", ["generated", "tile_dir", "user"])
     def test_run_populates_config_and_delegates(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
         project_tree: dict[str, Path],
+        pin_source: str,
     ) -> None:
         from decimal import Decimal
 
@@ -291,12 +295,22 @@ class TestFABulousTileRunAdapter:
             side_effect=lambda cfg: cfg,
         )
 
+        config = {
+            "DESIGN_NAME": "LUT4AB",
+            "FABULOUS_TILE_DIR": [str(tile_dir)],
+            "DESIGN_DIR": str(tile_dir),
+        }
+        expected_pin_yaml = tmp_path / "run" / "io_pin_order.yaml"
+        if pin_source == "tile_dir":
+            expected_pin_yaml = tile_dir / "io_pin_order.yaml"
+            expected_pin_yaml.write_text("X0Y0: {}\n")
+        elif pin_source == "user":
+            expected_pin_yaml = tmp_path / "custom_pins.yaml"
+            expected_pin_yaml.write_text("X0Y0: {}\n")
+            config["FABULOUS_IO_PIN_ORDER_CFG"] = str(expected_pin_yaml)
+
         flow = FABulousTile(
-            config={
-                "DESIGN_NAME": "LUT4AB",
-                "FABULOUS_TILE_DIR": [str(tile_dir)],
-                "DESIGN_DIR": str(tile_dir),
-            },
+            config=config,
             design_dir=str(tile_dir),
             pdk="sky130A",
             pdk_root=str(tmp_path / "pdk"),
@@ -317,23 +331,46 @@ class TestFABulousTileRunAdapter:
         assert (state, steps) == (sentinel_state, [])
         # init_context is called in api_mode — no project dir required.
         init_ctx.assert_called_once_with(api_mode=True)
-        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False)
-        emit_verilog.assert_called_once()
-        # Pin YAML should be generated below run_dir.
-        assert gen_pin_yaml.call_count == 1
-        assert gen_pin_yaml.call_args.args[:2] == (
-            mock_tile,
-            Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml",
+        parse_tile.assert_called_once_with(
+            tile_dir,
+            "LUT4AB",
+            False,
+            config_bit_mode=ConfigBitMode.FRAME_BASED,
+            frame_bits_per_row=32,
+            max_frames_per_col=20,
         )
+        emit_verilog.assert_called_once()
+        # Only without an existing pin file is one generated, below run_dir.
+        if pin_source == "generated":
+            assert gen_pin_yaml.call_count == 1
+            assert gen_pin_yaml.call_args.args[:2] == (mock_tile, expected_pin_yaml)
+        else:
+            gen_pin_yaml.assert_not_called()
+        assert Path(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]) == expected_pin_yaml
         # Adapter must set the downstream keys.
         assert flow.config["DESIGN_NAME"] == "LUT4AB"
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
-        assert str(flow.config["FABULOUS_IO_PIN_ORDER_CFG"]).endswith(
-            "LUT4AB_io_pin_order.yaml"
-        )
         assert isinstance(flow.config, Config)
         super_run.assert_called_once()
+
+    def test_run_raises_on_missing_user_pin_file(
+        self, tmp_path: Path, project_tree: dict[str, Path]
+    ) -> None:
+        tile_dir: Path = project_tree["tile_dir"]
+        flow = FABulousTile(
+            config={
+                "DESIGN_NAME": "LUT4AB",
+                "FABULOUS_TILE_DIR": [str(tile_dir)],
+                "DESIGN_DIR": str(tile_dir),
+                "FABULOUS_IO_PIN_ORDER_CFG": str(tmp_path / "missing.yaml"),
+            },
+            design_dir=str(tile_dir),
+            pdk="sky130A",
+            pdk_root=str(tmp_path / "pdk"),
+        )
+        with pytest.raises(FlowException, match="is not a file"):
+            flow.run(initial_state=None)
 
     def test_run_raises_on_bad_tile_dir(
         self, mocker: MockerFixture, tmp_path: Path
@@ -414,7 +451,14 @@ class TestFABulousTileRunAdapter:
         Path(flow.run_dir).mkdir()
         flow.run(initial_state=mocker.MagicMock())
 
-        parse_tile.assert_called_once_with(tile_dir, "LUT4AB", True)
+        parse_tile.assert_called_once_with(
+            tile_dir,
+            "LUT4AB",
+            True,
+            config_bit_mode=ConfigBitMode.FRAME_BASED,
+            frame_bits_per_row=32,
+            max_frames_per_col=20,
+        )
         # Supertile logical dimensions must be taken from the tile itself.
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 4
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 2
@@ -516,7 +560,7 @@ class TestFABulousTileEndToEnd:
         assert (tile_workspace / f"{name}.v").exists()
         assert (tile_workspace / f"{name}_switch_matrix.v").exists()
         # ...and produced the IO pin-order YAML in the run directory.
-        pin_yaml = Path(flow.run_dir) / f"{name}_io_pin_order.yaml"
+        pin_yaml = Path(flow.run_dir) / "io_pin_order.yaml"
         assert pin_yaml.exists()
         # And the downstream-facing config keys must be set.
         assert flow.config["DESIGN_NAME"] == name

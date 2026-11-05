@@ -3,7 +3,8 @@
     nix-eda and nixpkgs follow librelane's pins for binary cache compatibility.";
 
   inputs = {
-    librelane.url = "github:librelane/librelane";
+    # dev carries the 3.1 line (ciel 3); main is the 3.0.x stable branch.
+    librelane.url = "github:librelane/librelane/dev";
 
     # Follow librelane's nix-eda and nixpkgs for binary cache hits
     nix-eda.follows = "librelane/nix-eda";

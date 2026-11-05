@@ -496,12 +496,11 @@ class FABulousFabricOptimisationFlow(Flow):
         self.progress_bar.start_stage("Tile Recompilation")
         info("\n=== Step 3: Recompiling tiles with optimal dimensions ===")
 
-        # Ensure IO pin order configs exist (they may be missing when Step 1
-        # was skipped via --tile-opt-info).
+        # Step 1 may have been skipped via --tile-opt-info, leaving the config
+        # missing or stale; the generator keeps user-edited files.
         for tile_type in fabric.get_all_unique_tiles():
             io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
-            if not io_config_path.exists():
-                generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
+            generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
 
         # Compile tiles with optimal dimensions in parallel
         handlers: list[tuple[Future[WorkerResult], Tile | SuperTile]] = []

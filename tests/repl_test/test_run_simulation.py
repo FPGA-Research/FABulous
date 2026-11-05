@@ -195,9 +195,9 @@ def _layout_fabric_only(project: Path) -> None:
 @pytest.mark.parametrize(
     ("setup", "exc", "match"),
     [
-        (_layout_no_fabric, FileNotFoundError, "gen_fabric_macro"),
+        (_layout_no_fabric, FileNotFoundError, "gen_macro stitch"),
         (_layout_multiple_fabric, ValueError, "Multiple fabric netlists"),
-        (_layout_fabric_only, FileNotFoundError, "gen_all_tile_macros"),
+        (_layout_fabric_only, FileNotFoundError, "gen_macro all_tile"),
     ],
     ids=["missing-fabric", "multiple-fabric", "missing-tiles"],
 )

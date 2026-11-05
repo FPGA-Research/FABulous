@@ -1,0 +1,22 @@
+{
+  "signal": [
+    { "name": "data word", "wave": "x..5...............x......", "data": ["0xDEADBEEF"] },
+    { "name": "control word", "wave": "x....4...............x....", "data": ["0x0000FAB1"] },
+    {},
+    { "name": "s_clk", "wave": "l...H.L.H.L.|.H.L.H.L....." },
+    { "name": "s_data", "wave": "x..5.4.5.2..|5.4.5.4.x....",
+      "data": ["1", "0", "1", "…", "1", "0", "1", "1"] },
+    {},
+    { "name": "serial_data[31:0]", "wave": "2...2...2...|.2...2.......",
+      "data": ["0x00000000", "0x00000001", "0x00000003", "0x6F56DF77", "0xDEADBEEF"] },
+    { "name": "serial_control[15:0]", "wave": "2...........|...2...2.....",
+      "data": ["0x0000", "0x7D58", "0xFAB1"] },
+    {},
+    { "name": "data[31:0]", "wave": "2...........|........2....", "data": ["0x00000000", "0xDEADBEEF"] },
+    { "name": "strobe", "wave": "0...........|........10..." },
+    { "name": "active", "wave": "0...........|........1...." }
+  ],
+  "head": { "text": "First bitbang word after reset, released when the control register reaches 0xFAB1" },
+  "foot": { "text": "blue = data bit, shifted into serial_data on a rising s_clk edge; orange = control bit, shifted into serial_control on a falling s_clk edge" },
+  "config": { "hscale": 1 }
+}

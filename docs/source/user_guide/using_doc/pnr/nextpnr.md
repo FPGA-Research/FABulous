@@ -29,7 +29,7 @@ The 1.0 format (a project with no `.FABulous` directory, read from
 `npnroutput/`) is no longer supported and nextpnr exits with an error. Either
 regenerate the fabric with a current FABulous, or stay on nextpnr 0.11.1.
 
-All of these files are produced together by the `gen_model_npnr` CLI command.
+All of these files are produced together by the `gen_routing_model` CLI command.
 
 ## `bel.txt` (legacy, unused)
 
@@ -98,7 +98,6 @@ A `FABULOUS_LC` block looks like:
     CFG,I0mux
     CFG,SET_NORESET
     CFG,INIT
-    CFG,IOmux
     GlobalClk
     BelEnd
 ```
@@ -190,7 +189,6 @@ A `FABULOUS_LC` block with timing:
     CFG,I0mux
     CFG,SET_NORESET
     CFG,INIT
-    CFG,IOmux
     Clock,CLK,FF=1
     Delay,I0,O,3.0,FF=0
     Delay,I1,O,3.0,FF=0
@@ -375,7 +373,7 @@ report is per-instance.
 :::{note}
 `bel.v3.txt` and `placement_estimate.txt` are written
 together; if only one is present nextpnr warns (regenerate with
-`gen_model_npnr`).
+`gen_routing_model`).
 
 Like `delayScale`/`delayOffset`, this block only steers
 placement, the final report always uses `bel.v3.txt`'s arcs.

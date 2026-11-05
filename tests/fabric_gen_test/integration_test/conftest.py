@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import ciel.common
 import cocotb
@@ -518,6 +518,7 @@ def compile_user_design(
     user_design: Path,
     design_name: str,
     pcf: Path,
+    carry: Literal["none", "ha"],
 ) -> Path:
     """Drive ``compile_design`` through Yosys + nextpnr + bitgen.
 
@@ -536,6 +537,9 @@ def compile_user_design(
         Top-level module name passed to ``compile_design``.
     pcf : Path
         Pin constraints file forwarded to nextpnr.
+    carry : Literal["none", "ha"]
+        `synth_fabulous -carry` mapping style. `ha` maps adders onto the LC
+        carry chain, which sets the `I0mux` feature in the FASM.
 
     Returns
     -------
@@ -550,7 +554,8 @@ def compile_user_design(
     run_cmd(
         cli,
         f"compile_design {user_design} -top {design_name} "
-        f'--synth-extra-args=-iopad --nextpnr-extra-args "-o pcf={pcf}"',
+        f'--synth-extra-args "-carry {carry}" '
+        f'--nextpnr-extra-args "-o pcf={pcf}"',
     )
     bitstream = user_design.with_suffix(".bin")
     if not bitstream.exists():

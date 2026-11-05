@@ -325,37 +325,6 @@ class TestTilePort:
         )
         assert port.side_of_tile == Side.NORTH
 
-    def test_ordering_by_side(self) -> None:
-        """Ports are ordered by tile side (north before east)."""
-        north = TilePort(
-            name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        east = TilePort(
-            name="e", io_direction=IO.INPUT, width=1, side_of_tile=Side.EAST
-        )
-        assert north < east
-        assert east > north
-
-    def test_ordering_by_io_within_side(self) -> None:
-        """Within a side, outputs are ordered before inputs."""
-        out = TilePort(
-            name="o", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        inp = TilePort(
-            name="i", io_direction=IO.INPUT, width=1, side_of_tile=Side.NORTH
-        )
-        assert out < inp
-        assert out <= inp
-        assert inp >= out
-
-    def test_comparison_with_non_tileport_raises(self) -> None:
-        """Ordering is only defined against another TilePort."""
-        port = TilePort(
-            name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
-        )
-        with pytest.raises(TypeError, match="Cannot compare"):
-            port < 1  # noqa: B015
-
     def test_tile_back_reference_defaults_to_none(self) -> None:
         """An unattached port has no owning tile."""
         port = TilePort(

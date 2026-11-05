@@ -64,3 +64,11 @@ class PipelineCommandError(Exception):
 
 class InvalidState(Exception):
     """Exception raised for invalid state during fabric generation."""
+
+
+class StaleIOPinConfigError(Exception):
+    """Exception raised when a user-edited IO pin config predates a fabric change."""
+
+
+class ProjectUpgradeError(Exception):
+    """Exception raised when a project cannot be upgraded to the current layout."""

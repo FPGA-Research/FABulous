@@ -13,6 +13,15 @@ package my_package is
     );
   end component config_latch;
 
+  component config_dff is
+    port (
+      D   : in    std_logic;
+      CLK : in    std_logic;
+      Q   : out   std_logic;
+      QN  : out   std_logic
+    );
+  end component config_dff;
+
 end package my_package;
 
 library ieee;
@@ -36,6 +45,35 @@ begin
   begin
 
     if (E = '1') then
+      Q  <= D;
+      QN <= not D;
+    end if;
+
+  end process;
+
+end architecture from_verilog;
+
+library ieee;
+  use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
+
+entity config_dff is
+  port (
+    D   : in    std_logic;
+    CLK : in    std_logic;
+    Q   : out   std_logic;
+    QN  : out   std_logic
+  );
+end entity config_dff;
+
+architecture from_verilog of config_dff is
+
+begin
+
+  process (CLK) is
+  begin
+
+    if rising_edge(CLK) then
       Q  <= D;
       QN <= not D;
     end if;

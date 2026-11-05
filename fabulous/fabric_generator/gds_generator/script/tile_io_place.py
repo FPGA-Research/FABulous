@@ -19,6 +19,7 @@ from librelane.scripts.odbpy.reader import click_odb
 
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    GENERATED_HASH_KEY,
     PinOrderConfig,
 )
 from fabulous.fabric_generator.gds_generator.script.odb_protocol import (
@@ -482,6 +483,8 @@ class PinPlacementPlan:
         max_x = 0
         max_y = 0
         for key, entry in config_data.items():
+            if key == GENERATED_HASH_KEY:
+                continue
             match = tile_pattern.match(key)
             assert match is not None  # validated above
             tile_config = entry or {}
