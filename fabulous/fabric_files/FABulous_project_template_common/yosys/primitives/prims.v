@@ -128,7 +128,7 @@ module FABULOUS_LC #(
     end
   endgenerate
 
-  LUTFF dff_i(.CLK(CLK), .D(f_wire), .Q(Q));
+  LUTFF dff_i(.CLK(CLK), .D(f_wire), .O(Q));
 
   assign O = f_wire;
 endmodule
