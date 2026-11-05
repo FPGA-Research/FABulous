@@ -75,7 +75,8 @@ repos:
             -Wno-MULTITOP,
             -Wno-MODDUP,
           ]
-        exclude: ^fabulous/fabric_files/FABulous_project_template_common/Tile/include/.*_latchmap\.v$
+        # The yosys/ library is Yosys techmap input, not synthesisable RTL.
+        exclude: ^fabulous/fabric_files/FABulous_project_template_common/(Tile/include/.*_latchmap\.v|yosys/.*)$
 
   # Verilog / SystemVerilog linting — upstream svlint static binary.
   # scripts/svlint_wrapper.py downloads and caches the pinned release on first
@@ -88,3 +89,4 @@ repos:
         language: script
         entry: scripts/svlint_wrapper.py --config .svlint.toml
         types_or: [ verilog, system-verilog ]
+        exclude: ^fabulous/fabric_files/FABulous_project_template_common/yosys/

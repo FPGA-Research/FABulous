@@ -5,6 +5,7 @@ covering project creation, script execution, command-line flags, and error handl
 """
 
 import io
+import logging
 import sys
 import tarfile
 from collections.abc import Callable
@@ -14,7 +15,7 @@ from typing import Self
 
 import pytest
 import typer
-from dotenv import set_key
+from dotenv import set_key, unset_key
 from loguru import logger
 from pytest_mock import MockerFixture
 
@@ -734,6 +735,18 @@ def test_project_dir_precedence(
             id="explicit-failure",
         ),
         pytest.param(["FABulous", "update-project-version"], True, 0, id="cwd-success"),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            0,
+            id="legacy-success",
+        ),
+        pytest.param(
+            ["FABulous", "{project}", "--update-project-version"],
+            False,
+            1,
+            id="legacy-failure",
+        ),
     ],
 )
 def test_update_project_version_cases(
@@ -1138,45 +1151,56 @@ def test_log_settings_validation_error_messages(
 
 
 @pytest.mark.parametrize(
-    ("package_ver", "project_ver", "should_exit"),
+    ("package_ver", "project_ver", "should_exit", "expected_log"),
     [
-        pytest.param("2.0.0", "1.0.0", False, id="package-newer-minor"),
-        pytest.param("1.0.0", "2.0.0", True, id="package-older"),
-        pytest.param("2.0.0", "1.0.0", False, id="major-version-mismatch"),
-        pytest.param("1.1.0", "1.0.0", False, id="same-major-newer-minor"),
+        pytest.param("2.1.0", "2.1.0", False, None, id="same-version"),
+        pytest.param(
+            "2.1.0", "2.0.0", False, "update-project-version", id="project-older-minor"
+        ),
+        pytest.param("2.0.0", "2.1.0", True, "Install FABulous", id="package-older"),
+        pytest.param(
+            "2.0.0", "3.0.0", True, "Install FABulous", id="project-newer-major"
+        ),
+        pytest.param(
+            "2.0.0", "1.0.0", True, "FABulous create-project", id="project-1x"
+        ),
+        pytest.param("2.0.0", None, True, "FABulous create-project", id="no-version"),
     ],
 )
 def test_check_version_compatibility_cases(
     project: Path,
     package_ver: str,
-    project_ver: str,
+    project_ver: str | None,
     should_exit: bool,
+    expected_log: str | None,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test version compatibility checking with different version scenarios."""
-
+    """Test that a project load stops or warns by project and package version."""
     from fabulous.fabulous import check_version_compatibility
-    from fabulous.fabulous_settings import init_context, reset_context
 
-    reset_context()
-
-    # Set up project version in .env file
     env_file = project / ".FABulous" / ".env"
-
-    set_key(env_file, "FAB_PROJ_VERSION", project_ver)
-
-    # Initialize context
+    if project_ver is None:
+        unset_key(env_file, "FAB_PROJ_VERSION")
+    else:
+        set_key(env_file, "FAB_PROJ_VERSION", project_ver)
+    reset_context()
     init_context(project_dir=project)
-
     monkeypatch.setattr("fabulous.fabulous.version", lambda _: package_ver)
-    monkeypatch.setattr("importlib.metadata.version", lambda _: package_ver)
-    # Mock the package version
+    caplog.clear()
+
     if should_exit:
         with pytest.raises(typer.Exit):
-            check_version_compatibility(project)
+            check_version_compatibility()
     else:
-        # Should not raise an exception
-        check_version_compatibility(project)
+        check_version_compatibility()
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    if expected_log is None:
+        assert warnings == []
+    else:
+        assert len(warnings) == 1
+        assert expected_log in warnings[0]
 
 
 @pytest.mark.parametrize(

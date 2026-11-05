@@ -20,6 +20,7 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, InvalidFileType
+from fabulous.fabric_files import PACKAGED_YOSYS_LIB
 from fabulous.fabulous_repl.command_set_base import CMD_USER_DESIGN_FLOW, ReplCommandSet
 from fabulous.fabulous_repl.helper import make_hex, run_task
 from fabulous.fabulous_settings import get_context
@@ -47,6 +48,104 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
             f"{tool_name} not found at '{tool_path}'. "
             "Ensure it is installed and on PATH."
         )
+
+
+def pre_rework_synth_compat_args(
+    project_dir: Path, yosys_path: Path | str, synth_extra_args: str
+) -> str:
+    """Adapt `synth_fabulous` arguments across the Yosys `synth_fabulous` rework.
+
+    TODO(3.0): remove, together with support for Yosys <= 0.66 and for projects
+    created before the `yosys/` library folder existed.
+
+    Yosys 0.67 stopped bundling the FABulous library and rejects `-iopad`.
+    A `Test/Taskfile.yml` that never references `SYNTH_LIB_ARGS` passes no
+    library options, so the packaged copy is injected through
+    `SYNTH_EXTRA_ARGS`. Older Yosys gets the arguments unchanged.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Root of the FABulous project.
+    yosys_path : Path | str
+        Yosys binary that runs the synthesis.
+    synth_extra_args : str
+        User arguments forwarded to `synth_fabulous`.
+
+    Returns
+    -------
+    str
+        The arguments to forward to `synth_fabulous` through the Taskfile.
+
+    Raises
+    ------
+    CommandError
+        If the Yosys needs the library and the Taskfile reads neither
+        `SYNTH_LIB_ARGS` nor `SYNTH_EXTRA_ARGS`.
+    """
+    taskfile = project_dir / "Test" / "Taskfile.yml"
+    taskfile_text = taskfile.read_text()
+    passes_lib = "{{.SYNTH_LIB_ARGS}}" in taskfile_text
+    tokens = synth_extra_args.split()
+    if passes_lib and "-iopad" not in tokens:
+        return synth_extra_args
+
+    # The reworked pass is the first to accept -cells-map; a version number
+    # cannot tell them apart, as builds either side both report 0.66+N.
+    synth_help = sp.run(
+        [str(yosys_path), "-p", "help synth_fabulous"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    if "-cells-map" not in synth_help:
+        return synth_extra_args
+
+    if "-iopad" in tokens:
+        logger.warning(
+            "`-iopad` is deprecated: this Yosys inserts pads by default and "
+            "rejects the option, so it is dropped. Remove it from your "
+            "synthesis arguments; the option will be passed through unchanged "
+            "from FABulous 3.0."
+        )
+        tokens = [token for token in tokens if token != "-iopad"]
+    if passes_lib:
+        return " ".join(tokens)
+    if "{{.SYNTH_EXTRA_ARGS" not in taskfile_text:
+        raise CommandError(
+            f"{taskfile} reads neither SYNTH_LIB_ARGS nor SYNTH_EXTRA_ARGS, so it "
+            "cannot pass the library this Yosys needs. Run "
+            f"`FABulous -p {project_dir} update-project-version` to upgrade the "
+            "project."
+        )
+
+    logger.warning(
+        f"{taskfile} predates the Yosys synth_fabulous rework and passes no "
+        "library options. Injecting the library packaged with FABulous. Support for "
+        "such projects ends in FABulous 3.0; run `FABulous update-project-version` "
+        "to upgrade the project."
+    )
+    lib = PACKAGED_YOSYS_LIB
+    lib_files = [
+        ("-extra-plib", lib / "primitives" / "prims.v"),
+        ("-cells-map", lib / "techmap" / "cells_map.v"),
+        ("-arith-map", lib / "techmap" / "arith_map.v"),
+        ("-extra-map", lib / "techmap" / "ff_map.v"),
+        ("-extra-map", lib / "techmap" / "latches_map.v"),
+        ("-extra-map", lib / "techmap" / "io_map.v"),
+        ("-extra-mlibmap", lib / "memlib" / "ram_regfile.txt"),
+        ("-extra-map", lib / "techmap" / "regfile_map.v"),
+    ]
+    # The Taskfile reads custom_prims.v before these options; reading it again
+    # lets the project's BEL blackboxes replace the library's copies.
+    custom_prims = project_dir / "user_design" / "custom_prims.v"
+    if custom_prims.is_file():
+        lib_files.append(("-extra-plib", custom_prims))
+    # The Taskfile wraps the synth command in shell double quotes, so `$` and the
+    # quotes that keep a path with spaces in one Yosys token are escaped.
+    lib_args = [rf"{option} \"{path}\"" for option, path in lib_files]
+    lib_args.append(r"-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn")
+    return " ".join([*lib_args, *tokens])
 
 
 _SCL_BY_PDK: dict[str, str] = {
@@ -532,6 +631,10 @@ class UserDesignCommandSet(ReplCommandSet):
             )
 
         ctx = get_context()
+        if not (pnr_only or bitgen_only):
+            synth_extra_args = pre_rework_synth_compat_args(
+                repl.projectDir, ctx.yosys_path, synth_extra_args
+            )
         task_vars: dict[str, str] = {
             "YOSYS_PATH": str(ctx.yosys_path),
             "NEXTPNR_PATH": str(ctx.nextpnr_path),
