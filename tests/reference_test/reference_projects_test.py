@@ -12,10 +12,11 @@ import pytest
 import yaml
 from loguru import logger
 
+from fabulous.fabric_definition.define import HDLType
 from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
-    run_fabulous_commands_with_logging,
+    generate_project,
     run_shell_commands,
 )
 
@@ -25,7 +26,7 @@ class ReferenceProject(NamedTuple):
 
     name: str
     path: Path
-    language: Literal["verilog", "vhdl"]
+    language: HDLType
     test_mode: Literal["run", "diff"]
     description: str = ""
     expected_outputs: list[str] | None = None
@@ -36,6 +37,7 @@ class ReferenceProject(NamedTuple):
     post_fab_commands: list[dict[str, str]] | None = None
     cleanup_commands: list[dict[str, str]] | None = None
     skip_reason: str | None = None
+    rtl_equivalence: bool = False
 
 
 def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
@@ -56,7 +58,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
             project = ReferenceProject(
                 name=project_data["name"],
                 path=path.resolve(),
-                language=project_data["language"],
+                language=HDLType(project_data["language"]),
                 test_mode=project_data["test_mode"],
                 description=project_data.get("description", ""),
                 expected_outputs=project_data.get("expected_outputs"),
@@ -67,6 +69,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
                 post_fab_commands=project_data.get("post_fab_commands"),
                 cleanup_commands=project_data.get("cleanup_commands"),
                 skip_reason=project_data.get("skip_reason"),
+                rtl_equivalence=project_data.get("rtl_equivalence", False),
             )
             projects.append(project)
         except KeyError as e:
@@ -129,32 +132,13 @@ def test_reference_project_execution(
         )
 
     try:
-        # Run optional pre-fab shell commands
-        if ref_project.pre_fab_commands:
-            pre_failures = run_shell_commands(
-                test_project_path, ref_project.pre_fab_commands
-            )
-            assert not pre_failures, (
-                f"pre_fab_commands failed for {ref_project.name}: "
-                + "\n".join(
-                    f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in pre_failures
-                )
-            )
-
-        # Run FABulous commands
-        _, execution_info = run_fabulous_commands_with_logging(
+        generate_project(
             test_project_path,
             ref_project.language,
             caplog,
             monkeypatch,
-            commands=ref_project.fab_commands,
-        )
-
-        # Always check that basic commands succeeded
-        assert not execution_info["commands_failed"], (
-            f"Commands failed for {ref_project.name}: "
-            f"{execution_info['commands_failed']}"
-            f"\nErrors: {execution_info['errors']}"
+            pre_fab_commands=ref_project.pre_fab_commands,
+            fab_commands=ref_project.fab_commands,
         )
 
         # Verify expected outputs exist if specified
@@ -195,8 +179,12 @@ def test_reference_project_execution(
                 include_patterns = ref_project.include_patterns
             else:
                 logger.info("Using default include patterns for:")
-                include_patterns = ["*.v", "*.sv"]
-                if ref_project.language != "verilog":
+                if ref_project.rtl_equivalence:
+                    # `rtl_equivalence_test.py` checks the RTL instead.
+                    include_patterns = []
+                elif ref_project.language == HDLType.VERILOG:
+                    include_patterns = ["*.v", "*.sv"]
+                else:
                     include_patterns = ["*.vhd", "*.vhdl"]
                 include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
             logger.info(f"  Patterns: {include_patterns}")
