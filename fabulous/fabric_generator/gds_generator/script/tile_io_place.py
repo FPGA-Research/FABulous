@@ -41,18 +41,17 @@ def grid_to_tracks(origin: float, count: int, step: float) -> list[float]:
     return tracks
 
 
-def filter_pin_tracks_by_stride_and_distance(
+def filter_pin_tracks_by_stride(
     plan: "PinPlacementPlan",
     step_by_side: dict[Side, float],
     origin_by_side: dict[Side, float],
-    micron_in_units: float,
 ) -> tuple[dict[Side, list[list[float]]], list[dict]]:
-    """Filter the per-segment raw tracks to satisfy min/max distance.
+    """Filter the per-segment raw tracks to satisfy min/max track stride.
 
-    For each side and each segment in `plan`, keep every `stride`-th raw
-    track to enforce the segment's `min_distance`, then insert extra
-    tracks where consecutive filtered tracks fall further apart than the
-    segment's `max_distance`.  Segments whose filtered track count is
+    For each side and each segment in `plan`, keep every
+    `min_track_stride`-th raw track, then insert extra tracks where
+    consecutive filtered tracks fall more than `max_track_stride` tracks
+    apart.  Segments whose filtered track count is
     smaller than `actual_pin_count` are flagged in the returned
     `track_errors` list for the caller to surface.
 
@@ -60,13 +59,11 @@ def filter_pin_tracks_by_stride_and_distance(
     ----------
     plan : PinPlacementPlan
         Plan whose `track_coordinates` and `segments_by_side` have been
-        populated by `allocate_tracks` and `ensure_min_distances`.
+        populated by `allocate_tracks` and `resolve_min_track_strides`.
     step_by_side : dict[Side, float]
         Track pitch for each side, in DBU.
     origin_by_side : dict[Side, float]
         Track origin for each side, in DBU.
-    micron_in_units : float
-        DBU per micron, used to convert segment distances to DBU.
 
     Returns
     -------
@@ -76,12 +73,13 @@ def filter_pin_tracks_by_stride_and_distance(
     track_errors : list[dict]
         One entry per segment that did not have enough filtered tracks to
         hold its pins, with `side`, `shortage`, `step` and
-        `min_distance` keys.
+        `min_track_stride` keys.
 
     Raises
     ------
     AssertionError
-        If any segment is missing a `min_distance` value, which should have
+        If any segment is missing a `min_track_stride` value, which
+        `resolve_min_track_strides` sets before placement.
     """
     pin_tracks: dict[Side, list[list[float]]] = {side: [] for side in Side}
     track_errors: list[dict] = []
@@ -100,16 +98,14 @@ def filter_pin_tracks_by_stride_and_distance(
         first_segment_seen = False
 
         for segment_index, segment in enumerate(segments):
-            if segment.min_distance is None:
-                raise AssertionError("min_distance must be defined before placement")
-            min_distance = segment.min_distance * micron_in_units
-            max_distance = segment.max_distance
-            if max_distance is not None:
-                max_distance = max_distance * micron_in_units
+            if segment.min_track_stride is None:
+                raise AssertionError(
+                    "min_track_stride must be defined before placement"
+                )
+            stride = segment.min_track_stride
+            max_stride = segment.max_track_stride
 
             raw_tracks = plan.track_coordinates[side][segment_index]
-
-            stride = max(1, math.ceil(min_distance / step))
 
             # Reset the cadence when entering a new physical tile so each
             # super-tile division produces the same pin positions as a
@@ -130,8 +126,7 @@ def filter_pin_tracks_by_stride_and_distance(
                     filtered.append(track_coord)
                     side_last_filtered_idx = track_idx
 
-            if max_distance is not None:
-                max_stride = max(1, math.floor(max_distance / step))
+            if max_stride is not None:
                 enforced: list[float] = []
                 last_global_idx: int | None = None
                 for track_coord in filtered:
@@ -157,7 +152,7 @@ def filter_pin_tracks_by_stride_and_distance(
                         "side": side,
                         "shortage": needed - len(filtered),
                         "step": step,
-                        "min_distance": min_distance,
+                        "min_track_stride": stride,
                     }
                 )
 
@@ -289,13 +284,17 @@ class SegmentInfo:
 
     side: Side
     sort_mode: PinSortMode
-    min_distance: float | None
-    max_distance: float | None
+    min_track_stride: int | None
+    max_track_stride: int | None
     reverse_result: bool
     pin_entries: list[odbBTermLike | int]  # odbTerm or int virtual pins
     tile_index: int | None = None  # Enumerated index within this side
     tile_x: int | None = None  # Actual X coordinate of the tile
     tile_y: int | None = None  # Actual Y coordinate of the tile
+    # Deprecated um centre distances, converted to strides once the track
+    # pitch is known in `resolve_min_track_strides`.
+    legacy_min_distance: float | None = None
+    legacy_max_distance: float | None = None
 
     @classmethod
     def from_config(
@@ -310,6 +309,37 @@ class SegmentInfo:
         tile_y: int | None = None,
     ) -> "SegmentInfo":
         """Build a fully populated segment from a raw YAML entry."""
+        for old_key, old_value, new_key, new_value in (
+            (
+                "min_distance",
+                segment.min_distance,
+                "min_track_stride",
+                segment.min_track_stride,
+            ),
+            (
+                "max_distance",
+                segment.max_distance,
+                "max_track_stride",
+                segment.max_track_stride,
+            ),
+        ):
+            if old_value is not None and new_value is not None:
+                raise ValueError(
+                    f"Segment on side {side.value} sets both the deprecated "
+                    f"{old_key} and {new_key}. Remove {old_key}."
+                )
+        for key, stride in (
+            ("min_track_stride", segment.min_track_stride),
+            ("max_track_stride", segment.max_track_stride),
+        ):
+            # bool is an int subclass, so `true` in YAML would pass as stride 1.
+            if stride is not None and (
+                not isinstance(stride, int) or isinstance(stride, bool) or stride < 1
+            ):
+                raise ValueError(
+                    f"{key} on side {side.value} must be a positive integer "
+                    f"track count, got {stride!r}. 1 places pins on adjacent tracks."
+                )
         try:
             sort_mode = PinSortMode[segment.sort_mode.upper()]
         except ValueError as e:
@@ -344,8 +374,10 @@ class SegmentInfo:
         return cls(
             side=side,
             sort_mode=sort_mode,
-            min_distance=segment.min_distance,
-            max_distance=segment.max_distance,
+            min_track_stride=segment.min_track_stride,
+            max_track_stride=segment.max_track_stride,
+            legacy_min_distance=segment.min_distance,
+            legacy_max_distance=segment.max_distance,
             reverse_result=segment.reverse_result,
             pin_entries=entries,
             tile_index=tile_index,
@@ -480,6 +512,7 @@ class PinPlacementPlan:
         tile_pattern = re.compile(r"^X(?P<x>\d+)Y(?P<y>\d+)$")
 
         tiles: dict[tuple[int, int], dict[str, list[PinOrderConfig]]] = {}
+        uses_legacy_distance = False
         max_x = 0
         max_y = 0
         for key, entry in config_data.items():
@@ -501,9 +534,19 @@ class PinPlacementPlan:
             for side, segments in tile_config.items():
                 entries = []
                 for e in segments:
+                    if "min_distance" in e or "max_distance" in e:
+                        uses_legacy_distance = True
                     entries.append(PinOrderConfig(**e))
                 entry_dict[side] = entries
             tiles[(x, y)] = entry_dict
+
+        if uses_legacy_distance:
+            warn(
+                "The pin config keys min_distance and max_distance (um) are "
+                "deprecated. Use min_track_stride and max_track_stride, integer "
+                "track counts where 1 places pins on adjacent tracks, or delete "
+                "io_pin_order.yaml to regenerate it."
+            )
 
         # Fabric dimensions: max coordinate + 1
         fabric_width = max_x + 1
@@ -805,21 +848,82 @@ class PinPlacementPlan:
 
         return tracks_container
 
-    def ensure_min_distances(self, min_by_side: dict[Side, float]) -> None:
-        """Ensure each segment meets technology minimum spacing requirements.
+    def resolve_min_track_strides(
+        self,
+        floor_by_side: dict[Side, float],
+        step_by_side: dict[Side, float],
+        micron_in_units: float,
+    ) -> None:
+        """Set unset `min_track_stride` values and reject strides below the floor.
+
+        The floor stride is the fewest tracks whose centre distance covers
+        pin width plus layer spacing on that side. Deprecated `min_distance`
+        and `max_distance` values convert as they did before the rename:
+        min rounds up to whole tracks and is raised to the floor, max rounds
+        down to whole tracks with a minimum of one.
 
         Parameters
         ----------
-        min_by_side : dict[Side, float]
-            Minimum spacing required for each side.
+        floor_by_side : dict[Side, float]
+            Pin width plus layer spacing for each side, in DBU.
+        step_by_side : dict[Side, float]
+            Track pitch for each side, in DBU.
+        micron_in_units : float
+            DBU per micron, used to convert deprecated um distances.
+
+        Raises
+        ------
+        ValueError
+            If a segment sets `min_track_stride` below the floor stride, or
+            `max_track_stride` below its `min_track_stride`.
         """
         for side, segments in self.segments_by_side.items():
+            if not segments:
+                continue
+            step = step_by_side[side]
+            floor_stride = math.ceil(floor_by_side[side] / step)
             for segment in segments:
+                if segment.legacy_min_distance is not None:
+                    segment.min_track_stride = max(
+                        floor_stride,
+                        math.ceil(segment.legacy_min_distance * micron_in_units / step),
+                    )
+                    info(
+                        f"min_distance={segment.legacy_min_distance} um on side "
+                        f"{side.value} resolves to "
+                        f"min_track_stride={segment.min_track_stride}."
+                    )
+                if segment.legacy_max_distance is not None:
+                    segment.max_track_stride = max(
+                        1,
+                        math.floor(
+                            segment.legacy_max_distance * micron_in_units / step
+                        ),
+                    )
+                    info(
+                        f"max_distance={segment.legacy_max_distance} um on side "
+                        f"{side.value} resolves to "
+                        f"max_track_stride={segment.max_track_stride}."
+                    )
+                if segment.min_track_stride is None:
+                    segment.min_track_stride = floor_stride
+                elif segment.min_track_stride < floor_stride:
+                    raise ValueError(
+                        f"min_track_stride={segment.min_track_stride} on side "
+                        f"{side.value} puts pin centres "
+                        f"{segment.min_track_stride * step} DBU apart, below pin "
+                        f"width plus spacing of {floor_by_side[side]} DBU. "
+                        f"Set min_track_stride to {floor_stride} or more."
+                    )
                 if (
-                    segment.min_distance is None
-                    or segment.min_distance < min_by_side[side]
+                    segment.max_track_stride is not None
+                    and segment.max_track_stride < segment.min_track_stride
                 ):
-                    segment.min_distance = min_by_side[side]
+                    raise ValueError(
+                        f"max_track_stride={segment.max_track_stride} on side "
+                        f"{side.value} is below min_track_stride="
+                        f"{segment.min_track_stride}."
+                    )
 
     def assign_unmatched_pins(self) -> None:
         """Place unmatched pins into the lowest-utilization segments."""
@@ -864,8 +968,8 @@ class PinPlacementPlan:
         segment = SegmentInfo(
             side=side_choice,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[],
             tile_index=0,
@@ -1057,14 +1161,13 @@ def io_place(
 
     plan = PinPlacementPlan(config_data, bterms, unmatched_error)
     debug("Segment plan: %s", plan.segments_by_side)
-    min_by_side = {
-        Side.NORTH: (v_width + v_layer.getSpacing()) / reader.dbunits,
-        Side.SOUTH: (v_width + v_layer.getSpacing()) / reader.dbunits,
-        Side.EAST: (h_width + h_layer.getSpacing()) / reader.dbunits,
-        Side.WEST: (h_width + h_layer.getSpacing()) / reader.dbunits,
+    floor_by_side = {
+        Side.NORTH: v_width + v_layer.getSpacing(),
+        Side.SOUTH: v_width + v_layer.getSpacing(),
+        Side.EAST: h_width + h_layer.getSpacing(),
+        Side.WEST: h_width + h_layer.getSpacing(),
     }
     plan.assign_unmatched_pins()
-    plan.ensure_min_distances(min_by_side)
 
     origin_h: float
     count_h: int
@@ -1091,6 +1194,7 @@ def io_place(
         Side.NORTH: v_step,
         Side.SOUTH: v_step,
     }
+    plan.resolve_min_track_strides(floor_by_side, step_by_side, micron_in_units)
 
     origin_by_side = {
         Side.NORTH: origin_v,
@@ -1098,8 +1202,8 @@ def io_place(
         Side.EAST: origin_h,
         Side.WEST: origin_h,
     }
-    pin_tracks, track_errors = filter_pin_tracks_by_stride_and_distance(
-        plan, step_by_side, origin_by_side, micron_in_units
+    pin_tracks, track_errors = filter_pin_tracks_by_stride(
+        plan, step_by_side, origin_by_side
     )
 
     if track_errors:
@@ -1111,7 +1215,7 @@ def io_place(
                 side_requirements[side] = {
                     "shortage": 0,
                     "step": error["step"],
-                    "min_distance": error["min_distance"],
+                    "min_track_stride": error["min_track_stride"],
                 }
             side_requirements[side]["shortage"] += error["shortage"]
 
@@ -1120,7 +1224,7 @@ def io_place(
             dimension = "WIDTH" if side in {Side.NORTH, Side.SOUTH} else "HEIGHT"
             err(
                 f"  {side.value}: +{additional_dimension:.3f} um ({dimension}) "
-                f"min_distance={req['min_distance'] / micron_in_units} um "
+                f"min_track_stride={req['min_track_stride']} "
                 f"steps={req['step'] / micron_in_units} um"
             )
 

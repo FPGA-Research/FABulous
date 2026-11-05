@@ -35,8 +35,8 @@ class TestPinOrderConfig:
         """Test PinOrderConfig default values."""
         config = PinOrderConfig()
 
-        assert config.min_distance is None
-        assert config.max_distance is None
+        assert config.min_track_stride is None
+        assert config.max_track_stride is None
         assert config.pins == []
         assert config.sort_mode == PinSortMode.BUS_MAJOR
         assert config.reverse_result is False
@@ -44,22 +44,22 @@ class TestPinOrderConfig:
     def test_custom_initialization(self) -> None:
         """Test PinOrderConfig with custom values."""
         config = PinOrderConfig(
-            min_distance=10,
-            max_distance=100,
+            min_track_stride=10,
+            max_track_stride=100,
             pins=["pin1", "pin2"],
             sort_mode=PinSortMode.BIT_MINOR,
             reverse_result=True,
         )
 
-        assert config.min_distance == 10
-        assert config.max_distance == 100
+        assert config.min_track_stride == 10
+        assert config.max_track_stride == 100
         assert config.pins == ["pin1", "pin2"]
         assert config.sort_mode == PinSortMode.BIT_MINOR
         assert config.reverse_result is True
 
     def test_call_binds_pins(self) -> None:
         """Test that __call__ binds pins to the config."""
-        config = PinOrderConfig(min_distance=5)
+        config = PinOrderConfig(min_track_stride=5)
         result = config(["a", "b", "c"])
 
         assert result is config
@@ -79,8 +79,8 @@ class TestPinOrderConfig:
 
         result = config.to_dict()
 
-        assert result["min_distance"] is None
-        assert result["max_distance"] is None
+        assert result["min_track_stride"] is None
+        assert result["max_track_stride"] is None
         assert result["pins"] == ["pin1", "pin2"]
         assert result["sort_mode"] == str(PinSortMode.BUS_MAJOR)
         assert result["reverse_result"] is False
@@ -88,8 +88,8 @@ class TestPinOrderConfig:
     def test_to_dict_with_custom_values(self) -> None:
         """Test to_dict serialization with custom values."""
         config = PinOrderConfig(
-            min_distance=5,
-            max_distance=50,
+            min_track_stride=5,
+            max_track_stride=50,
             sort_mode=PinSortMode.BIT_MINOR,
             reverse_result=True,
         )
@@ -97,8 +97,8 @@ class TestPinOrderConfig:
 
         result = config.to_dict()
 
-        assert result["min_distance"] == 5
-        assert result["max_distance"] == 50
+        assert result["min_track_stride"] == 5
+        assert result["max_track_stride"] == 50
         assert result["pins"] == ["a", "b"]
         assert result["reverse_result"] is True
 
@@ -827,8 +827,8 @@ class TestPinOrderConfigIntegration:
     def test_config_serialization_round_trip(self) -> None:
         """Test that config can be serialized and matches expected format."""
         config = PinOrderConfig(
-            min_distance=10,
-            max_distance=20,
+            min_track_stride=10,
+            max_track_stride=20,
             sort_mode=PinSortMode.BUS_MAJOR,
             reverse_result=False,
         )
@@ -837,8 +837,8 @@ class TestPinOrderConfigIntegration:
         result = config.to_dict()
 
         # Verify all required fields
-        assert "min_distance" in result
-        assert "max_distance" in result
+        assert "min_track_stride" in result
+        assert "max_track_stride" in result
         assert "pins" in result
         assert "sort_mode" in result
         assert "reverse_result" in result
