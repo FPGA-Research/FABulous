@@ -103,23 +103,6 @@
         "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz"
       }
     },
-    "ghdl-yosys-plugin-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1768124497,
-        "narHash": "sha256-LETpUfpIezSxD4A9VYA/OvgN3aZd1YivPe2w973X3nk=",
-        "owner": "ghdl",
-        "repo": "ghdl-yosys-plugin",
-        "rev": "07a30ed39fb6a078f1bf7e9e88ce9ed712380ec2",
-        "type": "github"
-      },
-      "original": {
-        "owner": "ghdl",
-        "ref": "ghdl-v6.0.0",
-        "repo": "ghdl-yosys-plugin",
-        "type": "github"
-      }
-    },
     "librelane": {
       "inputs": {
         "ciel": "ciel",
@@ -244,7 +227,6 @@
         "fabulator-src": "fabulator-src",
         "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
         "ghdl-bin-x86_64-linux": "ghdl-bin-x86_64-linux",
-        "ghdl-yosys-plugin-src": "ghdl-yosys-plugin-src",
         "librelane": "librelane",
         "nextpnr-src": "nextpnr-src",
         "nix-eda": [
@@ -258,8 +240,7 @@
         ],
         "pyproject-build-systems": "pyproject-build-systems",
         "pyproject-nix": "pyproject-nix",
-        "uv2nix": "uv2nix",
-        "yosys-src": "yosys-src"
+        "uv2nix": "uv2nix"
       }
     },
     "uv2nix": {
@@ -283,24 +264,6 @@
         "owner": "pyproject-nix",
         "repo": "uv2nix",
         "type": "github"
-      }
-    },
-    "yosys-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1783351082,
-        "narHash": "sha256-vsAjDjo0im2Cw/ygg9ObxkGAiP6ZuDisvblMMC/aA0Q=",
-        "ref": "refs/heads/main",
-        "rev": "aa18c921a76a9790e3b877a378b9eec41c26f752",
-        "revCount": 17398,
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/YosysHQ/yosys"
-      },
-      "original": {
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/YosysHQ/yosys"
       }
     }
   },
