@@ -33,8 +33,6 @@ from fabulous.fabric_cad.timing_model.models import (
     InternalPipCacheEntry,
     TimingModelConfig,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 from fabulous.fabric_cad.timing_model.netlist import (
     HierPath,
@@ -42,13 +40,12 @@ from fabulous.fabric_cad.timing_model.netlist import (
     PortBit,
     sdf_path,
 )
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
-from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
-from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.tools.opensta import OpenStaTool
+from fabulous.tools.yosys import YosysTool
 
 
 class FABulousTileTimingModel:
@@ -64,11 +61,7 @@ class FABulousTileTimingModel:
       (within the switch matrix) and external PIPs (between the tile and the
       next tile) using either structural or physical approaches.
 
-    Supported synthesis tools:
-    - Yosys, keyword: "yosys"
-
-    Supported static timing analysis (STA) tools:
-    - OpenSTA, keyword: "opensta"
+    Synthesis runs on Yosys and STA on OpenSTA, through `fabulous.tools`.
 
     Parameters
     ----------
@@ -78,13 +71,22 @@ class FABulousTileTimingModel:
         The FABulous fabric object.
     tile_name : str
         The name of the tile for which the timing model is being created.
+    work_dir : Path
+        Existing, empty directory owned by the caller for the synthesised
+        netlist and the SDF files.
     """
 
     def __init__(
-        self, config: TimingModelConfig, fabric: Fabric, tile_name: str
+        self,
+        config: TimingModelConfig,
+        fabric: Fabric,
+        tile_name: str,
+        *,
+        work_dir: Path,
     ) -> None:
         self.fabric: Fabric = fabric
         self.tile_name: str = tile_name
+        self.work_dir: Path = work_dir
 
         # Validate and parse the configuration using the
         # TimingModelConfig dataclass.
@@ -203,76 +205,14 @@ class FABulousTileTimingModel:
                         self.tile_scope = (unique_tiles.tile_instance_name(x, y),)
                         break
 
-    def _cad_tools(self) -> dict[str, SynthTool | StaTool]:
-        """Set up the synthesis and STA tools based on the configuration.
-
-        This method can be used to initialize the tools before creating
-        the timing models. New tools can be added here by extending the
-        match-case statements for synthesis and STA
-        tools.
-
-        Returns
-        -------
-        dict[str, SynthTool | StaTool]
-            A dictionary containing the synthesis and STA tools.
-
-        Raises
-        ------
-        ValueError
-            If the synthesis or STA tool specified in the
-            configuration is not supported.
-        """
-        synth_tool: SynthTool | None = None
-        sta_tool: StaTool | None = None
-
-        # Use match-case to select the synthesis and STA tools based on the
-        # configuration.
-
-        match self.tm_config.synth_program:
-            case TimingModelSynthTools.YOSYS:
-                synth_tool = YosysTool(
-                    verilog_files=self.verilog_files,
-                    liberty_files=self.tm_config.liberty_files,
-                    top_name=self.unique_tile_name,
-                    synth_executable=self.tm_config.synth_executable,
-                    techmap_files=self.tm_config.techmap_files,
-                    tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
-                    tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
-                    min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
-                    is_gate_level=False,
-                    debug=self.tm_config.debug,
-                    flat=False,
-                )
-            case _:
-                raise ValueError(
-                    f"Unsupported synthesis tool: {self.tm_config.synth_program}"
-                )
-
-        # Use match-case to select the STA tool based on the configuration.
-
-        match self.tm_config.sta_program:
-            case TimingModelStaTools.OPENSTA:
-                sta_tool = OpenStaTool(
-                    sta_executable=self.tm_config.sta_executable,
-                    spef_files=None,
-                    debug=self.tm_config.debug,
-                )
-            case _:
-                raise ValueError(f"Unsupported STA tool: {self.tm_config.sta_program}")
-
-        # Return the initialized tools in a dictionary for use in the timing
-        # model initialization.
-
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
     def _initialize_timing_models(self) -> None:
-        """Initialize the synthesis and physical timing models using HdlnxTimingModel.
+        """Initialize the synthesis and physical timing models.
 
-        - The synthesis-level model is initialized with the RTL Verilog files
-          and the specified synthesis and STA tools.
-        - The physical-level model is initialized with the gate-level netlist,
-          and optionally with SPEF files for wire delay if consider_wire_delay
-          is True in the configuration.
+        - The synthesis-level model is built from the RTL Verilog files,
+          synthesised with Yosys into `work_dir`, and their OpenSTA SDF.
+        - The physical-level model is built from the OpenSTA SDF of the
+          gate-level netlist, annotated with the SPEF file if
+          consider_wire_delay is True in the configuration.
 
         Returns
         -------
@@ -291,19 +231,41 @@ class FABulousTileTimingModel:
         # Get the Verilog files for the project.
         self._get_project_rtl_files()
 
-        # Initialize the synthesis and STA tools based on the configuration.
-        cad_tool = self._cad_tools()
-        synth_tool: SynthTool = cad_tool["synth_tool"]
-        sta_tool: StaTool = cad_tool["sta_tool"]
+        liberty = self.tm_config.liberty_files
+        liberty_files = [liberty] if isinstance(liberty, Path) else liberty
+        techmap = self.tm_config.techmap_files
+        if techmap is None:
+            techmap_files: list[Path] = []
+        elif isinstance(techmap, Path):
+            techmap_files = [techmap]
+        else:
+            techmap_files = techmap
 
-        # Initialize the synthesis-level timing model.
+        synth_netlist_file = self.work_dir / "synth.v"
+        YosysTool.synthesize_gate_level(
+            verilog_files=self.verilog_files,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            netlist_file=synth_netlist_file,
+            techmap_files=techmap_files,
+            tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
+            tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
+            min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
+        )
+        synth_sdf_file = self.work_dir / "synth.sdf"
+        OpenStaTool.write_sdf(
+            netlist_file=synth_netlist_file,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            spef_files=[],
+            sdf_file=synth_sdf_file,
+        )
         self.hdlnx_tm_synth = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+            synth_sdf_file, self.tm_config.delay_type_str
         )
         self.synth_netlist: NetlistIndex = NetlistIndex.read(
-            synth_tool.synth_netlist_file, top=synth_tool.synth_design_name
+            synth_netlist_file, top=self.unique_tile_name
         )
-        synth_tool.synth_clean_up()
 
         # If the mode is STRUCTURAL, we only need the synthesis-level model and can skip
         # initializing the physical-level model.
@@ -316,8 +278,7 @@ class FABulousTileTimingModel:
         # For the physical-level model, we need to switch to the gate-level netlist.
         logger.info("Initializing Physical-level timing model...")
 
-        # For the physical-level model, we need to switch to the gate-level netlist.
-        synth_tool.synth_rtl_files = Path(
+        physical_netlist_file = Path(
             f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
             f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"
         )
@@ -332,20 +293,17 @@ class FABulousTileTimingModel:
                 ].netlist_file
             )
         ):
-            synth_tool.synth_rtl_files = netl
+            physical_netlist_file = netl
             logger.info(
                 f"Using netlist file for tile {self.unique_tile_name}: "
-                f"{synth_tool.synth_rtl_files}"
+                f"{physical_netlist_file}"
             )
-
-        # Disable synthesis for the physical-level model since we already
-        # have the gate-level netlist.
-        synth_tool.synth_passthrough = True
 
         # Optionally load RC files for wire delay if consider_wire_delay
         # is True in the configuration.
+        spef_files: list[Path] = []
         if self.tm_config.consider_wire_delay:
-            sta_tool.sta_rc_files = Path(
+            rc_file = Path(
                 f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
                 f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"
             )
@@ -360,16 +318,22 @@ class FABulousTileTimingModel:
                     ].rc_file
                 )
             ):
-                sta_tool.sta_rc_files = rc
-                logger.info(
-                    f"Use RC file for {self.unique_tile_name}: {sta_tool.sta_rc_files}"
-                )
+                rc_file = rc
+                logger.info(f"Use RC file for {self.unique_tile_name}: {rc_file}")
+            spef_files = [rc_file]
 
         # Initialize the physical-level timing model with the gate-level netlist.
-        self.hdlnx_tm_phys = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+        physical_sdf_file = self.work_dir / "physical.sdf"
+        OpenStaTool.write_sdf(
+            netlist_file=physical_netlist_file,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            spef_files=spef_files,
+            sdf_file=physical_sdf_file,
         )
-        synth_tool.synth_clean_up()
+        self.hdlnx_tm_phys = HdlnxTimingModel(
+            physical_sdf_file, self.tm_config.delay_type_str
+        )
 
     def _find_matching_files(
         self,

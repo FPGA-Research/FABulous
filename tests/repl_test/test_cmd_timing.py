@@ -32,7 +32,6 @@ def test_timing_command_passes_output_paths_to_api(
         mode=TimingModelMode.STRUCTURAL,
         pip_file=pip_path,
         bel_file=bel_path,
-        debug=cli.debug,
         manual_config=None,
     )
 
@@ -49,8 +48,6 @@ def test_timing_command_reads_relative_paths_from_project_dir(
         project_dir=proj_dir,
         liberty_files=Path("cells.lib"),
         min_buf_cell_and_ports="buf A X",
-        synth_executable=Path("yosys"),
-        sta_executable=Path("sta"),
         mode=TimingModelMode.STRUCTURAL,
     )
     (proj_dir / ".FABulous" / "timing_config.json").write_text(config.model_dump_json())
@@ -75,7 +72,6 @@ def test_timing_command_reads_relative_paths_from_project_dir(
         mode=TimingModelMode.STRUCTURAL,
         pip_file=proj_dir / "out" / "pips.txt",
         bel_file=proj_dir / "out" / "bel.v3.txt",
-        debug=cli.debug,
         manual_config=config,
     )
 
@@ -97,7 +93,6 @@ def test_timing_api_writes_characterized_timing(
         mode=TimingModelMode.STRUCTURAL,
         pip_file=pip_path,
         bel_file=bel_path,
-        debug=False,
         manual_config=manual_config,
     )
 

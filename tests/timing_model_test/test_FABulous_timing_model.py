@@ -13,8 +13,6 @@ from fabulous.fabric_cad.timing_model.models import (
     DelayType,
     InternalPipCacheEntry,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
 from fabulous.fabric_definition.supertile import SuperTile
@@ -40,25 +38,21 @@ def make_config(
     *,
     mode: TimingModelMode = TimingModelMode.STRUCTURAL,
     consider_wire_delay: bool = False,
-    debug: bool = False,
-    synth_program: TimingModelSynthTools = TimingModelSynthTools.YOSYS,
-    sta_program: TimingModelStaTools = TimingModelStaTools.OPENSTA,
+    liberty_files: list[Path] | Path | None = None,
+    techmap_files: list[Path] | Path | None = None,
     custom_per_tile_source_files: dict[str, SimpleNamespace] | None = None,
     delay_scaling_factor: Decimal = Decimal(1),
 ) -> SimpleNamespace:
     return SimpleNamespace(
         project_dir=tmp_path,
-        liberty_files=[tmp_path / "lib.lib"],
+        liberty_files=[tmp_path / "lib.lib"]
+        if liberty_files is None
+        else liberty_files,
         delay_type_str=DelayType.MAX_ALL,
-        debug=debug,
-        synth_program=synth_program,
-        sta_program=sta_program,
-        synth_executable="yosys",
-        sta_executable="opensta",
-        techmap_files=[tmp_path / "techmap.v"],
-        tiehi_cell_and_port=("TIEHI", "Y"),
-        tielo_cell_and_port=("TIELO", "Y"),
-        min_buf_cell_and_ports=("BUF", "A", "Y"),
+        techmap_files=techmap_files,
+        tiehi_cell_and_port="TIEHI Y",
+        tielo_cell_and_port="TIELO Y",
+        min_buf_cell_and_ports="BUF A Y",
         consider_wire_delay=consider_wire_delay,
         mode=mode,
         custom_per_tile_source_files=custom_per_tile_source_files,
@@ -83,23 +77,6 @@ class DummySuperTile:
     def __init__(self, name: object, tiles: object) -> None:
         self.name = name
         self.tiles = tiles
-
-
-class DummySynthTool:
-    def __init__(self) -> None:
-        self.synth_rtl_files = None
-        self.synth_passthrough = False
-        self.synth_netlist_file = Path("netlist.v")
-        self.synth_design_name = "TILE_A"
-        self.clean_ups = 0
-
-    def synth_clean_up(self) -> None:
-        self.clean_ups += 1
-
-
-class DummyStaTool:
-    def __init__(self) -> None:
-        self.sta_rc_files = None
 
 
 class DummyHdlnx:
@@ -158,6 +135,7 @@ def bare_model(tmp_path: Path, mocker: MockerFixture) -> FABulousTileTimingModel
     m.is_in_which_super_tile = None
     m.tm_config = make_config(tmp_path)
     m.verilog_files = None
+    m.work_dir = tmp_path / "work"
     m.hdlnx_tm_synth = DummyHdlnx()
     m.hdlnx_tm_phys = DummyHdlnx()
     m.tile_scope = ()
@@ -196,10 +174,11 @@ def test_init_sets_attributes_and_calls_helpers(
     fabric = DummyFabric([])
     cfg = make_config(tmp_path)
 
-    obj = FABulousTileTimingModel(cfg, fabric, tile_name="TILE_A")
+    obj = FABulousTileTimingModel(cfg, fabric, tile_name="TILE_A", work_dir=tmp_path)
 
     assert obj.fabric is fabric
     assert obj.tile_name == "TILE_A"
+    assert obj.work_dir == tmp_path
     assert obj.unique_tile_name == "TILE_A"
     assert obj.is_in_which_super_tile is None
     assert obj.verilog_files == [tmp_path / "a.v"]
@@ -408,354 +387,172 @@ def test_get_project_rtl_files_override_tile_entry_without_rtl_keeps_default(
     assert bare_model.verilog_files == default_files
 
 
-def test_cad_tools_success(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = {}
-
-    class FakeYosys:
-        def __init__(self, **kwargs: object) -> None:
-            calls["yosys"] = kwargs
-
-    class FakeOpenSta:
-        def __init__(self, **kwargs: object) -> None:
-            calls["opensta"] = kwargs
-
-    monkeypatch.setattr(tm_mod, "YosysTool", FakeYosys)
-    monkeypatch.setattr(tm_mod, "OpenStaTool", FakeOpenSta)
-
-    bare_model.verilog_files = [tmp_path / "rtl.v"]
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(tmp_path, debug=True)
-
-    tools = bare_model._cad_tools()  # noqa: SLF001
-
-    assert isinstance(tools["synth_tool"], FakeYosys)
-    assert isinstance(tools["sta_tool"], FakeOpenSta)
-
-    assert calls["yosys"]["verilog_files"] == [tmp_path / "rtl.v"]
-    assert calls["yosys"]["liberty_files"] == [tmp_path / "lib.lib"]
-    assert calls["yosys"]["top_name"] == "TILE_A"
-    assert calls["yosys"]["synth_executable"] == "yosys"
-    assert calls["yosys"]["is_gate_level"] is False
-    assert calls["yosys"]["debug"] is True
-    assert calls["yosys"]["flat"] is False
-
-    assert calls["opensta"]["sta_executable"] == "opensta"
-    assert calls["opensta"]["spef_files"] is None
-    assert calls["opensta"]["debug"] is True
-
-
-def test_cad_tools_unsupported_synth_raises(
-    tmp_path: Path, bare_model: FABulousTileTimingModel
-) -> None:
-    bare_model.tm_config = make_config(tmp_path, synth_program="bad_synth")
-    with pytest.raises(ValueError, match="Unsupported synthesis tool"):
-        bare_model._cad_tools()  # noqa: SLF001
-
-
-def test_cad_tools_unsupported_sta_raises(
-    tmp_path: Path, bare_model: FABulousTileTimingModel
-) -> None:
-    bare_model.tm_config = make_config(tmp_path, sta_program="bad_sta")
-    with pytest.raises(ValueError, match="Unsupported STA tool"):
-        bare_model._cad_tools()  # noqa: SLF001
-
-
 @pytest.fixture
-def netlist_read(mocker: MockerFixture) -> None:
-    """Skip elaborating the synthesised netlist, which the fake models never write."""
-    mocker.patch.object(tm_mod.NetlistIndex, "read", autospec=True)
+def tools(mocker: MockerFixture) -> SimpleNamespace:
+    """Replace Yosys, OpenSTA, the SDF graph and the netlist index with mocks."""
+    return SimpleNamespace(
+        synthesize=mocker.patch.object(tm_mod.YosysTool, "synthesize_gate_level"),
+        write_sdf=mocker.patch.object(tm_mod.OpenStaTool, "write_sdf"),
+        graph=mocker.patch.object(tm_mod, "HdlnxTimingModel"),
+        netlist_read=mocker.patch.object(tm_mod.NetlistIndex, "read"),
+    )
 
 
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_structural_calls_project_rtl_loader(
+def test_initialize_timing_models_structural_synthesises_into_work_dir(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    called = {"rtl": 0}
+    rtl = [tmp_path / "rtl.v"]
 
     def fake_get_project_rtl_files() -> None:
-        called["rtl"] += 1
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
+        bare_model.verilog_files = rtl
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
+    mocker.patch.object(
+        bare_model, "_get_project_rtl_files", side_effect=fake_get_project_rtl_files
     )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+    bare_model.tm_config = make_config(tmp_path, mode=TimingModelMode.STRUCTURAL)
+    work = bare_model.work_dir
 
+    bare_model._initialize_timing_models()  # noqa: SLF001
+
+    tools.synthesize.assert_called_once_with(
+        verilog_files=rtl,
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        netlist_file=work / "synth.v",
+        techmap_files=[],
+        tiehi_cell_and_port="TIEHI Y",
+        tielo_cell_and_port="TIELO Y",
+        min_buf_cell_and_ports="BUF A Y",
+    )
+    tools.write_sdf.assert_called_once_with(
+        netlist_file=work / "synth.v",
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        spef_files=[],
+        sdf_file=work / "synth.sdf",
+    )
+    tools.graph.assert_called_once_with(work / "synth.sdf", DelayType.MAX_ALL)
+    tools.netlist_read.assert_called_once_with(work / "synth.v", top="TILE_A")
+    assert bare_model.hdlnx_tm_synth is tools.graph.return_value
+    assert bare_model.synth_netlist is tools.netlist_read.return_value
+
+
+@pytest.mark.parametrize(
+    ("liberty", "techmap", "expected_liberty", "expected_techmap"),
+    [
+        pytest.param(["a.lib", "b.lib"], None, ["a.lib", "b.lib"], [], id="lists"),
+        pytest.param("a.lib", "map.v", ["a.lib"], ["map.v"], id="single-paths"),
+        pytest.param("a.lib", ["m1.v", "m2.v"], ["a.lib"], ["m1.v", "m2.v"], id="mix"),
+    ],
+)
+def test_initialize_timing_models_passes_library_files_as_lists(
+    tmp_path: Path,
+    bare_model: FABulousTileTimingModel,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
+    liberty: list[str] | str,
+    techmap: list[str] | str | None,
+    expected_liberty: list[str],
+    expected_techmap: list[str],
+) -> None:
+    def to_paths(names: list[str] | str) -> list[Path] | Path:
+        if isinstance(names, str):
+            return tmp_path / names
+        return [tmp_path / name for name in names]
+
+    mocker.patch.object(bare_model, "_get_project_rtl_files")
     bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.STRUCTURAL, debug=True
+        tmp_path,
+        liberty_files=to_paths(liberty),
+        techmap_files=None if techmap is None else to_paths(techmap),
     )
 
     bare_model._initialize_timing_models()  # noqa: SLF001
 
-    assert called["rtl"] == 1
-    assert len(created) == 1
-    assert synth_tool.clean_ups == 1
-    assert synth_tool.synth_passthrough is False
-    assert sta_tool.sta_rc_files is None
+    synth = tools.synthesize.call_args.kwargs
+    assert synth["liberty_files"] == [tmp_path / name for name in expected_liberty]
+    assert synth["techmap_files"] == [tmp_path / name for name in expected_techmap]
+    sta = tools.write_sdf.call_args.kwargs
+    assert sta["liberty_files"] == [tmp_path / name for name in expected_liberty]
 
 
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_without_wire_delay(
+DEFAULT_NETLIST = Path("Tile/TILE_A/macro/final_views/nl/TILE_A.nl.v")
+DEFAULT_SPEF = Path("Tile/TILE_A/macro/final_views/spef/nom/TILE_A.nom.spef")
+
+
+@pytest.mark.parametrize(
+    ("consider_wire_delay", "overrides", "expected_netlist", "expected_spef"),
+    [
+        pytest.param(False, None, DEFAULT_NETLIST, [], id="defaults"),
+        pytest.param(True, None, DEFAULT_NETLIST, [DEFAULT_SPEF], id="wire-delay"),
+        pytest.param(
+            False,
+            {"TILE_A": {"netlist_file": "custom.nl.v"}},
+            Path("custom.nl.v"),
+            [],
+            id="custom-netlist",
+        ),
+        pytest.param(
+            True,
+            {"TILE_A": {"rc_file": "custom.nom.spef"}},
+            DEFAULT_NETLIST,
+            [Path("custom.nom.spef")],
+            id="custom-rc",
+        ),
+        pytest.param(
+            True,
+            {"OTHER_TILE": {"netlist_file": "other.nl.v", "rc_file": "other.spef"}},
+            DEFAULT_NETLIST,
+            [DEFAULT_SPEF],
+            id="other-tile-override",
+        ),
+    ],
+)
+def test_initialize_timing_models_physical_writes_the_netlist_sdf(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
+    consider_wire_delay: bool,
+    overrides: dict[str, dict[str, str]] | None,
+    expected_netlist: Path,
+    expected_spef: list[Path],
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.PHYSICAL, consider_wire_delay=False
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert synth_tool.clean_ups == 2
-    assert synth_tool.synth_passthrough is True
-    assert (
-        synth_tool.synth_rtl_files
-        == tmp_path / "Tile" / "TILE_A" / "macro" / "final_views" / "nl" / "TILE_A.nl.v"
-    )
-    assert sta_tool.sta_rc_files is None
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_with_wire_delay(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.PHYSICAL, consider_wire_delay=True
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert (
-        sta_tool.sta_rc_files
-        == tmp_path
-        / "Tile"
-        / "TILE_A"
-        / "macro"
-        / "final_views"
-        / "spef"
-        / "nom"
-        / "TILE_A.nom.spef"
-    )
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_uses_custom_netlist_file(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    custom_netlist = tmp_path / "custom.nl.v"
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
+    mocker.patch.object(bare_model, "_get_project_rtl_files")
     bare_model.tm_config = make_config(
         tmp_path,
         mode=TimingModelMode.PHYSICAL,
-        custom_per_tile_source_files={
-            "TILE_A": make_source_override(netlist_file=custom_netlist)
-        },
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert synth_tool.synth_rtl_files == custom_netlist
-    assert synth_tool.synth_passthrough is True
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_uses_custom_rc_file(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    custom_rc = tmp_path / "custom.nom.spef"
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path,
-        mode=TimingModelMode.PHYSICAL,
-        consider_wire_delay=True,
-        custom_per_tile_source_files={
-            "TILE_A": make_source_override(rc_file=custom_rc)
-        },
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert sta_tool.sta_rc_files == custom_rc
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_missing_tile_in_custom_source_mapping_keeps_defaults(  # noqa: E501
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path,
-        mode=TimingModelMode.PHYSICAL,
-        consider_wire_delay=True,
-        custom_per_tile_source_files={
-            "OTHER_TILE": make_source_override(
-                netlist_file=tmp_path / "other.nl.v",
-                rc_file=tmp_path / "other.spef",
+        consider_wire_delay=consider_wire_delay,
+        custom_per_tile_source_files=None
+        if overrides is None
+        else {
+            tile: make_source_override(
+                **{field: tmp_path / name for field, name in fields.items()}
             )
+            for tile, fields in overrides.items()
         },
     )
+    work = bare_model.work_dir
+    physical_graph = mocker.Mock()
+    tools.graph.side_effect = [mocker.Mock(), physical_graph]
 
     bare_model._initialize_timing_models()  # noqa: SLF001
 
-    assert len(created) == 2
-    assert (
-        synth_tool.synth_rtl_files
-        == tmp_path / "Tile" / "TILE_A" / "macro" / "final_views" / "nl" / "TILE_A.nl.v"
+    assert tools.synthesize.call_count == 1
+    assert tools.write_sdf.call_args_list[1] == mocker.call(
+        netlist_file=tmp_path / expected_netlist,
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        spef_files=[tmp_path / spef for spef in expected_spef],
+        sdf_file=work / "physical.sdf",
     )
-    assert (
-        sta_tool.sta_rc_files
-        == tmp_path
-        / "Tile"
-        / "TILE_A"
-        / "macro"
-        / "final_views"
-        / "spef"
-        / "nom"
-        / "TILE_A.nom.spef"
+    assert tools.graph.call_args_list[1] == mocker.call(
+        work / "physical.sdf", DelayType.MAX_ALL
     )
+    assert bare_model.hdlnx_tm_phys is physical_graph
 
 
 def test_find_matching_files_filters_dirs_and_files(

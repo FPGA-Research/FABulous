@@ -1,82 +1,17 @@
-"""Convertes verilog RTL into a verilog gate-level netlist.
+"""Timing graph of a synthesised or post-layout tile netlist.
 
-Will use an external synthesis tool.
-
-In this context a sysnthesis tool can be anything that can convert RTL verilog into
-gate-level verilog, that means also tools that can do backend design steps like
-technology mapping and place&route.
-
-It then runs an external STA tool on the gate-level netlist and parses the SDF file it
-writes into a timing graph.
+The caller writes the netlist's SDF file with `OpenStaTool.write_sdf` and builds
+the graph from it; this module adds the nearest-port searches the pip
+characterisation needs.
 """
 
 import networkx as nx
-from loguru import logger
 
-from fabulous.fabric_cad.timing_model.models import (
-    DelayType,
-)
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
 
 
 class HdlnxTimingModel(SdfTimingGraph):
-    """Class to generate a timing graph from Verilog RTL.
-
-    It does this by first synthesizing the RTL into a gate-level netlist using an
-    external synthesis tool, then writing an SDF file for that netlist with an
-    external STA tool, and parsing the SDF file into the timing graph.
-
-    The gate-level netlist stays at `synth_tool.synth_netlist_file` until the caller
-    runs `synth_tool.synth_clean_up()`.
-
-    Parameters
-    ----------
-    sta_tool : StaTool
-        The static timing analysis tool to use for generating the timing graph.
-    synth_tool : SynthTool
-        The synthesis tool to use for converting RTL to gate-level netlist.
-    delay_type_str : DelayType, optional
-        The type of delay to use for the timing graph (default is DelayType.MAX_ALL).
-    debug : bool, optional
-        If True, print debug warnings about overwriting STA tool
-        configurations (default is False).
-    """
-
-    def __init__(
-        self,
-        sta_tool: StaTool,
-        synth_tool: SynthTool,
-        delay_type_str: DelayType = DelayType.MAX_ALL,
-        debug: bool = False,
-    ) -> None:
-        synth_tool.synth_synthesize()
-
-        if sta_tool.sta_netlist_file is not None and debug:
-            logger.warning(
-                "STA tool already has a netlist file. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if sta_tool.sta_design_name is not None and debug:
-            logger.warning(
-                "STA tool already has a design name. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        if sta_tool.sta_liberty_files is not None and debug:
-            logger.warning(
-                "STA tool already has liberty files. This will be "
-                "overwritten by HdlnxTimingModel."
-            )
-
-        sta_tool.sta_netlist_file = synth_tool.synth_netlist_file
-        sta_tool.sta_design_name = synth_tool.synth_design_name
-        sta_tool.sta_liberty_files = synth_tool.synth_liberty_files
-
-        sta_tool.sta_analyze()
-        super().__init__(sta_tool.sta_sdf_file, delay_type_str)
-        sta_tool.sta_clean_up()
+    """Timing graph of a tile netlist with nearest-port searches."""
 
     def nearest_port_from_pin(
         self, hier_pin_path: str, reverse: bool = False, num_ports: int = 1

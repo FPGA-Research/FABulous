@@ -1,17 +1,14 @@
 """OpenSTA tool wrapper: static timing analysis of a gate-level netlist.
 
-Used as a singleton through classmethods (`OpenStaTool.analyze(...)`,
+Used as a singleton through classmethods (`OpenStaTool.write_sdf(...)`,
 `OpenStaTool.run(...)`); never instantiated. Produces an SDF file for
 back-annotated timing.
 """
 
-import tempfile
 from pathlib import Path
 
-from loguru import logger
-
 from fabulous.fabulous_settings import get_context
-from fabulous.tools.tool import Tool
+from fabulous.tools.tool import Tool, require_input_files, require_new_output_file
 
 
 class OpenStaTool(Tool):
@@ -33,77 +30,48 @@ class OpenStaTool(Tool):
         return get_context().opensta_path
 
     @classmethod
-    def analyze(
+    def write_sdf(
         cls,
-        verilog_netlist: Path,
-        liberty_files: list[Path] | Path,
+        *,
+        netlist_file: Path,
+        liberty_files: list[Path],
         top_name: str,
-        spef_files: list[Path] | Path | None = None,
-    ) -> Path:
-        """Generate an SDF file from a Verilog gate-level netlist and return it.
+        spef_files: list[Path],
+        sdf_file: Path,
+    ) -> None:
+        """Write the SDF timing of a gate-level netlist.
 
         Parameters
         ----------
-        verilog_netlist : Path
-            The gate-level netlist to analyze.
-        liberty_files : list[Path] | Path
-            The Liberty timing model file(s) to use for analysis.
+        netlist_file : Path
+            Gate-level Verilog netlist.
+        liberty_files : list[Path]
+            Liberty files of the cells in the netlist.
         top_name : str
-            The name of the top-level design to analyze.
-        spef_files : list[Path] | Path | None
-            The SPEF RC extraction file(s) to use, or None.
-
-        Returns
-        -------
-        Path
-            Path to the temporary SDF file.
+            Top module.
+        spef_files : list[Path]
+            SPEF parasitics to annotate; empty for none.
+        sdf_file : Path
+            SDF file to write. Must not exist yet.
 
         Raises
         ------
         RuntimeError
-            If the SDF file is empty after running OpenSTA.
+            If OpenSTA writes an empty SDF file.
         """
-        sdf_path: Path = Path(tempfile.gettempdir()) / f"sta_{top_name}_tmp.sdf"
-        liberty_list = (
-            [liberty_files] if isinstance(liberty_files, Path) else list(liberty_files)
-        )
-        if spef_files is None:
-            spef_list = None
-        elif isinstance(spef_files, Path):
-            spef_list = [spef_files]
-        else:
-            spef_list = list(spef_files)
-
-        script: str = cls.render_template(
+        require_input_files([netlist_file, *liberty_files, *spef_files])
+        require_new_output_file(sdf_file)
+        script = cls.render_template(
             "opensta_sdf.j2",
-            liberty_files=liberty_list,
-            verilog_netlist=verilog_netlist,
+            liberty_files=liberty_files,
+            verilog_netlist=netlist_file,
             top_name=top_name,
-            spef_files=spef_list,
-            sdf_path=sdf_path,
+            spef_files=spef_files,
+            sdf_path=sdf_file,
         )
-
-        logger.debug(f"Generating SDF file at temporary path: {sdf_path}")
         cls.run(stdin_data=script)
 
-        content: str = sdf_path.read_text()
-        if not content:
-            sdf_path.unlink()
+        if not sdf_file.read_text():
             raise RuntimeError(
-                "Failed to generate SDF file using OpenSTA. No content in SDF file."
+                f"OpenSTA wrote an empty SDF file for {top_name!r}: {sdf_file}"
             )
-
-        return sdf_path
-
-    @classmethod
-    def clean_up(cls, sdf_file: Path) -> None:
-        """Delete the temporary SDF file produced by `analyze`.
-
-        Parameters
-        ----------
-        sdf_file : Path
-            The SDF file returned by `analyze`.
-        """
-        if sdf_file.exists():
-            logger.debug(f"Cleaning up temporary SDF file at: {sdf_file}")
-            sdf_file.unlink()
