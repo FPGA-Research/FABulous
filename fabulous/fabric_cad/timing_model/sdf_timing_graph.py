@@ -6,12 +6,15 @@ FABulous timing model needs. `sdf_toolkit` parses SDF numbers as `float`; each o
 converted to `Decimal` here, once, so all timing arithmetic is exact.
 """
 
-from dataclasses import replace
+from copy import copy
+from dataclasses import dataclass, replace
 from decimal import Decimal
+from enum import StrEnum
 from functools import cached_property
 from itertools import islice, pairwise
 from math import isclose
 from pathlib import Path
+from typing import Self
 
 import networkx as nx
 from loguru import logger
@@ -19,15 +22,273 @@ from sdf_toolkit import parse_sdf_file
 from sdf_toolkit.core.model import BaseEntry, DelayPaths, EntryType, Values
 
 from fabulous.fabric_cad.timing_db import ns
-from fabulous.fabric_cad.timing_model.models import (
-    Component,
-    DelayType,
-    SDFCellType,
-    SDFDelayPaths,
-    SDFPathTiming,
-    SDFPathType,
-    SDFTimingTriplet,
-)
+
+
+class SDFCellType(StrEnum):
+    """Enumeration of cell types for the SDF timing model.
+
+    Includes INTERCONNECT and IOPATH for the timing graph, as well
+    as other types like REMOVAL, RECOVERY, SETUP, HOLD, WIDTH.
+
+    Attributes
+    ----------
+    IOPATH
+        Represents an IOPATH component, which defines timing paths between
+        pins within the same cell.
+    INTERCONNECT
+        Represents an INTERCONNECT component, which defines timing paths
+        between pins across
+        different cells (i.e., inter-cell connections).
+    REMOVAL
+        Represents a REMOVAL component, which defines timing checks for
+        signal removal.
+    RECOVERY
+        Represents a RECOVERY component, which defines timing checks for
+        signal recovery.
+    SETUP
+        Represents a SETUP component, which defines timing checks for
+        setup time.
+    HOLD
+        Represents a HOLD component, which defines timing checks for
+        hold time.
+    WIDTH
+        Represents a WIDTH component, which defines timing checks for
+        pulse width.
+    """
+
+    IOPATH = "IOPATH"
+    INTERCONNECT = "INTERCONNECT"
+    REMOVAL = "REMOVAL"
+    RECOVERY = "RECOVERY"
+    SETUP = "SETUP"
+    HOLD = "HOLD"
+    WIDTH = "WIDTH"
+
+
+@dataclass(frozen=True, slots=True)
+class SDFTimingTriplet:
+    """Represent the minimum, typical, and maximum values of an SDF delay.
+
+    Attributes
+    ----------
+    minimum : Decimal | None
+        Minimum delay, or `None` when the SDF does not provide it.
+    typical : Decimal | None
+        Typical delay, called `avg` by the current SDF parser, or `None` when
+        the SDF does not provide it.
+    maximum : Decimal | None
+        Maximum delay, or `None` when the SDF does not provide it.
+    """
+
+    minimum: Decimal | None
+    typical: Decimal | None
+    maximum: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class SDFDelayPaths:
+    """Hold the delay triples of one SDF entry as the SDF lists them.
+
+    One triple is stored as `nominal`, two as `fast` and `slow`, and three as
+    `fast`, `nominal` and `slow`. Timing checks store their limit as `nominal`.
+
+    Attributes
+    ----------
+    nominal : SDFTimingTriplet | None
+        The only triple, or the second of three.
+    fast : SDFTimingTriplet | None
+        The first of two or three triples.
+    slow : SDFTimingTriplet | None
+        The last of two or three triples.
+    """
+
+    nominal: SDFTimingTriplet | None
+    fast: SDFTimingTriplet | None
+    slow: SDFTimingTriplet | None
+
+
+@dataclass(frozen=True)
+class Component:
+    """Represents a component in the SDF timing model.
+
+    Its either an INTERCONNECT or an IOPATH for the timing graph.
+    But it can also be: REMOVAL, RECOVERY, SETUP, HOLD, WIDTH.
+
+    Attributes
+    ----------
+    c_type : SDFCellType
+        Type of the component, either "INTERCONNECT" or "IOPATH"
+        for the timing graph.
+        Other types include: "REMOVAL", "RECOVERY", "SETUP", "HOLD", "WIDTH".
+    connection_string : str
+        Unique identifier for the component.
+    cell_name : str
+        Name of the cell e.g., 'AND2X1'.
+    from_cell_instance : str
+        Instance name of the source cell.
+    to_cell_instance : str
+        Instance name of the destination cell.
+    from_cell_pin : str
+        Pin name on the source cell.
+    to_cell_pin : str
+        Pin name on the destination cell.
+    delay : Decimal
+        Delay associated with this component: INTERCONNECT delay: cell to cell delay,
+        IOPATH delay: pin to pin delay within a cell.
+        Is a single delay over fast, slow (min, max)
+        by using a cost function to combine them.
+    delay_paths : SDFDelayPaths | None
+        Delay triples as written in the SDF, or `None` for the synthetic
+        data-to-clock edge of a timing check.
+    is_one_cell_instance : bool
+        True if from_cell_instance and to_cell_instance are the same.
+    is_timing_check : bool
+        True if the component represents a timing check.
+    is_timing_env : bool
+        True if the component represents a timing environment.
+    is_absolute : bool
+        True if the delay is absolute.
+    is_incremental : bool
+        True if the delay is incremental.
+    is_cond : bool
+        True if the delay is conditional.
+    cond_equation : str | None
+        Condition equation if is_cond is True.
+    from_pin_edge : str | None
+        Edge type for the from pin, e.g., "posedge" or "negedge".
+    to_pin_edge : str | None
+        Edge type for the to pin, e.g., "posedge" or "negedge".
+    """
+
+    c_type: SDFCellType
+    connection_string: str
+    cell_name: str
+    from_cell_instance: str
+    to_cell_instance: str
+    from_cell_pin: str
+    to_cell_pin: str
+    delay: Decimal
+    delay_paths: SDFDelayPaths | None
+    is_one_cell_instance: bool
+    is_timing_check: bool
+    is_timing_env: bool
+    is_absolute: bool
+    is_incremental: bool
+    is_cond: bool
+    cond_equation: str | None
+    from_pin_edge: str | None
+    to_pin_edge: str | None
+
+
+class DelayType(StrEnum):
+    """Enumeration of delay types for the SDF timing model.
+
+    Includes various combinations of min, max, avg, fast, and slow delays.
+
+    Attributes
+    ----------
+    MIN_ALL
+        Represents the minimum delay across all conditions.
+    MAX_ALL
+        Represents the maximum delay across all conditions.
+    AVG_ALL
+        Represents the average delay across all conditions.
+    AVG_FAST
+        Represents the average delay under fast conditions.
+    AVG_SLOW
+        Represents the average delay under slow conditions.
+    MAX_FAST
+        Represents the maximum delay under fast conditions.
+    MAX_SLOW
+        Represents the maximum delay under slow conditions.
+    MIN_FAST
+        Represents the minimum delay under fast conditions.
+    MIN_SLOW
+        Represents the minimum delay under slow conditions.
+    """
+
+    MIN_ALL = "min_all"
+    MAX_ALL = "max_all"
+    AVG_ALL = "avg_all"
+    AVG_FAST = "avg_fast"
+    AVG_SLOW = "avg_slow"
+    MAX_FAST = "max_fast"
+    MAX_SLOW = "max_slow"
+    MIN_FAST = "min_fast"
+    MIN_SLOW = "min_slow"
+
+
+class SDFPathType(StrEnum):
+    """Classify an SDF timing path by its sequential behavior.
+
+    Attributes
+    ----------
+    COMBINATIONAL
+        The path contains only combinational timing components.
+    SEQUENTIAL
+        The path crosses a sequential cell or synthetic timing-check edge.
+    """
+
+    COMBINATIONAL = "combinational"
+    SEQUENTIAL = "sequential"
+
+
+@dataclass(frozen=True, slots=True)
+class SDFPathTiming:
+    """Collect the complete timing information for one structural graph path.
+
+    Attributes
+    ----------
+    nodes : tuple[str, ...]
+        Ordered graph nodes forming the path.
+    components : tuple[Component, ...]
+        Ordered SDF components forming the path edges.
+    path_type : SDFPathType
+        Whether the path is combinational or sequential.
+    rise : SDFTimingTriplet
+        Aggregated rising-transition propagation delay.
+    fall : SDFTimingTriplet
+        Aggregated falling-transition propagation delay.
+    high_impedance : SDFTimingTriplet | None
+        Aggregated high-impedance transition delay when it can be derived for every
+        component on the path.
+    setup : tuple[SDFTimingTriplet, ...]
+        Setup checks associated with sequential edges on the path.
+    hold : tuple[SDFTimingTriplet, ...]
+        Hold checks associated with sequential edges on the path.
+    timing_checks : tuple[Component, ...]
+        Original SDF timing-check components associated with the path.
+    conditions : tuple[str, ...]
+        Ordered, unique SDF conditions affecting the path or its timing checks.
+    register_clock_pin : str | None
+        Graph pin at the register clock reached by the first timing-check edge.
+    effective_setup : tuple[SDFTimingTriplet, ...]
+        Setup constraints adjusted for the data and clock paths. Empty when no
+        `clock_pin` was supplied to the path query or its clock path is unavailable.
+    effective_hold : tuple[SDFTimingTriplet, ...]
+        Hold constraints adjusted for the data and clock paths. Empty when no
+        `clock_pin` was supplied to the path query or its clock path is unavailable.
+    clock_to_output_rise : SDFTimingTriplet | None
+        Rising clock-to-target propagation delay from the supplied clock pin.
+    clock_to_output_fall : SDFTimingTriplet | None
+        Falling clock-to-target propagation delay from the supplied clock pin.
+    """
+
+    nodes: tuple[str, ...]
+    components: tuple[Component, ...]
+    path_type: SDFPathType
+    rise: SDFTimingTriplet
+    fall: SDFTimingTriplet
+    high_impedance: SDFTimingTriplet | None = None
+    setup: tuple[SDFTimingTriplet, ...] = ()
+    hold: tuple[SDFTimingTriplet, ...] = ()
+    timing_checks: tuple[Component, ...] = ()
+    conditions: tuple[str, ...] = ()
+    register_clock_pin: str | None = None
+    effective_setup: tuple[SDFTimingTriplet, ...] = ()
+    effective_hold: tuple[SDFTimingTriplet, ...] = ()
+    clock_to_output_rise: SDFTimingTriplet | None = None
+    clock_to_output_fall: SDFTimingTriplet | None = None
 
 
 def _triplet(values: Values | None) -> SDFTimingTriplet | None:
@@ -321,6 +582,32 @@ class SdfTimingGraph:
     def _node(self, instance: str, pin: str) -> str:
         """Return the graph node of a pin, which is the pin alone at the top level."""
         return f"{instance}{self.hier_sep}{pin}".removeprefix(self.hier_sep)
+
+    def within(self, prefix: str) -> Self:
+        """Return a copy whose `graph` keeps only the pins under `prefix`.
+
+        `reverse_graph`, `instances` and the ports are shared with this graph,
+        which is left unchanged.
+
+        Parameters
+        ----------
+        prefix : str
+            Hierarchical name prefix, such as `Inst_LA_LUT4c_frame_config_dffesr/`.
+
+        Returns
+        -------
+        Self
+            The restricted graph.
+        """
+        view = copy(self)
+        # Filter rather than call `subgraph()`: its node set would make the order
+        # of query results follow the string hash seed.
+        view.graph = nx.subgraph_view(
+            self.graph, filter_node=lambda pin: pin.startswith(prefix)
+        ).copy()
+        for cached_view in ("clock_graph", "combinational_graph"):
+            view.__dict__.pop(cached_view, None)
+        return view
 
     def has_path(self, source: str, target: str) -> bool:
         """Check if there is a path from source to target in the timing graph.

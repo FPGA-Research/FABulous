@@ -10,7 +10,7 @@ from cmd2 import with_annotated
 from cmd2.annotated import Option
 from loguru import logger
 
-from fabulous.fabric_cad.timing_model.models import (
+from fabulous.fabric_cad.timing_model.config import (
     TimingModelConfig,
     TimingModelMode,
     TimingModelTileSourceFiles,

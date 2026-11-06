@@ -181,7 +181,8 @@ Notes about the example:
 
 - `custom_per_tile_source_files` is optional. Use it if you have tile-specific
     post-layout netlists / SPEFs or custom RTL for a tile. The keys should match
-    your tile type names.
+    your tile type names; a tile inside a supertile is synthesised as part of the
+    supertile, so its key is the supertile name.
 - Paths may be absolute or relative to `project_dir`.
 
 ## Using templates and per-tile overrides
@@ -211,7 +212,9 @@ Notes about the example:
 
 - Missing or incorrect paths: Pydantic validation will raise errors when required
     fields are missing. Ensure `liberty_files` and `min_buf_cell_and_ports` are
-    present and correct.
+    present and correct. A tile source file (RTL, post-layout netlist or SPEF) that
+    does not exist stops the run with a `FileNotFoundError` that names the tile,
+    before any tool runs for it.
 - Tools not found or failing: Make sure `yosys` and `sta` (OpenSTA) are available
     and executable in the environment, or set `FAB_YOSYS_PATH` and
     `FAB_OPENSTA_PATH`.
@@ -227,7 +230,7 @@ FABulous API. Example (python):
 
 ```py
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelMode
+from fabulous.fabric_cad.timing_model.config import TimingModelConfig, TimingModelMode
 
 # instantiate FABulous API (example, depends on how you normally set it up)
 fab_api = FABulous_API(my_writer)

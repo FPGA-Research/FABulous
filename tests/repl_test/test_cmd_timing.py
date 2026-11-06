@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelMode
+from fabulous.fabric_cad.timing_model.config import TimingModelConfig, TimingModelMode
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_settings import get_context
 

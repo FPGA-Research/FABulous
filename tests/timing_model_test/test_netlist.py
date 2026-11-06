@@ -139,6 +139,35 @@ def test_leaf_pins_reject_absent_ports(
 
 
 @pytest.mark.parametrize(
+    ("source", "top", "expected"),
+    [
+        pytest.param(
+            NETLIST,
+            "Top",
+            [
+                PortBit("A", None),
+                *(PortBit("B", index) for index in (4, 5, 6, 7)),
+                *(PortBit(name, None) for name in ("D", "CLK", "Y", "Z", "Q")),
+                *(PortBit(name, None) for name in ("U0", "U1")),
+            ],
+            id="descending-range",
+        ),
+        pytest.param(
+            "module P (I, O); input [0:2] I; output [0:0] O; endmodule",
+            "P",
+            [*(PortBit("I", index) for index in (2, 1, 0)), PortBit("O", None)],
+            id="ascending-range",
+        ),
+    ],
+)
+def test_top_port_bits_list_each_bit_lsb_first(
+    read_netlist: ReadNetlist, source: str, top: str, expected: list[PortBit]
+) -> None:
+    """Bits keep their HDL index; a one-bit port, `[0:0]` included, has none."""
+    assert read_netlist(source, top).top_port_bits() == expected
+
+
+@pytest.mark.parametrize(
     ("instance", "expected"),
     [
         (("u_mid", "leaf"), True),

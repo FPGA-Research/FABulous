@@ -22,7 +22,7 @@ from fabulous.fabric_cad.gen_npnr_model import (
     write_timing_files,
 )
 from fabulous.fabric_cad.timing_model.characterize import characterize
-from fabulous.fabric_cad.timing_model.models import (
+from fabulous.fabric_cad.timing_model.config import (
     TimingModelConfig,
     TimingModelMode,
 )

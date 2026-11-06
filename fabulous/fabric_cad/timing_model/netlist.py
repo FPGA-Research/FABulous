@@ -284,6 +284,35 @@ class NetlistIndex:
                 return self._leaf_pins_at(instance, cell, port.port, position)
         raise KeyError(f"Pin {name}[{port.index}] not found.")
 
+    def top_port_bits(self) -> list[PortBit]:
+        """Return every bit of the top module's ports.
+
+        Returns
+        -------
+        list[PortBit]
+            The bits in port order, LSB first; a one-bit port gives one bit
+            with `index` `None`.
+        """
+        bits: list[PortBit] = []
+        for name, details in self._modules[self._top].ports.items():
+            width = len(details.bits)
+            if width == 1:
+                bits.append(PortBit(name, None))
+                continue
+            bits.extend(
+                PortBit(
+                    name,
+                    _hdl_index(
+                        position=position,
+                        offset=details.offset,
+                        upto=details.upto,
+                        width=width,
+                    ),
+                )
+                for position in range(width)
+            )
+        return bits
+
     def child_nets(self, instance: HierPath) -> dict[str, list[str]]:
         """Return the net names on each child cell of a module instance.
 

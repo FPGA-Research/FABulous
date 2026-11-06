@@ -6,13 +6,13 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-from fabulous.fabric_cad.timing_model.models import (
+from fabulous.fabric_cad.timing_model.sdf_timing_graph import (
     DelayType,
     SDFCellType,
     SDFPathType,
+    SdfTimingGraph,
     SDFTimingTriplet,
 )
-from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 
 HEADER = '(SDFVERSION "3.0") (DESIGN "Top") (TIMESCALE 1ns)'
 
@@ -308,6 +308,26 @@ def test_hierarchical_pins_are_not_ports(tmp_path: Path) -> None:
 
     assert graph.input_ports == []
     assert graph.output_ports == []
+
+
+def test_within_keeps_only_pins_under_the_prefix(tmp_path: Path) -> None:
+    """The restricted copy rebuilds its cached views; the original is unchanged."""
+    graph = graph_of(
+        tmp_path,
+        top_cell(
+            interconnects(
+                (("P/A", "P/B", 1.0), ("P/B", "Q/A", 1.0), ("Q/A", "Q/B", 1.0))
+            )
+        ),
+    )
+    edges = list(graph.combinational_graph.edges)
+
+    view = graph.within("P/")
+
+    assert list(view.graph.edges) == [("P/A", "P/B")]
+    assert list(view.combinational_graph.edges) == [("P/A", "P/B")]
+    assert list(graph.graph.edges) == edges
+    assert list(graph.combinational_graph.edges) == edges
 
 
 @pytest.mark.parametrize(

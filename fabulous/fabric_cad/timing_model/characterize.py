@@ -1,11 +1,12 @@
 """Characterise the timing of a fabric into a `TimingDb`."""
 
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.gen_npnr_model import CLOCK_DELAY
+from fabulous.fabric_cad.gen_npnr_model import CLOCK_DELAY, tile_pips
 from fabulous.fabric_cad.timing_db import (
     BelArcs,
     BelTiming,
@@ -13,31 +14,39 @@ from fabulous.fabric_cad.timing_db import (
     Pip,
     PipTiming,
     TimingDb,
-    WirePip,
     switch_pips,
 )
-from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
-    FABulousTileTimingModel,
+from fabulous.fabric_cad.timing_model.bels import characterize_bel
+from fabulous.fabric_cad.timing_model.config import TimingModelConfig, resolve_sources
+from fabulous.fabric_cad.timing_model.macro import (
+    MacroTiming,
+    TileMacro,
+    run_macro_tools,
+    tile_macro,
 )
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig
+from fabulous.fabric_cad.timing_model.pips import characterize_tile_pips
 from fabulous.fabric_definition.fabric import Fabric
 
 
 def _characterize_pips(
-    fabric: Fabric, models: dict[str, FABulousTileTimingModel]
+    fabric: Fabric,
+    *,
+    macros: dict[str, TileMacro],
+    timings: dict[str, MacroTiming],
+    scale: Decimal,
 ) -> PipTiming:
     """Return the delay of every pip of every placed tile type.
-
-    Each tile type's pips are queried in grid order, switch pips before wire
-    pips, because a physical wire delay reuses switch-matrix results the tile
-    model cached while timing the switch pips.
 
     Parameters
     ----------
     fabric : Fabric
         The fabric.
-    models : dict[str, FABulousTileTimingModel]
-        Timing model of each tile type.
+    macros : dict[str, TileMacro]
+        Macro of each tile type.
+    timings : dict[str, MacroTiming]
+        Timing of each tile type's macro.
+    scale : Decimal
+        The configured `delay_scaling_factor`.
 
     Returns
     -------
@@ -49,16 +58,17 @@ def _characterize_pips(
     ValueError
         If a placed supertile has switch-matrix pips, which are not characterised.
     """
-    tiles: dict[str, dict[Pip, Ns]] = {}
+    # Placements of one tile type differ in their SJUMP wires.
+    placed_pips: dict[str, list[Pip]] = {}
     for _, tile in fabric:
-        if tile is None:
-            continue
-        model = models[tile.name]
-        delays = tiles.setdefault(tile.name, {})
-        wire_pips = (WirePip(src=w.source, dst=w.destination) for w in tile.wireList)
-        for pip in (*switch_pips(tile.switch_matrix.connections), *wire_pips):
-            if pip not in delays:
-                delays[pip] = model.pip_delay(pip.src, pip.dst)
+        if tile is not None:
+            placed_pips.setdefault(tile.name, []).extend(tile_pips(tile))
+    tiles: dict[str, dict[Pip, Ns]] = {
+        name: characterize_tile_pips(
+            timings[name], macro=macros[name], pips=pips, scale=scale
+        )
+        for name, pips in placed_pips.items()
+    }
     for _, _, super_tile in fabric.iter_super_tile_placements():
         if super_tile.switch_matrix is not None and any(
             switch_pips(super_tile.switch_matrix.connections)
@@ -71,20 +81,28 @@ def _characterize_pips(
 
 
 def _characterize_bels(
-    fabric: Fabric, models: dict[str, FABulousTileTimingModel]
+    fabric: Fabric,
+    *,
+    macros: dict[str, TileMacro],
+    timings: dict[str, MacroTiming],
+    scale: Decimal,
 ) -> BelTiming:
     """Return the arcs of every BEL of every placed tile and supertile type.
 
-    A supertile BEL is characterised by the timing model of the supertile's
-    master tile, which synthesises the whole supertile. A BEL is found by the
-    instance name the tile or supertile generator gives it.
+    A supertile BEL is characterised in the macro of the supertile's master
+    tile, which is the whole supertile. A BEL is found by the instance name the
+    tile or supertile generator gives it.
 
     Parameters
     ----------
     fabric : Fabric
         The fabric.
-    models : dict[str, FABulousTileTimingModel]
-        Timing model of each tile type.
+    macros : dict[str, TileMacro]
+        Macro of each tile type.
+    timings : dict[str, MacroTiming]
+        Timing of each tile type's macro.
+    scale : Decimal
+        The configured `delay_scaling_factor`.
 
     Returns
     -------
@@ -98,9 +116,11 @@ def _characterize_bels(
         arcs = tiles.setdefault(tile.name, {})
         for bel in tile.bels:
             if bel.instance_name not in arcs:
-                model = models[tile.name]
-                arcs[bel.instance_name] = model.bel_timing(
-                    bel, instance=(*model.tile_scope, bel.instance_name)
+                arcs[bel.instance_name] = characterize_bel(
+                    timings[tile.name].synth,
+                    bel,
+                    instance=(*macros[tile.name].scope, bel.instance_name),
+                    scale=scale,
                 )
     super_tiles: dict[str, dict[str, BelArcs]] = {}
     for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
@@ -109,8 +129,11 @@ def _characterize_bels(
         arcs = super_tiles.setdefault(super_tile.name, {})
         for bel in super_tile.bels:
             if bel.instance_name not in arcs:
-                arcs[bel.instance_name] = models[master.name].bel_timing(
-                    bel, instance=(super_tile.bel_instance_name(bel),)
+                arcs[bel.instance_name] = characterize_bel(
+                    timings[master.name].synth,
+                    bel,
+                    instance=(super_tile.bel_instance_name(bel),),
+                    scale=scale,
                 )
     return BelTiming(tiles=tiles, super_tiles=super_tiles)
 
@@ -118,8 +141,9 @@ def _characterize_bels(
 def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
     """Characterise the pip delays and BEL arcs of `fabric` with Yosys and OpenSTA.
 
-    Clock arrival is not characterised; it stays `CLOCK_DELAY`. The synthesised
-    netlists and SDF files of each tile type go to a temporary directory that is
+    Each tile type's macro is synthesised and timed once; a tile inside a
+    supertile is timed in the supertile. Clock arrival is not characterised; it
+    stays `CLOCK_DELAY`. The tool outputs go to a temporary directory that is
     removed on return.
 
     Parameters
@@ -134,20 +158,22 @@ def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
     TimingDb
         Characterised timing of every placed tile and supertile type.
     """
-    logger.info(f"Initializing timing models for tiles, with mode: {config.mode}")
+    logger.info(f"Characterising tile timing, with mode: {config.mode}")
+    macros = {name: tile_macro(fabric, name) for name in fabric.tileDic}
     with tempfile.TemporaryDirectory(prefix="fabulous_timing_") as work_root:
-        models: dict[str, FABulousTileTimingModel] = {}
-        for tile_name in fabric.tileDic:
-            work_dir = Path(work_root) / tile_name
+        timings: dict[str, MacroTiming] = {}
+        for name, macro in macros.items():
+            work_dir = Path(work_root) / name
             work_dir.mkdir()
-            models[tile_name] = FABulousTileTimingModel(
-                config=config.model_copy(deep=True),
-                fabric=fabric,
-                tile_name=tile_name,
+            timings[name] = run_macro_tools(
+                config,
+                top=macro.top,
+                sources=resolve_sources(config, top=macro.top),
                 work_dir=work_dir,
             )
-        return TimingDb(
-            pips=_characterize_pips(fabric, models),
-            bels=_characterize_bels(fabric, models),
-            clock_arrival=CLOCK_DELAY,
-        )
+    scale = config.delay_scaling_factor
+    return TimingDb(
+        pips=_characterize_pips(fabric, macros=macros, timings=timings, scale=scale),
+        bels=_characterize_bels(fabric, macros=macros, timings=timings, scale=scale),
+        clock_arrival=CLOCK_DELAY,
+    )

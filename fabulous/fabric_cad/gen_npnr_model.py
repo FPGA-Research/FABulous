@@ -7,7 +7,7 @@ that reproduces nextpnr's historical hardcoded constants.
 """
 
 import string
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -37,6 +37,8 @@ from fabulous.fabric_cad.timing_db import (
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.wire import Wire
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
 # constants (fabulous.cc, seed_default_estimates).
@@ -323,6 +325,41 @@ def _placeholder_arcs_of(bel: Bel) -> BelArcs:
     )
 
 
+def wire_pips(tile: Tile) -> Iterator[tuple[Wire, WirePip]]:
+    """Yield the pip of each wire of `tile`, in `wireList` order.
+
+    Parameters
+    ----------
+    tile : Tile
+        A placed tile.
+
+    Yields
+    ------
+    tuple[Wire, WirePip]
+        The wire and its pip.
+    """
+    for wire in tile.wireList:
+        yield wire, WirePip(src=wire.source, dst=wire.destination)
+
+
+def tile_pips(tile: Tile) -> Iterator[Pip]:
+    """Yield the pips of `tile` in emission order: switch pips, then wire pips.
+
+    Parameters
+    ----------
+    tile : Tile
+        A placed tile.
+
+    Yields
+    ------
+    Pip
+        Each pip the emitter writes for `tile`.
+    """
+    yield from switch_pips(tile.switch_matrix.connections)
+    for _, pip in wire_pips(tile):
+        yield pip
+
+
 def placeholder_timing(fabric: Fabric) -> TimingDb:
     """Return the timing nextpnr historically assumed for `fabric`.
 
@@ -338,16 +375,14 @@ def placeholder_timing(fabric: Fabric) -> TimingDb:
     TimingDb
         Placeholder pip delays and BEL arcs.
     """
-    tile_pips: dict[str, dict[Pip, Ns]] = {}
+    placed_pips: dict[str, dict[Pip, Ns]] = {}
     tile_bels: dict[str, dict[str, BelArcs]] = {}
     for _, tile in fabric:
         if tile is None:
             continue
-        delays = tile_pips.setdefault(tile.name, {})
-        for pip in switch_pips(tile.switch_matrix.connections):
+        delays = placed_pips.setdefault(tile.name, {})
+        for pip in tile_pips(tile):
             delays[pip] = DUMMY_PIP_DELAY
-        for wire in tile.wireList:
-            delays[WirePip(src=wire.source, dst=wire.destination)] = DUMMY_PIP_DELAY
         tile_bels[tile.name] = {
             bel.instance_name: _placeholder_arcs_of(bel) for bel in tile.bels
         }
@@ -366,7 +401,7 @@ def placeholder_timing(fabric: Fabric) -> TimingDb:
             bel.instance_name: _placeholder_arcs_of(bel) for bel in super_tile.bels
         }
     return TimingDb(
-        pips=PipTiming(tiles=tile_pips, super_tiles=super_tile_pips),
+        pips=PipTiming(tiles=placed_pips, super_tiles=super_tile_pips),
         bels=BelTiming(tiles=tile_bels, super_tiles=super_tile_bels),
         clock_arrival=CLOCK_DELAY,
     )
@@ -567,7 +602,7 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             )
 
         pips.append(f"#Tile-external pips on tile X{x}Y{y}:")
-        for wire in tile.wireList:
+        for wire, pip in wire_pips(tile):
             x_dst = x + wire.x_offset
             y_dst = y + wire.y_offset
             if (not (0 <= x_dst <= fabric.numberOfColumns)) or (
@@ -578,12 +613,10 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
                     f"X{x_dst}Y{y_dst}. "
                     "Please check your tile CSV file for unmatching wires/offsets!"
                 )
-            delay = timing.pips.tile_delay(
-                tile.name, WirePip(src=wire.source, dst=wire.destination)
-            )
+            delay = timing.pips.tile_delay(tile.name, pip)
             pips.append(
-                f"X{x}Y{y},{wire.source},X{x_dst}Y{y_dst},{wire.destination},"
-                f"{delay},{wire.source}.{wire.destination}"
+                f"X{x}Y{y},{pip.src},X{x_dst}Y{y_dst},{pip.dst},"
+                f"{delay},{pip.src}.{pip.dst}"
             )
 
         bel_v1.append(f"#Tile_X{x}Y{y}")
