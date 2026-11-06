@@ -158,10 +158,8 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-
-      # sky130A was killed on GitHub-hosted runners and has not been tried on book2.
       matrix:
-        pdk: [ihp-sg13g2, ihp-sg13cmos5l, gf180mcuD]
+        pdk: [ihp-sg13g2, ihp-sg13cmos5l, sky130A, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
