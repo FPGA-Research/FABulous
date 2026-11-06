@@ -1132,10 +1132,13 @@ class FABulousTileTimingModel:
             + "/"
         )
         # Routing feedback belongs to PIP timing, not to the BEL's internal arcs.
-        # Keep the shared tile graph intact for subsequent PIP queries.
+        # Slice a copy so the shared tile graph stays whole for later PIP queries.
+        # Filter rather than call `subgraph()`: its node set would make the arc
+        # order follow the string hash seed.
         timing_model = copy(timing_model)
-        timing_model.graph = timing_model.graph.subgraph(
-            pin for pin in timing_model.graph if pin.startswith(hierarchical_prefix)
+        timing_model.graph = nx.subgraph_view(
+            timing_model.graph,
+            filter_node=lambda pin: pin.startswith(hierarchical_prefix),
         ).copy()
         for cached_view in ("clock_graph", "combinational_graph"):
             timing_model.__dict__.pop(cached_view, None)
