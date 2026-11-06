@@ -17,7 +17,8 @@ concurrency:
 jobs:
   tile-hardening:
     name: Tile Hardening (${{ matrix.pdk }})
-    runs-on: ubuntu-latest
+    # book2 is one runner, so matrix legs run serially and queue with pre-commit and docs.
+    runs-on: [self-hosted, book2]
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -152,15 +153,13 @@ jobs:
 
   fabric-stitching:
     name: Fabric Stitching (${{ matrix.pdk }})
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, book2]
     needs: tile-hardening
     timeout-minutes: 360
     strategy:
       fail-fast: false
-
-      # skipping sky130A for now since it will get kill by github
       matrix:
-        pdk: [ihp-sg13g2, ihp-sg13cmos5l, gf180mcuD]
+        pdk: [ihp-sg13g2, ihp-sg13cmos5l, sky130A, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
