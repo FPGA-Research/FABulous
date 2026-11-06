@@ -24,12 +24,12 @@ from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import (
     HdlnxTimingModel,
 )
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
 from fabulous.fabric_cad.timing_model.models import (
     SDFPathType,
     TimingModelMode,
 )
 from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
+from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from tests.conftest import make_empty_tile, make_fabric_from_grid
@@ -58,7 +58,7 @@ def make_graph(
         + ")"
     )
     graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
-    SDFTimingGraph.__init__(graph, sdf)
+    SdfTimingGraph.__init__(graph, sdf)
     return graph
 
 
@@ -382,7 +382,7 @@ def sky130_lc_and_iobuf(
     dfflibmap/splitnets/insbuf/abc sequence, followed by OpenSTA write_sdf.
     """
     graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
-    SDFTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
+    SdfTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
     model = make_model(graph, read_netlist(FIXTURES / "sky130_lc_iobuf.v", "Top"))
     lc = make_bel(
         "FABULOUS_LC",

@@ -13,14 +13,14 @@ writes into a timing graph.
 import networkx as nx
 from loguru import logger
 
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
 from fabulous.fabric_cad.timing_model.models import (
     DelayType,
 )
+from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
 
 
-class HdlnxTimingModel(SDFTimingGraph):
+class HdlnxTimingModel(SdfTimingGraph):
     """Class to generate a timing graph from Verilog RTL.
 
     It does this by first synthesizing the RTL into a gate-level netlist using an

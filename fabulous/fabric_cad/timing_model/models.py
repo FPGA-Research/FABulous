@@ -10,11 +10,10 @@ generating timing models, allowing for easier manipulation and analysis of the t
 data throughout the processing pipeline.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field
 
 from fabulous.fabric_cad.timing_model.netlist import HierPath
@@ -61,6 +60,48 @@ class SDFCellType(StrEnum):
     WIDTH = "WIDTH"
 
 
+@dataclass(frozen=True, slots=True)
+class SDFTimingTriplet:
+    """Represent the minimum, typical, and maximum values of an SDF delay.
+
+    Attributes
+    ----------
+    minimum : float | None
+        Minimum delay, or `None` when the SDF does not provide it.
+    typical : float | None
+        Typical delay, called `avg` by the current SDF parser, or `None` when
+        the SDF does not provide it.
+    maximum : float | None
+        Maximum delay, or `None` when the SDF does not provide it.
+    """
+
+    minimum: float | None
+    typical: float | None
+    maximum: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class SDFDelayPaths:
+    """Hold the delay triples of one SDF entry as the SDF lists them.
+
+    One triple is stored as `nominal`, two as `fast` and `slow`, and three as
+    `fast`, `nominal` and `slow`. Timing checks store their limit as `nominal`.
+
+    Attributes
+    ----------
+    nominal : SDFTimingTriplet | None
+        The only triple, or the second of three.
+    fast : SDFTimingTriplet | None
+        The first of two or three triples.
+    slow : SDFTimingTriplet | None
+        The last of two or three triples.
+    """
+
+    nominal: SDFTimingTriplet | None
+    fast: SDFTimingTriplet | None
+    slow: SDFTimingTriplet | None
+
+
 @dataclass(frozen=True)
 class Component:
     """Represents a component in the SDF timing model.
@@ -91,8 +132,9 @@ class Component:
         IOPATH delay: pin to pin delay within a cell.
         Is a single delay over fast, slow (min, max)
         by using a cost function to combine them.
-    delay_paths : dict
-        Dictionary containing detailed delay paths information.
+    delay_paths : SDFDelayPaths | None
+        Delay triples as written in the SDF, or `None` for the synthetic
+        data-to-clock edge of a timing check.
     is_one_cell_instance : bool
         True if from_cell_instance and to_cell_instance are the same.
     is_timing_check : bool
@@ -105,11 +147,11 @@ class Component:
         True if the delay is incremental.
     is_cond : bool
         True if the delay is conditional.
-    cond_equation : str
+    cond_equation : str | None
         Condition equation if is_cond is True.
-    from_pin_edge : str
+    from_pin_edge : str | None
         Edge type for the from pin, e.g., "posedge" or "negedge".
-    to_pin_edge : str
+    to_pin_edge : str | None
         Edge type for the to pin, e.g., "posedge" or "negedge".
     """
 
@@ -121,70 +163,16 @@ class Component:
     from_cell_pin: str
     to_cell_pin: str
     delay: float
-    delay_paths: dict
+    delay_paths: SDFDelayPaths | None
     is_one_cell_instance: bool
     is_timing_check: bool
     is_timing_env: bool
     is_absolute: bool
     is_incremental: bool
     is_cond: bool
-    cond_equation: str
-    from_pin_edge: str
-    to_pin_edge: str
-
-
-@dataclass(slots=True, kw_only=True)
-class SDFGobject:
-    """Represents the SDF timing graph object.
-
-    Contains the directed graph representation of the timing model, as
-    well as associated metadata such as header information, SDF data
-    dictionary parsed from the file, cell names, instances,
-    IOPATHs, and interconnects.
-
-    Attributes
-    ----------
-    nx_graph : nx.DiGraph
-        The directed graph representation of the timing model,
-        where nodes represent pins and edges represent timing paths
-        with associated delay information.
-    hier_sep : str
-        The hierarchical separator used in instance names,
-        extracted from the SDF
-        header information.
-    header_info : dict
-        Dictionary containing header information from the SDF
-        file, such as version, date,
-        vendor, program, and hierarchical separator.
-    sdf_data : dict
-        The full SDF data parsed from the file, including
-        cells, instances, IOPATHs,
-        interconnects, and timing checks.
-    cells : list[str]
-        List of cell names defined in the SDF file.
-    instances : dict[str, list[Component]]
-        Dictionary mapping instance names of cells to lists of
-        Component instances representing the
-        timing paths (IOPATHs and INTERCONNECTs) associated
-        with each instance.
-    io_paths : list[Component]
-        List of Component instances representing the IOPATHs
-        defined in the SDF file, which represent timing paths between
-        pins within the same cell.
-    interconnects : list[Component]
-        List of Component instances representing the INTERCONNECTs
-        defined in the SDF file, which represent timing paths between pins
-        across different cells (i.e., inter-cell connections).
-    """
-
-    nx_graph: nx.DiGraph = field(default_factory=nx.DiGraph)
-    hier_sep: str
-    header_info: dict
-    sdf_data: dict
-    cells: list[str]
-    instances: dict[str, list[Component]]
-    io_paths: list[Component]
-    interconnects: list[Component]
+    cond_equation: str | None
+    from_pin_edge: str | None
+    to_pin_edge: str | None
 
 
 class DelayType(StrEnum):
@@ -238,26 +226,6 @@ class SDFPathType(StrEnum):
 
     COMBINATIONAL = "combinational"
     SEQUENTIAL = "sequential"
-
-
-@dataclass(frozen=True, slots=True)
-class SDFTimingTriplet:
-    """Represent the minimum, typical, and maximum values of an SDF delay.
-
-    Attributes
-    ----------
-    minimum : float | None
-        Minimum delay, or `None` when the SDF does not provide it.
-    typical : float | None
-        Typical delay, called `avg` by the current SDF parser, or `None` when
-        the SDF does not provide it.
-    maximum : float | None
-        Maximum delay, or `None` when the SDF does not provide it.
-    """
-
-    minimum: float | None
-    typical: float | None
-    maximum: float | None
 
 
 @dataclass(frozen=True, slots=True)
