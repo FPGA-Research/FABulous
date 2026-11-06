@@ -11,7 +11,7 @@ on:
       - ".github/workflows/nix-env.yml"
   # PR / merge_group runs come through ci.yml.
   workflow_call:
-  # warm `nix-*` cache existing on `main` to fall back to
+  # nightly: keep main's `nix-*` caches warm so PR runs can fall back on them
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
@@ -47,6 +47,11 @@ jobs:
           # Only the main base cache prunes its old generations
           purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Python fixups still match uv.lock
+        # A fixup naming a package uv.lock no longer resolves is a silent
+        # no-op; this makes it an error.
+        run: nix eval --raw ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).python-fixups.drvPath"
+
       - name: DevShell smoke test
         run: |
           nix develop --command bash -c "FABulous --version"
@@ -58,3 +63,128 @@ jobs:
         # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
         # different Python and ABI-incompatible with the devshell packages).
         run: nix develop --command task smoke-test FABULOUS=FABulous
+
+  downstream-template:
+    name: Downstream template (Nix ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Build the uv.lock-matched Python environment
+        # Checks that the `toNixpkgs` conversion builds. The macOS leg matters:
+        # its store is case-insensitive, where `FABulous`/`fabulous` collide.
+        run: |
+          nix build ".#fabulous-python-env"
+          ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
+
+      - name: Evaluate the downstream template
+        # Stands in for a consuming project, so a break in the composition
+        # surface fails here rather than in someone else's repository.
+        run: |
+          set -euo pipefail
+          TEMPLATE="$RUNNER_TEMP/downstream"
+          cp -r nix/templates/downstream "$TEMPLATE"
+          cd "$TEMPLATE"
+          git init -q . && git add -A
+          system=$(nix eval --raw --impure --expr builtins.currentSystem)
+          nix eval --raw \
+            --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
+            ".#devShells.$system.default.drvPath"
+
+  # WSL2 without systemd runs single-user Nix, an install no other leg covers.
+  nix-wsl:
+    name: WSL2 (Nix Ubuntu-24.04)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - name: Keep the checkout at LF
+        # Nix expressions carry shell fragments, so CRLF breaks builds.
+        # `.gitattributes` sets `text=auto`, which leaves line endings to
+        # `core.eol`, so both settings are needed before the checkout.
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up WSL2
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: curl xz-utils git ca-certificates
+          # Nix's installer refuses to run as root and the distribution ships no
+          # other user, so the action creates this one.
+          wsl-shell-user: nixuser
+
+      - name: Hand the store to that user
+        # Pre-creating /nix lets the installer run without sudo.
+        shell: wsl-bash -u root {0}
+        run: install -d -o nixuser -g nixuser /nix
+
+      - name: Install Nix
+        # Single-user: no systemd, so no daemon. The JavaScript-based
+        # `prepare_nix_environment` runs on the Windows side, so no store cache.
+        # Unsandboxed because Ubuntu 24.04 restricts user namespaces; the
+        # native Linux legs cover the sandboxed build.
+        run: |
+          curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+          mkdir -p ~/.config/nix
+          cat > ~/.config/nix/nix.conf <<'EOF'
+          experimental-features = nix-command flakes
+          sandbox = false
+          substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+          EOF
+
+      - name: Copy the checkout onto the Linux filesystem
+        # /mnt/c is a slow, case-insensitive 9p mount; the docs tell WSL users
+        # to work in ~.
+        run: |
+          test -f flake.nix
+          # CRLF in the store fails as `$'\r': command not found` deep in a build.
+          if grep -rIl $'\r' flake.nix pyproject.toml nix/; then
+            echo "::error::checkout has CRLF line endings; core.eol=lf did not take effect"
+            exit 1
+          fi
+          rm -rf ~/FABulous
+          mkdir ~/FABulous
+          cp -r ./. ~/FABulous/
+
+      - name: Build the uv.lock-matched Python environment
+        # --no-link: a `result` symlink on the Windows drive needs a privilege
+        # the runner may lack.
+        run: |
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix build --no-link --print-out-paths "$HOME/FABulous#fabulous-python-env" > ~/fabulous-env
+          pyenv=$(cat ~/fabulous-env)
+          "$pyenv/bin/python" -c "import fabulous, librelane; print('imports OK')"
+          # Separate files on ext4; the macOS leg covers the collapsed case.
+          "$pyenv/bin/FABulous" --version
+          "$pyenv/bin/fabulous" --version
+
+      - name: Create a project under WSL
+        # Stops short of `run_fab`: the WSL store has no cache, so the yosys it
+        # needs would build from source each run. The ubuntu legs cover the flow.
+        # On ~ rather than /mnt/c, where DrvFs rejects the chmod in `copy2`.
+        run: |
+          fab=$(cat ~/fabulous-env)/bin/FABulous
+          project=~/fabulous-wsl
+          rm -rf "$project"
+          mkdir -p "$project"
+          cd "$project"
+          "$fab" c demo
+          test -s demo/fabric.csv
+          test -d demo/Tile/LUT4AB
+          test -d demo/.FABulous

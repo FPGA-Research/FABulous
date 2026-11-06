@@ -1,7 +1,7 @@
 """Setuptools build hooks for FABulous packaging."""
 
 from pathlib import Path
-from shutil import copy2, rmtree
+from shutil import copy2, copytree, ignore_patterns, rmtree
 
 from setuptools.command.build_py import build_py
 
@@ -148,19 +148,18 @@ class BuildPyWithFabulousNix(build_py):
 
     _NIX_PACKAGE_NAME = "fabulous_nix"
 
-    _ASSET_MAP: tuple[tuple[str, str], ...] = (
-        ("flake.nix", "flake.nix"),
-        ("flake.lock", "flake.lock"),
-        ("build_hooks.py", "build_hooks.py"),
-        ("pyproject.toml", "pyproject.toml"),
-        ("uv.lock", "uv.lock"),
-        ("nix/default.nix", "nix/default.nix"),
-        ("nix/overlay/python.nix", "nix/overlay/python.nix"),
-        ("nix/tools/fabulator.nix", "nix/tools/fabulator.nix"),
-        ("nix/tools/ghdl-bin.nix", "nix/tools/ghdl-bin.nix"),
-        ("nix/tools/nextpnr.nix", "nix/tools/nextpnr.nix"),
-        ("nix/tools/yosys.nix", "nix/tools/yosys.nix"),
+    _ASSET_FILES: tuple[str, ...] = (
+        "flake.nix",
+        "flake.lock",
+        "build_hooks.py",
+        "pyproject.toml",
+        "uv.lock",
     )
+
+    # The whole tree, not an enumerated list: flake.nix imports these by path,
+    # so a file missing here only surfaces as an evaluation error at
+    # `FABulous nix-env` time, long after the wheel was built.
+    _ASSET_TREE: str = "nix"
 
     def run(self) -> None:
         """Run package build and generate side packages."""
@@ -180,11 +179,19 @@ class BuildPyWithFabulousNix(build_py):
             encoding="utf-8",
         )
 
-        for source_rel, target_rel in self._ASSET_MAP:
-            source_path = project_root / source_rel
-            target_path = target_root / target_rel
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            copy2(source_path, target_path)
+        for asset in self._ASSET_FILES:
+            copy2(project_root / asset, target_root / asset)
+
+        # `nix build` leaves `result` symlinks into /nix/store. Copying them by
+        # value would pull the whole store closure into the wheel, so preserve
+        # symlinks and skip those names outright.
+        copytree(
+            project_root / self._ASSET_TREE,
+            target_root / self._ASSET_TREE,
+            symlinks=True,
+            ignore=ignore_patterns("result", "result-*"),
+            dirs_exist_ok=True,
+        )
 
     def _build_librelane_plugin_fabulous_package(self) -> None:
         """Generate librelane_plugin_fabulous/ as a thin re-export side-package."""
