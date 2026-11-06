@@ -13,6 +13,7 @@ from loguru import logger
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
+    TimingModelTarget,
     TimingModelTileSourceFiles,
 )
 from fabulous.fabulous_repl.command_set_base import (
@@ -37,12 +38,29 @@ class TimingCommandSet(ReplCommandSet):
                 help_text="Timing model generation mode (physical or structural).",
             ),
         ] = "physical",
+        target: Annotated[
+            Literal["pips", "bels", "both"],
+            Option(
+                "--target",
+                help_text="Timing data to generate: pips, bels, or both.",
+            ),
+        ] = "both",
         outfile: Annotated[
             Path | None,
             Option(
                 "--outfile",
                 help_text=(
                     "Output file for the generated timing model or config template."
+                ),
+            ),
+        ] = None,
+        bel_outfile: Annotated[
+            Path | None,
+            Option(
+                "--bel-outfile",
+                help_text=(
+                    "Output file for BEL timing; defaults to bel.v3.txt beside "
+                    "the pip output."
                 ),
             ),
         ] = None,
@@ -71,29 +89,16 @@ class TimingCommandSet(ReplCommandSet):
         Timing information is extracted from the GDS layout and used to create a timing
         model compatible with nextpnr for timing-aware place and route. This command
         generates a timing model for the FPGA fabric based on the specified mode
-        (physical or structural) and outputs it to a file named pips.txt in the
-        .FABulous directory. If no config file is provided, the automated flow must be
-        run first to generate post-layout files. If a config file is provided, it will
-        be used for timing model generation instead of command arguments. This allows
-        for more complex configurations like different PDK support. If
-        emit-config-template is specified, a config template will be output and no
-        timing model will be generated.
+        (physical or structural). By default both `pips.txt` and `bel.v3.txt` are
+        generated in the `.FABulous` directory. If no config file is provided, the
+        automated flow must be run first to generate post-layout files. If a config file
+        is provided, it will be used for timing model generation instead of command
+        arguments. This allows for more complex configurations like different PDK
+        support. If `emit-config-template` is specified, a config template will be
+        output and no timing model will be generated.
         """
         repl = self._cmd
         manual_config: TimingModelConfig | None = None
-
-        # Custom output path for the timing model file, if not provided, defaults
-        # to .FABulous/pips.txt with backup of existing file if exists.
-        resolved_outfile: Path
-        if outfile is not None:
-            resolved_outfile = outfile
-        else:
-            pips_path = get_context().proj_dir / ".FABulous" / "pips.txt"
-            if pips_path.exists():
-                backup_path = pips_path.with_suffix(".backup.txt")
-                logger.info(f"Backing up existing pips.txt to {backup_path}")
-                pips_path.rename(backup_path)
-            resolved_outfile = pips_path
 
         # If a config file is provided, use it to generate the timing model
         # instead of command arguments This allows for more complex configurations
@@ -144,13 +149,41 @@ class TimingCommandSet(ReplCommandSet):
             logger.info(f"Timing model config template generated at {template_outfile}")
             return
 
-        logger.info(f"Output timing model file: {resolved_outfile}")
+        resolved_target = TimingModelTarget(target)
+        resolved_outfile = outfile or (
+            get_context().proj_dir / ".FABulous" / "pips.txt"
+        )
+        resolved_bel_outfile = bel_outfile or resolved_outfile.with_name("bel.v3.txt")
+
+        if (
+            resolved_target == TimingModelTarget.BOTH
+            and resolved_outfile == resolved_bel_outfile
+        ):
+            raise ValueError("Pip and BEL timing output paths must be different.")
+
+        selected_outputs = []
+        if resolved_target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
+            selected_outputs.append(resolved_outfile)
+        if resolved_target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
+            selected_outputs.append(resolved_bel_outfile)
+
+        for output_path in selected_outputs:
+            if output_path.exists():
+                backup_path = output_path.with_suffix(".backup.txt")
+                logger.info(f"Backing up {output_path.name} to {backup_path}")
+                output_path.rename(backup_path)
+
+        logger.info(f"Timing model target: {resolved_target}")
+        for output_path in selected_outputs:
+            logger.info(f"Output timing model file: {output_path}")
 
         tm_config_resolved: TimingModelConfig = repl.fabulousAPI.timing_model_interface(
             mode=mode,
             output_file=resolved_outfile,
             debug=repl.debug,
             manual_config=manual_config,
+            target=resolved_target,
+            bel_output_file=resolved_bel_outfile,
         )
 
         resolved_path: Path = (

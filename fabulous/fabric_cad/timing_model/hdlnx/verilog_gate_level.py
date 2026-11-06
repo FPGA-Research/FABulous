@@ -6,6 +6,7 @@ generate the SDF file from the Verilog netlist.
 """
 
 import re
+from functools import cached_property
 
 import networkx as nx
 
@@ -14,6 +15,91 @@ from fabulous.fabric_cad.timing_model.models import (
     DelayType,
 )
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool
+
+
+def _net_bits(expression: str, ranges: dict[str, list[int]]) -> list[str]:
+    """Expand a structural Verilog connection in most-significant-bit order.
+
+    Parameters
+    ----------
+    expression : str
+        Net, bit select, numeric part select, constant, or concatenation.
+    ranges : dict[str, list[int]]
+        Declared indices, in declaration order, for each vector.
+
+    Returns
+    -------
+    list[str]
+        Individual net bits with Verilog identifier escapes removed.
+
+    Raises
+    ------
+    ValueError
+        If the expression is not a structural net connection.
+    """
+    expression = expression.strip()
+    if expression.startswith("{") and expression.endswith("}"):
+        parts = []
+        start = 1
+        depth = 0
+        escaped = False
+        for index, character in enumerate(expression[1:-1], 1):
+            if escaped:
+                escaped = not character.isspace()
+            elif character == "\\":
+                escaped = True
+            elif character == "{":
+                depth += 1
+            elif character == "}":
+                depth -= 1
+            elif character == "," and depth == 0:
+                parts.extend(_net_bits(expression[start:index], ranges))
+                start = index + 1
+        parts.extend(_net_bits(expression[start:-1], ranges))
+        return parts
+
+    constant = re.fullmatch(r"(\d+)'([bBoOdDhH])([0-9a-fA-FxXzZ_]+)", expression)
+    if constant:
+        width, base, digits = constant.groups()
+        digits = digits.replace("_", "").lower()
+        if "x" in digits or "z" in digits:
+            if base.lower() == "d":
+                if len(set(digits)) != 1:
+                    raise ValueError(f"Invalid decimal constant: {expression!r}")
+                return [f"1'b{digits[0]}"] * int(width)
+            digit_width = {"b": 1, "o": 3, "h": 4}[base.lower()]
+            base_value = {"b": 2, "o": 8, "h": 16}[base.lower()]
+            bit_groups = []
+            for digit in digits:
+                if digit in "xz":
+                    bit_groups.append(digit * digit_width)
+                else:
+                    bit_groups.append(f"{int(digit, base_value):0{digit_width}b}")
+            bits = "".join(bit_groups)
+            padding = bits[0] if bits[0] in "xz" else "0"
+            return [
+                f"1'b{bit}" for bit in bits.rjust(int(width), padding)[-int(width) :]
+            ]
+        value = int(digits, {"b": 2, "o": 8, "d": 10, "h": 16}[base.lower()])
+        return [f"1'b{bit}" for bit in f"{value:0{width}b}"[-int(width) :]]
+
+    net = re.fullmatch(
+        r"(\\\S+|[A-Za-z_$][\w$]*)(?:\s*\[\s*(-?\d+)\s*(?::\s*(-?\d+)\s*)?\])?",
+        expression,
+    )
+    if net is None:
+        raise ValueError(f"Unsupported structural Verilog connection: {expression!r}")
+    name, first, last = net.groups()
+    name = name.removeprefix("\\")
+    if first is not None:
+        if last is None:
+            return [f"{name}[{first}]"]
+        start, end = int(first), int(last)
+        step = 1 if end >= start else -1
+        return [f"{name}[{index}]" for index in range(start, end + step, step)]
+    if name in ranges:
+        return [f"{name}[{index}]" for index in ranges[name]]
+    return [name]
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):
@@ -58,6 +144,36 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
     ### Public methods ###
 
+    @staticmethod
+    def verilog_identifier_to_sdf(identifier: str) -> str:
+        r"""Convert a Verilog instance identifier to its SDF representation.
+
+        Yosys uses escaped Verilog identifiers for generated instances, for example
+        `\Q$_DFF_P_`. OpenSTA removes the leading Verilog escape and escapes the
+        special characters in the corresponding SDF hierarchy, producing
+        `Q\$_DFF_P_`. Indexed names such as `\Q[0]$_DFF_P_` become
+        `Q\[0\]\$_DFF_P_`.
+
+        Parameters
+        ----------
+        identifier : str
+            Instance identifier as written in the structural Verilog netlist.
+
+        Returns
+        -------
+        str
+            Identifier spelling used by the SDF timing graph.
+        """
+        if not identifier.startswith("\\"):
+            return identifier
+
+        sdf_identifier: str = identifier.removeprefix("\\")
+        for special_character in ("$", "[", "]", "."):
+            sdf_identifier = sdf_identifier.replace(
+                special_character, f"\\{special_character}"
+            )
+        return sdf_identifier
+
     def get_raw_verilog_netlist_data(self) -> str:
         """Return the raw Verilog netlist content as a string.
 
@@ -68,233 +184,189 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         """
         return self.verilog_netlist_content
 
-    def resolve_hier_pin(self, hier_pin_path: str) -> list[str]:
-        """Resolve hierarchical pin path to leaf pins.
-
-        Parse a structural Verilog netlist and resolve a hierarchical pin path like
-        "inst1/inst2/A0" down to all leaf std-cell pins connected to it.
-
-        Returns a list of hierarchical pin paths (strings).
-
-        Parameters
-        ----------
-        hier_pin_path : str
-            Hierarchical pin path in the format "inst1/inst2/pin".
+    @cached_property
+    def _pin_modules(self) -> dict[str, dict]:
+        """Index structural connections, including vector ports and net aliases.
 
         Returns
         -------
-        list[str]
-            List of resolved leaf pin paths.
+        dict[str, dict]
+            Parsed module declarations, instances, ranges, and alias equivalences.
 
         Raises
         ------
         ValueError
-            If the hierarchical pin path is invalid or if the top module or
-            instances are not found.
-        KeyError
-            If the target pin is not found on the last instance in the path.
-
-        Notes
-        -----
-        - Expects gate-level, structural Verilog: module/endmodule + simple instances
-            of the form: CellType inst_name ( .PIN(net), ... );
-        - Ignores assign statements, generate blocks, functions, etc.
-        - Assumes module port names are used as net names inside the module.
+            If an assignment connects different numbers of bits.
         """
-        sep = self.hier_sep
-        hier_pin_path: str = f"{self.top_name}{sep}{hier_pin_path}"
-        verilog_src: str = self.verilog_netlist_content
-
-        # ------------------------------------------------------------------
-        # Strip comments: /* ... */ and // ...
-        # ------------------------------------------------------------------
-        src_no_block = re.sub(r"/\*.*?\*/", "", verilog_src, flags=re.DOTALL)
-        src_clean = re.sub(r"//.*?$", "", src_no_block, flags=re.MULTILINE)
-
-        # ------------------------------------------------------------------
-        # Parse modules and their instances (type + name + pin connections)
-        # ------------------------------------------------------------------
+        source = re.sub(
+            r"/\*.*?\*/|//[^\n]*", "", self.verilog_netlist_content, flags=re.DOTALL
+        )
+        identifier = r"(?:\\[^\s]+|[A-Za-z_$][\w$]*)"
+        module_pattern = rf"\bmodule\s+({identifier})\s*(.*?)\bendmodule\b"
+        instance_pattern = rf"({identifier})\s+({identifier})\s*\((.*?)\)\s*;"
+        connection_pattern = rf"\.\s*({identifier})\s*\(([^()]*)\)"
+        declaration_pattern = (
+            r"\b(?:input|output|inout|wire|reg)\s+(?:(?:wire|reg|signed)\s+)*"
+            rf"(?:\[\s*(-?\d+)\s*:\s*(-?\d+)\s*\]\s*)?({identifier})"
+        )
         modules = {}
-
-        module_pattern = re.compile(
-            r"\bmodule\b\s+([A-Za-z_][\w$]*)\b(.*?)\bendmodule\b", flags=re.DOTALL
-        )
-
-        # Very simple instance pattern: CellType inst_name ( .PIN(net), ... );
-        # This will also match the module header "module name (...);"
-        # but we filter it out.
-        inst_pattern = re.compile(
-            r"([A-Za-z_][\w$]*)\s+([A-Za-z_][\w$]*)\s*\((.*?)\);\s*", flags=re.DOTALL
-        )
-
-        reserved_types = {
-            "module",
-            "input",
-            "output",
-            "inout",
-            "wire",
-            "reg",
-            "tri",
-            "tri0",
-            "tri1",
-            "supply0",
-            "supply1",
-            "parameter",
-            "localparam",
-            "assign",
-            "always",
-            "initial",
-            "generate",
-            "endgenerate",
-            "if",
-            "for",
-            "case",
-            "function",
-            "task",
-        }
-
-        pin_net_pattern = re.compile(r"\.\s*([\w$]+)\s*\(\s*([^)]+?)\s*\)")
-
-        for m in module_pattern.finditer(src_clean):
-            mod_name = m.group(1)
-            mod_body = m.group(2)
+        for name, body in re.findall(module_pattern, source, flags=re.DOTALL):
+            ranges = {}
+            for first, last, net in re.findall(declaration_pattern, body):
+                net = net.removeprefix("\\")
+                if first:
+                    start, end = int(first), int(last)
+                    step = 1 if end >= start else -1
+                    ranges[net] = list(range(start, end + step, step))
             instances = []
-
-            for im in inst_pattern.finditer(mod_body):
-                cell_type, inst_name, conn_str = im.groups()
-
-                # Skip "instances" that are actually keywords, e.g. the module header
-                if cell_type in reserved_types:
+            for cell_type, instance, connections in re.findall(
+                instance_pattern, body, flags=re.DOTALL
+            ):
+                if cell_type in {
+                    "module",
+                    "input",
+                    "output",
+                    "inout",
+                    "wire",
+                    "reg",
+                    "assign",
+                }:
                     continue
-
-                conns = {}
-                for pin, net in pin_net_pattern.findall(conn_str):
-                    net = net.strip()
-                    conns[pin] = net
-
                 instances.append(
                     {
-                        "type": cell_type,
-                        "name": inst_name,
-                        "conns": conns,
+                        "type": cell_type.removeprefix("\\"),
+                        "name": instance,
+                        "conns": {
+                            pin.removeprefix("\\"): expression.strip()
+                            for pin, expression in re.findall(
+                                connection_pattern, connections
+                            )
+                        },
                     }
                 )
+            aliases = nx.utils.UnionFind()
+            for left, right in re.findall(
+                r"\bassign\s+(.+?)\s*=\s*(.+?);", body, flags=re.DOTALL
+            ):
+                left_bits = _net_bits(left, ranges)
+                right_bits = _net_bits(right, ranges)
+                if len(left_bits) != len(right_bits):
+                    raise ValueError(
+                        f"Mismatched assignment widths in module {name!r}: "
+                        f"{left} = {right}"
+                    )
+                for left_bit, right_bit in zip(left_bits, right_bits, strict=True):
+                    aliases.union(left_bit, right_bit)
+            modules[name.removeprefix("\\")] = {
+                "ranges": ranges,
+                "instances": instances,
+                "aliases": aliases,
+            }
+        return modules
 
-            modules[mod_name] = {"instances": instances}
+    def resolve_hier_pin(self, hier_pin_path: str) -> list[str]:
+        """Resolve a module port to its connected leaf standard-cell pins.
 
-        # ------------------------------------------------------------------
-        # Parse hierarchical pin path: Top/inst1/inst2/.../pin
-        # ------------------------------------------------------------------
-        parts = hier_pin_path.split(sep)
-        if len(parts) < 3:
+        Follow bit selects, slices, concatenations, and continuous net aliases.
+
+        Parameters
+        ----------
+        hier_pin_path : str
+            Instance hierarchy followed by a scalar or indexed module port.
+
+        Returns
+        -------
+        list[str]
+            Connected leaf pins in SDF spelling, without duplicates.
+
+        Raises
+        ------
+        ValueError
+            If the path or a structural connection is invalid.
+        KeyError
+            If the top module, instance, or requested port is absent.
+        """
+        parts = hier_pin_path.split(self.hier_sep)
+        if len(parts) < 2:
             raise ValueError(
-                f"Hierarchical pin path must be "
-                f"'Top{sep}inst{sep}...{sep}pin', got: {hier_pin_path!r}"
+                f"Hierarchical pin path must be 'inst/pin', got: {hier_pin_path!r}"
             )
-
-        top_module = parts[0]
-        inst_chain = parts[1:-1]
+        modules = self._pin_modules
+        if self.top_name not in modules:
+            raise KeyError(f"Top module {self.top_name!r} not found in netlist")
+        module_name = self.top_name
+        prefix = []
         target_pin = parts[-1]
-
-        if top_module not in modules:
-            raise KeyError(f"Top module {top_module!r} not found in netlist")
-
-        # ------------------------------------------------------------------
-        # Walk down the instance chain to find:
-        # - the parent module of the last instance
-        # - the last instance itself
-        # - the child module type of that instance
-        # ------------------------------------------------------------------
-        curr_module = top_module
-        prev_module = None
-        last_inst = None
-        hier_prefix = top_module
-
-        for inst_name in inst_chain:
-            prev_module = curr_module
-            inst_list = modules.get(curr_module, {}).get("instances", [])
-            last_inst = None
-            for inst in inst_list:
-                if inst["name"] == inst_name:
-                    last_inst = inst
-                    break
-            if last_inst is None:
-                raise KeyError(
-                    f"Instance {inst_name!r} not found in module {curr_module!r}"
-                )
-            curr_module = last_inst["type"]
-            hier_prefix += f"{sep}" + inst_name
-
-        if last_inst is None or prev_module is None:
-            raise ValueError(
-                f"Path {hier_pin_path!r} does not contain a valid instance chain"
+        for depth, name in enumerate(parts[:-1]):
+            instance = next(
+                (
+                    item
+                    for item in modules[module_name]["instances"]
+                    if item["name"].removeprefix("\\") == name.removeprefix("\\")
+                ),
+                None,
             )
+            if instance is None:
+                raise KeyError(f"Instance {name!r} not found in module {module_name!r}")
+            pin_base = target_pin.split("[", 1)[0]
+            if depth == len(parts) - 2 and pin_base not in instance["conns"]:
+                raise KeyError(f"Pin {target_pin!r} not found on instance {name!r}")
+            prefix.append(self.verilog_identifier_to_sdf(instance["name"]))
+            module_name = instance["type"]
+            if module_name not in modules:
+                if depth != len(parts) - 2:
+                    raise KeyError(
+                        f"Instance {parts[depth + 1]!r} not found in leaf "
+                        f"module {module_name!r}"
+                    )
+                return [self.hier_sep.join([*prefix, target_pin])]
 
-        # last_inst is the instance whose pin we are addressing
-        if target_pin not in last_inst["conns"]:
-            raise KeyError(
-                f"Pin {target_pin!r} not found on instance {last_inst['name']!r} "
-                f"in module {prev_module!r}"
-            )
-
-        child_module = curr_module  # type of the last instance
-        child_net = target_pin  # assume port name == internal net name inside child
-
-        # If the instance itself is already a leaf std-cell (no module definition),
-        # then the endpoint is just that pin.
-        if child_module not in modules:
-            prefix = top_module + f"{sep}"
-            # strip top module name from hierarchical prefix
-            pp = hier_prefix.removeprefix(prefix)
-            return [f"{pp}{sep}{target_pin}"]
-
-        # ------------------------------------------------------------------
-        # Recursively traverse down the hierarchy from (child_module, child_net)
-        # ------------------------------------------------------------------
         visited = set()
 
-        def traverse(mod_name: str, net_name: str, prefix: str) -> list[str]:
-            """Traverse down the hierarchy from (mod_name, net_name) with prefix.
-
-            In module `mod_name`, find all instance pins that are connected to
-            `net_name`.
-
-            For std-cell instances (type not in modules), record leaf paths. For
-            submodules (type in modules), recurse into that submodule, using the pin
-            name as the net name inside the child.
-            """
-            key = (mod_name, net_name, prefix)
+        def traverse(module: str, net: str, path: tuple[str, ...]) -> list[str]:
+            """Follow one bit through aliases and submodule port connections."""
+            data = modules[module]
+            root = data["aliases"][net]
+            key = (module, root, path)
             if key in visited:
                 return []
             visited.add(key)
-
-            results = []
-            inst_list = modules.get(mod_name, {}).get("instances", [])
-
-            for inst in inst_list:
-                inst_type = inst["type"]
-                inst_name = inst["name"]
-                for pin, net in inst["conns"].items():
-                    if net != net_name:
-                        continue
-
-                    new_prefix = f"{prefix}{sep}{inst_name}"
-
-                    # Leaf std-cell: no module definition for its type
-                    if inst_type not in modules:
-                        results.append(f"{new_prefix}{sep}{pin}")
+            result = []
+            for instance in data["instances"]:
+                child = instance["type"]
+                child_path = (*path, self.verilog_identifier_to_sdf(instance["name"]))
+                for pin, expression in instance["conns"].items():
+                    bits = _net_bits(expression, data["ranges"])
+                    if child in modules:
+                        pin_bits = _net_bits(pin, modules[child]["ranges"])
+                        if len(bits) != len(pin_bits):
+                            raise ValueError(
+                                f"Port width mismatch at {'/'.join(child_path)}/{pin}: "
+                                f"{len(bits)} connected bits, "
+                                f"{len(pin_bits)} declared bits"
+                            )
                     else:
-                        # Submodule: descend, assuming port name == internal net name
-                        results.extend(traverse(inst_type, pin, new_prefix))
+                        pin_bits = (
+                            [pin]
+                            if len(bits) == 1
+                            else [
+                                f"{pin}[{index}]"
+                                for index in reversed(range(len(bits)))
+                            ]
+                        )
+                    for bit, pin_bit in zip(bits, pin_bits, strict=True):
+                        if data["aliases"][bit] != root:
+                            continue
+                        if child in modules:
+                            result.extend(traverse(child, pin_bit, child_path))
+                        else:
+                            result.append(self.hier_sep.join([*child_path, pin_bit]))
+            return result
 
-            return results
-
-        leaf_pins = traverse(child_module, child_net, hier_prefix)
-
-        # strip top module name
-        prefix = top_module + f"{sep}"
-
-        return [p.removeprefix(prefix) for p in leaf_pins]
+        result = []
+        for bit in _net_bits(target_pin, modules[module_name]["ranges"]):
+            result.extend(traverse(module_name, bit, tuple(prefix)))
+        return list(dict.fromkeys(result))
 
     def find_verilog_modules_regex(self, name_pattern: str) -> list[str]:
         """Find Verilog module names matching a regex pattern.
@@ -363,76 +435,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         """
         top_module = self.top_name
         sep = self.hier_sep
-        verilog_src: str = self.verilog_netlist_content
-
-        # -------------------------------------------------------------
-        # Remove comments: /* ... */ and // ...
-        # -------------------------------------------------------------
-        src_no_block = re.sub(r"/\*.*?\*/", "", verilog_src, flags=re.DOTALL)
-        src_clean = re.sub(r"//.*?$", "", src_no_block, flags=re.MULTILINE)
-
-        # -------------------------------------------------------------
-        # Parse modules and their instances (type + name only)
-        # -------------------------------------------------------------
-        modules = {}
-
-        module_pattern = re.compile(
-            r"\bmodule\b\s+([A-Za-z_][\w$]*)\b(.*?)\bendmodule\b",
-            flags=re.DOTALL,
-        )
-
-        # Simple instance pattern: CellType inst_name ( ... );
-        inst_pattern = re.compile(
-            r"([A-Za-z_][\w$]*)\s+([A-Za-z_][\w$]*)\s*\(",
-            flags=re.DOTALL,
-        )
-
-        reserved_types = {
-            "module",
-            "input",
-            "output",
-            "inout",
-            "wire",
-            "reg",
-            "tri",
-            "tri0",
-            "tri1",
-            "supply0",
-            "supply1",
-            "parameter",
-            "localparam",
-            "assign",
-            "always",
-            "initial",
-            "generate",
-            "endgenerate",
-            "if",
-            "for",
-            "case",
-            "function",
-            "task",
-        }
-
-        for m in module_pattern.finditer(src_clean):
-            mod_name = m.group(1)
-            mod_body = m.group(2)
-            instances = []
-
-            for im in inst_pattern.finditer(mod_body):
-                cell_type, inst_name = im.groups()
-
-                # Skip things that look like keywords / non-instances
-                if cell_type in reserved_types:
-                    continue
-
-                instances.append(
-                    {
-                        "type": cell_type,
-                        "name": inst_name,
-                    }
-                )
-
-            modules[mod_name] = {"instances": instances}
+        modules = self._pin_modules
 
         # -------------------------------------------------------------
         # Check that top_module exists
