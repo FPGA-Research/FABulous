@@ -74,7 +74,8 @@ def _characterize_bels(
     """Return the arcs of every BEL of every placed tile and supertile type.
 
     A supertile BEL is characterised by the timing model of the supertile's
-    master tile, which synthesises the whole supertile.
+    master tile, which synthesises the whole supertile. A BEL is found by the
+    instance name the tile or supertile generator gives it.
 
     Parameters
     ----------
@@ -95,7 +96,10 @@ def _characterize_bels(
         arcs = tiles.setdefault(tile.name, {})
         for bel in tile.bels:
             if bel.instance_name not in arcs:
-                arcs[bel.instance_name] = models[tile.name].bel_timing(bel)
+                model = models[tile.name]
+                arcs[bel.instance_name] = model.bel_timing(
+                    bel, instance=(*model.tile_scope, bel.instance_name)
+                )
     super_tiles: dict[str, dict[str, BelArcs]] = {}
     for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
         tx_local, ty_local = super_tile.get_master_tile_coords()
@@ -103,7 +107,9 @@ def _characterize_bels(
         arcs = super_tiles.setdefault(super_tile.name, {})
         for bel in super_tile.bels:
             if bel.instance_name not in arcs:
-                arcs[bel.instance_name] = models[master.name].bel_timing(bel)
+                arcs[bel.instance_name] = models[master.name].bel_timing(
+                    bel, instance=(super_tile.bel_instance_name(bel),)
+                )
     return BelTiming(tiles=tiles, super_tiles=super_tiles)
 
 

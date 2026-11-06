@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pytest_mock import MockerFixture
 
 import fabulous.fabric_cad.timing_model.FABulous_timing_model as tm_mod
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
@@ -14,6 +15,10 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelStaTools,
     TimingModelSynthTools,
 )
+from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
+from fabulous.fabric_definition.supertile import SuperTile
+from tests.conftest import make_empty_tile, make_fabric_from_grid
+from tests.timing_model_test.conftest import ReadNetlist
 
 
 def make_source_override(
@@ -83,6 +88,12 @@ class DummySynthTool:
     def __init__(self) -> None:
         self.synth_rtl_files = None
         self.synth_passthrough = False
+        self.synth_netlist_file = Path("netlist.v")
+        self.synth_design_name = "TILE_A"
+        self.clean_ups = 0
+
+    def synth_clean_up(self) -> None:
+        self.clean_ups += 1
 
 
 class DummyStaTool:
@@ -95,36 +106,16 @@ class DummyHdlnx:
         self.output_ports = set()
         self.input_ports = set()
 
-    def find_instance_paths_by_regex(self, _regex: object) -> list[object]:
-        return []
-
-    def find_verilog_modules_regex(self, _regex: object) -> list[object]:
-        return []
-
-    def get_module_instance_nets(self, _module_name: object) -> dict[object, object]:
-        return {}
-
-    def get_instance_pins(self, _inst_path: object) -> list[object]:
-        return []
-
-    def find_instances_paths_with_all_nets(
-        self, _module_name: object, _nets: object, filter_regex: object = None
-    ) -> list[object]:
-        _ = filter_regex
-        return []
-
-    def net_to_pin_paths_for_instance_resolved(
-        self, _inst: object
-    ) -> dict[object, object]:
-        return {}
-
     def single_delay(self, _src: object, _dst: object) -> float:
         return 0.0
 
-    def nearest_ports_from_instance_pin_nets(
-        self, _inst_path: object, reverse: bool = False, num_ports: int = 1
+    def nearest_ports_from_pins(
+        self,
+        net_pins: dict[str, list[str]],
+        reverse: bool = False,
+        num_ports: int = 1,
     ) -> tuple[dict[str, list[str]], list[str]]:
-        _ = (reverse, num_ports)
+        _ = (net_pins, reverse, num_ports)
         return {}, []
 
     def earliest_common_nodes(
@@ -158,7 +149,7 @@ class DummyHdlnx:
 
 
 @pytest.fixture
-def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
+def bare_model(tmp_path: Path, mocker: MockerFixture) -> FABulousTileTimingModel:
     m = FABulousTileTimingModel.__new__(FABulousTileTimingModel)
     m.fabric = DummyFabric([])
     m.tile_name = "TILE_A"
@@ -168,10 +159,10 @@ def bare_model(tmp_path: Path) -> FABulousTileTimingModel:
     m.verilog_files = None
     m.hdlnx_tm_synth = DummyHdlnx()
     m.hdlnx_tm_phys = DummyHdlnx()
-    m.switch_matrix_hier_path = "tile_inst_switch_matrix"
-    m.switch_matrix_module_name = "tile_switch_matrix"
+    m.tile_scope = ()
+    m.synth_netlist = mocker.create_autospec(NetlistIndex, instance=True)
+    m.switch_matrix_hier_path = ("tile_inst_switch_matrix",)
     m.internal_pips_grouped_by_inst = {}
-    m.internal_pips = []
     m.internal_pip_cache = {}
     return m
 
@@ -191,10 +182,8 @@ def test_init_sets_attributes_and_calls_helpers(
 
     def fake_extract(self: FABulousTileTimingModel) -> None:
         called["extract"] += 1
-        self.switch_matrix_hier_path = "swm_inst"
-        self.switch_matrix_module_name = "swm_mod"
+        self.switch_matrix_hier_path = ("swm_inst",)
         self.internal_pips_grouped_by_inst = {"u0": ["A", "B"]}
-        self.internal_pips = ["A", "B"]
 
     monkeypatch.setattr(
         FABulousTileTimingModel, "_initialize_timing_models", fake_init_tm
@@ -215,9 +204,9 @@ def test_init_sets_attributes_and_calls_helpers(
     assert obj.verilog_files == [tmp_path / "a.v"]
     assert obj.hdlnx_tm_synth == "SYNTH"
     assert obj.hdlnx_tm_phys == "PHYS"
-    assert obj.switch_matrix_hier_path == "swm_inst"
-    assert obj.switch_matrix_module_name == "swm_mod"
-    assert obj.internal_pips == ["A", "B"]
+    assert obj.tile_scope == ()
+    assert obj.switch_matrix_hier_path == ("swm_inst",)
+    assert obj.internal_pips_grouped_by_inst == {"u0": ["A", "B"]}
     assert obj.internal_pip_cache == {}
     assert called == {"init_tm": 1, "extract": 1}
 
@@ -234,17 +223,45 @@ def test_get_unique_tile_name_regular_tile_keeps_name(
     assert bare_model.is_in_which_super_tile is None
 
 
+@pytest.mark.parametrize(
+    ("tile_map", "tile_scope"),
+    [
+        ([["TILE_A", "TILE_B"]], ("Tile_X0Y0_TILE_A",)),
+        ([["TILE_B"], ["TILE_A"]], ("Tile_X0Y1_TILE_A",)),
+    ],
+)
 def test_get_unique_tile_name_inside_supertile(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+    bare_model: FABulousTileTimingModel,
+    tile_map: list[list[str]],
+    tile_scope: tuple[str, ...],
 ) -> None:
-    monkeypatch.setattr(tm_mod, "SuperTile", DummySuperTile)
-    st = DummySuperTile("SUPER_X", [DummyTile("TILE_A"), DummyTile("TILE_B")])
-    bare_model.fabric = DummyFabric([st])
+    tiles = {name: make_empty_tile(name) for name in ("TILE_A", "TILE_B")}
+    st = SuperTile(
+        name="SUPER_X",
+        tileDir=Path(),
+        tiles=list(tiles.values()),
+        tileMap=[[tiles[name] for name in row] for row in tile_map],
+    )
+    bare_model.fabric = make_fabric_from_grid([list(tiles.values())])
+    bare_model.fabric.superTileDic = {st.name: st}
 
     bare_model._get_unique_tile_name()  # noqa: SLF001
 
     assert bare_model.unique_tile_name == "SUPER_X"
     assert bare_model.is_in_which_super_tile == "SUPER_X"
+    assert bare_model.tile_scope == tile_scope
+
+
+def test_get_unique_tile_name_tile_placed_twice_in_supertile_raises(
+    bare_model: FABulousTileTimingModel,
+) -> None:
+    tile = make_empty_tile("TILE_A")
+    st = SuperTile(name="SUPER_X", tileDir=Path(), tiles=[tile], tileMap=[[tile, tile]])
+    bare_model.fabric = make_fabric_from_grid([[tile]])
+    bare_model.fabric.superTileDic = {st.name: st}
+
+    with pytest.raises(ValueError, match="places tile 'TILE_A' 2 times"):
+        bare_model._get_unique_tile_name()  # noqa: SLF001
 
 
 def test_get_project_rtl_files_uses_default_search(
@@ -446,6 +463,13 @@ def test_cad_tools_unsupported_sta_raises(
         bare_model._cad_tools()  # noqa: SLF001
 
 
+@pytest.fixture
+def netlist_read(mocker: MockerFixture) -> None:
+    """Skip elaborating the synthesised netlist, which the fake models never write."""
+    mocker.patch.object(tm_mod.NetlistIndex, "read", autospec=True)
+
+
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_structural_calls_project_rtl_loader(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -483,10 +507,12 @@ def test_initialize_timing_models_structural_calls_project_rtl_loader(
 
     assert called["rtl"] == 1
     assert len(created) == 1
+    assert synth_tool.clean_ups == 1
     assert synth_tool.synth_passthrough is False
     assert sta_tool.sta_rc_files is None
 
 
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_physical_without_wire_delay(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -522,6 +548,7 @@ def test_initialize_timing_models_physical_without_wire_delay(
     bare_model._initialize_timing_models()  # noqa: SLF001
 
     assert len(created) == 2
+    assert synth_tool.clean_ups == 2
     assert synth_tool.synth_passthrough is True
     assert (
         synth_tool.synth_rtl_files
@@ -530,6 +557,7 @@ def test_initialize_timing_models_physical_without_wire_delay(
     assert sta_tool.sta_rc_files is None
 
 
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_physical_with_wire_delay(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -578,6 +606,7 @@ def test_initialize_timing_models_physical_with_wire_delay(
     )
 
 
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_physical_uses_custom_netlist_file(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -622,6 +651,7 @@ def test_initialize_timing_models_physical_uses_custom_netlist_file(
     assert synth_tool.synth_passthrough is True
 
 
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_physical_uses_custom_rc_file(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -666,6 +696,7 @@ def test_initialize_timing_models_physical_uses_custom_rc_file(
     assert sta_tool.sta_rc_files == custom_rc
 
 
+@pytest.mark.usefixtures("netlist_read")
 def test_initialize_timing_models_physical_missing_tile_in_custom_source_mapping_keeps_defaults(  # noqa: E501
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
@@ -763,131 +794,67 @@ def test_find_matching_files_invalid_root_raises(
         bare_model._find_matching_files("not_a_path", r".*\.v$")  # noqa: SLF001
 
 
-def test_extract_switch_matrix_info_regular_success(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["tile_inst_switch_matrix"]
-    synth.find_verilog_modules_regex = lambda _regex: ["tile_switch_matrix"]
-    synth.get_module_instance_nets = lambda _module_name: {"mux0": ["A", "B", "Y"]}
-    synth.get_instance_pins = lambda _inst_path: ["A", "B", "Y"]
+SWITCH_MATRIX_NETLIST = """
+module TILE_A_switch_matrix (A, B, C, Y, Z);
+    input A, B, C;
+    output Y, Z;
+    MUX mux0 (.A(A), .B(B), .Y(Y));
+    BUF buf1 (.A(C), .Y(Z));
+endmodule
+module TILE_A (A, B, C, Y, Z);
+    input A, B, C;
+    output Y, Z;
+    TILE_A_switch_matrix Inst_TILE_A_switch_matrix (
+        .A(A), .B(B), .C(C), .Y(Y), .Z(Z));
+endmodule
+module SUPER_X (A, B, C, Y, Z);
+    input A, B, C;
+    output Y, Z;
+    TILE_A Tile_X0Y0_TILE_A (.A(A), .B(B), .C(C), .Y(Y), .Z(Z));
+endmodule
+"""
 
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.is_in_which_super_tile = None
+
+@pytest.mark.parametrize(
+    ("top", "tile_scope"),
+    [("TILE_A", ()), ("SUPER_X", ("Tile_X0Y0_TILE_A",))],
+)
+def test_extract_switch_matrix_info_finds_the_generated_instance(
+    bare_model: FABulousTileTimingModel,
+    read_netlist: ReadNetlist,
+    top: str,
+    tile_scope: tuple[str, ...],
+) -> None:
+    bare_model.fabric = make_fabric_from_grid([[make_empty_tile("TILE_A")]])
+    bare_model.synth_netlist = read_netlist(SWITCH_MATRIX_NETLIST, top)
+    bare_model.tile_scope = tile_scope
 
     bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
-    assert bare_model.switch_matrix_hier_path == "tile_inst_switch_matrix"
-    assert bare_model.switch_matrix_module_name == "tile_switch_matrix"
-    assert bare_model.internal_pips_grouped_by_inst == {"mux0": ["A", "B", "Y"]}
-    assert bare_model.internal_pips == ["A", "B", "Y"]
+    assert bare_model.switch_matrix_hier_path == (
+        *tile_scope,
+        "Inst_TILE_A_switch_matrix",
+    )
+    assert {
+        mux: set(nets) for mux, nets in bare_model.internal_pips_grouped_by_inst.items()
+    } == {"mux0": {"A", "B", "Y"}, "buf1": {"C", "Z"}}
 
 
-def test_extract_switch_matrix_info_none_found_returns_without_loading(
+@pytest.mark.parametrize(
+    ("top", "tile_scope"),
+    [("TILE_A", ("Tile_X0Y0_TILE_A",)), ("SUPER_X", ())],
+)
+def test_extract_switch_matrix_info_missing_instance_raises(
     bare_model: FABulousTileTimingModel,
+    read_netlist: ReadNetlist,
+    top: str,
+    tile_scope: tuple[str, ...],
 ) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: []
-    synth.find_verilog_modules_regex = lambda _regex: []
+    bare_model.fabric = make_fabric_from_grid([[make_empty_tile("TILE_A")]])
+    bare_model.synth_netlist = read_netlist(SWITCH_MATRIX_NETLIST, top)
+    bare_model.tile_scope = tile_scope
 
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.switch_matrix_hier_path = None
-    bare_model.switch_matrix_module_name = None
-    bare_model.internal_pips_grouped_by_inst = None
-    bare_model.internal_pips = None
-
-    bare_model._extract_switch_matrix_info()  # noqa: SLF001
-
-    assert bare_model.switch_matrix_hier_path == []
-    assert bare_model.switch_matrix_module_name == []
-    assert bare_model.internal_pips_grouped_by_inst is None
-    assert bare_model.internal_pips is None
-
-
-def test_extract_switch_matrix_info_regular_multiple_raises(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["a", "b"]
-    synth.find_verilog_modules_regex = lambda _regex: ["m1", "m2"]
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.is_in_which_super_tile = None
-
-    with pytest.raises(
-        ValueError,
-        match="Multiple switch matrix instances or modules found for a non-SuperTile",
-    ):
-        bare_model._extract_switch_matrix_info()  # noqa: SLF001
-
-
-def test_extract_switch_matrix_info_supertile_success(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: [
-        "OTHER_switch_matrix",
-        "TILE_A_switch_matrix",
-    ]
-    synth.find_verilog_modules_regex = lambda _regex: [
-        "OTHER_switch_matrix_mod",
-        "TILE_A_switch_matrix_mod",
-    ]
-    synth.get_module_instance_nets = lambda _module_name: {"mux0": ["I0", "I1", "O"]}
-    synth.get_instance_pins = lambda _inst_path: ["I0", "I1", "O"]
-
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.tile_name = "TILE_A"
-    bare_model.unique_tile_name = "SUPER_X"
-    bare_model.is_in_which_super_tile = "SUPER_X"
-
-    bare_model._extract_switch_matrix_info()  # noqa: SLF001
-
-    assert bare_model.switch_matrix_hier_path == "TILE_A_switch_matrix"
-    assert bare_model.switch_matrix_module_name == "TILE_A_switch_matrix_mod"
-    assert bare_model.internal_pips == ["I0", "I1", "O"]
-
-
-def test_extract_switch_matrix_info_supertile_none_raises(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: ["OTHER_switch_matrix"]
-    synth.find_verilog_modules_regex = lambda _regex: ["OTHER_switch_matrix_mod"]
-
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.tile_name = "TILE_A"
-    bare_model.unique_tile_name = "SUPER_X"
-    bare_model.is_in_which_super_tile = "SUPER_X"
-
-    with pytest.raises(
-        ValueError,
-        match="No switch matrix instance or module found for SuperTile SUPER_X",
-    ):
-        bare_model._extract_switch_matrix_info()  # noqa: SLF001
-
-
-def test_extract_switch_matrix_info_supertile_multiple_raises(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    synth = DummyHdlnx()
-    synth.find_instance_paths_by_regex = lambda _regex: [
-        "TILE_A_swm0",
-        "TILE_A_swm1",
-    ]
-    synth.find_verilog_modules_regex = lambda _regex: ["TILE_A_mod0", "TILE_A_mod1"]
-
-    bare_model.hdlnx_tm_synth = synth
-    bare_model.tile_name = "TILE_A"
-    bare_model.unique_tile_name = "SUPER_X"
-    bare_model.is_in_which_super_tile = "SUPER_X"
-
-    with pytest.raises(
-        ValueError,
-        match=(
-            "Multiple switch matrix instances or modules found Tile TILE_A "
-            "in SuperTile SUPER_X"
-        ),
-    ):
+    with pytest.raises(ValueError, match="Inst_TILE_A_switch_matrix.*not found"):
         bare_model._extract_switch_matrix_info()  # noqa: SLF001
 
 
@@ -903,13 +870,6 @@ def test_is_tile_internal_pip_true_and_false(
     assert bare_model.is_tile_internal_pip("A", "Z") is False
 
 
-def test_is_tile_internal_pip_false_when_mapping_none(
-    bare_model: FABulousTileTimingModel,
-) -> None:
-    bare_model.internal_pips_grouped_by_inst = None
-    assert bare_model.is_tile_internal_pip("A", "Y") is False
-
-
 def test_is_tile_internal_pip_false_when_same_src_and_dst(
     bare_model: FABulousTileTimingModel,
 ) -> None:
@@ -920,64 +880,45 @@ def test_is_tile_internal_pip_false_when_same_src_and_dst(
 def test_internal_pip_delay_structural_no_mux_raises_indexerror(
     bare_model: FABulousTileTimingModel,
 ) -> None:
-    synth = DummyHdlnx()
-
-    def _find_instances_paths_with_all_nets(
-        _module_name: object, _nets: object, filter_regex: object = None
-    ) -> list[object]:
-        _ = filter_regex
-        return []
-
-    synth.find_instances_paths_with_all_nets = _find_instances_paths_with_all_nets
-
-    bare_model.hdlnx_tm_synth = synth
+    bare_model.internal_pips_grouped_by_inst = {"mux0": ["B", "Y"]}
 
     with pytest.raises(IndexError, match="list index out of range"):
         bare_model.internal_pip_delay_structural("A", "Y")
 
 
 def test_internal_pip_delay_structural_success_and_caches(
-    bare_model: FABulousTileTimingModel,
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def __init__(self) -> None:
-            super().__init__()
-            self.find_instances_calls = 0
-            self.resolve_calls = 0
-
-        def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
-        ) -> list[str]:
-            _ = filter_regex
-            self.find_instances_calls += 1
-            return ["mux0", "mux1"]
-
-        def net_to_pin_paths_for_instance_resolved(
-            self, _inst: object
-        ) -> dict[str, list[str]]:
-            self.resolve_calls += 1
-            return {
-                "A": ["mux0/A0", "mux0/A1"],
-                "Y": ["mux0/Y0", "mux0/Y1"],
-            }
-
         def single_delay(self, _src: object, _dst: object) -> float:
             return 0.123
 
-    synth = Synth()
-    bare_model.hdlnx_tm_synth = synth
+    netlist = mocker.create_autospec(NetlistIndex, instance=True)
+    netlist.net_leaf_pins.return_value = {
+        "A": ["mux0/A0", "mux0/A1"],
+        "Y": ["mux0/Y0", "mux0/Y1"],
+    }
+    bare_model.hdlnx_tm_synth = Synth()
+    bare_model.synth_netlist = netlist
+    bare_model.internal_pips_grouped_by_inst = {
+        "mux0": ["A", "Y"],
+        "mux1": ["A", "Y", "Z"],
+        "mux2": ["B", "Y"],
+    }
     bare_model.internal_pip_cache = {}
 
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
     assert delay == 0.123
-    assert synth.find_instances_calls == 1
-    assert synth.resolve_calls == 1
+    netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert "Y" in bare_model.internal_pip_cache
     cache_entry = bare_model.internal_pip_cache["Y"]
     assert isinstance(cache_entry, InternalPipCacheEntry)
     assert cache_entry.begin_pip == "Y"
-    assert cache_entry.swm_mux_for_pips == ["mux0", "mux1"]
+    assert cache_entry.swm_mux_for_pips == [
+        ("tile_inst_switch_matrix", "mux0"),
+        ("tile_inst_switch_matrix", "mux1"),
+    ]
     assert cache_entry.swm_mux_resolved == {
         "A": ["mux0/A0", "mux0/A1"],
         "Y": ["mux0/Y0", "mux0/Y1"],
@@ -985,36 +926,20 @@ def test_internal_pip_delay_structural_success_and_caches(
 
 
 def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
-    bare_model: FABulousTileTimingModel,
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def __init__(self) -> None:
-            super().__init__()
-            self.find_instances_calls = 0
-            self.resolve_calls = 0
-
-        def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
-        ) -> list[str]:
-            _ = filter_regex
-            self.find_instances_calls += 1
-            return ["should_not_be_used"]
-
-        def net_to_pin_paths_for_instance_resolved(
-            self, _inst: object
-        ) -> dict[str, list[str]]:
-            self.resolve_calls += 1
-            return {"bad": ["bad"]}
-
         def single_delay(self, _src: object, _dst: object) -> float:
             return 1.5
 
-    synth = Synth()
-    bare_model.hdlnx_tm_synth = synth
+    netlist = mocker.create_autospec(NetlistIndex, instance=True)
+    netlist.net_leaf_pins.return_value = {"bad": ["bad"]}
+    bare_model.hdlnx_tm_synth = Synth()
+    bare_model.synth_netlist = netlist
     bare_model.internal_pip_cache = {
         "Y": InternalPipCacheEntry(
             begin_pip="Y",
-            swm_mux_for_pips=["cached_mux"],
+            swm_mux_for_pips=[("cached_mux",)],
             swm_nearest_ports_in=None,
             swm_nearest_ports_out=None,
             swm_output_pin=None,
@@ -1028,33 +953,28 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
     assert delay == 1.5
-    assert synth.find_instances_calls == 0
-    assert synth.resolve_calls == 0
+    netlist.net_leaf_pins.assert_not_called()
 
 
 def test_internal_pip_delay_physical_cache_miss_multiple_ports(
-    bare_model: FABulousTileTimingModel,
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
+    netlist = mocker.create_autospec(NetlistIndex, instance=True)
+    netlist.net_leaf_pins.return_value = {"A": ["mux0/A"], "Y": ["mux0/Y"]}
+
     class Synth(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.find_instances_calls = 0
             self.nearest_calls = 0
 
-        def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
-        ) -> list[str]:
-            _ = filter_regex
-            self.find_instances_calls += 1
-            return ["mux0", "mux1"]
-
-        def nearest_ports_from_instance_pin_nets(
+        def nearest_ports_from_pins(
             self,
-            _inst_path: object,
+            net_pins: dict[str, list[str]],
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
             _ = num_ports
+            assert net_pins == netlist.net_leaf_pins.return_value
             self.nearest_calls += 1
             if reverse:
                 return (
@@ -1095,19 +1015,27 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.hdlnx_tm_phys = phys
+    bare_model.synth_netlist = netlist
+    bare_model.internal_pips_grouped_by_inst = {
+        "mux0": ["A", "Y"],
+        "mux1": ["A", "Y"],
+    }
     bare_model.internal_pip_cache = {}
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
     assert delay == 0.456
-    assert synth.find_instances_calls == 1
+    netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert synth.nearest_calls == 1
     assert phys.earliest_calls == 1
     assert "Y" in bare_model.internal_pip_cache
     cache_entry = bare_model.internal_pip_cache["Y"]
     assert isinstance(cache_entry, InternalPipCacheEntry)
     assert cache_entry.begin_pip == "Y"
-    assert cache_entry.swm_mux_for_pips == ["mux0", "mux1"]
+    assert cache_entry.swm_mux_for_pips == [
+        ("tile_inst_switch_matrix", "mux0"),
+        ("tile_inst_switch_matrix", "mux1"),
+    ]
     assert cache_entry.swm_nearest_ports_in == (
         {"A": ["IN_A"], "Y": ["IN_Y"]},
         ["IN_A", "IN_Y"],
@@ -1125,19 +1053,13 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             super().__init__()
             self.nearest_calls = 0
 
-        def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
-        ) -> list[str]:
-            _ = filter_regex
-            return ["mux0"]
-
-        def nearest_ports_from_instance_pin_nets(
+        def nearest_ports_from_pins(
             self,
-            _inst_path: object,
+            net_pins: dict[str, list[str]],
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
-            _ = num_ports
+            _ = (net_pins, num_ports)
             self.nearest_calls += 1
             if reverse:
                 return (
@@ -1173,6 +1095,7 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.hdlnx_tm_phys = phys
+    bare_model.internal_pips_grouped_by_inst = {"mux0": ["A", "Y"]}
     bare_model.internal_pip_cache = {}
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
@@ -1185,28 +1108,20 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
 
 
 def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
-    bare_model: FABulousTileTimingModel,
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
         def __init__(self) -> None:
             super().__init__()
-            self.find_instances_calls = 0
             self.nearest_calls = 0
 
-        def find_instances_paths_with_all_nets(
-            self, _module_name: object, _nets: object, filter_regex: object = None
-        ) -> list[str]:
-            _ = filter_regex
-            self.find_instances_calls += 1
-            return ["should_not_be_used"]
-
-        def nearest_ports_from_instance_pin_nets(
+        def nearest_ports_from_pins(
             self,
-            _inst_path: object,
+            net_pins: dict[str, list[str]],
             reverse: bool = False,
             num_ports: int = 1,
         ) -> tuple[dict[str, list[str]], list[str]]:
-            _ = (reverse, num_ports)
+            _ = (net_pins, reverse, num_ports)
             self.nearest_calls += 1
             return {"bad": ["bad"]}, ["bad"]
 
@@ -1238,13 +1153,16 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
 
     synth = Synth()
     phys = Phys()
+    netlist = mocker.create_autospec(NetlistIndex, instance=True)
+    netlist.net_leaf_pins.return_value = {"bad": ["bad"]}
 
     bare_model.hdlnx_tm_synth = synth
     bare_model.hdlnx_tm_phys = phys
+    bare_model.synth_netlist = netlist
     bare_model.internal_pip_cache = {
         "Y": InternalPipCacheEntry(
             begin_pip="Y",
-            swm_mux_for_pips=["cached_mux"],
+            swm_mux_for_pips=[("cached_mux",)],
             swm_nearest_ports_in=(
                 {"A": ["CACHED_IN"], "Y": ["CACHED_DST"]},
                 ["CACHED_IN", "CACHED_DST"],
@@ -1258,7 +1176,7 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
     assert delay == 1.234
-    assert synth.find_instances_calls == 0
+    netlist.net_leaf_pins.assert_not_called()
     assert synth.nearest_calls == 0
     assert phys.earliest_calls == 0
 
@@ -1348,7 +1266,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
     bare_model.internal_pip_cache = {
         "PIP_SRC": InternalPipCacheEntry(
             begin_pip="PIP_SRC",
-            swm_mux_for_pips=["mux0"],
+            swm_mux_for_pips=[("mux0",)],
             swm_nearest_ports_in=None,
             swm_nearest_ports_out=None,
             swm_output_pin=None,
@@ -1377,7 +1295,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
     bare_model.internal_pip_cache = {
         "PIP_SRC": InternalPipCacheEntry(
             begin_pip="PIP_SRC",
-            swm_mux_for_pips=["mux0"],
+            swm_mux_for_pips=[("mux0",)],
             swm_nearest_ports_in=None,
             swm_nearest_ports_out=None,
             swm_output_pin=None,
@@ -1473,7 +1391,7 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
     bare_model.internal_pip_cache = {
         "PIP_SRC": InternalPipCacheEntry(
             begin_pip="PIP_SRC",
-            swm_mux_for_pips=["mux0"],
+            swm_mux_for_pips=[("mux0",)],
             swm_nearest_ports_in=None,
             swm_nearest_ports_out=None,
             swm_output_pin=(["PHYS_OUT_PIN"], 1, {}),
@@ -1502,7 +1420,7 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
     bare_model.internal_pip_cache = {
         "PIP_SRC": InternalPipCacheEntry(
             begin_pip="PIP_SRC",
-            swm_mux_for_pips=["mux0"],
+            swm_mux_for_pips=[("mux0",)],
             swm_nearest_ports_in=None,
             swm_nearest_ports_out=None,
             swm_output_pin=(["PHYS_OUT_PIN"], 1, {}),

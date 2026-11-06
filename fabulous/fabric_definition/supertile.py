@@ -290,6 +290,46 @@ class SuperTile:
         """
         return f"Inst_{self.name}_switch_matrix"
 
+    def tile_instance_name(self, x: int, y: int) -> str:
+        """Return the instance name the supertile generator gives the tile at `(x, y)`.
+
+        Parameters
+        ----------
+        x : int
+            Column of the tile in `tileMap`.
+        y : int
+            Row of the tile in `tileMap`.
+
+        Returns
+        -------
+        str
+            `Tile_X{x}Y{y}_{tile name}`.
+
+        Raises
+        ------
+        ValueError
+            If `tileMap` holds no tile at `(x, y)`.
+        """
+        tile = self.tileMap[y][x]
+        if tile is None:
+            raise ValueError(f"Supertile {self.name!r} has no tile at ({x}, {y}).")
+        return f"Tile_X{x}Y{y}_{tile.name}"
+
+    def bel_instance_name(self, bel: Bel) -> str:
+        """Return the instance name the supertile generator gives one of its own BELs.
+
+        Parameters
+        ----------
+        bel : Bel
+            A BEL of `bels`.
+
+        Returns
+        -------
+        str
+            `Inst_ST_{prefix}{name}`.
+        """
+        return f"Inst_ST_{bel.prefix}{bel.name}"
+
     @property
     def directory(self) -> Path:
         """The directory the supertile's wrapper and its child tiles sit in.

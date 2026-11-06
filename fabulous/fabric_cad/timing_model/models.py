@@ -17,6 +17,8 @@ from pathlib import Path
 import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field
 
+from fabulous.fabric_cad.timing_model.netlist import HierPath
+
 
 class SDFCellType(StrEnum):
     """Enumeration of cell types for the SDF timing model.
@@ -486,7 +488,7 @@ class InternalPipCacheEntry:
     ----------
     begin_pip : str
         The begin pip for the internal pip delay calculation.
-    swm_mux_for_pips : list[str]
+    swm_mux_for_pips : list[HierPath]
         The list of switch matrix multiplexers (swm mux) that are relevant for the
         source and destination pips.
     swm_nearest_ports_in : tuple[dict[str, list[str]], list[str]] | None
@@ -513,7 +515,7 @@ class InternalPipCacheEntry:
     """
 
     begin_pip: str
-    swm_mux_for_pips: list[str]
+    swm_mux_for_pips: list[HierPath]
     swm_nearest_ports_in: tuple[dict[str, list[str]], list[str]] | None
     swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None
     swm_output_pin: tuple[list[str], float | None, dict[str, dict[str, float]]] | None

@@ -59,7 +59,8 @@ def tile_model(mocker: MockerFixture) -> MockType:
     )
     model = model_class.return_value
     model.pip_delay.return_value = 6.0
-    model.bel_timing.side_effect = lambda bel: BelArcs(
+    model.tile_scope = ()
+    model.bel_timing.side_effect = lambda bel, **_: BelArcs(
         delays=(DelayArc(BelPin("I0"), BelPin("O"), ns(len(bel.prefix))),)
     )
     return model
@@ -76,6 +77,12 @@ def test_characterize_times_each_pip_and_bel_of_a_tile_type_once(
     pip = SwitchPip(src="LONG_O", dst="LA_I0")
     assert timing.pips.tile_delay("LUT4AB", pip) == ns(6.0)
     la, long = two_lut_tiles.tile[0][0].bels
+    assert [
+        call.kwargs["instance"] for call in tile_model.bel_timing.call_args_list
+    ] == [
+        (la.instance_name,),
+        (long.instance_name,),
+    ]
     assert timing.bels.tile_arcs("LUT4AB", la).delays[0].delay == ns(3)
     assert timing.bels.tile_arcs("LUT4AB", long).delays[0].delay == ns(5)
 
