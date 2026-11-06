@@ -2,10 +2,12 @@
 
 This module is the only user of `sdf_toolkit`. It parses the SDF, turns its IOPATH and
 INTERCONNECT entries into a `networkx` graph of pins, and answers the path queries the
-FABulous timing model needs.
+FABulous timing model needs. `sdf_toolkit` parses SDF numbers as `float`; each one is
+converted to `Decimal` here, once, so all timing arithmetic is exact.
 """
 
 from dataclasses import replace
+from decimal import Decimal
 from functools import cached_property
 from itertools import islice, pairwise
 from math import isclose
@@ -16,6 +18,7 @@ from loguru import logger
 from sdf_toolkit import parse_sdf_file
 from sdf_toolkit.core.model import BaseEntry, DelayPaths, EntryType, Values
 
+from fabulous.fabric_cad.timing_db import ns
 from fabulous.fabric_cad.timing_model.models import (
     Component,
     DelayType,
@@ -31,7 +34,11 @@ def _triplet(values: Values | None) -> SDFTimingTriplet | None:
     """Convert an `sdf_toolkit` value triple into the timing model's triple."""
     if values is None:
         return None
-    return SDFTimingTriplet(minimum=values.min, typical=values.avg, maximum=values.max)
+    return SDFTimingTriplet(
+        minimum=None if values.min is None else ns(values.min),
+        typical=None if values.avg is None else ns(values.avg),
+        maximum=None if values.max is None else ns(values.max),
+    )
 
 
 def _delay_paths(delay_paths: DelayPaths) -> SDFDelayPaths:
@@ -43,7 +50,7 @@ def _delay_paths(delay_paths: DelayPaths) -> SDFDelayPaths:
     )
 
 
-def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> float:
+def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> Decimal:
     """Reduce the delay triples of one entry to the graph edge weight.
 
     A nominal triple gives the larger of its minimum and maximum. Otherwise the fast
@@ -58,7 +65,7 @@ def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> float:
 
     Returns
     -------
-    float
+    Decimal
         The edge weight.
 
     Raises
@@ -69,15 +76,16 @@ def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> float:
     empty = SDFTimingTriplet(minimum=None, typical=None, maximum=None)
     if delay_paths.nominal is not None:
         return max(
-            delay_paths.nominal.minimum or 0.0, delay_paths.nominal.maximum or 0.0
+            delay_paths.nominal.minimum or Decimal(0),
+            delay_paths.nominal.maximum or Decimal(0),
         )
 
     fast = delay_paths.fast or empty
     slow = delay_paths.slow or empty
-    fast_min = fast.minimum or 0.0
-    fast_max = fast.maximum or 0.0
-    slow_min = slow.minimum or 0.0
-    slow_max = slow.maximum or 0.0
+    fast_min = fast.minimum or Decimal(0)
+    fast_max = fast.maximum or Decimal(0)
+    slow_min = slow.minimum or Decimal(0)
+    slow_max = slow.maximum or Decimal(0)
 
     match kind:
         case DelayType.MIN_ALL:
@@ -85,11 +93,11 @@ def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> float:
         case DelayType.MAX_ALL:
             return max(fast_min, fast_max, slow_min, slow_max)
         case DelayType.AVG_ALL:
-            return (fast_min + fast_max + slow_min + slow_max) / 4.0
+            return (fast_min + fast_max + slow_min + slow_max) / 4
         case DelayType.AVG_FAST:
-            return (fast_min + fast_max) / 2.0
+            return (fast_min + fast_max) / 2
         case DelayType.AVG_SLOW:
-            return (slow_min + slow_max) / 2.0
+            return (slow_min + slow_max) / 2
         case DelayType.MAX_FAST:
             return max(fast_min, fast_max)
         case DelayType.MAX_SLOW:
@@ -205,7 +213,7 @@ class SdfTimingGraph:
                                 connection_string=entry_name.split("_", 1)[-1],
                                 from_cell_pin=component.to_cell_pin,
                                 to_cell_pin=component.from_cell_pin,
-                                delay=0.0,
+                                delay=Decimal(0),
                                 delay_paths=None,
                                 from_pin_edge=None,
                                 to_pin_edge=None,
@@ -331,7 +339,7 @@ class SdfTimingGraph:
         """
         return nx.has_path(self.graph, source=source, target=target)
 
-    def single_delay(self, source: str, target: str) -> float:
+    def single_delay(self, source: str, target: str) -> Decimal:
         """Find path with delay between source and target nodes in the timing graph.
 
         Note: The delay value depends on delay_type_str when creating the graph.
@@ -350,7 +358,7 @@ class SdfTimingGraph:
 
         Returns
         -------
-        float
+        Decimal
             The total delay between the source and target nodes.
 
         Examples
@@ -360,10 +368,12 @@ class SdfTimingGraph:
         logger.warning(
             "single_delay() is deprecated. Use query_timing_paths() instead."
         )
-        length: float = nx.dijkstra_path_length(
+        length: Decimal | int = nx.dijkstra_path_length(
             self.graph, source=source, target=target, weight="weight"
         )
-        return length
+        # networkx returns the int 0 for an empty path. Adding to Decimal(0) gives a
+        # Decimal and raises TypeError on a float weight.
+        return Decimal(0) + length
 
     def query_timing_paths(
         self,
@@ -849,7 +859,9 @@ class SdfTimingGraph:
         rise_values: list[SDFTimingTriplet] = []
         fall_values: list[SDFTimingTriplet] = []
         high_impedance_values: list[SDFTimingTriplet | None] = []
-        zero_delay = SDFTimingTriplet(minimum=0.0, typical=0.0, maximum=0.0)
+        zero_delay = SDFTimingTriplet(
+            minimum=Decimal(0), typical=Decimal(0), maximum=Decimal(0)
+        )
         for component in components:
             if component.delay_paths is None:
                 rise_values.append(zero_delay)
@@ -1018,22 +1030,31 @@ class SdfTimingGraph:
             Component-wise path sum. A field remains `None` if any traversed
             component does not provide that field.
         """
-        minimum_values: list[float | None] = [value.minimum for value in values]
-        typical_values: list[float | None] = [value.typical for value in values]
-        maximum_values: list[float | None] = [value.maximum for value in values]
+        minimum_values: list[Decimal | None] = [value.minimum for value in values]
+        typical_values: list[Decimal | None] = [value.typical for value in values]
+        maximum_values: list[Decimal | None] = [value.maximum for value in values]
         return SDFTimingTriplet(
             minimum=(
-                sum(value for value in minimum_values if value is not None)
+                sum(
+                    (value for value in minimum_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in minimum_values)
                 else None
             ),
             typical=(
-                sum(value for value in typical_values if value is not None)
+                sum(
+                    (value for value in typical_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in typical_values)
                 else None
             ),
             maximum=(
-                sum(value for value in maximum_values if value is not None)
+                sum(
+                    (value for value in maximum_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in maximum_values)
                 else None
             ),
@@ -1043,7 +1064,7 @@ class SdfTimingGraph:
         self,
         rise: SDFTimingTriplet,
         fall: SDFTimingTriplet,
-    ) -> tuple[float | None, float | None, float | None, float | None]:
+    ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
         """Return conservative extrema across rise and fall transitions.
 
         Parameters
@@ -1055,26 +1076,26 @@ class SdfTimingGraph:
 
         Returns
         -------
-        tuple[float | None, float | None, float | None, float | None]
+        tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]
             Minimum, typical minimum, typical maximum, and maximum values. An
             extremum is `None` when either transition does not provide that corner.
         """
-        minimum: float | None = (
+        minimum: Decimal | None = (
             min(rise.minimum, fall.minimum)
             if rise.minimum is not None and fall.minimum is not None
             else None
         )
-        typical_minimum: float | None = (
+        typical_minimum: Decimal | None = (
             min(rise.typical, fall.typical)
             if rise.typical is not None and fall.typical is not None
             else None
         )
-        typical_maximum: float | None = (
+        typical_maximum: Decimal | None = (
             max(rise.typical, fall.typical)
             if rise.typical is not None and fall.typical is not None
             else None
         )
-        maximum: float | None = (
+        maximum: Decimal | None = (
             max(rise.maximum, fall.maximum)
             if rise.maximum is not None and fall.maximum is not None
             else None
@@ -1083,24 +1104,24 @@ class SdfTimingGraph:
 
     def _sum_and_subtract(
         self,
-        first_addend: float | None,
-        second_addend: float | None,
-        subtrahend: float | None,
-    ) -> float | None:
+        first_addend: Decimal | None,
+        second_addend: Decimal | None,
+        subtrahend: Decimal | None,
+    ) -> Decimal | None:
         """Add two timing values and subtract a third when all are available.
 
         Parameters
         ----------
-        first_addend : float | None
+        first_addend : Decimal | None
             First value to add.
-        second_addend : float | None
+        second_addend : Decimal | None
             Second value to add.
-        subtrahend : float | None
+        subtrahend : Decimal | None
             Value to subtract.
 
         Returns
         -------
-        float | None
+        Decimal | None
             Calculated value, or `None` when any operand is unavailable.
         """
         if first_addend is None or second_addend is None or subtrahend is None:

@@ -1,5 +1,6 @@
 """Tests for the SDF timing graph, built from real SDF text."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import networkx as nx
@@ -82,45 +83,84 @@ def shared_graph(tmp_path: Path) -> SdfTimingGraph:
     return graph_of(tmp_path, top_cell(interconnects(SHARED_EDGES)))
 
 
-def values(
-    timing: SDFTimingTriplet | None,
-) -> tuple[float | None, float | None, float | None]:
-    """Return a triple as a tuple, so `pytest.approx` can compare it."""
-    assert timing is not None
-    return (timing.minimum, timing.typical, timing.maximum)
+def triplet(
+    minimum: str | None, typical: str | None, maximum: str | None
+) -> SDFTimingTriplet:
+    """Return the triple of the given decimal texts."""
+    return SDFTimingTriplet(
+        minimum=None if minimum is None else Decimal(minimum),
+        typical=None if typical is None else Decimal(typical),
+        maximum=None if maximum is None else Decimal(maximum),
+    )
 
 
 @pytest.mark.parametrize(
     ("delays", "kind", "expected"),
     [
-        pytest.param("(1::2) (3::4)", DelayType.MIN_ALL, 1.0, id="min-all"),
-        pytest.param("(1::2) (3::4)", DelayType.MAX_ALL, 4.0, id="max-all"),
-        pytest.param("(1::2) (3::4)", DelayType.AVG_ALL, 2.5, id="avg-all"),
-        pytest.param("(1::2) (3::4)", DelayType.AVG_FAST, 1.5, id="avg-fast"),
-        pytest.param("(1::2) (3::4)", DelayType.AVG_SLOW, 3.5, id="avg-slow"),
-        pytest.param("(1::2) (3::4)", DelayType.MAX_FAST, 2.0, id="max-fast"),
-        pytest.param("(1::2) (3::4)", DelayType.MAX_SLOW, 4.0, id="max-slow"),
-        pytest.param("(1::2) (3::4)", DelayType.MIN_FAST, 1.0, id="min-fast"),
-        pytest.param("(1::2) (3::4)", DelayType.MIN_SLOW, 3.0, id="min-slow"),
+        pytest.param("(1::2) (3::4)", DelayType.MIN_ALL, Decimal("1.0"), id="min-all"),
+        pytest.param("(1::2) (3::4)", DelayType.MAX_ALL, Decimal("4.0"), id="max-all"),
+        pytest.param("(1::2) (3::4)", DelayType.AVG_ALL, Decimal("2.5"), id="avg-all"),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.AVG_FAST, Decimal("1.5"), id="avg-fast"
+        ),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.AVG_SLOW, Decimal("3.5"), id="avg-slow"
+        ),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.MAX_FAST, Decimal("2.0"), id="max-fast"
+        ),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.MAX_SLOW, Decimal("4.0"), id="max-slow"
+        ),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.MIN_FAST, Decimal("1.0"), id="min-fast"
+        ),
+        pytest.param(
+            "(1::2) (3::4)", DelayType.MIN_SLOW, Decimal("3.0"), id="min-slow"
+        ),
         pytest.param(
             "(100::200) (2::8) (300::400)",
             DelayType.MIN_ALL,
-            8.0,
+            Decimal("8.0"),
             id="nominal-overrides-min",
         ),
         pytest.param(
             "(100::200) (2::8) (300::400)",
             DelayType.MAX_ALL,
-            8.0,
+            Decimal("8.0"),
             id="nominal-overrides-max",
         ),
-        pytest.param("(::1.5) (2.5::)", DelayType.MIN_ALL, 0.0, id="missing-min"),
-        pytest.param("(::1.5) (2.5::)", DelayType.MAX_ALL, 2.5, id="missing-max"),
-        pytest.param("(::1.5) (2.5::)", DelayType.AVG_ALL, 1.0, id="missing-avg"),
+        pytest.param(
+            "(::1.5) (2.5::)", DelayType.MIN_ALL, Decimal("0.0"), id="missing-min"
+        ),
+        pytest.param(
+            "(::1.5) (2.5::)", DelayType.MAX_ALL, Decimal("2.5"), id="missing-max"
+        ),
+        pytest.param(
+            "(::1.5) (2.5::)", DelayType.AVG_ALL, Decimal("1.0"), id="missing-avg"
+        ),
+        pytest.param(
+            "(0.123::0.124) (3::4)",
+            DelayType.AVG_FAST,
+            Decimal("0.1235"),
+            id="avg-fast-sub-ps",
+        ),
+        pytest.param(
+            "(0.001::0.002) (0.003::0.004)",
+            DelayType.AVG_SLOW,
+            Decimal("0.0035"),
+            id="avg-slow-sub-ps",
+        ),
+        pytest.param(
+            "(0.001::0.002) (0.003::0.004)",
+            DelayType.AVG_ALL,
+            Decimal("0.0025"),
+            id="avg-all-sub-ps",
+        ),
     ],
 )
 def test_edge_weight_reduces_delays_by_delay_type(
-    tmp_path: Path, delays: str, kind: DelayType, expected: float
+    tmp_path: Path, delays: str, kind: DelayType, expected: Decimal
 ) -> None:
     cell = (
         '(CELL (CELLTYPE "BUF") (INSTANCE U1) '
@@ -129,7 +169,34 @@ def test_edge_weight_reduces_delays_by_delay_type(
 
     graph = graph_of(tmp_path, cell, delay_type=kind)
 
-    assert graph.graph["U1/A"]["U1/Y"]["weight"] == pytest.approx(expected)
+    assert graph.graph["U1/A"]["U1/Y"]["weight"] == expected
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "total"),
+    [
+        pytest.param("0.1", "0.2", "0.3", id="binary-inexact"),
+        pytest.param("0.001", "0.002", "0.003", id="1ps"),
+        pytest.param("1.005", "2.115", "3.120", id="3dp"),
+        pytest.param("0.050", "-0.028", "0.022", id="negative"),
+    ],
+)
+def test_sdf_values_are_exact_decimals(
+    tmp_path: Path, first: str, second: str, total: str
+) -> None:
+    graph = graph_of(
+        tmp_path,
+        top_cell(
+            f"(INTERCONNECT A B ({first}::{first})) "
+            f"(INTERCONNECT B C ({second}::{second}))"
+        ),
+    )
+
+    weight = graph.graph["A"]["B"]["weight"]
+    assert isinstance(weight, Decimal)
+    assert weight == Decimal(first)
+    assert graph.single_delay("A", "C") == Decimal(total)
+    assert graph.query_timing_paths("A", "C")[0].rise == triplet(total, None, total)
 
 
 def test_unknown_delay_type_raises(tmp_path: Path) -> None:
@@ -158,7 +225,7 @@ def test_graph_holds_cell_and_interconnect_components(tmp_path: Path) -> None:
         ("U2/Q", "OUT"),
     }
     iopath = graph.graph["U1/A"]["U1/Y"]
-    assert iopath["weight"] == 4.0
+    assert iopath["weight"] == Decimal(4)
     assert iopath["component"].c_type == SDFCellType.IOPATH
     assert iopath["component"].cell_name == "BUF_X1"
     assert iopath["component"].is_one_cell_instance is True
@@ -169,14 +236,14 @@ def test_graph_holds_cell_and_interconnect_components(tmp_path: Path) -> None:
     assert (interconnect.to_cell_instance, interconnect.to_cell_pin) == ("U2", "A")
     assert interconnect.is_one_cell_instance is False
     assert interconnect.is_incremental is True
-    assert graph.graph["U1/Y"]["U2/A"]["weight"] == 0.4
+    assert graph.graph["U1/Y"]["U2/A"]["weight"] == Decimal("0.4")
     output = graph.graph["U2/Q"]["OUT"]["component"]
     assert (output.to_cell_instance, output.to_cell_pin) == ("", "OUT")
     assert output.is_cond is True
     assert output.cond_equation == "EN == 1'b1"
-    assert graph.graph["U2/Q"]["OUT"]["weight"] == 0.7
+    assert graph.graph["U2/Q"]["OUT"]["weight"] == Decimal("0.7")
     assert [c.c_type for c in graph.instances["U2"]] == [SDFCellType.IOPATH]
-    assert graph.instances["U2"][0].delay == 7.5
+    assert graph.instances["U2"][0].delay == Decimal("7.5")
     assert graph.input_ports == ["IN"]
     assert graph.output_ports == ["OUT"]
 
@@ -221,7 +288,7 @@ def test_timing_checks_add_data_to_clock_edges(tmp_path: Path) -> None:
     graph = graph_of(tmp_path, dff_cell("U_FF"))
 
     edge = graph.graph["U_FF/D"]["U_FF/CLK"]
-    assert edge["weight"] == 0.0
+    assert edge["weight"] == Decimal(0)
     assert edge["component"].is_timing_check is True
     assert edge["component"].delay_paths is None
     assert [c.c_type for c in graph.instances["U_FF"]] == [
@@ -254,13 +321,15 @@ def test_has_path(
 
 
 @pytest.mark.parametrize(
-    ("target", "expected"), [("E", 7.0), ("D", 3.0)], ids=["to-sink", "fewer-edges"]
+    ("target", "expected"),
+    [("E", Decimal(7)), ("D", Decimal(3))],
+    ids=["to-sink", "fewer-edges"],
 )
 def test_single_delay_returns_the_lowest_total_delay(
     shared_graph: SdfTimingGraph,
     caplog: pytest.LogCaptureFixture,
     target: str,
-    expected: float,
+    expected: Decimal,
 ) -> None:
     assert shared_graph.single_delay("A", target) == expected
     assert "single_delay() is deprecated" in caplog.text
@@ -285,29 +354,29 @@ def test_queries_raise_when_no_path_exists(
     [
         pytest.param(
             "(1:4:9)",
-            SDFTimingTriplet(minimum=1.0, typical=4.0, maximum=9.0),
-            SDFTimingTriplet(minimum=1.0, typical=4.0, maximum=9.0),
-            SDFTimingTriplet(minimum=1.0, typical=4.0, maximum=9.0),
+            triplet("1.0", "4.0", "9.0"),
+            triplet("1.0", "4.0", "9.0"),
+            triplet("1.0", "4.0", "9.0"),
             id="single-transition-value",
         ),
         pytest.param(
             "(1:2:3) (4:5:6)",
-            SDFTimingTriplet(minimum=1.0, typical=2.0, maximum=3.0),
-            SDFTimingTriplet(minimum=4.0, typical=5.0, maximum=6.0),
+            triplet("1.0", "2.0", "3.0"),
+            triplet("4.0", "5.0", "6.0"),
             None,
             id="rise-and-fall",
         ),
         pytest.param(
             "(1:2:3) (4:5:6) (7:8:9)",
-            SDFTimingTriplet(minimum=1.0, typical=2.0, maximum=3.0),
-            SDFTimingTriplet(minimum=4.0, typical=5.0, maximum=6.0),
-            SDFTimingTriplet(minimum=7.0, typical=8.0, maximum=9.0),
+            triplet("1.0", "2.0", "3.0"),
+            triplet("4.0", "5.0", "6.0"),
+            triplet("7.0", "8.0", "9.0"),
             id="rise-fall-and-high-impedance",
         ),
         pytest.param(
             "(:2:3) (4::6)",
-            SDFTimingTriplet(minimum=None, typical=2.0, maximum=3.0),
-            SDFTimingTriplet(minimum=4.0, typical=None, maximum=6.0),
+            triplet(None, "2.0", "3.0"),
+            triplet("4.0", None, "6.0"),
             None,
             id="missing-triplet-values",
         ),
@@ -348,8 +417,8 @@ def test_query_timing_paths_orders_paths_by_edges_not_delay(tmp_path: Path) -> N
         ("A", "B", "Z"),
         ("A", "C", "D", "Z"),
     ]
-    assert values(path_timings[0].rise) == pytest.approx((8.0, 10.0, 12.0))
-    assert values(path_timings[1].rise) == pytest.approx((0.3, 0.6, 0.9))
+    assert path_timings[0].rise == triplet("8", "10", "12")
+    assert path_timings[1].rise == triplet("0.3", "0.6", "0.9")
 
 
 def test_query_timing_paths_returns_sequential_checks_and_conditions(
@@ -367,14 +436,10 @@ def test_query_timing_paths_returns_sequential_checks_and_conditions(
     path_timing = graph.query_timing_paths("U_FF/D", "U_FF/Q")[0]
 
     assert path_timing.path_type == SDFPathType.SEQUENTIAL
-    assert path_timing.rise == SDFTimingTriplet(minimum=0.4, typical=0.5, maximum=0.6)
-    assert path_timing.fall == SDFTimingTriplet(minimum=0.7, typical=0.8, maximum=0.9)
-    assert path_timing.setup == (
-        SDFTimingTriplet(minimum=0.1, typical=0.2, maximum=0.3),
-    )
-    assert path_timing.hold == (
-        SDFTimingTriplet(minimum=0.01, typical=0.02, maximum=0.03),
-    )
+    assert path_timing.rise == triplet("0.4", "0.5", "0.6")
+    assert path_timing.fall == triplet("0.7", "0.8", "0.9")
+    assert path_timing.setup == (triplet("0.1", "0.2", "0.3"),)
+    assert path_timing.hold == (triplet("0.01", "0.02", "0.03"),)
     assert [check.c_type for check in path_timing.timing_checks] == [
         SDFCellType.SETUP,
         SDFCellType.HOLD,
@@ -401,8 +466,14 @@ def test_query_timing_paths_keeps_every_check_of_a_pin_pair(tmp_path: Path) -> N
 
     path_timing = graph.query_timing_paths("U_FF/D", "U_FF/Q")[0]
 
-    assert [setup.maximum for setup in path_timing.setup] == [0.050, 0.101]
-    assert [hold.maximum for hold in path_timing.hold] == [-0.028, -0.045]
+    assert [setup.maximum for setup in path_timing.setup] == [
+        Decimal("0.050"),
+        Decimal("0.101"),
+    ]
+    assert [hold.maximum for hold in path_timing.hold] == [
+        Decimal("-0.028"),
+        Decimal("-0.045"),
+    ]
 
 
 def test_query_timing_paths_calculates_effective_sequential_timing(
@@ -421,20 +492,16 @@ def test_query_timing_paths_calculates_effective_sequential_timing(
     path_timing = graph.query_timing_paths("DATA_IN", "OUT", clock_pin="CLK_IN")[0]
 
     assert path_timing.register_clock_pin == "U_FF/CLK"
-    assert [values(setup) for setup in path_timing.effective_setup] == [
-        pytest.approx((0.6, 2.4, 4.1))
-    ]
-    assert [values(hold) for hold in path_timing.effective_hold] == [
-        pytest.approx((-3.79, -1.63, -0.47))
-    ]
-    assert values(path_timing.clock_to_output_rise) == pytest.approx((0.7, 1.0, 1.3))
-    assert values(path_timing.clock_to_output_fall) == pytest.approx((1.05, 1.35, 1.7))
+    assert path_timing.effective_setup == (triplet("0.6", "2.4", "4.1"),)
+    assert path_timing.effective_hold == (triplet("-3.79", "-1.63", "-0.47"),)
+    assert path_timing.clock_to_output_rise == triplet("0.7", "1.0", "1.3")
+    assert path_timing.clock_to_output_fall == triplet("1.05", "1.35", "1.7")
 
 
 def test_query_timing_paths_uses_each_sequential_paths_clock_to_output_suffix(
     tmp_path: Path,
 ) -> None:
-    registers = (("U_FF_1", 0.1, 1.0), ("U_FF_2", 2.0, 4.0))
+    registers = (("U_FF_1", "0.1", "1.0"), ("U_FF_2", "2.0", "4.0"))
     graph = graph_of(
         tmp_path,
         top_cell(
@@ -455,7 +522,8 @@ def test_query_timing_paths_uses_each_sequential_paths_clock_to_output_suffix(
         ),
     )
     expected_delays = {
-        f"{register}/CLK": clock + delay + 0.3 for register, clock, delay in registers
+        f"{register}/CLK": Decimal(clock) + Decimal(delay) + Decimal("0.3")
+        for register, clock, delay in registers
     }
 
     path_timings = graph.query_timing_paths(
@@ -466,8 +534,8 @@ def test_query_timing_paths_uses_each_sequential_paths_clock_to_output_suffix(
     for path_timing in path_timings:
         assert path_timing.register_clock_pin is not None
         expected = expected_delays[path_timing.register_clock_pin]
-        assert values(path_timing.clock_to_output_rise) == pytest.approx(
-            (expected, expected, expected)
+        assert path_timing.clock_to_output_rise == SDFTimingTriplet(
+            minimum=expected, typical=expected, maximum=expected
         )
         assert path_timing.clock_to_output_fall == path_timing.clock_to_output_rise
 
@@ -513,7 +581,7 @@ def test_query_timing_paths_source_equals_target_has_zero_delay(
 
     assert path_timing.nodes == ("A",)
     assert path_timing.components == ()
-    assert path_timing.rise == SDFTimingTriplet(minimum=0, typical=0, maximum=0)
+    assert path_timing.rise == triplet("0", "0", "0")
     assert path_timing.fall == path_timing.rise
 
 

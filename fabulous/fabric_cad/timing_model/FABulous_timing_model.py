@@ -11,6 +11,7 @@ approaches.
 
 import re
 from copy import copy
+from decimal import Decimal
 from pathlib import Path
 
 import networkx as nx
@@ -26,7 +27,6 @@ from fabulous.fabric_cad.timing_db import (
     FeatureIs,
     Ns,
     SetupHoldArc,
-    ns,
 )
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.models import (
@@ -500,7 +500,7 @@ class FABulousTileTimingModel:
             return False
         return bool(self._switch_matrix_muxes(pip_src, pip_dst))
 
-    def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay between two PIPs in the switch matrix.
 
         It is the fast variant that does not need physical design information,
@@ -515,7 +515,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Delay in nanoseconds between the two PIPs.
         """
         logger.info(
@@ -599,7 +599,7 @@ class FABulousTileTimingModel:
 
         return delay
 
-    def internal_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay_physical(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay between two PIPs using physical design information.
 
         This method uses the physical-level timing model to provide more
@@ -627,7 +627,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Delay in nanoseconds between the two PIPs.
         """
         logger.info(
@@ -761,7 +761,7 @@ class FABulousTileTimingModel:
 
         return delay
 
-    def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay for external PIPs between the tile and the next tile.
 
         Structural approach. It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM
@@ -776,7 +776,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Estimated delay in nanoseconds for the external PIP.
         """
         logger.info(
@@ -790,7 +790,7 @@ class FABulousTileTimingModel:
         synth_model = self.hdlnx_tm_synth
 
         # In general try to avoid delay of 0.
-        default_delay: float = 0.001
+        default_delay = Decimal("0.001")
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
         pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
@@ -849,12 +849,12 @@ class FABulousTileTimingModel:
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )
 
-        if delay < 1e-5:
+        if delay < Decimal("1e-5"):
             return default_delay
 
         return delay
 
-    def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay for external PIPs between the tile and the next tile.
 
         Physical approach. It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output
@@ -871,7 +871,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Estimated delay in nanoseconds for the external PIP.
         """
         logger.info(
@@ -884,7 +884,7 @@ class FABulousTileTimingModel:
 
         phys_model = self.hdlnx_tm_phys
 
-        default_delay: float = 0.001
+        default_delay = Decimal("0.001")
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
         pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
@@ -943,12 +943,12 @@ class FABulousTileTimingModel:
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )
 
-        if delay < 1e-5:
+        if delay < Decimal("1e-5"):
             return default_delay
 
         return delay
 
-    def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay(self, pip_src: str, pip_dst: str) -> Decimal:
         """Choose the method to calculate internal PIP delay based on the mode.
 
         (physical or structural).
@@ -962,14 +962,14 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Calculated delay in nanoseconds for the internal PIP.
         """
         if self.tm_config.mode == TimingModelMode.PHYSICAL:
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         return self.internal_pip_delay_structural(pip_src, pip_dst)
 
-    def external_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay(self, pip_src: str, pip_dst: str) -> Decimal:
         """Choose the method to calculate external PIP delay based on the mode.
 
         (physical or structural).
@@ -983,14 +983,35 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Calculated delay in nanoseconds for the external PIP.
         """
         if self.tm_config.mode == TimingModelMode.PHYSICAL:
             return self.external_pip_delay_physical(pip_src, pip_dst)
         return self.external_pip_delay_structural(pip_src, pip_dst)
 
-    def pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def _scaled(self, delay: Decimal) -> Ns:
+        """Return `delay` scaled by the configured `delay_scaling_factor`.
+
+        Parameters
+        ----------
+        delay : Decimal
+            Unscaled delay in nanoseconds.
+
+        Returns
+        -------
+        Ns
+            The exact scaled delay.
+        """
+        scaled = delay * self.tm_config.delay_scaling_factor
+        # The nextpnr timing file format: no trailing zeros, one decimal place at
+        # least.
+        scaled = scaled.normalize()
+        if scaled == scaled.to_integral_value():
+            scaled = scaled.quantize(Decimal("0.1"))
+        return Ns(scaled)
+
+    def pip_delay(self, pip_src: str, pip_dst: str) -> Ns:
         """Calculate the delay for a PIP, choosing between internal and external.
 
         Parameters
@@ -1002,29 +1023,12 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
-            Calculated delay in nanoseconds for the PIP.
+        Ns
+            Scaled delay in nanoseconds for the PIP.
         """
-        d_scale: float = self.tm_config.delay_scaling_factor
-
-        def _round(x: float) -> float:
-            """Apply configured scaling and nextpnr output precision.
-
-            Parameters
-            ----------
-            x : float
-                Unscaled delay in nanoseconds.
-
-            Returns
-            -------
-            float
-                Scaled delay rounded to three decimal places.
-            """
-            return round(x * d_scale, 3)
-
         if self.is_tile_internal_pip(pip_src, pip_dst):
-            return _round(self.internal_pip_delay(pip_src, pip_dst))
-        return _round(self.external_pip_delay(pip_src, pip_dst))
+            return self._scaled(self.internal_pip_delay(pip_src, pip_dst))
+        return self._scaled(self.external_pip_delay(pip_src, pip_dst))
 
     def bel_timing(self, bel: Bel, *, instance: HierPath) -> BelArcs:
         """Return characterized combinational and sequential timing for one BEL.
@@ -1045,8 +1049,8 @@ class FABulousTileTimingModel:
         Returns
         -------
         BelArcs
-            Timing arcs from the synthesis graph in BEL port names, scaled
-            and rounded to the nextpnr output precision.
+            Timing arcs from the synthesis graph in BEL port names, scaled by
+            `delay_scaling_factor`.
 
         Raises
         ------
@@ -1125,12 +1129,8 @@ class FABulousTileTimingModel:
                 return (FeatureIs(feature, True),)
             return ff_condition
 
-        def scaled(value: float) -> Ns:
-            """Apply the same scaling and precision as the PIP timing output."""
-            return ns(round(value * self.tm_config.delay_scaling_factor, 3))
-
-        setup_holds: dict[tuple[BelPin, BelPin], tuple[float, float]] = {}
-        clock_delays: dict[tuple[BelPin, BelPin], float] = {}
+        setup_holds: dict[tuple[BelPin, BelPin], tuple[Decimal, Decimal]] = {}
+        clock_delays: dict[tuple[BelPin, BelPin], Decimal] = {}
         for data_pin, register_clock in register_pins:
             for clock, clock_source in clock_sources.get(register_clock, []):
                 for port, pins in input_pins.items():
@@ -1187,9 +1187,10 @@ class FABulousTileTimingModel:
                             ]
                             if delays:
                                 key = (port, clock)
-                                clock_delays[key] = max(
-                                    max(delays), clock_delays.get(key, -float("inf"))
-                                )
+                                delay = max(delays)
+                                if key in clock_delays:
+                                    delay = max(delay, clock_delays[key])
+                                clock_delays[key] = delay
 
         clock_arcs = tuple(
             ClockArc(clock, when=ff_condition)
@@ -1225,21 +1226,25 @@ class FABulousTileTimingModel:
                         else ()
                     )
                     delay_arcs.append(
-                        DelayArc(source, sink, scaled(max(delays)), when=condition)
+                        DelayArc(
+                            source, sink, self._scaled(max(delays)), when=condition
+                        )
                     )
 
         setup_arcs = tuple(
             SetupHoldArc(
                 port,
                 clock,
-                scaled(setup),
-                scaled(hold),
+                self._scaled(setup),
+                self._scaled(hold),
                 when=sequential_condition(port),
             )
             for (port, clock), (setup, hold) in setup_holds.items()
         )
         output_arcs = tuple(
-            ClockToOutArc(port, clock, scaled(delay), when=sequential_condition(port))
+            ClockToOutArc(
+                port, clock, self._scaled(delay), when=sequential_condition(port)
+            )
             for (port, clock), delay in clock_delays.items()
         )
         arcs = BelArcs(

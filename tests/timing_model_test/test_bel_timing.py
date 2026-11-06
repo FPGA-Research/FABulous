@@ -1,6 +1,7 @@
 """BEL timing regression tests using real netlist and SDF parsers."""
 
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -114,7 +115,7 @@ def make_model(
     model.hdlnx_tm_synth = graph
     model.synth_netlist = netlist
     model.tm_config = SimpleNamespace(
-        mode=TimingModelMode.STRUCTURAL, delay_scaling_factor=1.0
+        mode=TimingModelMode.STRUCTURAL, delay_scaling_factor=Decimal(1)
     )
     return model
 
@@ -203,8 +204,8 @@ def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
     )[0]
     assert complete.effective_setup
     assert complete.effective_hold
-    assert complete.clock_to_output_rise.maximum == pytest.approx(
-        0.9 if buffered else 0.8
+    assert complete.clock_to_output_rise.maximum == Decimal(
+        "0.9" if buffered else "0.8"
     )
     arcs = bel_arcs(model, bel)
     assert arcs.clocks
@@ -268,7 +269,7 @@ def test_iobuf_characterizes_registers_across_external_ports(
         )[0]
         assert complete.effective_setup
         assert complete.effective_hold
-        assert complete.clock_to_output_rise.maximum == pytest.approx(0.8)
+        assert complete.clock_to_output_rise.maximum == Decimal("0.8")
     for channel in ("in", "en"):
         with pytest.raises(nx.NetworkXNoPath):
             graph.query_timing_paths(prefix + channel + "_ff/D", prefix + "out_mux/Y")
@@ -276,9 +277,9 @@ def test_iobuf_characterizes_registers_across_external_ports(
         prefix + "out_ff/CLK", prefix + "out_mux/Y", clock_pin=prefix + "out_ff/CLK"
     )[0]
     assert clock_path.path_type == SDFPathType.SEQUENTIAL
-    assert clock_path.rise.maximum == pytest.approx(0.8)
+    assert clock_path.rise.maximum == Decimal("0.8")
     assert clock_path.register_clock_pin == prefix + "out_ff/CLK"
-    assert clock_path.clock_to_output_rise.maximum == pytest.approx(0.8)
+    assert clock_path.clock_to_output_rise.maximum == Decimal("0.8")
     assert v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel) == [
         "Clock,CLK",
         "SetupHold,IN,CLK,0.3,0.03,IN_REG=1",
@@ -323,7 +324,7 @@ def test_bel_timing_uses_synthesis_in_all_modes_and_applies_scaling(
     _, physical_model = registered_bel(physical_dir, read_netlist, "CLK", buffered=True)
     model.hdlnx_tm_phys = physical_model.hdlnx_tm_synth
     model.tm_config.mode = mode
-    model.tm_config.delay_scaling_factor = 2.0
+    model.tm_config.delay_scaling_factor = Decimal(2)
     lines = v3_arcs(model, bel)
     assert "Delay,D,O,0.2,FF=0" in lines
     assert "SetupHold,D,CLK,0.6,0.06,FF=1" in lines

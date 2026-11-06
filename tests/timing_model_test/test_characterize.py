@@ -58,7 +58,7 @@ def tile_model(mocker: MockerFixture) -> MockType:
         "fabulous.fabric_cad.timing_model.characterize.FABulousTileTimingModel"
     )
     model = model_class.return_value
-    model.pip_delay.return_value = 6.0
+    model.pip_delay.return_value = ns(6.0)
     model.tile_scope = ()
     model.bel_timing.side_effect = lambda bel, **_: BelArcs(
         delays=(DelayArc(BelPin("I0"), BelPin("O"), ns(len(bel.prefix))),)

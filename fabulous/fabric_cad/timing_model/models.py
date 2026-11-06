@@ -11,6 +11,7 @@ data throughout the processing pipeline.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 
@@ -66,18 +67,18 @@ class SDFTimingTriplet:
 
     Attributes
     ----------
-    minimum : float | None
+    minimum : Decimal | None
         Minimum delay, or `None` when the SDF does not provide it.
-    typical : float | None
+    typical : Decimal | None
         Typical delay, called `avg` by the current SDF parser, or `None` when
         the SDF does not provide it.
-    maximum : float | None
+    maximum : Decimal | None
         Maximum delay, or `None` when the SDF does not provide it.
     """
 
-    minimum: float | None
-    typical: float | None
-    maximum: float | None
+    minimum: Decimal | None
+    typical: Decimal | None
+    maximum: Decimal | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +128,7 @@ class Component:
         Pin name on the source cell.
     to_cell_pin : str
         Pin name on the destination cell.
-    delay : float
+    delay : Decimal
         Delay associated with this component: INTERCONNECT delay: cell to cell delay,
         IOPATH delay: pin to pin delay within a cell.
         Is a single delay over fast, slow (min, max)
@@ -162,7 +163,7 @@ class Component:
     to_cell_instance: str
     from_cell_pin: str
     to_cell_pin: str
-    delay: float
+    delay: Decimal
     delay_paths: SDFDelayPaths | None
     is_one_cell_instance: bool
     is_timing_check: bool
@@ -413,11 +414,12 @@ class TimingModelConfig(BaseModel):
     delay_type_str : DelayType
         The type of delay to be used in the timing analysis, specified as an
         instance of the DelayType enumeration.
-    delay_scaling_factor : float
+    delay_scaling_factor : Decimal
         A scaling factor to be applied to the calculated delays, allowing for
         adjustments based on specific requirements or to account for any
         discrepancies in the delay calculations. But be careful when using this,
-        as it can lead to inaccurate timing models if not used properly.
+        as it can lead to inaccurate timing models if not used properly. The
+        scaled delay is exact, not rounded.
     debug : bool
         Flag to enable or disable debug mode, which may provide additional logging.
     """
@@ -439,7 +441,7 @@ class TimingModelConfig(BaseModel):
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
     consider_wire_delay: bool = Field(default=True)
     delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)
-    delay_scaling_factor: float = Field(default=1.0)
+    delay_scaling_factor: Decimal = Field(default=Decimal(1))
     debug: bool = Field(default=False)
 
 

@@ -11,7 +11,6 @@ from fabulous.fabric_cad.timing_db import (
     PipTiming,
     TimingDb,
     WirePip,
-    ns,
     switch_pips,
 )
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
@@ -56,7 +55,7 @@ def _characterize_pips(
         wire_pips = (WirePip(src=w.source, dst=w.destination) for w in tile.wireList)
         for pip in (*switch_pips(tile.switch_matrix.connections), *wire_pips):
             if pip not in delays:
-                delays[pip] = ns(model.pip_delay(pip.src, pip.dst))
+                delays[pip] = model.pip_delay(pip.src, pip.dst)
     for _, _, super_tile in fabric.iter_super_tile_placements():
         if super_tile.switch_matrix is not None and any(
             switch_pips(super_tile.switch_matrix.connections)

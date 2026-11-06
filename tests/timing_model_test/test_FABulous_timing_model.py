@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -43,7 +44,7 @@ def make_config(
     synth_program: TimingModelSynthTools = TimingModelSynthTools.YOSYS,
     sta_program: TimingModelStaTools = TimingModelStaTools.OPENSTA,
     custom_per_tile_source_files: dict[str, SimpleNamespace] | None = None,
-    delay_scaling_factor: float = 1.0,
+    delay_scaling_factor: Decimal = Decimal(1),
 ) -> SimpleNamespace:
     return SimpleNamespace(
         project_dir=tmp_path,
@@ -106,8 +107,8 @@ class DummyHdlnx:
         self.output_ports = set()
         self.input_ports = set()
 
-    def single_delay(self, _src: object, _dst: object) -> float:
-        return 0.0
+    def single_delay(self, _src: object, _dst: object) -> Decimal:
+        return Decimal("0.0")
 
     def nearest_ports_from_pins(
         self,
@@ -890,8 +891,8 @@ def test_internal_pip_delay_structural_success_and_caches(
     bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.123
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.123")
 
     netlist = mocker.create_autospec(NetlistIndex, instance=True)
     netlist.net_leaf_pins.return_value = {
@@ -909,7 +910,7 @@ def test_internal_pip_delay_structural_success_and_caches(
 
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
-    assert delay == 0.123
+    assert delay == Decimal("0.123")
     netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert "Y" in bare_model.internal_pip_cache
     cache_entry = bare_model.internal_pip_cache["Y"]
@@ -929,8 +930,8 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
     bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 1.5
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("1.5")
 
     netlist = mocker.create_autospec(NetlistIndex, instance=True)
     netlist.net_leaf_pins.return_value = {"bad": ["bad"]}
@@ -952,7 +953,7 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
 
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
-    assert delay == 1.5
+    assert delay == Decimal("1.5")
     netlist.net_leaf_pins.assert_not_called()
 
 
@@ -1007,8 +1008,8 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
             assert follow_steps_to_sentinel == 3
             return ["OUT2", "OUT1"], 3, {"dummy": 1}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.456
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.456")
 
     synth = Synth()
     phys = Phys()
@@ -1024,7 +1025,7 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 0.456
+    assert delay == Decimal("0.456")
     netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert synth.nearest_calls == 1
     assert phys.earliest_calls == 1
@@ -1087,8 +1088,8 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             assert follow_steps_to_sentinel == 3
             return ["PHYS_OUT"], 1, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.789
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.789")
 
     synth = Synth()
     phys = Phys()
@@ -1100,7 +1101,7 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 0.789
+    assert delay == Decimal("0.789")
     assert synth.nearest_calls == 2
     cache_entry = bare_model.internal_pip_cache["Y"]
     assert cache_entry.swm_nearest_ports_out == ({"Y": ["OUT_REF"]}, ["OUT_REF"])
@@ -1148,8 +1149,8 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
             self.earliest_calls += 1
             return ["should_not_be_used"], 0, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 1.234
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("1.234")
 
     synth = Synth()
     phys = Phys()
@@ -1175,7 +1176,7 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 1.234
+    assert delay == Decimal("1.234")
     netlist.net_leaf_pins.assert_not_called()
     assert synth.nearest_calls == 0
     assert phys.earliest_calls == 0
@@ -1188,7 +1189,7 @@ def test_external_pip_delay_structural_output_port_returns_default(
     synth.output_ports = {"NN2BEG[3]"}
     bare_model.hdlnx_tm_synth = synth
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_structural_input_port_no_nearest_returns_default_real_input_branch(  # noqa: E501
@@ -1209,7 +1210,7 @@ def test_external_pip_delay_structural_input_port_no_nearest_returns_default_rea
 
     bare_model.hdlnx_tm_synth = Synth()
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_structural_input_port_uses_single_delay(
@@ -1226,12 +1227,12 @@ def test_external_pip_delay_structural_input_port_uses_single_delay(
         ) -> tuple[list[str], object | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.222
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.222")
 
     bare_model.hdlnx_tm_synth = Synth()
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.222
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.222")
 
 
 def test_external_pip_delay_structural_swm_to_swm_without_cache_returns_default(
@@ -1243,7 +1244,9 @@ def test_external_pip_delay_structural_swm_to_swm_without_cache_returns_default(
     bare_model.hdlnx_tm_synth = synth
     bare_model.internal_pip_cache = {}
 
-    assert bare_model.external_pip_delay_structural("SOME_INTERNAL", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("SOME_INTERNAL", "X") == Decimal(
+        "0.001"
+    )
 
 
 def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_delay(
@@ -1257,10 +1260,10 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, src: object, dst: object) -> float:
+        def single_delay(self, src: object, dst: object) -> Decimal:
             assert src == "SWM_OUT_PIN"
             assert dst == "NEXT_INPUT_PIN"
-            return 0.444
+            return Decimal("0.444")
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1274,7 +1277,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
         )
     }
 
-    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == 0.444
+    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == Decimal("0.444")
 
 
 def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_default(
@@ -1288,8 +1291,8 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.0
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.0")
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1303,7 +1306,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
         )
     }
 
-    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_output_port_returns_default(
@@ -1313,7 +1316,7 @@ def test_external_pip_delay_physical_output_port_returns_default(
     phys.output_ports = {"NN2BEG[3]"}
     bare_model.hdlnx_tm_phys = phys
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_input_branch(  # noqa: E501
@@ -1334,7 +1337,7 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
 
     bare_model.hdlnx_tm_phys = Phys()
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_input_port_uses_single_delay(
@@ -1351,12 +1354,12 @@ def test_external_pip_delay_physical_input_port_uses_single_delay(
         ) -> tuple[list[str], object | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.333
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.333")
 
     bare_model.hdlnx_tm_phys = Phys()
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.333
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.333")
 
 
 def test_external_pip_delay_physical_swm_to_swm_without_cache_returns_default(
@@ -1368,7 +1371,9 @@ def test_external_pip_delay_physical_swm_to_swm_without_cache_returns_default(
     bare_model.hdlnx_tm_phys = phys
     bare_model.internal_pip_cache = {}
 
-    assert bare_model.external_pip_delay_physical("SOME_INTERNAL", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("SOME_INTERNAL", "X") == Decimal(
+        "0.001"
+    )
 
 
 def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay(
@@ -1382,10 +1387,10 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, src: object, dst: object) -> float:
+        def single_delay(self, src: object, dst: object) -> Decimal:
             assert src == "PHYS_OUT_PIN"
             assert dst == "NEXT_PHYS_INPUT"
-            return 0.555
+            return Decimal("0.555")
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {
@@ -1399,7 +1404,7 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
         )
     }
 
-    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == 0.555
+    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == Decimal("0.555")
 
 
 def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
@@ -1413,8 +1418,8 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.0
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.0")
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {
@@ -1428,74 +1433,101 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
         )
     }
 
-    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == Decimal("0.001")
 
 
 def test_internal_pip_delay_dispatch_physical(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.PHYSICAL
-    monkeypatch.setattr(bare_model, "internal_pip_delay_physical", lambda _s, _d: 1.23)
     monkeypatch.setattr(
-        bare_model, "internal_pip_delay_structural", lambda _s, _d: 9.99
+        bare_model, "internal_pip_delay_physical", lambda _s, _d: Decimal("1.23")
+    )
+    monkeypatch.setattr(
+        bare_model, "internal_pip_delay_structural", lambda _s, _d: Decimal("9.99")
     )
 
-    assert bare_model.internal_pip_delay("A", "Y") == 1.23
+    assert bare_model.internal_pip_delay("A", "Y") == Decimal("1.23")
 
 
 def test_internal_pip_delay_dispatch_structural(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
-    monkeypatch.setattr(bare_model, "internal_pip_delay_physical", lambda _s, _d: 9.99)
     monkeypatch.setattr(
-        bare_model, "internal_pip_delay_structural", lambda _s, _d: 2.34
+        bare_model, "internal_pip_delay_physical", lambda _s, _d: Decimal("9.99")
+    )
+    monkeypatch.setattr(
+        bare_model, "internal_pip_delay_structural", lambda _s, _d: Decimal("2.34")
     )
 
-    assert bare_model.internal_pip_delay("A", "Y") == 2.34
+    assert bare_model.internal_pip_delay("A", "Y") == Decimal("2.34")
 
 
 def test_external_pip_delay_dispatch_physical(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.PHYSICAL
-    monkeypatch.setattr(bare_model, "external_pip_delay_physical", lambda _s, _d: 3.45)
     monkeypatch.setattr(
-        bare_model, "external_pip_delay_structural", lambda _s, _d: 9.99
+        bare_model, "external_pip_delay_physical", lambda _s, _d: Decimal("3.45")
+    )
+    monkeypatch.setattr(
+        bare_model, "external_pip_delay_structural", lambda _s, _d: Decimal("9.99")
     )
 
-    assert bare_model.external_pip_delay("A", "Y") == 3.45
+    assert bare_model.external_pip_delay("A", "Y") == Decimal("3.45")
 
 
 def test_external_pip_delay_dispatch_structural(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
-    monkeypatch.setattr(bare_model, "external_pip_delay_physical", lambda _s, _d: 9.99)
     monkeypatch.setattr(
-        bare_model, "external_pip_delay_structural", lambda _s, _d: 4.56
+        bare_model, "external_pip_delay_physical", lambda _s, _d: Decimal("9.99")
+    )
+    monkeypatch.setattr(
+        bare_model, "external_pip_delay_structural", lambda _s, _d: Decimal("4.56")
     )
 
-    assert bare_model.external_pip_delay("A", "Y") == 4.56
+    assert bare_model.external_pip_delay("A", "Y") == Decimal("4.56")
 
 
-def test_pip_delay_dispatch_internal_applies_scaling_and_rounding(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("internal", [True, False], ids=["internal", "external"])
+@pytest.mark.parametrize(
+    ("delay", "scale", "expected"),
+    [
+        pytest.param(Decimal("1.234"), Decimal("2.5"), "3.085", id="exact"),
+        pytest.param(Decimal("0.333"), Decimal(3), "0.999", id="integer-scale"),
+        pytest.param(Decimal("0.25"), Decimal("2.0"), "0.5", id="trailing-zeros"),
+        pytest.param(Decimal("1.5"), Decimal(2), "3.0", id="integral"),
+        pytest.param(Decimal("0.0"), Decimal(1), "0.0", id="zero"),
+        pytest.param(Decimal("0.123"), Decimal("1.05"), "0.12915", id="sub-ps-scale"),
+        pytest.param(Decimal("0.333"), Decimal("0.5"), "0.1665", id="sub-ps-half"),
+        pytest.param(Decimal("1.23456"), Decimal(1), "1.23456", id="sub-ps-sdf"),
+    ],
+)
+def test_pip_delay_scales_exactly(
+    bare_model: FABulousTileTimingModel,
+    mocker: MockerFixture,
+    internal: bool,
+    delay: Decimal,
+    scale: Decimal,
+    expected: str,
 ) -> None:
-    bare_model.tm_config.delay_scaling_factor = 2.5
-    monkeypatch.setattr(bare_model, "is_tile_internal_pip", lambda _s, _d: True)
-    monkeypatch.setattr(bare_model, "internal_pip_delay", lambda _s, _d: 1.23456)
-    monkeypatch.setattr(bare_model, "external_pip_delay", lambda _s, _d: 9.99)
+    bare_model.tm_config.delay_scaling_factor = scale
+    mocker.patch.object(bare_model, "is_tile_internal_pip", return_value=internal)
+    mocker.patch.object(bare_model, "internal_pip_delay", return_value=delay)
+    mocker.patch.object(bare_model, "external_pip_delay", return_value=delay)
 
-    assert bare_model.pip_delay("A", "Y") == round(1.23456 * 2.5, 3)
+    assert str(bare_model.pip_delay("A", "Y")) == expected
 
 
-def test_pip_delay_dispatch_external_applies_scaling_and_rounding(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+def test_pip_delay_float_scale_raises(
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
-    bare_model.tm_config.delay_scaling_factor = 3.0
-    monkeypatch.setattr(bare_model, "is_tile_internal_pip", lambda _s, _d: False)
-    monkeypatch.setattr(bare_model, "internal_pip_delay", lambda _s, _d: 9.99)
-    monkeypatch.setattr(bare_model, "external_pip_delay", lambda _s, _d: 0.33333)
+    bare_model.tm_config.delay_scaling_factor = 2.0  # ty: ignore[invalid-assignment]
+    mocker.patch.object(bare_model, "is_tile_internal_pip", return_value=True)
+    mocker.patch.object(bare_model, "internal_pip_delay", return_value=Decimal("0.1"))
 
-    assert bare_model.pip_delay("A", "Y") == round(0.33333 * 3.0, 3)
+    with pytest.raises(TypeError):
+        bare_model.pip_delay("A", "Y")
