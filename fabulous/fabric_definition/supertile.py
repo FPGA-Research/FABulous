@@ -280,6 +280,17 @@ class SuperTile:
         return valid_sources, valid_sinks
 
     @property
+    def switch_matrix_instance_name(self) -> str:
+        """The instance name the supertile generator gives the switch matrix.
+
+        Returns
+        -------
+        str
+            `Inst_{name}_switch_matrix`.
+        """
+        return f"Inst_{self.name}_switch_matrix"
+
+    @property
     def directory(self) -> Path:
         """The directory the supertile's wrapper and its child tiles sit in.
 

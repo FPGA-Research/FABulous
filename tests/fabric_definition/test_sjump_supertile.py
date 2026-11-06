@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
-from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
+from fabulous.fabric_cad.gen_npnr_model import emit_nextpnr_model, placeholder_timing
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
@@ -304,16 +304,16 @@ class TestGenNpnrModelSupertile:
         return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
     def test_forward_pip_has_bel_input_as_destination(self, fabric: Fabric) -> None:
-        pip_str, *_ = genNextpnrModel(fabric)
-        pips = set(pip_str.splitlines())
+        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
+        pips = set(model.pips.splitlines())
         # source DSP_bot_A0 -> destination SUPER_A0 (BEL input is the sink).
         assert "X0Y1,DSP_bot_A0,X0Y1,SUPER_A0,8,DSP_bot_A0.SUPER_A0" in pips
         # The reversed form must NOT be present.
         assert "X0Y1,SUPER_A0,X0Y1,DSP_bot_A0,8,SUPER_A0.DSP_bot_A0" not in pips
 
     def test_reverse_pip_has_bel_output_as_source(self, fabric: Fabric) -> None:
-        pip_str, *_ = genNextpnrModel(fabric)
-        pips = set(pip_str.splitlines())
+        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
+        pips = set(model.pips.splitlines())
         # BEL output SUPER_Q0 -> reverse wire DSP_bot_Q0.
         assert "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0" in pips
 
@@ -322,7 +322,7 @@ class TestGenNpnrModelSupertile:
     ) -> None:
         """Supertile BELs get bel.v2 blocks and, for timed types, bel.v3 arcs.
 
-        `genNextpnrModel`'s supertile loop only ever emitted `belStr`/`belv2Str`
+        The old nextpnr generator's supertile loop only ever emitted `belStr`/`belv2Str`
         blocks; `belv3Str` silently skipped every supertile BEL. Covers a
         supertile BEL of a type nextpnr times (FABULOUS_LC) at the master
         tile's fabric coordinates (X0Y1, per the module fixture above).
@@ -349,13 +349,13 @@ class TestGenNpnrModelSupertile:
             t.partOfSuperTile = True
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
-        _, belv1, belv2, belv3, _ = genNextpnrModel(fabric)
+        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
 
-        assert "X0Y1,X0,Y1,A,FABULOUS_LC" in belv1
-        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv2
-        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv3
-        assert "Delay,I0,O,3.0,FF=0" in belv3
-        assert "Delay," not in belv2
+        assert "X0Y1,X0,Y1,A,FABULOUS_LC" in model.bel_v1
+        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in model.bel_v2
+        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in model.bel_v3
+        assert "Delay,I0,O,3.0,FF=0" in model.bel_v3
+        assert "Delay," not in model.bel_v2
 
 
 class TestGenBitstreamSpecSupertileMux:

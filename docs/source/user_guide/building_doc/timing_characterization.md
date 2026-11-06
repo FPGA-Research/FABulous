@@ -41,8 +41,8 @@ FABulous CLI or programmatically.
      configuration file or let FABulous resolve defaults from a supported PDK.
 4. FABulous will (depending on the config): run synthesis (Yosys) if needed,
      run STA (OpenSTA) to create an SDF timing file, parse the SDF into a timing graph,
-     compute the selected timing data per tile, and write `pips.txt`, `bel.v3.txt`, or
-     both for nextpnr.
+     compute the pip delays and BEL arcs per tile, and write `pips.txt` and `bel.v3.txt`
+     for nextpnr.
 5. The fully-resolved configuration used for the run is written to
      `.FABulous/timing_model_config_resolved.json` so you can inspect what FABulous
      actually used.
@@ -56,8 +56,6 @@ The FABulous interactive CLI exposes the command `timing_model`. Key options:
     `.FABulous/pips.txt`).
 - `--bel-outfile <path>` — Output path for the generated BEL timing file (default:
     `bel.v3.txt` beside the pip output).
-- `--target [pips|bels|both]` — Select which timing files and calculations to run.
-    Default: `both`.
 - `--emit-config-template` — Emit a JSON configuration template and exit.
 - `--with-config-file <path>` — Use the supplied JSON config instead of PDK defaults.
 
@@ -234,20 +232,19 @@ FABulous API. Example (python):
 
 ```py
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelTarget
+from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelMode
 
 # instantiate FABulous API (example, depends on how you normally set it up)
 fab_api = FABulous_API(my_writer)
 
 # load or construct a TimingModelConfig (validate with Pydantic)
-# then call the interface
+# then characterise the fabric
 config = TimingModelConfig.model_validate_json(open('my_config.json').read())
-fab_api.timing_model_interface(
-    mode='physical',
-    output_file=Path('.FABulous/pips.txt'),
+fab_api.timing_model(
+    mode=TimingModelMode.PHYSICAL,
+    pip_file=Path('.FABulous/pips.txt'),
+    bel_file=Path('.FABulous/bel.v3.txt'),
     debug=True,
     manual_config=config,
-    target=TimingModelTarget.BOTH,
-    bel_output_file=Path('.FABulous/bel.v3.txt'),
 )
 ```

@@ -16,13 +16,20 @@ from pathlib import Path
 import networkx as nx
 from loguru import logger
 
+from fabulous.fabric_cad.timing_db import (
+    BelArcs,
+    BelPin,
+    ClockArc,
+    ClockToOutArc,
+    Condition,
+    DelayArc,
+    FeatureIs,
+    Ns,
+    SetupHoldArc,
+    ns,
+)
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.models import (
-    BelClockTiming,
-    BelClockToOutTiming,
-    BelDelayTiming,
-    BelSetupHoldTiming,
-    BelTiming,
     InternalPipCacheEntry,
     TimingModelConfig,
     TimingModelMode,
@@ -1058,7 +1065,7 @@ class FABulousTileTimingModel:
             return _round(self.internal_pip_delay(pip_src, pip_dst))
         return _round(self.external_pip_delay(pip_src, pip_dst))
 
-    def bel_timing(self, bel: Bel) -> BelTiming:
+    def bel_timing(self, bel: Bel) -> BelArcs:
         """Return characterized combinational and sequential timing for one BEL.
 
         Discover clocks from paths to register clock pins. Characterize setup/hold
@@ -1074,8 +1081,8 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        BelTiming
-            Timing arcs from the synthesis graph, scaled
+        BelArcs
+            Timing arcs from the synthesis graph in BEL port names, scaled
             and rounded to the nextpnr output precision.
 
         Raises
@@ -1103,15 +1110,15 @@ class FABulousTileTimingModel:
                 f"in tile {self.tile_name!r}: {instance_paths}. Using the first match."
             )
         instance_path = instance_paths[0]
-        input_pins: dict[str, list[str]] = {}
-        output_pins: dict[str, list[str]] = {}
-        shared_inputs: dict[str, list[str]] = {}
+        input_pins: dict[BelPin, list[str]] = {}
+        output_pins: dict[BelPin, list[str]] = {}
+        shared_inputs: dict[BelPin, list[str]] = {}
         for category in ("internal", "shared"):
             for port, (direction, width) in bel.ports_vectors.get(category, {}).items():
                 if direction not in {IO.INPUT, IO.OUTPUT}:
                     continue
                 for index in range(width):
-                    name = port if width == 1 else f"{port}{index}"
+                    name = BelPin(port, None if width == 1 else index)
                     module_pin = port if width == 1 else f"{port}[{index}]"
                     pins = timing_model.resolve_hier_pin(
                         f"{instance_path}/{module_pin}"
@@ -1152,40 +1159,33 @@ class FABulousTileTimingModel:
             f"Extracting synthesis timing for tile {self.tile_name}, "
             f"BEL {identifier} ({len(register_pins)} register input checks)"
         )
-        clock_sources: dict[str, list[tuple[str, str]]] = {}
-        clock_ports = set()
+        clock_sources: dict[str, list[tuple[BelPin, str]]] = {}
+        clock_ports: set[BelPin] = set()
         for register_clock in dict.fromkeys(clock for _, clock in register_pins):
             for port, pins in (input_pins | shared_inputs).items():
                 for pin in pins:
                     if nx.has_path(timing_model.clock_graph, pin, register_clock):
-                        clock_name = "CLK" if port == "UserCLK" else port
-                        clock_sources.setdefault(register_clock, []).append(
-                            (clock_name, pin)
-                        )
+                        clock_sources.setdefault(register_clock, []).append((port, pin))
                         clock_ports.add(port)
 
-        is_lc = bel.name in {
-            "FABULOUS_LC",
-            "LUT4c_frame_config",
-            "LUT4c_frame_config_dffesr",
-        }
-        ff_condition = "FF=1" if "FF" in bel.belFeatureMap else None
+        has_ff = "FF" in bel.belFeatureMap
+        ff_condition: Condition = (FeatureIs("FF", True),) if has_ff else ()
 
-        def sequential_condition(port: str) -> str | None:
+        def sequential_condition(port: BelPin) -> Condition:
             """Preserve the documented mode controls of the standard IOBUF and LC."""
-            feature = f"{port}_REG"
+            feature = f"{port.name}_REG"
             if bel.name == "IOBUF" and feature in bel.belFeatureMap:
-                return f"{feature}=1"
+                return (FeatureIs(feature, True),)
             return ff_condition
 
-        def scaled(value: float) -> float:
+        def scaled(value: float) -> Ns:
             """Apply the same scaling and precision as the PIP timing output."""
-            return round(value * self.tm_config.delay_scaling_factor, 3)
+            return ns(round(value * self.tm_config.delay_scaling_factor, 3))
 
-        setup_holds: dict[tuple[str, str], tuple[float, float]] = {}
-        clock_delays: dict[tuple[str, str], float] = {}
+        setup_holds: dict[tuple[BelPin, BelPin], tuple[float, float]] = {}
+        clock_delays: dict[tuple[BelPin, BelPin], float] = {}
         for data_pin, register_clock in register_pins:
-            for clock_name, clock_source in clock_sources.get(register_clock, []):
+            for clock, clock_source in clock_sources.get(register_clock, []):
                 for port, pins in input_pins.items():
                     if port in clock_ports:
                         continue
@@ -1209,7 +1209,7 @@ class FABulousTileTimingModel:
                             ]
                             if not setups or not holds:
                                 continue
-                            key = (port, clock_name)
+                            key = (port, clock)
                             setup, hold = max(setups), max(holds)
                             if key in setup_holds:
                                 setup = max(setup, setup_holds[key][0])
@@ -1217,7 +1217,7 @@ class FABulousTileTimingModel:
                             setup_holds[key] = (setup, hold)
 
         for register_clock, sources in clock_sources.items():
-            for clock_name, clock_source in sources:
+            for clock, clock_source in sources:
                 for port, pins in output_pins.items():
                     for pin in pins:
                         try:
@@ -1239,17 +1239,18 @@ class FABulousTileTimingModel:
                                 if value is not None and value.maximum is not None
                             ]
                             if delays:
-                                key = (port, clock_name)
+                                key = (port, clock)
                                 clock_delays[key] = max(
                                     max(delays), clock_delays.get(key, -float("inf"))
                                 )
 
-        clock_arcs = []
-        for clock_name in dict.fromkeys(
-            clock for _, clock in [*setup_holds, *clock_delays]
-        ):
-            clock_arcs.append(BelClockTiming(clock_name, condition=ff_condition))
-        delay_arcs = []
+        clock_arcs = tuple(
+            ClockArc(clock, when=ff_condition)
+            for clock in dict.fromkeys(
+                clock for _, clock in [*setup_holds, *clock_delays]
+            )
+        )
+        delay_arcs: list[DelayArc] = []
         registered_outputs = {port for port, _ in clock_delays}
         for source, source_pins in input_pins.items():
             if source in clock_ports:
@@ -1271,38 +1272,39 @@ class FABulousTileTimingModel:
                                 if value.maximum is not None
                             )
                 if delays:
-                    condition = (
-                        "FF=0" if ff_condition and sink in registered_outputs else None
+                    condition: Condition = (
+                        (FeatureIs("FF", False),)
+                        if has_ff and sink in registered_outputs
+                        else ()
                     )
                     delay_arcs.append(
-                        BelDelayTiming(
-                            source, sink, scaled(max(delays)), condition=condition
-                        )
+                        DelayArc(source, sink, scaled(max(delays)), when=condition)
                     )
 
-        setup_arcs = [
-            BelSetupHoldTiming(
+        setup_arcs = tuple(
+            SetupHoldArc(
                 port,
                 clock,
                 scaled(setup),
                 scaled(hold),
-                condition=sequential_condition(port),
+                when=sequential_condition(port),
             )
             for (port, clock), (setup, hold) in setup_holds.items()
-        ]
-        output_arcs = [
-            BelClockToOutTiming(
-                "Q" if is_lc and port == "O" else port,
-                clock,
-                scaled(delay),
-                condition=sequential_condition(port),
-            )
+        )
+        output_arcs = tuple(
+            ClockToOutArc(port, clock, scaled(delay), when=sequential_condition(port))
             for (port, clock), delay in clock_delays.items()
-        ]
-        arcs = (*clock_arcs, *delay_arcs, *setup_arcs, *output_arcs)
+        )
+        arcs = BelArcs(
+            clocks=clock_arcs,
+            delays=tuple(delay_arcs),
+            checks=setup_arcs,
+            clock_to_outs=output_arcs,
+        )
+        arc_count = len(clock_arcs) + len(delay_arcs) + len(setup_arcs)
         logger.info(
             f"Completed timing extraction for tile: {self.tile_name}, "
             f"BEL: {identifier} "
-            f"({len(arcs)} timing arcs)"
+            f"({arc_count + len(output_arcs)} timing arcs)"
         )
-        return BelTiming(arcs=arcs)
+        return arcs

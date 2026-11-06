@@ -1,20 +1,28 @@
 """Tests for nextpnr model generation, focusing on bel.v3 timing output."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
 from fabulous.fabric_cad.gen_npnr_model import (
     PLACEMENT_ESTIMATE_TEXT,
-    belLines,
-    genNextpnrModel,
-    write_nextpnr_timing_files,
+    emit_nextpnr_model,
+    nextpnr_bel,
+    placeholder_bel_arcs,
+    placeholder_timing,
+    render_arcs,
 )
-from fabulous.fabric_cad.timing_model.models import (
-    BelDelayTiming,
+from fabulous.fabric_cad.timing_db import (
+    BelArcs,
+    BelPin,
     BelTiming,
-    TimingModelTarget,
+    DelayArc,
+    FeatureIs,
+    PipTiming,
+    SwitchPip,
+    TimingDb,
+    ns,
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
@@ -66,16 +74,21 @@ def lut_fabric() -> Fabric:
     return make_fabric_from_grid([[tile]])
 
 
-def test_gen_routing_model_returns_five_with_timing(lut_fabric: Fabric) -> None:
-    """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
+def with_bel_arcs(fabric: Fabric, arcs: dict[str, BelArcs]) -> TimingDb:
+    """Return placeholder timing whose BELs of tile `LUT4AB` have `arcs`."""
+    return replace(
+        placeholder_timing(fabric),
+        bels=BelTiming(
+            tiles={"LUT4AB": arcs},
+            super_tiles={},
+        ),
+    )
 
-    The bel.v3 block must mirror the bel.v2 structural lines and additionally
-    carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
-    """
-    model = genNextpnrModel(lut_fabric)
-    assert len(model) == 5
 
-    belv2, belv3 = model[2], model[3]
+def test_emit_nextpnr_model_writes_timing_only_in_bel_v3(lut_fabric: Fabric) -> None:
+    """The bel.v3 block mirrors bel.v2 and adds the FABULOUS_LC timing arcs."""
+    model = emit_nextpnr_model(lut_fabric, placeholder_timing(lut_fabric))
+    belv2, belv3 = model.bel_v2, model.bel_v3
 
     # The structural definition is shared between v2 and v3.
     assert "BelBegin,X0Y0,A,FABULOUS_LC,LA_" in belv2
@@ -101,20 +114,12 @@ def test_gen_routing_model_returns_five_with_timing(lut_fabric: Fabric) -> None:
         assert keyword not in belv2
 
 
-def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
+def test_unknown_bel_type_has_no_placeholder_arcs() -> None:
     """BEL types that nextpnr does not time produce no timing arcs in bel.v3."""
-    bel = Bel.__new__(Bel)
-    bel.name = "IO_1_bidirectional_frame_config_pass"
-    bel.prefix = "A_"
-    bel.inputs = ["A_I", "A_T"]
-    bel.outputs = ["A_O", "A_Q"]
-    bel.belFeatureMap = {}
-    bel.withUserCLK = False
+    kind = nextpnr_bel("IO_1_bidirectional_frame_config_pass").kind
+    arcs = placeholder_bel_arcs(kind=kind, inputs=["I", "T"], outputs=["O", "Q"])
 
-    _, _, v3_lines, _ = belLines(bel, "A", 0, 0)
-
-    for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
-        assert not any(line.startswith(keyword) for line in v3_lines)
+    assert render_arcs(arcs, kind=kind) == []
 
 
 def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
@@ -156,96 +161,67 @@ def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
     assert "ClkToOut,O0,CLK,2.5" in text
 
 
-def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(
-    lut_fabric: Fabric, mocker: MockerFixture
-) -> None:
+def test_bel_timing_unaffected_by_characterized_pip_delay(lut_fabric: Fabric) -> None:
     """bel.v3's BEL-internal timing arcs stay fixed regardless of pip delay.
 
     LUT/FF/carry timing is a property of the standard cell's implementation,
-    physically unrelated to interconnect (pip) delay - a supplied
-    delay_model's real pip delay must NOT change bel.v3's arc values.
+    physically unrelated to interconnect (pip) delay - a characterised pip
+    delay must NOT change bel.v3's arc values.
     """
-    fake_model = mocker.Mock()
-    fake_model.pip_delay.return_value = 6.0
-
-    _, _, _, belv3, _ = genNextpnrModel(
-        lut_fabric, fake_model, target=TimingModelTarget.PIPS
+    timing = replace(
+        placeholder_timing(lut_fabric),
+        pips=PipTiming(
+            tiles={"LUT4AB": {SwitchPip(src="J_BEG", dst="LA_O"): ns(6.0)}},
+            super_tiles={},
+        ),
     )
 
-    assert "Delay,I0,O,3.0,FF=0" in belv3
-    assert "Delay,Ci,Co,0.2,Ci/Co?" in belv3
-    assert "SetupHold,I0,CLK,2.5,0.1,FF=1" in belv3
-    assert "ClkToOut,Q,CLK,1.0,FF=1" in belv3
-    fake_model.bel_timing.assert_not_called()
+    model = emit_nextpnr_model(lut_fabric, timing)
+
+    assert "X0Y0,J_BEG,X0Y0,LA_O,6.0,J_BEG.LA_O" in model.pips
+    assert "Delay,I0,O,3.0,FF=0" in model.bel_v3
+    assert "Delay,Ci,Co,0.2,Ci/Co?" in model.bel_v3
+    assert "SetupHold,I0,CLK,2.5,0.1,FF=1" in model.bel_v3
+    assert "ClkToOut,Q,CLK,1.0,FF=1" in model.bel_v3
 
 
-def test_timing_model_result_replaces_hardcoded_bel_output(
-    lut_fabric: Fabric, mocker: MockerFixture
+def test_characterized_bel_timing_replaces_hardcoded_bel_output(
+    lut_fabric: Fabric,
 ) -> None:
-    """An active timing model replaces rather than seeds hardcoded BEL timing."""
-    hardcoded_bel_v3 = genNextpnrModel(lut_fabric)[3]
-    fake_model = mocker.Mock()
-    fake_model.bel_timing.return_value = BelTiming()
+    """Characterised BEL timing replaces rather than seeds hardcoded BEL timing."""
+    bel = lut_fabric.tile[0][0].bels[0]
+    hardcoded_bel_v3 = emit_nextpnr_model(
+        lut_fabric, placeholder_timing(lut_fabric)
+    ).bel_v3
 
-    characterized_bel_v3 = genNextpnrModel(
-        lut_fabric, fake_model, target=TimingModelTarget.BELS
-    )[3]
+    characterized_bel_v3 = emit_nextpnr_model(
+        lut_fabric, with_bel_arcs(lut_fabric, {bel.instance_name: BelArcs()})
+    ).bel_v3
 
     assert "Delay,I0,O,3.0,FF=0" in hardcoded_bel_v3
     assert "Delay,I0,O,3.0,FF=0" not in characterized_bel_v3
-    fake_model.bel_timing.assert_called_once_with(
-        "LUT4AB", lut_fabric.tile[0][0].bels[0]
-    )
-    fake_model.pip_delay.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("target", "expect_pips", "expect_bels"),
-    [
-        pytest.param(TimingModelTarget.PIPS, True, False, id="pips"),
-        pytest.param(TimingModelTarget.BELS, False, True, id="bels"),
-        pytest.param(TimingModelTarget.BOTH, True, True, id="both"),
-    ],
-)
-def test_genNextpnrModel_computes_only_selected_timing(
-    lut_fabric: Fabric,
-    mocker: MockerFixture,
-    target: TimingModelTarget,
-    expect_pips: bool,
-    expect_bels: bool,
-) -> None:
-    """The target controls expensive timing calls, not only file selection."""
-    fake_model = mocker.Mock()
-    fake_model.pip_delay.return_value = 6.0
-    fake_model.bel_timing.return_value = BelTiming()
-
-    genNextpnrModel(lut_fabric, fake_model, target=target)
-
-    assert bool(fake_model.pip_delay.call_count) is expect_pips
-    assert bool(fake_model.bel_timing.call_count) is expect_bels
-
-
-def test_genNextpnrModel_serializes_timing_returned_by_model(
-    lut_fabric: Fabric, mocker: MockerFixture
-) -> None:
-    """BEL values returned by the timing model are written into bel.v3."""
-    fake_model = mocker.Mock()
-    fake_model.bel_timing.return_value = BelTiming(
-        arcs=(BelDelayTiming(source="I0", sink="O", delay=9.75, condition="FF=0"),)
+def test_emit_serializes_characterized_bel_timing(lut_fabric: Fabric) -> None:
+    """Characterised BEL values are written into bel.v3."""
+    bel = lut_fabric.tile[0][0].bels[0]
+    arcs = BelArcs(
+        delays=(
+            DelayArc(
+                BelPin("I", 0), BelPin("O"), ns(9.75), when=(FeatureIs("FF", False),)
+            ),
+        )
     )
 
-    _, _, _, bel_v3, _ = genNextpnrModel(
-        lut_fabric, fake_model, target=TimingModelTarget.BELS
-    )
+    bel_v3 = emit_nextpnr_model(
+        lut_fabric, with_bel_arcs(lut_fabric, {bel.instance_name: arcs})
+    ).bel_v3
 
     assert "Delay,I0,O,9.75,FF=0" in bel_v3
-    fake_model.pip_delay.assert_not_called()
 
 
-def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
-    lut_fabric: Fabric, mocker: MockerFixture
-) -> None:
-    """Custom BELs are dispatched without requiring a predefined template."""
+def test_emit_serializes_custom_bel_timing(lut_fabric: Fabric) -> None:
+    """Custom BELs are timed without requiring a predefined template."""
     custom_bel = Bel(
         src=Path("CustomAccumulator.v"),
         prefix="ACC_",
@@ -262,71 +238,18 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
         localShared={},
     )
     lut_fabric.tile[0][0].bels.append(custom_bel)
-    fake_model = mocker.Mock()
-
-    def characterize(_tile_name: str, bel: Bel) -> BelTiming:
-        """Return a recognizable characterized arc for the custom BEL.
-
-        Parameters
-        ----------
-        _tile_name : str
-            Tile type receiving the BEL.
-        bel : Bel
-            BEL definition sent by nextpnr model generation.
-
-        Returns
-        -------
-        BelTiming
-            Empty timing for the LUT or a recognizable custom timing result.
-        """
-        if bel is custom_bel:
-            return BelTiming(arcs=(BelDelayTiming("A", "Y", 4.25),))
-        return BelTiming()
-
-    fake_model.bel_timing.side_effect = characterize
-
-    _, _, _, bel_v3, _ = genNextpnrModel(
-        lut_fabric, fake_model, target=TimingModelTarget.BELS
+    lut_bel = lut_fabric.tile[0][0].bels[0]
+    timing = with_bel_arcs(
+        lut_fabric,
+        {
+            lut_bel.instance_name: BelArcs(),
+            custom_bel.instance_name: BelArcs(
+                delays=(DelayArc(BelPin("A"), BelPin("Y"), ns(4.25)),)
+            ),
+        },
     )
 
-    assert fake_model.bel_timing.call_count == 2
-    assert any(
-        call.args[1] is custom_bel for call in fake_model.bel_timing.call_args_list
-    )
+    bel_v3 = emit_nextpnr_model(lut_fabric, timing).bel_v3
+
     assert "BelBegin,X0Y0,B,CustomAccumulator,ACC_" in bel_v3
     assert "Delay,A,Y,4.25" in bel_v3
-
-
-@pytest.mark.parametrize(
-    ("target", "pip_exists", "bel_exists"),
-    [
-        pytest.param(TimingModelTarget.PIPS, True, False, id="pips"),
-        pytest.param(TimingModelTarget.BELS, False, True, id="bels"),
-        pytest.param(TimingModelTarget.BOTH, True, True, id="both"),
-    ],
-)
-def test_write_nextpnr_timing_files_writes_only_selected_outputs(
-    lut_fabric: Fabric,
-    mocker: MockerFixture,
-    tmp_path: Path,
-    target: TimingModelTarget,
-    pip_exists: bool,
-    bel_exists: bool,
-) -> None:
-    """The timing writer leaves unselected output files untouched."""
-    fake_model = mocker.Mock()
-    fake_model.pip_delay.return_value = 6.0
-    fake_model.bel_timing.return_value = BelTiming()
-    pip_path = tmp_path / "pips.txt"
-    bel_path = tmp_path / "bel.v3.txt"
-
-    write_nextpnr_timing_files(
-        lut_fabric,
-        pip_output_file=pip_path,
-        bel_output_file=bel_path,
-        delay_model=fake_model,
-        target=target,
-    )
-
-    assert pip_path.exists() is pip_exists
-    assert bel_path.exists() is bel_exists

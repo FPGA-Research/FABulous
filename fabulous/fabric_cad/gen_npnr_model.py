@@ -1,48 +1,59 @@
 """Nextpnr model generation for FABulous FPGA fabrics.
 
-This module provides functionality to generate nextpnr models from FABulous fabric
-definitions. The nextpnr model includes detailed descriptions of programmable
-interconnect points (PIPs), basic elements of logic (BELs), and routing resources needed
-for place-and-route operations.
-
-The generated models enable nextpnr to understand the fabric architecture and perform
-placement and routing for user designs.
+Emit the files nextpnr reads (pips, BELs, pin constraints, placement estimate)
+as a pure function of a fabric and its `TimingDb`. This module owns every
+nextpnr rule: file formats, cell types, pin renames and the placeholder timing
+that reproduces nextpnr's historical hardcoded constants.
 """
 
 import string
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 
+from loguru import logger
+
 from fabulous.custom_exception import InvalidState
-from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
-    FABulousTimingModelInterface,
-)
-from fabulous.fabric_cad.timing_model.models import (
-    BelClockTiming,
-    BelClockToOutTiming,
-    BelDelayTiming,
-    BelSetupHoldTiming,
+from fabulous.fabric_cad.timing_db import (
+    AnyConnected,
+    BelArcs,
+    BelPin,
     BelTiming,
-    TimingModelTarget,
+    ClockArc,
+    ClockToOutArc,
+    Condition,
+    DelayArc,
+    FeatureIs,
+    Ns,
+    Pip,
+    PipTiming,
+    SetupHoldArc,
+    SwitchPip,
+    TimingDb,
+    WirePip,
+    ns,
+    switch_pips,
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
 # constants (fabulous.cc, seed_default_estimates).
-LUT_DELAY = 3.0
-CARRY_CICO_DELAY = 0.2
-CARRY_I_DELAY = 1.0
-FF_SETUP = 2.5
-FF_HOLD = 0.1
-FF_CLK_TO_Q = 1.0
-IO_SETUP = 2.5
-IO_HOLD = 0.1
-IO_CLK_TO_OUT = 2.5
+LUT_DELAY = ns(3.0)
+CARRY_CICO_DELAY = ns(0.2)
+CARRY_I_DELAY = ns(1.0)
+FF_SETUP = ns(2.5)
+FF_HOLD = ns(0.1)
+FF_CLK_TO_Q = ns(1.0)
+IO_SETUP = ns(2.5)
+IO_HOLD = ns(0.1)
+IO_CLK_TO_OUT = ns(2.5)
 
-# Clock arrival time (ns) at a flop, written per BEL in bel.v3.txt. Identical
+# Clock arrival time at a flop, written per BEL in bel.v3.txt. Identical
 # everywhere until characterisation exists, so zero skew: only differences
 # between flops produce skew.
-CLOCK_DELAY = 1.0
+CLOCK_DELAY = ns(1.0)
 
 # Base delay (ns) for nextpnr's placement heuristic (placement_estimate.txt).
 # Static until a real timing model exists; reproduces nextpnr's old default.
@@ -54,35 +65,339 @@ DELAY_EPSILON = 0.25
 RIPUP_PENALTY = 0.5
 CARRY_PREDICT_DELAY = 0.5
 
-# Arbitrary placeholder pip delay used when no delay_model is supplied.
-DUMMY_PIP_DELAY = 8
+# Arbitrary placeholder pip delay used when pips are not characterised.
+DUMMY_PIP_DELAY = ns(8)
 
 # Nanoseconds per unit of the pips.txt delay column. 0.05 reproduces nextpnr's
-# historical hardcoded factor; a delay_model emitting real nanoseconds would
-# set this to 1.0.
+# historical hardcoded factor; characterised pips in real nanoseconds would
+# need 1.0.
 PIP_DELAY_SCALE = 0.05
 
-# Representative per-type timing arcs for nextpnr's placement estimate.
-# Static while every instance of a type shares these constants (I0-I3 LUT4);
-# a real per-instance timing model would regenerate this.
-_LC_LUT_INPUTS = ("I0", "I1", "I2", "I3")
-LC_ESTIMATE_LINES: list[str] = [
-    "Clock,CLK,FF=1",
-    *[f"Delay,{p},O,{LUT_DELAY},FF=0" for p in _LC_LUT_INPUTS],
-    f"Delay,Ci,O,{LUT_DELAY},FF=0&I0MUX=1",
-    f"Delay,Ci,Co,{CARRY_CICO_DELAY},Ci/Co?",
-    f"Delay,I1,Co,{CARRY_I_DELAY},Ci/Co?",
-    f"Delay,I2,Co,{CARRY_I_DELAY},Ci/Co?",
-    *[f"SetupHold,{p},CLK,{FF_SETUP},{FF_HOLD},FF=1" for p in _LC_LUT_INPUTS],
-    f"SetupHold,Ci,CLK,{FF_SETUP},{FF_HOLD},FF=1&I0MUX=1",
-    f"ClkToOut,Q,CLK,{FF_CLK_TO_Q},FF=1",
-]
+_LOGIC_CELLS = frozenset(
+    {"FABULOUS_LC", "LUT4c_frame_config", "LUT4c_frame_config_dffesr"}
+)
+
+# BEL types whose ports are exposed as fabric pins; each gets a `set_io` line.
+_PINNED_IO = frozenset(
+    {
+        "IO_1_bidirectional_frame_config_pass",
+        "InPass4_frame_config",
+        "OutPass4_frame_config",
+        "InPass4_frame_config_mux",
+        "OutPass4_frame_config_mux",
+    }
+)
 
 
-# Full static placement_estimate.txt content: nextpnr placer/router tunables
-# plus one representative estimate block per timed BEL type. All values
-# reproduce nextpnr's historical hardcoded defaults, so P&R behaviour is
-# unchanged.
+class CellKind(Enum):
+    """The nextpnr role of a BEL type."""
+
+    LOGIC_CELL = auto()
+    OUT_PASS = auto()
+    IN_PASS = auto()
+    OTHER = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class NextpnrBel:
+    """How nextpnr sees a BEL type.
+
+    Attributes
+    ----------
+    cell_type : str
+        nextpnr cell type: `FABULOUS_LC` for a logic cell, else the BEL name.
+    kind : CellKind
+        The BEL's nextpnr role.
+    pinned_io : bool
+        Whether the BEL gets a `set_io` line in `template.pcf`.
+    """
+
+    cell_type: str
+    kind: CellKind
+    pinned_io: bool
+
+
+def nextpnr_bel(bel_name: str) -> NextpnrBel:
+    """Classify a BEL type for nextpnr.
+
+    Parameters
+    ----------
+    bel_name : str
+        The BEL type name.
+
+    Returns
+    -------
+    NextpnrBel
+        The nextpnr cell type, role and pin-constraint flag.
+    """
+    if bel_name in _LOGIC_CELLS:
+        kind = CellKind.LOGIC_CELL
+    elif bel_name.startswith("OutPass4_frame_config"):
+        kind = CellKind.OUT_PASS
+    elif bel_name.startswith("InPass4_frame_config"):
+        kind = CellKind.IN_PASS
+    else:
+        kind = CellKind.OTHER
+    return NextpnrBel(
+        cell_type="FABULOUS_LC" if kind is CellKind.LOGIC_CELL else bel_name,
+        kind=kind,
+        pinned_io=bel_name in _PINNED_IO,
+    )
+
+
+def _clock_name(pin: BelPin) -> str:
+    """Return the nextpnr name of a clock pin; nextpnr calls `UserCLK` `CLK`.
+
+    Parameters
+    ----------
+    pin : BelPin
+        Clock pin.
+
+    Returns
+    -------
+    str
+        The nextpnr clock-port name.
+    """
+    return "CLK" if pin.port == "UserCLK" else pin.name
+
+
+def _render_condition(when: Condition) -> str:
+    """Return the `bel.v3` condition suffix, empty for an unconditional arc.
+
+    Parameters
+    ----------
+    when : Condition
+        Arc condition.
+
+    Returns
+    -------
+    str
+        `,FF=0&I0MUX=1`, `,Ci/Co?` or the empty string.
+    """
+    match when:
+        case AnyConnected(pins=pins):
+            return "," + "/".join(pin.name for pin in pins) + "?"
+        case ():
+            return ""
+        case features:
+            return "," + "&".join(
+                f"{feature.feature}={int(feature.enabled)}" for feature in features
+            )
+
+
+def render_arcs(arcs: BelArcs, *, kind: CellKind) -> list[str]:
+    """Return the `bel.v3` timing lines of one BEL.
+
+    On a logic cell the clock-to-out port `O` is written `Q`, because nextpnr's
+    packer renames the registered output.
+
+    Parameters
+    ----------
+    arcs : BelArcs
+        The BEL arcs.
+    kind : CellKind
+        The BEL's nextpnr role.
+
+    Returns
+    -------
+    list[str]
+        `Clock`, `Delay`, `SetupHold` and `ClkToOut` lines in that order.
+
+    Raises
+    ------
+    ValueError
+        If two clock pins have the same nextpnr name.
+    """
+    clock_names = [_clock_name(arc.clock) for arc in arcs.clocks]
+    if len(set(clock_names)) != len(clock_names):
+        raise ValueError(f"Clock pins share a nextpnr name: {arcs.clocks}")
+    lines = [
+        f"Clock,{_clock_name(arc.clock)}{_render_condition(arc.when)}"
+        for arc in arcs.clocks
+    ]
+    lines.extend(
+        f"Delay,{arc.src.name},{arc.dst.name},{arc.delay}{_render_condition(arc.when)}"
+        for arc in arcs.delays
+    )
+    lines.extend(
+        f"SetupHold,{arc.data.name},{_clock_name(arc.clock)},{arc.setup},{arc.hold}"
+        f"{_render_condition(arc.when)}"
+        for arc in arcs.checks
+    )
+    for arc in arcs.clock_to_outs:
+        out = arc.out.name
+        if kind is CellKind.LOGIC_CELL and out == "O":
+            out = "Q"
+        lines.append(
+            f"ClkToOut,{out},{_clock_name(arc.clock)},{arc.delay}"
+            f"{_render_condition(arc.when)}"
+        )
+    return lines
+
+
+def placeholder_bel_arcs(
+    *, kind: CellKind, inputs: list[str], outputs: list[str]
+) -> BelArcs:
+    """Return the hardcoded arcs nextpnr historically used for a BEL role.
+
+    Parameters
+    ----------
+    kind : CellKind
+        The BEL's nextpnr role.
+    inputs : list[str]
+        Input port names without the BEL prefix.
+    outputs : list[str]
+        Output port names without the BEL prefix.
+
+    Returns
+    -------
+    BelArcs
+        Logic-cell, input-pass or output-pass arcs; no arcs for other BELs.
+    """
+    clk = BelPin("CLK")
+    match kind:
+        case CellKind.LOGIC_CELL:
+            lut_inputs = [
+                BelPin(p) for p in inputs if p.startswith("I") and p[1:].isdigit()
+            ]
+            ci, co, out = BelPin("Ci"), BelPin("Co"), BelPin("O")
+            ff_on, ff_off = FeatureIs("FF", True), FeatureIs("FF", False)
+            i0mux = FeatureIs("I0MUX", True)
+            carry = AnyConnected((ci, co))
+            return BelArcs(
+                clocks=(ClockArc(clk, when=(ff_on,)),),
+                delays=(
+                    # Combinational (LUT) mode: active when the FF is disabled.
+                    *(DelayArc(p, out, LUT_DELAY, when=(ff_off,)) for p in lut_inputs),
+                    DelayArc(ci, out, LUT_DELAY, when=(ff_off, i0mux)),
+                    DelayArc(ci, co, CARRY_CICO_DELAY, when=carry),
+                    DelayArc(BelPin("I1"), co, CARRY_I_DELAY, when=carry),
+                    DelayArc(BelPin("I2"), co, CARRY_I_DELAY, when=carry),
+                ),
+                checks=(
+                    *(
+                        SetupHoldArc(p, clk, FF_SETUP, FF_HOLD, when=(ff_on,))
+                        for p in lut_inputs
+                    ),
+                    SetupHoldArc(ci, clk, FF_SETUP, FF_HOLD, when=(ff_on, i0mux)),
+                ),
+                clock_to_outs=(ClockToOutArc(out, clk, FF_CLK_TO_Q, when=(ff_on,)),),
+            )
+        case CellKind.OUT_PASS:
+            return BelArcs(
+                checks=tuple(
+                    SetupHoldArc(BelPin(p), clk, IO_SETUP, IO_HOLD)
+                    for p in inputs
+                    if p.startswith("I") and p[1:].isdigit()
+                )
+            )
+        case CellKind.IN_PASS:
+            return BelArcs(
+                clock_to_outs=tuple(
+                    ClockToOutArc(BelPin(p), clk, IO_CLK_TO_OUT)
+                    for p in outputs
+                    if p.startswith("O") and p[1:].isdigit()
+                )
+            )
+        case CellKind.OTHER:
+            return BelArcs()
+
+
+def _placeholder_arcs_of(bel: Bel) -> BelArcs:
+    """Return `placeholder_bel_arcs` for a fabric BEL.
+
+    Parameters
+    ----------
+    bel : Bel
+        The BEL.
+
+    Returns
+    -------
+    BelArcs
+        The placeholder arcs of the BEL's nextpnr role.
+    """
+    return placeholder_bel_arcs(
+        kind=nextpnr_bel(bel.name).kind,
+        inputs=[p.removeprefix(bel.prefix) for p in bel.inputs],
+        outputs=[p.removeprefix(bel.prefix) for p in bel.outputs],
+    )
+
+
+def placeholder_timing(fabric: Fabric) -> TimingDb:
+    """Return the timing nextpnr historically assumed for `fabric`.
+
+    Every pip gets `DUMMY_PIP_DELAY` and every BEL its `placeholder_bel_arcs`.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric.
+
+    Returns
+    -------
+    TimingDb
+        Placeholder pip delays and BEL arcs.
+    """
+    tile_pips: dict[str, dict[Pip, Ns]] = {}
+    tile_bels: dict[str, dict[str, BelArcs]] = {}
+    for _, tile in fabric:
+        if tile is None:
+            continue
+        delays = tile_pips.setdefault(tile.name, {})
+        for pip in switch_pips(tile.switch_matrix.connections):
+            delays[pip] = DUMMY_PIP_DELAY
+        for wire in tile.wireList:
+            delays[WirePip(src=wire.source, dst=wire.destination)] = DUMMY_PIP_DELAY
+        tile_bels[tile.name] = {
+            bel.instance_name: _placeholder_arcs_of(bel) for bel in tile.bels
+        }
+    super_tile_pips: dict[str, dict[SwitchPip, Ns]] = {}
+    super_tile_bels: dict[str, dict[str, BelArcs]] = {}
+    for super_tile in fabric.superTileDic.values():
+        connections = (
+            {}
+            if super_tile.switch_matrix is None
+            else super_tile.switch_matrix.connections
+        )
+        super_tile_pips[super_tile.name] = dict.fromkeys(
+            switch_pips(connections), DUMMY_PIP_DELAY
+        )
+        super_tile_bels[super_tile.name] = {
+            bel.instance_name: _placeholder_arcs_of(bel) for bel in super_tile.bels
+        }
+    return TimingDb(
+        pips=PipTiming(tiles=tile_pips, super_tiles=super_tile_pips),
+        bels=BelTiming(tiles=tile_bels, super_tiles=super_tile_bels),
+        clock_arrival=CLOCK_DELAY,
+    )
+
+
+def _estimate_block(cell_type: str, arcs: BelArcs, kind: CellKind) -> list[str]:
+    """Return one `placement_estimate.txt` block.
+
+    Parameters
+    ----------
+    cell_type : str
+        nextpnr cell type.
+    arcs : BelArcs
+        Representative arcs of the cell type.
+    kind : CellKind
+        The cell type's nextpnr role.
+
+    Returns
+    -------
+    list[str]
+        `BelBegin`, the arcs and `BelEnd`.
+    """
+    return [f"BelBegin,{cell_type}", *render_arcs(arcs, kind=kind), "BelEnd"]
+
+
+_IO_PORTS = 4
+
+# nextpnr placer/router tunables plus one representative estimate block per
+# timed BEL type. Static while every instance of a type shares the
+# placeholder constants (I0-I3 LUT4); a per-instance timing model would
+# regenerate it.
 PLACEMENT_ESTIMATE_TEXT: str = (
     "\n".join(
         [
@@ -92,397 +407,271 @@ PLACEMENT_ESTIMATE_TEXT: str = (
             f"ripupPenalty={RIPUP_PENALTY}",
             f"carryPredictDelay={CARRY_PREDICT_DELAY}",
             f"pipDelayScale={PIP_DELAY_SCALE}",
-            "BelBegin,FABULOUS_LC",
-            *LC_ESTIMATE_LINES,
-            "BelEnd",
-            "BelBegin,OutPass4_frame_config",
-            *[f"SetupHold,I{p},CLK,{IO_SETUP},{IO_HOLD}" for p in range(4)],
-            "BelEnd",
-            "BelBegin,OutPass4_frame_config_mux",
-            *[f"SetupHold,I{p},CLK,{IO_SETUP},{IO_HOLD}" for p in range(4)],
-            "BelEnd",
-            "BelBegin,InPass4_frame_config",
-            *[f"ClkToOut,O{p},CLK,{IO_CLK_TO_OUT}" for p in range(4)],
-            "BelEnd",
-            "BelBegin,InPass4_frame_config_mux",
-            *[f"ClkToOut,O{p},CLK,{IO_CLK_TO_OUT}" for p in range(4)],
-            "BelEnd",
+            *_estimate_block(
+                "FABULOUS_LC",
+                placeholder_bel_arcs(
+                    kind=CellKind.LOGIC_CELL,
+                    inputs=[f"I{i}" for i in range(_IO_PORTS)],
+                    outputs=[],
+                ),
+                CellKind.LOGIC_CELL,
+            ),
+            *(
+                line
+                for cell_type in ("OutPass4_frame_config", "OutPass4_frame_config_mux")
+                for line in _estimate_block(
+                    cell_type,
+                    placeholder_bel_arcs(
+                        kind=CellKind.OUT_PASS,
+                        inputs=[f"I{i}" for i in range(_IO_PORTS)],
+                        outputs=[],
+                    ),
+                    CellKind.OUT_PASS,
+                )
+            ),
+            *(
+                line
+                for cell_type in ("InPass4_frame_config", "InPass4_frame_config_mux")
+                for line in _estimate_block(
+                    cell_type,
+                    placeholder_bel_arcs(
+                        kind=CellKind.IN_PASS,
+                        inputs=[],
+                        outputs=[f"O{i}" for i in range(_IO_PORTS)],
+                    ),
+                    CellKind.IN_PASS,
+                )
+            ),
         ]
     )
     + "\n"
 )
 
-# BEL types whose ports are exposed as fabric pins in the per-tile
-# loop; a matching BEL gets a `set_io` constraint line.
-IO_BEL_TYPES = (
-    "IO_1_bidirectional_frame_config_pass",
-    "InPass4_frame_config",
-    "OutPass4_frame_config",
-    "InPass4_frame_config_mux",
-    "OutPass4_frame_config_mux",
-)
 
+@dataclass(frozen=True, slots=True)
+class NextpnrModel:
+    """The files nextpnr reads from `.FABulous/`.
 
-def _bel_timing_lines(timing: BelTiming) -> list[str]:
-    """Serialize characterized BEL timing arcs into `bel.v3` lines.
-
-    Parameters
+    Attributes
     ----------
-    timing : BelTiming
-        Timing arcs returned by the timing-model interface.
-
-    Returns
-    -------
-    list[str]
-        Serialized nextpnr timing-arc lines.
-
-    Raises
-    ------
-    TypeError
-        If `timing` contains an unsupported arc object.
+    pips : str
+        `pips.txt`.
+    bel_v1 : str
+        `bel.txt`.
+    bel_v2 : str
+        `bel.v2.txt`.
+    bel_v3 : str
+        `bel.v3.txt`.
+    pcf : str
+        `template.pcf`.
+    placement_estimate : str
+        `placement_estimate.txt`.
     """
-    lines = []
-    for arc in timing.arcs:
-        condition = f",{arc.condition}" if arc.condition is not None else ""
-        if isinstance(arc, BelClockTiming):
-            lines.append(f"Clock,{arc.clock}{condition}")
-        elif isinstance(arc, BelDelayTiming):
-            lines.append(f"Delay,{arc.source},{arc.sink},{arc.delay}{condition}")
-        elif isinstance(arc, BelSetupHoldTiming):
-            lines.append(
-                f"SetupHold,{arc.port},{arc.clock},{arc.setup},{arc.hold}{condition}"
-            )
-        elif isinstance(arc, BelClockToOutTiming):
-            lines.append(f"ClkToOut,{arc.port},{arc.clock},{arc.delay}{condition}")
-        else:
-            raise TypeError(f"Unsupported BEL timing arc: {arc!r}")
-    return lines
+
+    pips: str
+    bel_v1: str
+    bel_v2: str
+    bel_v3: str
+    pcf: str
+    placement_estimate: str
 
 
-def belLines(
-    bel: Bel,
-    letter: str,
-    x: int,
-    y: int,
-    bel_timing: BelTiming | None = None,
-) -> tuple[str, list[str], list[str], list[str]]:
-    """Build a BEL's legacy v1 line, its v2/v3 blocks, and any pin constraint.
+def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
+    """Emit the nextpnr model of `fabric` with the delays in `timing`.
 
-    When no characterized timing is supplied, the `bel.v3` block retains the
-    original hardcoded arcs for the BEL types nextpnr currently times. Supplied
-    timing-model results are serialized for any BEL type, including custom BELs.
-
-    Parameters
-    ----------
-    bel : Bel
-        The BEL to describe.
-    letter : str
-        The BEL's Z-position letter within its tile.
-    x : int
-        Tile X coordinate the BEL belongs to.
-    y : int
-        Tile Y coordinate the BEL belongs to.
-    bel_timing : BelTiming | None
-        Characterized timing to write in `bel.v3`. When omitted, retain the original
-        hardcoded BEL timing behavior.
-
-    Returns
-    -------
-    tuple[str, list[str], list[str], list[str]]
-        `(v1_line, v2_lines, v3_lines, constrain_lines)` - the legacy bel.txt
-        line, the bel.v2/bel.v3 block lines, and zero or one `set_io` line.
-    """
-    cType = bel.name
-    if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
-        cType = "FABULOUS_LC"
-    v1_line = (
-        f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel.inputs + bel.outputs)}"
-    )
-    inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
-    outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
-
-    def block(timing: bool) -> list[str]:
-        """Build one block with optional timing information.
-
-        Parameters
-        ----------
-        timing : bool
-            Whether to include timing arcs in the block.
-
-        Returns
-        -------
-        list[str]
-            Serialized BEL block lines.
-        """
-        lines = [f"BelBegin,X{x}Y{y},{letter},{cType},{bel.prefix}"]
-        for inp, stripped in zip(bel.inputs, inputs, strict=True):
-            lines.append(f"I,{stripped},X{x}Y{y}.{inp}")
-        for outp, stripped in zip(bel.outputs, outputs, strict=True):
-            lines.append(f"O,{stripped},X{x}Y{y}.{outp}")
-        for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
-            lines.append(f"CFG,{feat}")
-        if timing and bel_timing is not None:
-            lines.extend(_bel_timing_lines(bel_timing))
-        elif timing and cType == "FABULOUS_LC":
-            lutInputs = [p for p in inputs if p.startswith("I") and p[1:].isdigit()]
-            lines.append("Clock,CLK,FF=1")
-            # Combinational (LUT) mode: active when the FF is disabled.
-            for p in lutInputs:
-                lines.append(f"Delay,{p},O,{LUT_DELAY},FF=0")
-            lines.append(f"Delay,Ci,O,{LUT_DELAY},FF=0&I0MUX=1")
-            # Carry chain: active when carry-in or carry-out is connected.
-            lines.append(f"Delay,Ci,Co,{CARRY_CICO_DELAY},Ci/Co?")
-            lines.append(f"Delay,I1,Co,{CARRY_I_DELAY},Ci/Co?")
-            lines.append(f"Delay,I2,Co,{CARRY_I_DELAY},Ci/Co?")
-            # Registered (FF) mode.
-            for p in lutInputs:
-                lines.append(f"SetupHold,{p},CLK,{FF_SETUP},{FF_HOLD},FF=1")
-            lines.append(f"SetupHold,Ci,CLK,{FF_SETUP},{FF_HOLD},FF=1&I0MUX=1")
-            # Q is the cell's renamed FF output (pack.cc renames O -> Q when
-            # used); clock-to-Q is BEL-internal, not derivable from pip delay.
-            lines.append(f"ClkToOut,Q,CLK,{FF_CLK_TO_Q},FF=1")
-        elif timing and cType.startswith("OutPass4_frame_config"):
-            for p in inputs:
-                if p.startswith("I") and p[1:].isdigit():
-                    lines.append(f"SetupHold,{p},CLK,{IO_SETUP},{IO_HOLD}")
-        elif timing and cType.startswith("InPass4_frame_config"):
-            for p in outputs:
-                if p.startswith("O") and p[1:].isdigit():
-                    lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")
-        if bel.withUserCLK:
-            # only v3 carries the arrival time; v2 uses nextpnr's default
-            lines.append(f"GlobalClk,{CLOCK_DELAY}" if timing else "GlobalClk")
-        lines.append("BelEnd")
-        return lines
-
-    v2_lines = block(timing=False)
-    v3_lines = block(timing=True)
-
-    constrain_lines = (
-        [f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}"]
-        if bel.name in IO_BEL_TYPES
-        else []
-    )
-
-    return v1_line, v2_lines, v3_lines, constrain_lines
-
-
-def genNextpnrModel(
-    fabric: Fabric,
-    delay_model: FABulousTimingModelInterface | None = None,
-    *,
-    target: TimingModelTarget = TimingModelTarget.BOTH,
-) -> tuple[str, str, str, str, str]:
-    """Generate the fabric's nextpnr model.
+    Walk the fabric grid row-major, then the supertile placements.
 
     Parameters
     ----------
     fabric : Fabric
-        Fabric object containing tile information.
-    delay_model : FABulousTimingModelInterface | None
-        Timing model interface to provide delay information, by default None.
-    target : TimingModelTarget
-        Expensive timing calculations to perform when `delay_model` is supplied.
+        The fabric.
+    timing : TimingDb
+        Timing of every pip and BEL of the fabric.
 
     Returns
     -------
-    tuple[str, str, str, str, str]
-        - pipStr: A string with tile-internal and tile-external pip descriptions.
-        - belStr: A string with old style BEL definitions.
-        - belv2Str: A string with new style BEL definitions.
-        - belv3Str: A string with new style BEL definitions including timing.
-        - constrainStr: A string with constraint definitions.
+    NextpnrModel
+        The nextpnr files.
 
     Raises
     ------
     InvalidState
-        If a wire in a tile points to an invalid tile outside the fabric bounds.
+        If a wire in a tile points to a tile outside the fabric bounds.
     """
-    target = TimingModelTarget(target)
-    pipStr = []
-    belStr = []
-    belv2Str = []
-    belv3Str = []
-    belStr.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0,"
-        f" bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
-    )
-    belv2Str.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, "
+    header = (
+        "# BEL descriptions: top left corner Tile_X0Y0, "
         f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
     )
-    belv3Str.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, "
-        f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
-    )
-    constrainStr = []
+    pips: list[str] = []
+    bel_v1 = [header]
+    bel_v2 = [header]
+    bel_v3 = [header]
+    pcf: list[str] = []
 
-    for y, row in enumerate(fabric.tile):
-        for x, tile in enumerate(row):
-            if tile is None:
-                continue
-            pipStr.append(f"#Tile-internal pips on tile X{x}Y{y}:")
-            for source, sinkList in tile.switch_matrix.connections.items():
-                for sink in sinkList:
-                    delay: float = DUMMY_PIP_DELAY
-                    if delay_model is not None and target in (
-                        TimingModelTarget.PIPS,
-                        TimingModelTarget.BOTH,
-                    ):
-                        delay = delay_model.pip_delay(tile.name, sink, source)
-                    pipStr.append(
-                        f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
-                    )
+    def place_bels(
+        bels: list[Bel],
+        *,
+        first_letter: int,
+        x: int,
+        y: int,
+        arcs_of: Callable[[Bel], BelArcs],
+    ) -> None:
+        """Append the lines of `bels` placed at tile `(x, y)`.
 
-            pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
-            for wire in tile.wireList:
-                xDst = x + wire.x_offset
-                yDst = y + wire.y_offset
-                if (not (0 <= xDst <= fabric.numberOfColumns)) or (
-                    not (0 <= yDst <= fabric.numberOfRows)
-                ):
-                    raise InvalidState(
-                        f"Wire {wire} in tile X{x}Y{y} points to an invalid tile "
-                        f"X{xDst}Y{yDst}. "
-                        "Please check your tile CSV file for unmatching wires/offsets!"
-                    )
+        Parameters
+        ----------
+        bels : list[Bel]
+            BELs in Z order.
+        first_letter : int
+            Z index of the first BEL.
+        x : int
+            Tile X coordinate.
+        y : int
+            Tile Y coordinate.
+        arcs_of : Callable[[Bel], BelArcs]
+            Timing lookup of a BEL.
+        """
+        for i, bel in enumerate(bels):
+            letter = string.ascii_uppercase[first_letter + i]
+            npnr = nextpnr_bel(bel.name)
+            ports = ",".join(bel.inputs + bel.outputs)
+            bel_v1.append(f"X{x}Y{y},X{x},Y{y},{letter},{npnr.cell_type},{ports}")
+            block = [f"BelBegin,X{x}Y{y},{letter},{npnr.cell_type},{bel.prefix}"]
+            block.extend(
+                f"I,{p.removeprefix(bel.prefix)},X{x}Y{y}.{p}" for p in bel.inputs
+            )
+            block.extend(
+                f"O,{p.removeprefix(bel.prefix)},X{x}Y{y}.{p}" for p in bel.outputs
+            )
+            block.extend(f"CFG,{feature}" for feature in sorted(bel.belFeatureMap))
+            bel_v2.extend(block)
+            bel_v3.extend(block)
+            bel_v3.extend(render_arcs(arcs_of(bel), kind=npnr.kind))
+            if bel.withUserCLK:
+                # Only v3 carries the arrival time; v2 uses nextpnr's default.
+                bel_v2.append("GlobalClk")
+                bel_v3.append(f"GlobalClk,{timing.clock_arrival}")
+            bel_v2.append("BelEnd")
+            bel_v3.append("BelEnd")
+            if npnr.pinned_io:
+                pcf.append(f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}")
 
-                delay: float = DUMMY_PIP_DELAY
-                if delay_model is not None and target in (
-                    TimingModelTarget.PIPS,
-                    TimingModelTarget.BOTH,
-                ):
-                    delay = delay_model.pip_delay(
-                        tile.name,
-                        wire.source,
-                        wire.destination,
-                    )
-                pipStr.append(
-                    f"X{x}Y{y},{wire.source},"
-                    f"X{x + wire.x_offset}Y{y + wire.y_offset},{wire.destination},"
-                    f"{delay},"
-                    f"{wire.source}.{wire.destination}"
+    for (x, y), tile in fabric:
+        if tile is None:
+            continue
+        pips.append(f"#Tile-internal pips on tile X{x}Y{y}:")
+        for pip in switch_pips(tile.switch_matrix.connections):
+            delay = timing.pips.tile_delay(tile.name, pip)
+            pips.append(
+                f"X{x}Y{y},{pip.src},X{x}Y{y},{pip.dst},{delay},{pip.src}.{pip.dst}"
+            )
+
+        pips.append(f"#Tile-external pips on tile X{x}Y{y}:")
+        for wire in tile.wireList:
+            x_dst = x + wire.x_offset
+            y_dst = y + wire.y_offset
+            if (not (0 <= x_dst <= fabric.numberOfColumns)) or (
+                not (0 <= y_dst <= fabric.numberOfRows)
+            ):
+                raise InvalidState(
+                    f"Wire {wire} in tile X{x}Y{y} points to an invalid tile "
+                    f"X{x_dst}Y{y_dst}. "
+                    "Please check your tile CSV file for unmatching wires/offsets!"
                 )
+            delay = timing.pips.tile_delay(
+                tile.name, WirePip(src=wire.source, dst=wire.destination)
+            )
+            pips.append(
+                f"X{x}Y{y},{wire.source},X{x_dst}Y{y_dst},{wire.destination},"
+                f"{delay},{wire.source}.{wire.destination}"
+            )
 
-            # BEL definitions: legacy v1, and new-style v2 / v3 (with timing arcs).
-            belStr.append(f"#Tile_X{x}Y{y}")
-            belv2Str.append(f"#Tile_X{x}Y{y}")
-            belv3Str.append(f"#Tile_X{x}Y{y}")
-            for i, bel in enumerate(tile.bels):
-                letter = string.ascii_uppercase[i]
-                timing = None
-                if delay_model is not None and target in (
-                    TimingModelTarget.BELS,
-                    TimingModelTarget.BOTH,
-                ):
-                    timing = delay_model.bel_timing(tile.name, bel)
-                v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                    bel, letter, x, y, timing
-                )
-                belStr.append(v1_line)
-                belv2Str.extend(v2_lines)
-                belv3Str.extend(v3_lines)
-                constrainStr.extend(constrain_lines)
+        bel_v1.append(f"#Tile_X{x}Y{y}")
+        bel_v2.append(f"#Tile_X{x}Y{y}")
+        bel_v3.append(f"#Tile_X{x}Y{y}")
+        place_bels(
+            tile.bels,
+            first_letter=0,
+            x=x,
+            y=y,
+            arcs_of=lambda bel, name=tile.name: timing.bels.tile_arcs(name, bel),
+        )
 
-    # Supertile BEL and switch-matrix PIP emission.
-    # SJUMP PIPs live in tile.wireList (added by Fabric.__post_init__) and are
+    # SJUMP pips live in tile.wireList (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
     for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
-        if not super_tile.bels and super_tile.supertile_matrix_dir is None:
+        if not super_tile.bels and super_tile.switch_matrix is None:
             continue
 
         tx_local, ty_local = super_tile.get_master_tile_coords()
         ftx = base_fx + tx_local
         fty = base_fy + ty_local
 
-        bel_offset = len(fabric.tile[fty][ftx].bels)
-        belStr.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        belv2Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        for i, bel in enumerate(super_tile.bels):
-            letter = string.ascii_uppercase[bel_offset + i]
-            timing = None
-            if delay_model is not None and target in (
-                TimingModelTarget.BELS,
-                TimingModelTarget.BOTH,
-            ):
-                timing = delay_model.bel_timing(fabric.tile[fty][ftx].name, bel)
-            v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                bel, letter, ftx, fty, timing
-            )
-            belStr.append(v1_line)
-            belv2Str.extend(v2_lines)
-            belv3Str.extend(v3_lines)
-            constrainStr.extend(constrain_lines)
+        bel_v1.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
+        bel_v2.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
+        bel_v3.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
+        place_bels(
+            super_tile.bels,
+            first_letter=len(fabric.tile[fty][ftx].bels),
+            x=ftx,
+            y=fty,
+            arcs_of=lambda bel, name=super_tile.name: timing.bels.super_tile_arcs(
+                name, bel
+            ),
+        )
 
         if super_tile.switch_matrix is not None:
-            for sink, sources in super_tile.switch_matrix.connections.items():
-                for src in sources:
-                    delay: float = DUMMY_PIP_DELAY
-                    if delay_model is not None and target in (
-                        TimingModelTarget.PIPS,
-                        TimingModelTarget.BOTH,
-                    ):
-                        delay = delay_model.pip_delay(super_tile.name, sink, src)
-                    pipStr.append(
-                        f"X{ftx}Y{fty},{src},X{ftx}Y{fty},{sink},{delay},{src}.{sink}"
-                    )
+            for pip in switch_pips(super_tile.switch_matrix.connections):
+                delay = timing.pips.super_tile_delay(super_tile.name, pip)
+                pips.append(
+                    f"X{ftx}Y{fty},{pip.src},X{ftx}Y{fty},{pip.dst},{delay},"
+                    f"{pip.src}.{pip.dst}"
+                )
 
-    return (
-        "\n".join(pipStr),
-        "\n".join(belStr),
-        "\n".join(belv2Str),
-        "\n".join(belv3Str),
-        "\n".join(constrainStr),
+    return NextpnrModel(
+        pips="\n".join(pips),
+        bel_v1="\n".join(bel_v1),
+        bel_v2="\n".join(bel_v2),
+        bel_v3="\n".join(bel_v3),
+        pcf="\n".join(pcf),
+        placement_estimate=PLACEMENT_ESTIMATE_TEXT,
     )
 
 
-def writeNextpnrPipFile(
-    fabric: Fabric,
-    outputFile: Path,
-    delay_model: FABulousTimingModelInterface = None,
-) -> None:
-    """Write the nextpnr pip file for the given fabric.
+def write_nextpnr_model(model: NextpnrModel, directory: Path) -> None:
+    """Write all six nextpnr files into `directory`.
 
     Parameters
     ----------
-    fabric : Fabric
-        Fabric object containing tile information.
-    outputFile : Path
-        File to write the pip information to.
-    delay_model : FABulousTimingModelInterface, optional
-        Timing model interface to provide delay information, by default None.
+    model : NextpnrModel
+        The nextpnr model.
+    directory : Path
+        Output directory, normally the project's `.FABulous`.
     """
-    pip_str, *_ = genNextpnrModel(fabric, delay_model, target=TimingModelTarget.PIPS)
-    outputFile.write_text(pip_str, encoding="utf-8")
+    for name, text in (
+        ("pips.txt", model.pips),
+        ("bel.txt", model.bel_v1),
+        ("bel.v2.txt", model.bel_v2),
+        ("bel.v3.txt", model.bel_v3),
+        ("template.pcf", model.pcf),
+        ("placement_estimate.txt", model.placement_estimate),
+    ):
+        path = directory / name
+        logger.info(f"output file: {path}")
+        path.write_text(text, encoding="utf-8")
 
 
-def write_nextpnr_timing_files(
-    fabric: Fabric,
-    pip_output_file: Path,
-    bel_output_file: Path,
-    delay_model: FABulousTimingModelInterface,
-    target: TimingModelTarget = TimingModelTarget.BOTH,
-) -> None:
-    """Generate and write the selected nextpnr timing files.
+def write_timing_files(model: NextpnrModel, *, pip_file: Path, bel_file: Path) -> None:
+    """Write the pip delays and the `bel.v3` BEL timing of `model`.
 
     Parameters
     ----------
-    fabric : Fabric
-        Fabric whose timing data is generated.
-    pip_output_file : Path
-        Destination for characterized routing delays.
-    bel_output_file : Path
-        Destination for characterized BEL timing blocks.
-    delay_model : FABulousTimingModelInterface
-        Timing-model interface used for the selected calculations.
-    target : TimingModelTarget
-        Select whether pip timing, BEL timing, or both are generated.
+    model : NextpnrModel
+        The nextpnr model.
+    pip_file : Path
+        Destination of the pip delays.
+    bel_file : Path
+        Destination of the BEL timing blocks.
     """
-    target = TimingModelTarget(target)
-    pip_str, _, _, bel_v3_str, _ = genNextpnrModel(fabric, delay_model, target=target)
-
-    if target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
-        pip_output_file.write_text(pip_str, encoding="utf-8")
-    if target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
-        bel_output_file.write_text(bel_v3_str, encoding="utf-8")
+    pip_file.write_text(model.pips, encoding="utf-8")
+    bel_file.write_text(model.bel_v3, encoding="utf-8")
