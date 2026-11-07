@@ -47,6 +47,31 @@ FABulous CLI or programmatically.
      `.FABulous/timing_model_config_resolved.json` so you can inspect what FABulous
      actually used.
 
+### Supertiles
+
+FABulous characterises a supertile as one macro. It synthesises and times the
+supertile module one time, with all its member tiles, and reads the pips and BEL arcs
+of each member tile from that run. A tile type can be in one supertile only, and only
+one time in it; else the run stops with an error.
+
+The pips of a member tile are timed at the boundary of its instance
+(`Tile_X{x}Y{y}_{tile}`) in the supertile netlist, with the same rules as a tile:
+
+- A pip through one switch-matrix mux gets the delay of the path through that mux.
+- A pip from a member input gets the delay from that input to the nearest member
+    output, inside the member.
+- A pip from a member output gets the fixed stitched delay, as a pip from a tile
+    output does. This applies also when the wire goes to a neighbour member in the
+    same supertile, so that a wire gets the same delay in a supertile and between
+    tiles.
+
+The pips of the supertile switch matrix are timed at the top of the supertile module,
+as the pips of a tile switch matrix are. The supertile BELs are timed in the same
+supertile run.
+
+`physical` mode cannot time member tiles: the post-layout supertile netlist has no
+member hierarchy, so the run stops with an error.
+
 ## Running the timing model from the CLI
 
 The FABulous interactive CLI exposes the command `timing_model`. Key options:

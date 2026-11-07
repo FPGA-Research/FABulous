@@ -17,6 +17,7 @@ from fabulous.fabric_cad.timing_model.characterize import characterize
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
@@ -66,7 +67,7 @@ def test_characterize_times_each_pip_and_bel_of_a_tile_type_once(
     """Repeated placements reuse the tile type's results; BEL prefixes stay apart."""
     pip = SwitchPip(src="LONG_O", dst="LA_I0")
     pips = mocker.patch(
-        f"{CHARACTERIZE}.characterize_tile_pips", return_value={pip: ns(6.0)}
+        f"{CHARACTERIZE}.characterize_pips", return_value={pip: ns(6.0)}
     )
     bel_timing = mocker.patch(
         f"{CHARACTERIZE}.characterize_bel",
@@ -97,11 +98,11 @@ def test_bel_timing_rejects_unknown_tile(two_lut_tiles: Fabric) -> None:
         timing.bels.tile_arcs("UNKNOWN", _bel("LA_"))
 
 
-def test_characterize_gives_each_tile_type_its_own_temporary_work_dir(
+def test_characterize_gives_each_macro_its_own_temporary_work_dir(
     tools: MockType, mocker: MockerFixture
 ) -> None:
-    """Tile types do not share tool outputs, and no files outlive the run."""
-    mocker.patch(f"{CHARACTERIZE}.characterize_tile_pips", return_value={})
+    """Macros do not share tool outputs, and no files outlive the run."""
+    mocker.patch(f"{CHARACTERIZE}.characterize_pips", return_value={})
     work_dirs: list[Path] = []
 
     def run_tools(_config: object, *, top: str, work_dir: Path, **_: object) -> None:
@@ -119,3 +120,53 @@ def test_characterize_gives_each_tile_type_its_own_temporary_work_dir(
     assert len(work_dirs) == 2
     assert work_dirs[0].parent == work_dirs[1].parent
     assert not work_dirs[0].parent.exists()
+
+
+def test_characterize_times_a_supertile_once_in_its_member_scopes(
+    tools: MockType, mocker: MockerFixture
+) -> None:
+    """Members and the supertile switch matrix and BELs share one supertile run."""
+    tools.side_effect = lambda _config, *, top, **_: mocker.Mock(synth=top)
+    top, bot, lut = (
+        make_empty_tile(name, pinOrderConfig={}) for name in ("TOP", "BOT", "LUT")
+    )
+    fabric = make_fabric_from_grid([[top, lut], [bot, lut]])
+    super_pip = SwitchPip(src="BOT_SJ0", dst="ST_I0")
+    st_bel = _bel("ST_")
+    fabric.superTileDic = {
+        "ST": SuperTile(
+            name="ST",
+            tileDir=Path(),
+            tiles=[top, bot],
+            tileMap=[[top], [bot]],
+            bels=[st_bel],
+            switch_matrix=SwitchMatrix(
+                matrix_file=Path(), connections={"ST_I0": ["BOT_SJ0"]}
+            ),
+        )
+    }
+    pips = mocker.patch(
+        f"{CHARACTERIZE}.characterize_pips",
+        side_effect=lambda _timing, *, pips, **_: dict.fromkeys(pips, ns(1.5)),
+    )
+    bel_timing = mocker.patch(
+        f"{CHARACTERIZE}.characterize_bel", return_value=BelArcs()
+    )
+
+    timing = characterize(fabric, mocker.Mock())
+
+    assert [call.kwargs["top"] for call in tools.call_args_list] == ["ST", "LUT"]
+    assert [
+        (call.args[0].synth, call.kwargs["scope"], call.kwargs["switch_matrix"])
+        for call in pips.call_args_list
+    ] == [
+        ("ST", ("Tile_X0Y0_TOP",), "Inst_TOP_switch_matrix"),
+        ("LUT", (), "Inst_LUT_switch_matrix"),
+        ("ST", ("Tile_X0Y1_BOT",), "Inst_BOT_switch_matrix"),
+        ("ST", (), "Inst_ST_switch_matrix"),
+    ]
+    assert timing.pips.super_tile_delay("ST", super_pip) == ns(1.5)
+    assert [
+        (call.args[0], call.kwargs["instance"]) for call in bel_timing.call_args_list
+    ] == [("ST", ("Inst_ST_ST_LUT4c_frame_config_dffesr",))]
+    assert timing.bels.super_tile_arcs("ST", st_bel) == BelArcs()

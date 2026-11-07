@@ -6,6 +6,7 @@ from fabulous.fabric_cad.timing_model.netlist import (
     HierPath,
     NetlistIndex,
     PortBit,
+    PortDirection,
     sdf_identifier,
 )
 from tests.timing_model_test.conftest import ReadNetlist
@@ -165,6 +166,48 @@ def test_top_port_bits_list_each_bit_lsb_first(
 ) -> None:
     """Bits keep their HDL index; a one-bit port, `[0:0]` included, has none."""
     assert read_netlist(source, top).top_port_bits() == expected
+
+
+@pytest.mark.parametrize(
+    ("instance", "direction", "expected"),
+    [
+        pytest.param(
+            ("u_mid",),
+            "input",
+            [PortBit("A", None), *(PortBit("B", index) for index in (4, 5, 6, 7))],
+            id="inputs",
+        ),
+        pytest.param(
+            ("u_mid",),
+            "output",
+            [PortBit(name, None) for name in ("Y", "Z", "U0", "U1")],
+            id="outputs",
+        ),
+        pytest.param(
+            ("u_mid", "child"),
+            "input",
+            [PortBit("I", index) for index in (3, 2, 1, 0)],
+            id="nested-ascending-range",
+        ),
+    ],
+)
+def test_port_bits_list_one_direction_of_an_instance(
+    netlist: NetlistIndex,
+    instance: HierPath,
+    direction: PortDirection,
+    expected: list[PortBit],
+) -> None:
+    """The bits of the instance's module ports, LSB first, in one direction."""
+    assert netlist.port_bits(instance, direction=direction) == expected
+
+
+@pytest.mark.parametrize("instance", [("u_buf",), ("nope",)], ids=["leaf", "absent"])
+def test_port_bits_reject_leaf_and_absent_instances(
+    netlist: NetlistIndex, instance: HierPath
+) -> None:
+    """Only a module instance has module ports to list."""
+    with pytest.raises(KeyError):
+        netlist.port_bits(instance, direction="input")
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-"""Tests for locating a tile's macro and running its tools."""
+"""Tests for grouping a fabric into macros and running their tools."""
 
 from pathlib import Path
 
@@ -12,11 +12,13 @@ from fabulous.fabric_cad.timing_model.config import (
     TimingModelConfig,
 )
 from fabulous.fabric_cad.timing_model.macro import (
+    MemberTile,
     PhysicalMacro,
     StructuralMacro,
+    SuperTileMacro,
     TileMacro,
+    fabric_macros,
     run_macro_tools,
-    tile_macro,
 )
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -31,44 +33,62 @@ def tiles() -> dict[str, Tile]:
     return {name: make_empty_tile(name, pinOrderConfig={}) for name in "ABC"}
 
 
+def _super_tile(name: str, tile_map: list[list[Tile | None]]) -> SuperTile:
+    """Build a supertile of the tiles in `tile_map`."""
+    tiles = list({t.name: t for row in tile_map for t in row if t is not None}.values())
+    return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=tile_map)
+
+
+def test_fabric_macros_synthesise_each_supertile_once(
+    tiles: dict[str, Tile],
+) -> None:
+    """A supertile holds its members at their instances; other tiles stand alone."""
+    fabric = make_fabric_from_grid([[tiles["A"], tiles["C"]], [tiles["B"], None]])
+    super_tile = _super_tile("SUPER", [[tiles["C"]], [tiles["B"]]])
+    fabric.superTileDic = {"SUPER": super_tile}
+
+    macros = fabric_macros(fabric)
+
+    assert macros == [
+        SuperTileMacro(
+            super_tile=super_tile,
+            members=(
+                MemberTile(tile=tiles["C"], instance="Tile_X0Y0_C"),
+                MemberTile(tile=tiles["B"], instance="Tile_X0Y1_B"),
+            ),
+        ),
+        TileMacro(tile=tiles["A"]),
+    ]
+    assert [macro.top for macro in macros] == ["SUPER", "A"]
+
+
 @pytest.mark.parametrize(
-    ("name", "top", "scope"),
+    ("tile_maps", "message"),
     [
-        pytest.param("A", "A", (), id="own-macro"),
-        pytest.param("B", "SUPER", ("Tile_X0Y1_B",), id="supertile-member"),
+        pytest.param(
+            {"SUPER": [["B", "B"]]},
+            "Supertile 'SUPER' places tile 'B' more than once",
+            id="twice-in-one-supertile",
+        ),
+        pytest.param(
+            {"S1": [["B"]], "S2": [["B", "C"]]},
+            "Tile 'B' is in supertile 'S1' and in supertile 'S2'",
+            id="in-two-supertiles",
+        ),
     ],
 )
-def test_tile_macro(
-    tiles: dict[str, Tile], name: str, top: str, scope: tuple[str, ...]
+def test_tile_with_two_supertile_instances_raises(
+    tiles: dict[str, Tile], tile_maps: dict[str, list[list[str]]], message: str
 ) -> None:
-    """A tile inside a supertile is timed at its instance in the supertile."""
-    fabric = make_fabric_from_grid([[tiles["A"], tiles["C"]], [tiles["B"], None]])
+    """A tile type with two instances has no single instance to characterise."""
+    fabric = make_fabric_from_grid([[tiles["B"], tiles["C"]]])
     fabric.superTileDic = {
-        "SUPER": SuperTile(
-            name="SUPER",
-            tileDir=Path(),
-            tiles=[tiles["C"], tiles["B"]],
-            tileMap=[[tiles["C"]], [tiles["B"]]],
-        )
+        name: _super_tile(name, [[tiles[t] for t in row] for row in tile_map])
+        for name, tile_map in tile_maps.items()
     }
 
-    assert tile_macro(fabric, name) == TileMacro(tile=tiles[name], top=top, scope=scope)
-
-
-def test_tile_placed_twice_in_a_supertile_raises(tiles: dict[str, Tile]) -> None:
-    """A tile with two instances in its supertile has no single instance to time."""
-    fabric = make_fabric_from_grid([[tiles["B"], tiles["B"]]])
-    fabric.superTileDic = {
-        "SUPER": SuperTile(
-            name="SUPER",
-            tileDir=Path(),
-            tiles=[tiles["B"]],
-            tileMap=[[tiles["B"], tiles["B"]]],
-        )
-    }
-
-    with pytest.raises(ValueError, match="places tile 'B' 2 times"):
-        tile_macro(fabric, "B")
+    with pytest.raises(ValueError, match=message):
+        fabric_macros(fabric)
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-"""Synthesis and static timing analysis of one tile macro.
+"""Synthesis and static timing analysis of one tile or supertile macro.
 
 `run_macro_tools` is the only step of the characterisation that runs tools.
 Its result is the immutable input of the pure pip and BEL extraction.
@@ -15,9 +15,10 @@ from fabulous.fabric_cad.timing_model.config import (
     StructuralSources,
     TimingModelConfig,
 )
-from fabulous.fabric_cad.timing_model.netlist import HierPath, NetlistIndex
+from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.tools.opensta import OpenStaTool
 from fabulous.tools.yosys import YosysTool
@@ -25,65 +26,114 @@ from fabulous.tools.yosys import YosysTool
 
 @dataclass(frozen=True, slots=True)
 class TileMacro:
-    """A tile type and the module that is synthesised to time it.
+    """A tile type synthesised as its own module.
 
     Attributes
     ----------
     tile : Tile
         The tile type.
-    top : str
-        The tile module, or the supertile module that holds the tile.
-    scope : HierPath
-        Path of the tile instance inside `top`; empty when `top` is the tile.
     """
 
     tile: Tile
-    top: str
-    scope: HierPath
+
+    @property
+    def top(self) -> str:
+        """The module that is synthesised: the tile module."""
+        return self.tile.name
 
 
-def tile_macro(fabric: Fabric, tile_name: str) -> TileMacro:
-    """Return the macro of tile type `tile_name`.
+@dataclass(frozen=True, slots=True)
+class MemberTile:
+    """A tile type inside a supertile.
 
-    A tile inside a supertile is timed in the supertile module.
+    Attributes
+    ----------
+    tile : Tile
+        The tile type.
+    instance : str
+        Instance name of the tile in the supertile module.
+    """
+
+    tile: Tile
+    instance: str
+
+
+@dataclass(frozen=True, slots=True)
+class SuperTileMacro:
+    """A supertile synthesised as one module with all its member tiles.
+
+    Attributes
+    ----------
+    super_tile : SuperTile
+        The supertile type.
+    members : tuple[MemberTile, ...]
+        Each member tile type and its instance, in `tileMap` row-major order.
+    """
+
+    super_tile: SuperTile
+    members: tuple[MemberTile, ...]
+
+    @property
+    def top(self) -> str:
+        """The module that is synthesised: the supertile module."""
+        return self.super_tile.name
+
+
+type Macro = TileMacro | SuperTileMacro
+
+
+def fabric_macros(fabric: Fabric) -> list[Macro]:
+    """Return one macro per module that is synthesised to time `fabric`.
+
+    Each supertile is one macro that holds its member tiles; every other tile
+    type is its own macro.
 
     Parameters
     ----------
     fabric : Fabric
         The fabric.
-    tile_name : str
-        Name of the tile type.
 
     Returns
     -------
-    TileMacro
-        The macro of the tile type.
+    list[Macro]
+        The supertile macros in `superTileDic` order, then the tile macros in
+        `tileDic` order.
 
     Raises
     ------
     ValueError
-        If the supertile places the tile more than once, so the tile has no
-        single instance to characterise.
+        If a tile type appears twice in one supertile or in two supertiles,
+        so it has no single instance to characterise.
     """
-    tile = fabric.tileDic[tile_name]
-    super_tile = fabric.get_super_tile_containing(tile_name)
-    if super_tile is None:
-        return TileMacro(tile=tile, top=tile_name, scope=())
-    placements = [
-        (x, y)
-        for y, row in enumerate(super_tile.tileMap)
-        for x, member in enumerate(row)
-        if member is not None and member.name == tile_name
-    ]
-    if len(placements) != 1:
-        raise ValueError(
-            f"SuperTile {super_tile.name!r} places tile "
-            f"{tile_name!r} {len(placements)} times."
-        )
-    x, y = placements[0]
-    return TileMacro(
-        tile=tile, top=super_tile.name, scope=(super_tile.tile_instance_name(x, y),)
+    macros: list[Macro] = []
+    owners: dict[str, str] = {}
+    for super_tile in fabric.superTileDic.values():
+        members: list[MemberTile] = []
+        for y, row in enumerate(super_tile.tileMap):
+            for x, tile in enumerate(row):
+                if tile is None:
+                    continue
+                if owners.get(tile.name) == super_tile.name:
+                    raise ValueError(
+                        f"Supertile {super_tile.name!r} places tile {tile.name!r} "
+                        "more than once."
+                    )
+                if tile.name in owners:
+                    raise ValueError(
+                        f"Tile {tile.name!r} is in supertile {owners[tile.name]!r} "
+                        f"and in supertile {super_tile.name!r}."
+                    )
+                owners[tile.name] = super_tile.name
+                members.append(
+                    MemberTile(tile=tile, instance=super_tile.tile_instance_name(x, y))
+                )
+        macros.append(SuperTileMacro(super_tile=super_tile, members=tuple(members)))
+    macros.extend(
+        TileMacro(tile=tile)
+        for name, tile in fabric.tileDic.items()
+        if name not in owners
     )
+    return macros
 
 
 @dataclass(frozen=True, slots=True)

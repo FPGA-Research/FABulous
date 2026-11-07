@@ -10,7 +10,7 @@ import string
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Self
+from typing import Literal, Self
 
 from fabulous.fabric_definition.yosys_obj import (
     YosysCellDetails,
@@ -20,6 +20,8 @@ from fabulous.fabric_definition.yosys_obj import (
 
 type HierPath = tuple[str, ...]
 """Instance names from the top module down, outermost first."""
+
+type PortDirection = Literal["input", "output", "inout"]
 
 _SDF_PLAIN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "_")
 
@@ -173,6 +175,11 @@ class NetlistIndex:
             shutil.copyfile(verilog, source)
             return cls(YosysJson(source), top=top)
 
+    @property
+    def top(self) -> str:
+        """Name of the top module."""
+        return self._top
+
     def __contains__(self, instance: HierPath) -> bool:
         """Return whether `instance` is a path of the netlist hierarchy."""
         try:
@@ -284,17 +291,14 @@ class NetlistIndex:
                 return self._leaf_pins_at(instance, cell, port.port, position)
         raise KeyError(f"Pin {name}[{port.index}] not found.")
 
-    def top_port_bits(self) -> list[PortBit]:
-        """Return every bit of the top module's ports.
-
-        Returns
-        -------
-        list[PortBit]
-            The bits in port order, LSB first; a one-bit port gives one bit
-            with `index` `None`.
-        """
+    def _port_bits(
+        self, module: str, directions: frozenset[PortDirection]
+    ) -> list[PortBit]:
+        """Return every bit of the ports of `module` with one of `directions`."""
         bits: list[PortBit] = []
-        for name, details in self._modules[self._top].ports.items():
+        for name, details in self._modules[module].ports.items():
+            if details.direction not in directions:
+                continue
             width = len(details.bits)
             if width == 1:
                 bits.append(PortBit(name, None))
@@ -312,6 +316,45 @@ class NetlistIndex:
                 for position in range(width)
             )
         return bits
+
+    def top_port_bits(self) -> list[PortBit]:
+        """Return every bit of the top module's ports.
+
+        Returns
+        -------
+        list[PortBit]
+            The bits in port order, LSB first; a one-bit port gives one bit
+            with `index` `None`.
+        """
+        return self._port_bits(self._top, frozenset(("input", "output", "inout")))
+
+    def port_bits(
+        self, instance: HierPath, *, direction: PortDirection
+    ) -> list[PortBit]:
+        """Return the bits of the ports of a module instance in one direction.
+
+        Parameters
+        ----------
+        instance : HierPath
+            Path of a module instance.
+        direction : PortDirection
+            Direction of the ports to list.
+
+        Returns
+        -------
+        list[PortBit]
+            The bits in port order, LSB first; a one-bit port gives one bit
+            with `index` `None`.
+
+        Raises
+        ------
+        KeyError
+            If the path is absent or names a leaf cell.
+        """
+        _, cell = self._parent_and_cell(instance)
+        if cell.type not in self._modules:
+            raise KeyError(f"{'/'.join(instance)!r} is a leaf cell of {cell.type!r}.")
+        return self._port_bits(cell.type, frozenset((direction,)))
 
     def child_nets(self, instance: HierPath) -> dict[str, list[str]]:
         """Return the net names on each child cell of a module instance.

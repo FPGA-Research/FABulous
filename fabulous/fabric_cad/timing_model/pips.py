@@ -1,10 +1,13 @@
-"""Pip delays of one tile type, read from the timing of its macro.
+"""Pip delays of one switch matrix, read from the timing of its macro.
 
-A pip whose two wires meet on one switch-matrix mux is internal: its delay is
-the path through that mux. Every other pip is external: a tile output stitched
-to the next tile, a tile input routed to its nearest output, or a mux output
-followed to the next mux input. External delays reuse the mux each internal
-pip resolved, so all internal pips are timed first.
+Pips are classified against a scope: the macro top module, or a member tile
+inside a supertile macro. A pip whose two wires meet on one switch-matrix mux is
+internal: its delay is the path through that mux. Every other pip is external:
+a scope output stitched to the next tile, a scope input routed to its nearest
+scope output, or a mux output followed to the next mux input. A member output
+wired to a sibling member is stitched as well, so one physical wire class gets
+one delay rule. External delays reuse the mux each internal pip resolved, so all
+internal pips are timed first.
 """
 
 from collections.abc import Iterable
@@ -19,9 +22,15 @@ from fabulous.fabric_cad.timing_model.macro import (
     MacroTiming,
     PhysicalMacro,
     StructuralMacro,
-    TileMacro,
+    TimedNetlist,
 )
-from fabulous.fabric_cad.timing_model.netlist import HierPath, NetlistIndex
+from fabulous.fabric_cad.timing_model.netlist import (
+    HierPath,
+    NetlistIndex,
+    PortBit,
+    PortDirection,
+    sdf_path,
+)
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 
 # Delay of a pip with no timed path in the macro, such as a tile output
@@ -47,6 +56,33 @@ class _Mux:
     output: str
 
 
+@dataclass(frozen=True, slots=True)
+class _Boundary:
+    """The module boundary that external pips are classified against.
+
+    Attributes
+    ----------
+    graph : SdfTimingGraph
+        Timing graph the pip delays are read from, restricted to the module.
+    inputs : dict[str, list[str]]
+        Nodes where each input wire of the module enters `graph`.
+    outputs : frozenset[str]
+        Output wires of the module that are driven in `graph`.
+    targets : list[str]
+        Nodes where the output wires of the module leave `graph`.
+    """
+
+    graph: SdfTimingGraph
+    inputs: dict[str, list[str]]
+    outputs: frozenset[str]
+    targets: list[str]
+
+
+def _wire_name(bit: PortBit) -> str:
+    """Return the fabric wire name of a port bit: `N2BEG{i}`, or the port name."""
+    return bit.port if bit.index is None else f"{bit.port}{bit.index}"
+
+
 def _wire_port_pins(netlist: NetlistIndex) -> dict[str, str]:
     """Return the SDF pin of each top-level port bit, by fabric wire name.
 
@@ -70,16 +106,104 @@ def _wire_port_pins(netlist: NetlistIndex) -> dict[str, str]:
     """
     pins: dict[str, str] = {}
     for bit in netlist.top_port_bits():
-        if bit.index is None:
-            wire, pin = bit.port, bit.port
-        else:
-            wire, pin = f"{bit.port}{bit.index}", f"{bit.port}[{bit.index}]"
+        wire = _wire_name(bit)
+        pin = bit.port if bit.index is None else f"{bit.port}[{bit.index}]"
         if wire in pins:
             raise ValueError(
                 f"Port bits {pins[wire]!r} and {pin!r} share the wire name {wire!r}."
             )
         pins[wire] = pin
     return pins
+
+
+def _top_boundary(graph: SdfTimingGraph, netlist: NetlistIndex) -> _Boundary:
+    """Return the boundary of the macro top module: its top-level ports.
+
+    Parameters
+    ----------
+    graph : SdfTimingGraph
+        Timing graph of the macro.
+    netlist : NetlistIndex
+        The synthesised macro netlist, which names the ports.
+
+    Returns
+    -------
+    _Boundary
+        The top-level ports.
+    """
+    port_pins = _wire_port_pins(netlist)
+    input_ports = set(graph.input_ports)
+    output_ports = set(graph.output_ports)
+    return _Boundary(
+        graph=graph,
+        inputs={wire: [pin] for wire, pin in port_pins.items() if pin in input_ports},
+        outputs=frozenset(
+            wire for wire, pin in port_pins.items() if pin in output_ports
+        ),
+        targets=graph.output_ports,
+    )
+
+
+def _member_boundary(synth: TimedNetlist, member: HierPath) -> _Boundary:
+    """Return the boundary of a member tile instance inside a supertile macro.
+
+    The member module has no node of its own in the SDF graph. An input wire
+    enters at the leaf pins it drives inside the member, and an output wire
+    leaves at the leaf pins on its net inside the member.
+
+    Parameters
+    ----------
+    synth : TimedNetlist
+        The synthesised supertile netlist and its timing.
+    member : HierPath
+        Path of the member tile instance.
+
+    Returns
+    -------
+    _Boundary
+        The member ports, timed in the member's part of the graph.
+    """
+    netlist = synth.netlist
+    view = synth.graph.within(f"{sdf_path(member)}/")
+
+    def wire_pins(direction: PortDirection) -> dict[str, list[str]]:
+        """Return the member's leaf pins in `view` of each wire in `direction`.
+
+        Parameters
+        ----------
+        direction : PortDirection
+            Direction of the member ports to list.
+
+        Returns
+        -------
+        dict[str, list[str]]
+            Leaf pins in `view` of each wire that has any.
+
+        Raises
+        ------
+        ValueError
+            If two port bits of the member have the same wire name.
+        """
+        wires: dict[str, list[str]] = {}
+        for bit in netlist.port_bits(member, direction=direction):
+            wire = _wire_name(bit)
+            if wire in wires:
+                raise ValueError(
+                    f"Two port bits of {'/'.join(member)!r} share the wire name "
+                    f"{wire!r}."
+                )
+            pins = [pin for pin in netlist.leaf_pins(member, bit) if pin in view.graph]
+            if pins:
+                wires[wire] = pins
+        return wires
+
+    outputs = wire_pins("output")
+    return _Boundary(
+        graph=view,
+        inputs=wire_pins("input"),
+        outputs=frozenset(outputs),
+        targets=[pin for pins in outputs.values() for pin in pins],
+    )
 
 
 def _nearest_ports(
@@ -161,23 +285,46 @@ def _resolve_mux(timing: MacroTiming, *, mux: HierPath, dst: str) -> _Mux:
             return _Mux(inputs=inputs, output=best_nodes[0])
 
 
+def _nearest_target(
+    graph: SdfTimingGraph, starts: list[str], targets: list[str]
+) -> tuple[str, str] | None:
+    """Return the start node and the target node of the fewest-hop path.
+
+    Ties go to the earlier start node.
+
+    Parameters
+    ----------
+    graph : SdfTimingGraph
+        Timing graph to search.
+    starts : list[str]
+        Nodes the path may start at.
+    targets : list[str]
+        Nodes the path may end at.
+
+    Returns
+    -------
+    tuple[str, str] | None
+        The start and the target, or `None` if no start reaches a target.
+    """
+    best: tuple[int, str, str] | None = None
+    for start in starts:
+        path, target = graph.path_to_nearest_target_sentinel(start, targets)
+        if target is not None and (best is None or len(path) < best[0]):
+            best = (len(path), start, target)
+    return None if best is None else (best[1], best[2])
+
+
 def _external_delay(
-    graph: SdfTimingGraph,
-    *,
-    pip: Pip,
-    port_pin: str | None,
-    mux_output: str | None,
+    boundary: _Boundary, *, pip: Pip, mux_output: str | None
 ) -> Decimal:
     """Return the delay of a pip that does not cross a switch-matrix mux.
 
     Parameters
     ----------
-    graph : SdfTimingGraph
-        Timing graph the delay is read from.
+    boundary : _Boundary
+        The module the pip belongs to.
     pip : Pip
         The pip.
-    port_pin : str | None
-        SDF pin of `pip.src` if it is a top-level port bit.
     mux_output : str | None
         Output pin of the mux that drives `pip.src`, if an internal pip
         resolved it.
@@ -187,23 +334,23 @@ def _external_delay(
     Decimal
         Unscaled delay in nanoseconds.
     """
-    if port_pin in graph.output_ports:
+    graph = boundary.graph
+    if pip.src in boundary.outputs:
         logger.info(
             f"Tile output {pip.src} to next tile input {pip.dst} "
             f"stitched delay: {DEFAULT_PIP_DELAY} ns"
         )
         return DEFAULT_PIP_DELAY
-    if port_pin is not None and port_pin in graph.input_ports:
-        _, out_port = graph.path_to_nearest_target_sentinel(
-            port_pin, graph.output_ports
-        )
-        if out_port is None:
+    if pip.src in boundary.inputs:
+        route = _nearest_target(graph, boundary.inputs[pip.src], boundary.targets)
+        if route is None:
             logger.warning(
-                f"No nearest port found for tile input {port_pin}. "
+                f"No nearest port found for tile input {pip.src}. "
                 f"Using default delay {DEFAULT_PIP_DELAY} ns"
             )
             return DEFAULT_PIP_DELAY
-        return graph.single_delay(port_pin, out_port)
+        start, target = route
+        return graph.single_delay(start, target)
     if mux_output is None:
         logger.info(
             f"SWMy output {pip.src} to next SWMy input {pip.dst} directly "
@@ -220,19 +367,27 @@ def _external_delay(
     return delay
 
 
-def characterize_tile_pips(
-    timing: MacroTiming, *, macro: TileMacro, pips: Iterable[Pip], scale: Decimal
+def characterize_pips(
+    timing: MacroTiming,
+    *,
+    scope: HierPath,
+    switch_matrix: str,
+    pips: Iterable[Pip],
+    scale: Decimal,
 ) -> dict[Pip, Ns]:
-    """Return the delay of each pip of one tile type.
+    """Return the delay of each pip of one switch matrix and its tile.
 
     Parameters
     ----------
     timing : MacroTiming
-        Timing of the tile's macro.
-    macro : TileMacro
-        The tile type and its place in the macro.
+        Timing of the macro.
+    scope : HierPath
+        Path of the module that holds the switch matrix: empty for the macro
+        top, else a member tile instance of a supertile macro.
+    switch_matrix : str
+        Instance name of the switch matrix inside `scope`.
     pips : Iterable[Pip]
-        Pips of the tile type, in emission order.
+        Pips of the tile or supertile, in emission order.
     scale : Decimal
         The configured `delay_scaling_factor`.
 
@@ -244,23 +399,24 @@ def characterize_tile_pips(
     Raises
     ------
     ValueError
-        If the synthesised netlist has no instance of the tile's switch matrix.
+        If the synthesised netlist has no instance of the switch matrix, or if
+        a member tile is timed from a post-layout netlist, which has no member
+        hierarchy.
     """
     netlist = timing.synth.netlist
-    switch_matrix = (*macro.scope, macro.tile.switch_matrix_instance_name)
-    if switch_matrix not in netlist:
+    switch_matrix_path = (*scope, switch_matrix)
+    if switch_matrix_path not in netlist:
         raise ValueError(
-            f"Switch matrix instance {'/'.join(switch_matrix)!r} of tile "
-            f"{macro.tile.name!r} not found in the {macro.top!r} netlist."
+            f"Switch matrix instance {'/'.join(switch_matrix_path)!r} not found "
+            f"in the {netlist.top!r} netlist."
         )
-    mux_nets = netlist.child_nets(switch_matrix)
-    port_pins = _wire_port_pins(netlist)
+    mux_nets = netlist.child_nets(switch_matrix_path)
 
     internal: dict[Pip, list[HierPath]] = {}
     external: list[Pip] = []
     for pip in dict.fromkeys(pips):
         muxes: list[HierPath] = [
-            (*switch_matrix, mux)
+            (*switch_matrix_path, mux)
             for mux, nets in mux_nets.items()
             if pip.src in nets and pip.dst in nets
         ]
@@ -271,9 +427,19 @@ def characterize_tile_pips(
 
     match timing:
         case StructuralMacro(synth=synth):
-            graph = synth.graph
+            boundary = (
+                _member_boundary(synth, scope)
+                if scope
+                else _top_boundary(synth.graph, netlist)
+            )
         case PhysicalMacro(layout=layout):
-            graph = layout
+            if scope:
+                raise ValueError(
+                    f"Member tile {'/'.join(scope)!r} of the {netlist.top!r} "
+                    "supertile cannot be timed in physical mode: the post-layout "
+                    "netlist has no member hierarchy."
+                )
+            boundary = _top_boundary(layout, netlist)
     # Pips that share a destination share its mux: the first pip locates it.
     located: dict[str, _Mux] = {}
     delays: dict[Pip, Ns] = {}
@@ -287,15 +453,12 @@ def characterize_tile_pips(
         if mux is None:
             mux = _resolve_mux(timing, mux=muxes[0], dst=pip.dst)
             located[pip.dst] = mux
-        delay = graph.single_delay(mux.inputs[pip.src], mux.output)
+        delay = boundary.graph.single_delay(mux.inputs[pip.src], mux.output)
         delays[pip] = scale_delay(delay, factor=scale)
     for pip in external:
         mux = located.get(pip.src)
         delay = _external_delay(
-            graph,
-            pip=pip,
-            port_pin=port_pins.get(pip.src),
-            mux_output=None if mux is None else mux.output,
+            boundary, pip=pip, mux_output=None if mux is None else mux.output
         )
         delays[pip] = scale_delay(delay, factor=scale)
     return delays
