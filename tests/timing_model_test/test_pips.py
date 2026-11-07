@@ -200,7 +200,7 @@ def test_pip_delays_scale_exactly(
 
 
 def test_physical_pip_delays_read_the_layout(
-    tmp_path: Path, netlist: NetlistIndex
+    tmp_path: Path, netlist: NetlistIndex, read_netlist: ReadNetlist
 ) -> None:
     """In the layout the mux is the node where the paths of its input ports meet."""
     layout = SdfTimingGraph(
@@ -216,6 +216,12 @@ def test_physical_pip_delays_read_the_layout(
         )
     )
     synth = TimedNetlist(netlist=netlist, graph=synth_graph(tmp_path))
+    layout_netlist = read_netlist(
+        "module T (N1END, CFG, S1BEG); input [1:0] N1END; input CFG; "
+        "output [1:0] S1BEG; MUX2 g (.A0(N1END[0]), .A1(N1END[1]), .S(CFG), "
+        ".X(S1BEG[0])); endmodule",
+        "T",
+    )
     expected = {
         SwitchPip("N1END0", "S1BEG0"): "0.6",
         SwitchPip("N1END1", "S1BEG0"): "0.7",
@@ -223,7 +229,7 @@ def test_physical_pip_delays_read_the_layout(
     }
 
     delays = characterize_pips(
-        PhysicalMacro(synth=synth, layout=layout),
+        PhysicalMacro(synth=synth, layout=layout, layout_netlist=layout_netlist),
         scope=(),
         switch_matrix=SM,
         pips=list(expected),
@@ -464,15 +470,298 @@ def test_member_output_is_stitched_wherever_its_net_goes(
     assert delays == {pip: DEFAULT_PIP_DELAY}
 
 
-def test_physical_member_tile_raises(super_timing: StructuralMacro) -> None:
-    """The post-layout netlist has no member instance to scope the pips to."""
-    timing = PhysicalMacro(synth=super_timing.synth, layout=super_timing.synth.graph)
+# The post-layout netlist of `ST`, flat as OpenROAD writes it after a synthesis
+# that kept the members: member cells carry their instance as a `/` prefix and
+# the wires between members keep the wrapper's names. `_8_` drives the second
+# wire into `TOP`.
+LAYOUT_NETLIST = r"""
+module ST (
+    Tile_X0Y1_W1END, Tile_X0Y1_WW4END, ST_I0, ST_I1, CFG,
+    Tile_X0Y0_E1BEG, Tile_X0Y1_E1BEG, Tile_X0Y1_WW4BEG, BEL_A
+);
+    input [1:0] Tile_X0Y1_W1END;
+    input [1:0] Tile_X0Y1_WW4END;
+    input ST_I0;
+    input ST_I1;
+    input CFG;
+    output [1:0] Tile_X0Y0_E1BEG;
+    output [1:0] Tile_X0Y1_E1BEG;
+    output [1:0] Tile_X0Y1_WW4BEG;
+    output BEL_A;
+    wire \Tile_X0Y1_N1BEG[0] ;
+    wire \Tile_X0Y1_N1BEG[1] ;
+    wire \Tile_X0Y1_BOT/ww ;
+    MUX2 \Tile_X0Y1_BOT/_1_  (
+        .A0(Tile_X0Y1_W1END[0]), .A1(Tile_X0Y1_W1END[1]), .S(CFG),
+        .X(\Tile_X0Y1_N1BEG[0] )
+    );
+    MUX2 \Tile_X0Y1_BOT/_2_  (
+        .A0(Tile_X0Y1_W1END[0]), .A1(Tile_X0Y1_W1END[1]), .S(CFG),
+        .X(Tile_X0Y1_E1BEG[0])
+    );
+    BUF \Tile_X0Y1_BOT/_3_  (.A(Tile_X0Y1_WW4END[1]), .Y(\Tile_X0Y1_BOT/ww ));
+    BUF \Tile_X0Y1_BOT/_4_  (.A(\Tile_X0Y1_BOT/ww ), .Y(Tile_X0Y1_WW4BEG[0]));
+    BUF \Tile_X0Y1_BOT/_8_  (.A(Tile_X0Y1_W1END[1]), .Y(\Tile_X0Y1_N1BEG[1] ));
+    MUX2 \Tile_X0Y0_TOP/_5_  (
+        .A0(\Tile_X0Y1_N1BEG[0] ), .A1(\Tile_X0Y1_N1BEG[1] ), .S(CFG),
+        .X(Tile_X0Y0_E1BEG[0])
+    );
+    MUX2 _6_ (.A0(ST_I0), .A1(ST_I1), .S(CFG), .X(BEL_A));
+endmodule
+"""
 
-    with pytest.raises(ValueError, match="Tile_X0Y1_BOT.*physical mode"):
+LAYOUT_BOT = r"Tile_X0Y1_BOT\/"
+LAYOUT_TOP = r"Tile_X0Y0_TOP\/"
+LAYOUT_CELLS = {
+    f"{LAYOUT_BOT}_1_": ["A0 X (0.11::0.11)", "A1 X (0.21::0.21)", "S X (0.31::0.31)"],
+    f"{LAYOUT_BOT}_2_": ["A0 X (0.41::0.41)", "A1 X (0.51::0.51)", "S X (0.61::0.61)"],
+    f"{LAYOUT_BOT}_3_": ["A Y (0.051::0.051)"],
+    f"{LAYOUT_BOT}_4_": ["A Y (0.061::0.061)"],
+    f"{LAYOUT_BOT}_8_": ["A Y (0.02::0.02)"],
+    f"{LAYOUT_TOP}_5_": ["A0 X (0.71::0.71)", "A1 X (0.81::0.81)", "S X (0.91::0.91)"],
+    "_6_": ["A0 X (0.151::0.151)", "A1 X (0.251::0.251)", "S X (0.351::0.351)"],
+}
+LAYOUT_WIRES = [
+    *(
+        f"Tile_X0Y1_W1END[{i}] {LAYOUT_BOT}{mux}/A{i} ({delay}::{delay})"
+        for i, delay in ((0, "0.01"), (1, "0.02"))
+        for mux in ("_1_", "_2_")
+    ),
+    f"Tile_X0Y1_W1END[1] {LAYOUT_BOT}_8_/A (0.02::0.02)",
+    f"Tile_X0Y1_WW4END[1] {LAYOUT_BOT}_3_/A (0.03::0.03)",
+    f"{LAYOUT_BOT}_3_/Y {LAYOUT_BOT}_4_/A (0.005::0.005)",
+    f"{LAYOUT_BOT}_4_/Y Tile_X0Y1_WW4BEG[0] (0.007::0.007)",
+    f"{LAYOUT_BOT}_2_/X Tile_X0Y1_E1BEG[0] (0.008::0.008)",
+    # The two wires from BOT into TOP.
+    f"{LAYOUT_BOT}_1_/X {LAYOUT_TOP}_5_/A0 (0.04::0.04)",
+    f"{LAYOUT_BOT}_8_/Y {LAYOUT_TOP}_5_/A1 (0.06::0.06)",
+    f"{LAYOUT_TOP}_5_/X Tile_X0Y0_E1BEG[0] (0.009::0.009)",
+    *(
+        f"CFG {cell}/S (0.002::0.002)"
+        for cell in (f"{LAYOUT_BOT}_1_", f"{LAYOUT_BOT}_2_", f"{LAYOUT_TOP}_5_", "_6_")
+    ),
+    "ST_I0 _6_/A0 (0.01::0.01)",
+    "ST_I1 _6_/A1 (0.01::0.01)",
+    "_6_/X BEL_A (0.003::0.003)",
+]
+
+
+def physical_super_timing(
+    tmp_path: Path,
+    read_netlist: ReadNetlist,
+    super_timing: StructuralMacro,
+    *,
+    netlist_edits: tuple[tuple[str, str], ...] = (),
+    sdf_edits: tuple[tuple[str, str], ...] = (),
+) -> PhysicalMacro:
+    """Return the physical timing of `ST`, with text edits to its layout files."""
+    layout_netlist = LAYOUT_NETLIST
+    for old, new in netlist_edits:
+        layout_netlist = layout_netlist.replace(old, new)
+    layout_sdf = write_sdf(tmp_path / "layout.sdf", LAYOUT_CELLS, LAYOUT_WIRES)
+    text = layout_sdf.read_text()
+    for old, new in sdf_edits:
+        text = text.replace(old, new)
+    layout_sdf.write_text(text)
+    return PhysicalMacro(
+        synth=super_timing.synth,
+        layout=SdfTimingGraph(layout_sdf),
+        layout_netlist=read_netlist(layout_netlist, "ST"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("scope", "switch_matrix", "expected"),
+    [
+        pytest.param(
+            (TOP,),
+            "Inst_TOP_switch_matrix",
+            {
+                # The wire from BOT is charged at TOP's input: 0.04 + 0.71.
+                SwitchPip("N1END0", "E1BEG0"): "0.75",
+                SwitchPip("N1END1", "E1BEG0"): "0.87",
+                # Input to the nearest output, which leaves the supertile:
+                # 0.04 + 0.71 + the 0.009 wire to the supertile port.
+                WirePip("N1END0", "N1BEG0"): "0.759",
+                WirePip("E1BEG0", "E1END0"): "0.001",
+            },
+            id="member-top",
+        ),
+        pytest.param(
+            (BOT,),
+            "Inst_BOT_switch_matrix",
+            {
+                # 0.03 + 0.051 + 0.005 + 0.061 + 0.007.
+                WirePip("WW4END1", "WW4BEG1"): "0.154",
+                # Member outputs stay stitched: the wire to TOP is TOP's.
+                WirePip("N1BEG0", "N1END0"): "0.001",
+                WirePip("E1BEG0", "E1END0"): "0.001",
+            },
+            id="member-bot",
+        ),
+        pytest.param(
+            (),
+            ST_SM,
+            {SwitchPip("ST_I0", "BEL_A"): "0.161"},
+            id="supertile-switch-matrix",
+        ),
+    ],
+)
+def test_physical_supertile_pips_read_the_layout_of_their_scope(
+    tmp_path: Path,
+    read_netlist: ReadNetlist,
+    super_timing: StructuralMacro,
+    scope: HierPath,
+    switch_matrix: str,
+    expected: dict[Pip, str],
+) -> None:
+    """Member ports take each wire between members once, at the receiver."""
+    timing = physical_super_timing(tmp_path, read_netlist, super_timing)
+
+    delays = characterize_pips(
+        timing,
+        scope=scope,
+        switch_matrix=switch_matrix,
+        pips=list(expected),
+        scale=Decimal(1),
+    )
+
+    assert {pip: str(delay) for pip, delay in delays.items()} == expected
+
+
+@pytest.mark.parametrize(
+    ("netlist_edits", "sdf_edits", "message"),
+    [
+        pytest.param(
+            ((r"\Tile_X0Y0_TOP/", "\\"),),
+            ((LAYOUT_TOP, ""),),
+            r"Tile_X0Y0_TOP.*SYNTH_KEEP_HIERARCHY_MODULES",
+            id="member-flattened",
+        ),
+        pytest.param(
+            (("Tile_X0Y1_N1BEG", "net_17"),),
+            (),
+            r"Tile_X0Y0_TOP/N1END\[0\].*Tile_X0Y1_N1BEG\[0\]"
+            r".*SYNTH_KEEP_HIERARCHY_MODULES",
+            id="wire-renamed",
+        ),
+        pytest.param(
+            (
+                (
+                    ".A0(\\Tile_X0Y1_N1BEG[0] ), .A1(\\Tile_X0Y1_N1BEG[1] )",
+                    ".A0(n9), .A1(\\Tile_X0Y1_N1BEG[1] )",
+                ),
+                (
+                    "    MUX2 _6_",
+                    "    wire n9;\n    BUF _9_ (.A(\\Tile_X0Y1_N1BEG[0] ), .Y(n9));\n"
+                    "    MUX2 _6_",
+                ),
+            ),
+            (
+                (
+                    f"{LAYOUT_BOT}_1_/X {LAYOUT_TOP}_5_/A0",
+                    f"{LAYOUT_BOT}_1_/X _9_/A (0.04::0.04)) "
+                    f"(INTERCONNECT _9_/Y {LAYOUT_TOP}_5_/A0",
+                ),
+            ),
+            r"Tile_X0Y0_TOP/N1END\[0\].*no pin inside.*SYNTH_KEEP_HIERARCHY_MODULES",
+            id="cell-at-boundary",
+        ),
+    ],
+)
+def test_physical_member_without_its_hierarchy_raises(
+    tmp_path: Path,
+    read_netlist: ReadNetlist,
+    super_timing: StructuralMacro,
+    netlist_edits: tuple[tuple[str, str], ...],
+    sdf_edits: tuple[tuple[str, str], ...],
+    message: str,
+) -> None:
+    """A member that cannot be found in the layout stops the run, naming it."""
+    timing = physical_super_timing(
+        tmp_path,
+        read_netlist,
+        super_timing,
+        netlist_edits=netlist_edits,
+        sdf_edits=sdf_edits,
+    )
+
+    with pytest.raises(ValueError, match=message):
         characterize_pips(
             timing,
-            scope=(BOT,),
-            switch_matrix="Inst_BOT_switch_matrix",
-            pips=[],
+            scope=(TOP,),
+            switch_matrix="Inst_TOP_switch_matrix",
+            pips=[SwitchPip("N1END0", "E1BEG0")],
             scale=Decimal(1),
         )
+
+
+# A two-member supertile hardened by real tools; see `generate.sh` next to it.
+TOY = Path(__file__).parent / "fixtures" / "toy_supertile"
+TOY_BOT = "Tile_X0Y1_TOY_bot"
+TOY_TOP = "Tile_X0Y0_TOY_top"
+
+
+@pytest.fixture
+def toy_timing(read_netlist: ReadNetlist) -> PhysicalMacro:
+    """Return the physical timing of the toy supertile fixture."""
+    return PhysicalMacro(
+        synth=TimedNetlist(
+            netlist=read_netlist(TOY / "synth.v", "TOY"),
+            graph=SdfTimingGraph(TOY / "synth.sdf"),
+        ),
+        layout=SdfTimingGraph(TOY / "layout.sdf"),
+        layout_netlist=read_netlist(TOY / "layout.v", "TOY"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("scope", "switch_matrix", "expected"),
+    [
+        pytest.param(
+            (TOY_BOT,),
+            "Inst_TOY_bot_switch_matrix",
+            {
+                # Port wire + mux arc: 0.059 + 0.200, 0.074 + 0.210.
+                SwitchPip("W1END0", "N1BEG0"): "0.259",
+                SwitchPip("W1END1", "N1BEG0"): "0.284",
+                SwitchPip("W1END1", "E1BEG0"): "0.338",
+                SwitchPip("W1END2", "E1BEG0"): "0.32",
+                # 0.072 + 0.138 + 0.006 + 0.222 + 0.099 to the supertile port.
+                WirePip("WW4END1", "WW4BEG0"): "0.537",
+                WirePip("N1BEG0", "N1END0"): "0.001",
+                WirePip("E1BEG", "E1END0"): "0.001",
+            },
+            id="member-bot",
+        ),
+        pytest.param(
+            (TOY_TOP,),
+            "Inst_TOY_top_switch_matrix",
+            {
+                # The wires from TOY_bot, 0.007 and 0.010, are charged here.
+                SwitchPip("N1END0", "E1BEG0"): "0.267",
+                SwitchPip("N1END1", "E1BEG0"): "0.275",
+                # 0.007 + 0.260 + the 0.104 wire to the supertile port.
+                WirePip("N1END0", "N1BEG0"): "0.371",
+                WirePip("E1BEG", "E1END0"): "0.001",
+            },
+            id="member-top",
+        ),
+    ],
+)
+def test_physical_member_pips_of_a_hardened_supertile(
+    toy_timing: PhysicalMacro,
+    scope: HierPath,
+    switch_matrix: str,
+    expected: dict[Pip, str],
+) -> None:
+    """Member pips read the flat OpenROAD netlist and its SPEF-annotated SDF."""
+    delays = characterize_pips(
+        toy_timing,
+        scope=scope,
+        switch_matrix=switch_matrix,
+        pips=list(expected),
+        scale=Decimal(1),
+    )
+
+    assert {pip: str(delay) for pip, delay in delays.items()} == expected

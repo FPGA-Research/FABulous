@@ -122,6 +122,8 @@ The per tile `gds_config.yaml` is particularly useful and important as you can s
 Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, synthesize down to little more than wires, but they still occupy a grid position and must stitch with their neighbours, so they are hardened and sized like any other tile. They are routing terminals that cascade and bounce long wires back into the routing channels, not dead logic, so the one-to-one connections you see in their netlist are intended rather than over-optimised away.
 :::
 
+(gds-supertiles)=
+
 ### Supertiles
 
 A supertile is hardened as one macro that holds all its member tiles. For a Verilog

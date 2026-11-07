@@ -175,10 +175,14 @@ class PhysicalMacro:
         The hierarchical synthesised netlist and its timing.
     layout : SdfTimingGraph
         Timing graph of the post-layout netlist.
+    layout_netlist : NetlistIndex
+        The flat post-layout netlist, which finds the cells of each member of a
+        supertile macro.
     """
 
     synth: TimedNetlist
     layout: SdfTimingGraph
+    layout_netlist: NetlistIndex
 
 
 type MacroTiming = StructuralMacro | PhysicalMacro
@@ -254,4 +258,5 @@ def run_macro_tools(
             return PhysicalMacro(
                 synth=synth,
                 layout=SdfTimingGraph(layout_sdf_file, config.delay_type_str),
+                layout_netlist=NetlistIndex.read(netlist_file, top=top),
             )

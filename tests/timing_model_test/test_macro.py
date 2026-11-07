@@ -111,7 +111,7 @@ def test_run_macro_tools(
     """Synthesis is always timed; a physical macro also times its layout."""
     synthesize = mocker.patch(f"{MACRO}.YosysTool.synthesize_gate_level")
     write_sdf = mocker.patch(f"{MACRO}.OpenStaTool.write_sdf")
-    mocker.patch(f"{MACRO}.NetlistIndex.read")
+    read_netlist = mocker.patch(f"{MACRO}.NetlistIndex.read")
     graph = mocker.patch(f"{MACRO}.SdfTimingGraph")
     config = TimingModelConfig(
         project_dir=tmp_path,
@@ -140,11 +140,13 @@ def test_run_macro_tools(
         for call in write_sdf.call_args_list
     ]
     graph_files = [call.args[0] for call in graph.call_args_list]
+    netlist_files = [call.args[0] for call in read_netlist.call_args_list]
     match sources:
         case StructuralSources():
             assert isinstance(timing, StructuralMacro)
             assert sdf_calls == [(tmp_path / "synth.v", [], tmp_path / "synth.sdf")]
             assert graph_files == [tmp_path / "synth.sdf"]
+            assert netlist_files == [tmp_path / "synth.v"]
         case PhysicalSources():
             assert isinstance(timing, PhysicalMacro)
             assert sdf_calls == [
@@ -152,3 +154,4 @@ def test_run_macro_tools(
                 (Path("t.nl.v"), [Path("t.spef")], tmp_path / "physical.sdf"),
             ]
             assert graph_files == [tmp_path / "synth.sdf", tmp_path / "physical.sdf"]
+            assert netlist_files == [tmp_path / "synth.v", Path("t.nl.v")]

@@ -584,10 +584,10 @@ class SdfTimingGraph:
         return f"{instance}{self.hier_sep}{pin}".removeprefix(self.hier_sep)
 
     def within(self, prefix: str) -> Self:
-        """Return a copy whose `graph` keeps only the pins under `prefix`.
+        """Return a copy whose graphs keep only the pins under `prefix`.
 
-        `reverse_graph`, `instances` and the ports are shared with this graph,
-        which is left unchanged.
+        `instances` and the ports are shared with this graph, which is left
+        unchanged.
 
         Parameters
         ----------
@@ -605,9 +605,124 @@ class SdfTimingGraph:
         view.graph = nx.subgraph_view(
             self.graph, filter_node=lambda pin: pin.startswith(prefix)
         ).copy()
+        view.reverse_graph = view.graph.reverse(copy=True)
         for cached_view in ("clock_graph", "combinational_graph"):
             view.__dict__.pop(cached_view, None)
         return view
+
+    def with_ports(
+        self,
+        *,
+        inputs: dict[str, dict[str, Component | None]],
+        outputs: dict[str, dict[str, Component | None]],
+    ) -> Self:
+        """Return a copy with the given port nodes as its only ports.
+
+        Each port edge stands for the wire it is given, retargeted to the port
+        node, so its weight and delays are that wire's. A port edge given no
+        wire has zero delay.
+
+        Parameters
+        ----------
+        inputs : dict[str, dict[str, Component | None]]
+            Each input port, to the pins it drives and the wire into each.
+        outputs : dict[str, dict[str, Component | None]]
+            Each output port, to the pins that drive it and the wire out of each.
+
+        Returns
+        -------
+        Self
+            The graph with the port nodes.
+
+        Raises
+        ------
+        ValueError
+            If a port is already a node or is named twice, or a port edge
+            touches a pin that is not in the graph.
+        """
+        view = copy(self)
+        view.graph = self.graph.copy()
+        for port in [*inputs, *outputs]:
+            if port in view.graph or (port in inputs and port in outputs):
+                raise ValueError(f"Port {port!r} is already a node of the graph.")
+        for direction in (inputs, outputs):
+            for port, pins in direction.items():
+                for pin, wire in pins.items():
+                    if pin not in self.graph:
+                        raise ValueError(
+                            f"Pin {pin!r} of port {port!r} is not in the graph."
+                        )
+                    instance, _, pin_name = pin.rpartition(self.hier_sep)
+                    ends = ((instance, pin_name), ("", port))
+                    source, sink = ends[::-1] if direction is inputs else ends
+                    component = self._port_wire(wire, source=source, sink=sink)
+                    view.graph.add_edge(
+                        self._node(*source),
+                        self._node(*sink),
+                        weight=component.delay,
+                        component=component,
+                    )
+        view.reverse_graph = view.graph.reverse(copy=True)
+        view.input_ports = list(inputs)
+        view.output_ports = list(outputs)
+        for cached_view in ("clock_graph", "combinational_graph"):
+            view.__dict__.pop(cached_view, None)
+        return view
+
+    @staticmethod
+    def _port_wire(
+        wire: Component | None,
+        *,
+        source: tuple[str, str],
+        sink: tuple[str, str],
+    ) -> Component:
+        """Return the INTERCONNECT of a port edge from `source` to `sink`.
+
+        Parameters
+        ----------
+        wire : Component | None
+            The wire the edge stands for, or `None` for a zero-delay edge.
+        source : tuple[str, str]
+            Instance and pin the edge starts at.
+        sink : tuple[str, str]
+            Instance and pin the edge ends at.
+
+        Returns
+        -------
+        Component
+            The wire with the given ends.
+        """
+        (from_instance, from_pin), (to_instance, to_pin) = source, sink
+        if wire is None:
+            wire = Component(
+                c_type=SDFCellType.INTERCONNECT,
+                connection_string="",
+                cell_name="",
+                from_cell_instance=from_instance,
+                to_cell_instance=to_instance,
+                from_cell_pin=from_pin,
+                to_cell_pin=to_pin,
+                delay=Decimal(0),
+                delay_paths=None,
+                is_one_cell_instance=False,
+                is_timing_check=False,
+                is_timing_env=False,
+                is_absolute=True,
+                is_incremental=False,
+                is_cond=False,
+                cond_equation=None,
+                from_pin_edge=None,
+                to_pin_edge=None,
+            )
+        return replace(
+            wire,
+            connection_string=f"{from_pin} {to_pin}",
+            from_cell_instance=from_instance,
+            from_cell_pin=from_pin,
+            to_cell_instance=to_instance,
+            to_cell_pin=to_pin,
+            is_one_cell_instance=from_instance == to_instance,
+        )
 
     def has_path(self, source: str, target: str) -> bool:
         """Check if there is a path from source to target in the timing graph.

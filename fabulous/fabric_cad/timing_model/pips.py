@@ -11,7 +11,7 @@ internal pips are timed first.
 """
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from loguru import logger
@@ -30,6 +30,10 @@ from fabulous.fabric_cad.timing_model.netlist import (
     PortBit,
     PortDirection,
     sdf_path,
+)
+from fabulous.fabric_cad.timing_model.physical_member import (
+    MemberViews,
+    member_views,
 )
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 
@@ -203,6 +207,47 @@ def _member_boundary(synth: TimedNetlist, member: HierPath) -> _Boundary:
         inputs=wire_pins("input"),
         outputs=frozenset(outputs),
         targets=[pin for pins in outputs.values() for pin in pins],
+    )
+
+
+def _member_port_boundary(views: MemberViews, member: HierPath) -> _Boundary:
+    """Return the boundary of a member tile at its post-layout port nodes.
+
+    Parameters
+    ----------
+    views : MemberViews
+        The member with its port nodes.
+    member : HierPath
+        Path of the member tile instance.
+
+    Returns
+    -------
+    _Boundary
+        The member ports, timed in the member's part of the post-layout graph.
+
+    Raises
+    ------
+    ValueError
+        If two port bits of the member have the same wire name.
+    """
+    input_ports = set(views.layout.input_ports)
+    inputs: dict[str, list[str]] = {}
+    outputs: set[str] = set()
+    for bit, node in views.ports.items():
+        wire = _wire_name(bit)
+        if wire in inputs or wire in outputs:
+            raise ValueError(
+                f"Two port bits of {'/'.join(member)!r} share the wire name {wire!r}."
+            )
+        if node in input_ports:
+            inputs[wire] = [node]
+        else:
+            outputs.add(wire)
+    return _Boundary(
+        graph=views.layout,
+        inputs=inputs,
+        outputs=frozenset(outputs),
+        targets=views.layout.output_ports,
     )
 
 
@@ -399,9 +444,8 @@ def characterize_pips(
     Raises
     ------
     ValueError
-        If the synthesised netlist has no instance of the switch matrix, or if
-        a member tile is timed from a post-layout netlist, which has no member
-        hierarchy.
+        If the synthesised netlist has no instance of the switch matrix, or a
+        member tile cannot be found in the post-layout netlist.
     """
     netlist = timing.synth.netlist
     switch_matrix_path = (*scope, switch_matrix)
@@ -432,13 +476,14 @@ def characterize_pips(
                 if scope
                 else _top_boundary(synth.graph, netlist)
             )
+        case PhysicalMacro(synth=synth, layout=layout) if scope:
+            # Time the member as a macro of its own: its views replace both graphs.
+            views = member_views(timing, scope)
+            timing = replace(
+                timing, synth=replace(synth, graph=views.synth), layout=views.layout
+            )
+            boundary = _member_port_boundary(views, scope)
         case PhysicalMacro(layout=layout):
-            if scope:
-                raise ValueError(
-                    f"Member tile {'/'.join(scope)!r} of the {netlist.top!r} "
-                    "supertile cannot be timed in physical mode: the post-layout "
-                    "netlist has no member hierarchy."
-                )
             boundary = _top_boundary(layout, netlist)
     # Pips that share a destination share its mux: the first pip locates it.
     located: dict[str, _Mux] = {}

@@ -69,8 +69,25 @@ The pips of the supertile switch matrix are timed at the top of the supertile mo
 as the pips of a tile switch matrix are. The supertile BELs are timed in the same
 supertile run.
 
-`physical` mode cannot time member tiles: the post-layout supertile netlist has no
-member hierarchy, so the run stops with an error.
+In `physical` mode, FABulous finds each member tile in the flat post-layout netlist
+of the supertile. This needs a supertile macro hardened with its members kept as
+modules, which FABulous's GDS flow does for Verilog projects (see
+[supertiles in the GDS flow](#gds-supertiles)). Each member cell then carries its
+member instance as a name prefix, and each wire between two members keeps the name
+the supertile module gives it, so each member port is found on its post-layout net.
+The member pips are timed with the rules above, from the post-layout delays:
+
+- A wire between two members is charged once, at the member that receives it: a
+    pip from a member input includes the wire from the sibling member, and a pip
+    to a member output stops at the member, as the output pip is stitched.
+- A wire from or to a supertile port is charged as for a tile.
+
+The run stops with an error that names the member, the port and
+`SYNTH_KEEP_HIERARCHY_MODULES` if the post-layout netlist has no cell of a member
+(the supertile was hardened flat, for example before FABulous kept the members),
+if no post-layout net has the name of a member port's net, or if that net has no
+pin inside the member (a cell was inserted at the member boundary). Harden the
+supertile again with the member hierarchy kept.
 
 ## Running the timing model from the CLI
 

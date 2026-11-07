@@ -1,0 +1,263 @@
+*SPEF "ieee 1481-1999"
+*DESIGN "TOY"
+*DATE "11:11:11 Fri 11 11, 1111"
+*VENDOR "The OpenROAD Project"
+*PROGRAM "OpenROAD"
+*VERSION "1.0"
+*DESIGN_FLOW "NAME_SCOPE LOCAL" "PIN_CAP NONE"
+*DIVIDER /
+*DELIMITER :
+*BUS_DELIMITER []
+*T_UNIT 1 NS
+*C_UNIT 1 PF
+*R_UNIT 1 KOHM
+*L_UNIT 1 HENRY
+
+*PORTS
+Tile_X0Y0_ConfigBits I
+Tile_X0Y0_E1BEG O
+Tile_X0Y1_ConfigBits[0] I
+Tile_X0Y1_ConfigBits[1] I
+Tile_X0Y1_E1BEG O
+Tile_X0Y1_W1END[0] I
+Tile_X0Y1_W1END[1] I
+Tile_X0Y1_W1END[2] I
+Tile_X0Y1_WW4BEG O
+Tile_X0Y1_WW4END[0] I
+Tile_X0Y1_WW4END[1] I
+
+*D_NET Tile_X0Y0_ConfigBits 0.05977
+*CONN
+*P Tile_X0Y0_ConfigBits I
+*I Tile_X0Y0_TOY_top/_0_:S I *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y0_ConfigBits:0 0.029885
+2 Tile_X0Y0_ConfigBits:1 0.029885
+*RES
+1 Tile_X0Y0_ConfigBits:0 Tile_X0Y0_ConfigBits:1 2.9885
+2 Tile_X0Y0_ConfigBits:0 Tile_X0Y0_TOY_top/_0_:S 1e-06
+3 Tile_X0Y0_ConfigBits:1 Tile_X0Y0_ConfigBits 1e-06
+4 Tile_X0Y0_ConfigBits:1 Tile_X0Y0_ConfigBits:1 1e-06
+5 Tile_X0Y0_ConfigBits:1 Tile_X0Y0_ConfigBits 1e-06
+6 Tile_X0Y0_ConfigBits:1 Tile_X0Y0_ConfigBits 1e-06
+*END
+
+*D_NET Tile_X0Y0_E1BEG 0.067532
+*CONN
+*P Tile_X0Y0_E1BEG O
+*I Tile_X0Y0_TOY_top/_0_:X O *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y0_E1BEG:0 0.033766
+2 Tile_X0Y0_E1BEG:1 0.033766
+*RES
+1 Tile_X0Y0_E1BEG:0 Tile_X0Y0_E1BEG:0 1e-06
+2 Tile_X0Y0_E1BEG:0 Tile_X0Y0_TOY_top/_0_:X 1e-06
+3 Tile_X0Y0_E1BEG:0 Tile_X0Y0_TOY_top/_0_:X 1e-06
+4 Tile_X0Y0_E1BEG:1 Tile_X0Y0_E1BEG:0 3.3766
+5 Tile_X0Y0_E1BEG:1 Tile_X0Y0_E1BEG 1e-06
+6 Tile_X0Y0_E1BEG:0 Tile_X0Y0_TOY_top/_0_:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_ConfigBits[0] 0.06147
+*CONN
+*P Tile_X0Y1_ConfigBits[0] I
+*I Tile_X0Y1_TOY_bot/_1_:S I *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y1_ConfigBits[0]:0 0.030735
+2 Tile_X0Y1_ConfigBits[0]:1 0.030735
+*RES
+1 Tile_X0Y1_ConfigBits[0]:0 Tile_X0Y1_ConfigBits[0]:1 3.0735
+2 Tile_X0Y1_ConfigBits[0]:0 Tile_X0Y1_TOY_bot/_1_:S 1e-06
+3 Tile_X0Y1_ConfigBits[0]:1 Tile_X0Y1_ConfigBits[0] 1e-06
+4 Tile_X0Y1_ConfigBits[0]:1 Tile_X0Y1_ConfigBits[0]:1 1e-06
+5 Tile_X0Y1_ConfigBits[0]:1 Tile_X0Y1_ConfigBits[0] 1e-06
+6 Tile_X0Y1_ConfigBits[0]:1 Tile_X0Y1_ConfigBits[0] 1e-06
+*END
+
+*D_NET Tile_X0Y1_ConfigBits[1] 0.06147
+*CONN
+*P Tile_X0Y1_ConfigBits[1] I
+*I Tile_X0Y1_TOY_bot/_0_:S I *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y1_ConfigBits[1]:0 0.030735
+2 Tile_X0Y1_ConfigBits[1]:1 0.030735
+*RES
+1 Tile_X0Y1_ConfigBits[1]:0 Tile_X0Y1_ConfigBits[1]:1 3.0735
+2 Tile_X0Y1_ConfigBits[1]:0 Tile_X0Y1_TOY_bot/_0_:S 1e-06
+3 Tile_X0Y1_ConfigBits[1]:1 Tile_X0Y1_ConfigBits[1] 1e-06
+4 Tile_X0Y1_ConfigBits[1]:1 Tile_X0Y1_ConfigBits[1]:1 1e-06
+5 Tile_X0Y1_ConfigBits[1]:1 Tile_X0Y1_ConfigBits[1] 1e-06
+6 Tile_X0Y1_ConfigBits[1]:1 Tile_X0Y1_ConfigBits[1] 1e-06
+*END
+
+*D_NET Tile_X0Y1_E1BEG 0.05073
+*CONN
+*P Tile_X0Y1_E1BEG O
+*I Tile_X0Y1_TOY_bot/_0_:X O *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y1_E1BEG:0 0.025365
+2 Tile_X0Y1_E1BEG:1 0.025365
+*RES
+1 Tile_X0Y1_E1BEG:0 Tile_X0Y1_E1BEG:0 1e-06
+2 Tile_X0Y1_E1BEG:0 Tile_X0Y1_TOY_bot/_0_:X 1e-06
+3 Tile_X0Y1_E1BEG:0 Tile_X0Y1_TOY_bot/_0_:X 1e-06
+4 Tile_X0Y1_E1BEG:1 Tile_X0Y1_E1BEG:0 2.5365
+5 Tile_X0Y1_E1BEG:1 Tile_X0Y1_E1BEG 1e-06
+6 Tile_X0Y1_E1BEG:0 Tile_X0Y1_TOY_bot/_0_:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_N1BEG\[0\] 0.013764
+*CONN
+*I Tile_X0Y0_TOY_top/_0_:A0 I *D sg13g2_mux2_1
+*I Tile_X0Y1_TOY_bot/_2_:X O *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_N1BEG\[0\]:0 0.006882
+2 Tile_X0Y1_N1BEG\[0\]:1 0.006882
+*RES
+1 Tile_X0Y1_N1BEG\[0\]:0 Tile_X0Y1_N1BEG\[0\]:0 1e-06
+2 Tile_X0Y1_N1BEG\[0\]:0 Tile_X0Y1_TOY_bot/_2_:X 1e-06
+3 Tile_X0Y1_N1BEG\[0\]:0 Tile_X0Y1_TOY_bot/_2_:X 1e-06
+4 Tile_X0Y1_N1BEG\[0\]:1 Tile_X0Y1_N1BEG\[0\]:0 0.6882
+5 Tile_X0Y1_N1BEG\[0\]:1 Tile_X0Y0_TOY_top/_0_:A0 1e-06
+6 Tile_X0Y1_N1BEG\[0\]:0 Tile_X0Y1_TOY_bot/_2_:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_N1BEG\[1\] 0.016894
+*CONN
+*I Tile_X0Y0_TOY_top/_0_:A1 I *D sg13g2_mux2_1
+*I Tile_X0Y1_TOY_bot/n1buf:X O *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_N1BEG\[1\]:0 0.008447
+2 Tile_X0Y1_N1BEG\[1\]:1 0.008447
+*RES
+1 Tile_X0Y1_N1BEG\[1\]:0 Tile_X0Y1_N1BEG\[1\]:1 0.8447
+2 Tile_X0Y1_N1BEG\[1\]:0 Tile_X0Y0_TOY_top/_0_:A1 1e-06
+3 Tile_X0Y1_N1BEG\[1\]:1 Tile_X0Y1_TOY_bot/n1buf:X 1e-06
+4 Tile_X0Y1_N1BEG\[1\]:1 Tile_X0Y1_N1BEG\[1\]:1 1e-06
+5 Tile_X0Y1_N1BEG\[1\]:1 Tile_X0Y1_TOY_bot/n1buf:X 1e-06
+6 Tile_X0Y1_N1BEG\[1\]:1 Tile_X0Y1_TOY_bot/n1buf:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_W1END[0] 0.055226
+*CONN
+*P Tile_X0Y1_W1END[0] I
+*I Tile_X0Y1_TOY_bot/_1_:A0 I *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y1_W1END[0]:0 0.027613
+2 Tile_X0Y1_W1END[0]:1 0.027613
+*RES
+1 Tile_X0Y1_W1END[0]:0 Tile_X0Y1_W1END[0]:1 2.7613
+2 Tile_X0Y1_W1END[0]:0 Tile_X0Y1_TOY_bot/_1_:A0 1e-06
+3 Tile_X0Y1_W1END[0]:1 Tile_X0Y1_W1END[0] 1e-06
+4 Tile_X0Y1_W1END[0]:1 Tile_X0Y1_W1END[0]:1 1e-06
+5 Tile_X0Y1_W1END[0]:1 Tile_X0Y1_W1END[0] 1e-06
+6 Tile_X0Y1_W1END[0]:1 Tile_X0Y1_W1END[0] 1e-06
+*END
+
+*D_NET Tile_X0Y1_W1END[1] 0.059872
+*CONN
+*I Tile_X0Y1_TOY_bot/_0_:A0 I *D sg13g2_mux2_1
+*P Tile_X0Y1_W1END[1] I
+*I Tile_X0Y1_TOY_bot/_1_:A1 I *D sg13g2_mux2_1
+*CAP
+1 Tile_X0Y1_W1END[1]:0 0.001523
+2 Tile_X0Y1_W1END[1]:1 0.00166
+3 Tile_X0Y1_W1END[1]:2 0.026753
+4 Tile_X0Y1_W1END[1]:3 0.029936
+*RES
+1 Tile_X0Y1_W1END[1]:0 Tile_X0Y1_W1END[1]:3 0.1523
+2 Tile_X0Y1_W1END[1]:0 Tile_X0Y1_TOY_bot/_1_:A1 1e-06
+3 Tile_X0Y1_W1END[1]:1 Tile_X0Y1_W1END[1]:3 0.166
+4 Tile_X0Y1_W1END[1]:1 Tile_X0Y1_TOY_bot/_0_:A0 1e-06
+5 Tile_X0Y1_W1END[1]:2 Tile_X0Y1_W1END[1]:2 1e-06
+6 Tile_X0Y1_W1END[1]:2 Tile_X0Y1_W1END[1] 1e-06
+7 Tile_X0Y1_W1END[1]:2 Tile_X0Y1_W1END[1] 1e-06
+8 Tile_X0Y1_W1END[1]:3 Tile_X0Y1_W1END[1]:2 2.6753
+9 Tile_X0Y1_W1END[1]:2 Tile_X0Y1_W1END[1] 1e-06
+*END
+
+*D_NET Tile_X0Y1_W1END[2] 0.055172
+*CONN
+*I Tile_X0Y1_TOY_bot/_0_:A1 I *D sg13g2_mux2_1
+*P Tile_X0Y1_W1END[2] I
+*I Tile_X0Y1_TOY_bot/n1buf:A I *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_W1END[2]:0 0.003373
+2 Tile_X0Y1_W1END[2]:1 0.000415
+3 Tile_X0Y1_W1END[2]:2 0.023798
+4 Tile_X0Y1_W1END[2]:3 0.027586
+*RES
+1 Tile_X0Y1_W1END[2]:0 Tile_X0Y1_W1END[2]:3 0.3373
+2 Tile_X0Y1_W1END[2]:0 Tile_X0Y1_TOY_bot/_0_:A1 1e-06
+3 Tile_X0Y1_W1END[2]:1 Tile_X0Y1_W1END[2]:3 0.0415
+4 Tile_X0Y1_W1END[2]:1 Tile_X0Y1_TOY_bot/n1buf:A 1e-06
+5 Tile_X0Y1_W1END[2]:2 Tile_X0Y1_W1END[2]:2 1e-06
+6 Tile_X0Y1_W1END[2]:2 Tile_X0Y1_W1END[2] 1e-06
+7 Tile_X0Y1_W1END[2]:2 Tile_X0Y1_W1END[2] 1e-06
+8 Tile_X0Y1_W1END[2]:3 Tile_X0Y1_W1END[2]:2 2.3798
+9 Tile_X0Y1_W1END[2]:2 Tile_X0Y1_W1END[2] 1e-06
+*END
+
+*D_NET Tile_X0Y1_WW4BEG 0.06603
+*CONN
+*P Tile_X0Y1_WW4BEG O
+*I Tile_X0Y1_TOY_bot/outbuf:X O *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_WW4BEG:0 0.033015
+2 Tile_X0Y1_WW4BEG:1 0.033015
+*RES
+1 Tile_X0Y1_WW4BEG:0 Tile_X0Y1_WW4BEG:0 1e-06
+2 Tile_X0Y1_WW4BEG:0 Tile_X0Y1_TOY_bot/outbuf:X 1e-06
+3 Tile_X0Y1_WW4BEG:0 Tile_X0Y1_TOY_bot/outbuf:X 1e-06
+4 Tile_X0Y1_WW4BEG:1 Tile_X0Y1_WW4BEG:0 3.3015
+5 Tile_X0Y1_WW4BEG:1 Tile_X0Y1_WW4BEG 1e-06
+6 Tile_X0Y1_WW4BEG:0 Tile_X0Y1_TOY_bot/outbuf:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_WW4END[1] 0.061866
+*CONN
+*P Tile_X0Y1_WW4END[1] I
+*I Tile_X0Y1_TOY_bot/inbuf:A I *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_WW4END[1]:0 0.030933
+2 Tile_X0Y1_WW4END[1]:1 0.030933
+*RES
+1 Tile_X0Y1_WW4END[1]:0 Tile_X0Y1_WW4END[1]:1 3.0933
+2 Tile_X0Y1_WW4END[1]:0 Tile_X0Y1_TOY_bot/inbuf:A 1e-06
+3 Tile_X0Y1_WW4END[1]:1 Tile_X0Y1_WW4END[1] 1e-06
+4 Tile_X0Y1_WW4END[1]:1 Tile_X0Y1_WW4END[1]:1 1e-06
+5 Tile_X0Y1_WW4END[1]:1 Tile_X0Y1_WW4END[1] 1e-06
+6 Tile_X0Y1_WW4END[1]:1 Tile_X0Y1_WW4END[1] 1e-06
+*END
+
+*D_NET Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0 0.019534
+*CONN
+*I Tile_X0Y1_TOY_bot/_1_:X O *D sg13g2_mux2_1
+*I Tile_X0Y1_TOY_bot/_2_:A I *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:0 0.009767
+2 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 0.009767
+*RES
+1 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:0 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 0.9767
+2 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:0 Tile_X0Y1_TOY_bot/_2_:A 1e-06
+3 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 Tile_X0Y1_TOY_bot/_1_:X 1e-06
+4 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 1e-06
+5 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 Tile_X0Y1_TOY_bot/_1_:X 1e-06
+6 Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix.N1BEG0:1 Tile_X0Y1_TOY_bot/_1_:X 1e-06
+*END
+
+*D_NET Tile_X0Y1_TOY_bot/ww 0.013596
+*CONN
+*I Tile_X0Y1_TOY_bot/inbuf:X O *D sg13g2_buf_1
+*I Tile_X0Y1_TOY_bot/outbuf:A I *D sg13g2_buf_1
+*CAP
+1 Tile_X0Y1_TOY_bot/ww:0 0.006798
+2 Tile_X0Y1_TOY_bot/ww:1 0.006798
+*RES
+1 Tile_X0Y1_TOY_bot/ww:0 Tile_X0Y1_TOY_bot/ww:1 0.6798
+2 Tile_X0Y1_TOY_bot/ww:0 Tile_X0Y1_TOY_bot/outbuf:A 1e-06
+3 Tile_X0Y1_TOY_bot/ww:1 Tile_X0Y1_TOY_bot/inbuf:X 1e-06
+4 Tile_X0Y1_TOY_bot/ww:1 Tile_X0Y1_TOY_bot/ww:1 1e-06
+5 Tile_X0Y1_TOY_bot/ww:1 Tile_X0Y1_TOY_bot/inbuf:X 1e-06
+6 Tile_X0Y1_TOY_bot/ww:1 Tile_X0Y1_TOY_bot/inbuf:X 1e-06
+*END

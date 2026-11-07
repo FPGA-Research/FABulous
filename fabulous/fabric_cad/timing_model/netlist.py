@@ -150,6 +150,7 @@ class NetlistIndex:
                         spelled = f"{net_name}[{index}]"
                     net_names.setdefault(bit, []).append(spelled)
             self._net_names[name] = net_names
+        self._top_net_bits: dict[str, int] | None = None
 
     @classmethod
     def read(cls, verilog: Path, *, top: str) -> Self:
@@ -244,32 +245,10 @@ class NetlistIndex:
             return []
         return list(dict.fromkeys(self._leaf_pins_of_bit(cell.type, bit, instance)))
 
-    def leaf_pins(self, instance: HierPath, port: PortBit) -> list[str]:
-        """Return the leaf cell pins on one port bit of an instance.
-
-        For a module instance, the pins are those of the cells below it that
-        share the net of the port bit inside the module.
-
-        Parameters
-        ----------
-        instance : HierPath
-            Instance path from the top module.
-        port : PortBit
-            Port bit of the instance.
-
-        Returns
-        -------
-        list[str]
-            Leaf pins in SDF spelling, without duplicates.
-
-        Raises
-        ------
-        KeyError
-            If the instance, the port or the bit is absent.
-        ValueError
-            If `port.index` is `None` for a vector port.
-        """
-        _, cell = self._parent_and_cell(instance)
+    def _pin_position(
+        self, instance: HierPath, cell: YosysCellDetails, port: PortBit
+    ) -> int:
+        """Return the position from the LSB of one port bit of an instance."""
         name = f"{'/'.join(instance)}/{port.port}"
         if cell.type not in self._modules:
             if port.port not in cell.connections:
@@ -284,12 +263,90 @@ class NetlistIndex:
         if port.index is None:
             if width != 1:
                 raise ValueError(f"{name} has {width} bits; name one by index.")
-            return self._leaf_pins_at(instance, cell, port.port, 0)
+            return 0
         for position in range(width):
             index = _hdl_index(position=position, offset=offset, upto=upto, width=width)
             if index == port.index:
-                return self._leaf_pins_at(instance, cell, port.port, position)
+                return position
         raise KeyError(f"Pin {name}[{port.index}] not found.")
+
+    def leaf_pins(self, instance: HierPath, port: PortBit) -> list[str]:
+        """Return the leaf cell pins on one port bit of an instance.
+
+        For a module instance, the pins are those of the cells below it that
+        share the net of the port bit inside the module. An absent instance, port
+        or bit raises `KeyError`; a vector port named without an index raises
+        `ValueError`.
+
+        Parameters
+        ----------
+        instance : HierPath
+            Instance path from the top module.
+        port : PortBit
+            Port bit of the instance.
+
+        Returns
+        -------
+        list[str]
+            Leaf pins in SDF spelling, without duplicates.
+        """
+        _, cell = self._parent_and_cell(instance)
+        position = self._pin_position(instance, cell, port)
+        return self._leaf_pins_at(instance, cell, port.port, position)
+
+    def parent_net_names(self, instance: HierPath, port: PortBit) -> list[str]:
+        """Return the names of the net on one port bit of an instance.
+
+        The names are those of the instance's parent module, spelled `name` for
+        a one-bit net and `name[index]` for a bit of a vector net. An absent
+        instance, port or bit raises `KeyError`; a vector port named without an
+        index raises `ValueError`.
+
+        Parameters
+        ----------
+        instance : HierPath
+            Instance path from the top module.
+        port : PortBit
+            Port bit of the instance.
+
+        Returns
+        -------
+        list[str]
+            Every public name of the net, empty if the bit is tied to a
+            constant or its net has only internal names.
+        """
+        parent, cell = self._parent_and_cell(instance)
+        position = self._pin_position(instance, cell, port)
+        bit = cell.connections[port.port][position]
+        if not isinstance(bit, int):
+            return []
+        return list(self._net_names[parent].get(bit, []))
+
+    def top_net_leaf_pins(self, name: str) -> list[str] | None:
+        """Return the leaf cell pins on a net of the top module, by its name.
+
+        Parameters
+        ----------
+        name : str
+            Net name as `parent_net_names` spells it: `name` for a one-bit net,
+            `name[index]` for a bit of a vector net.
+
+        Returns
+        -------
+        list[str] | None
+            Leaf pins in SDF spelling, without duplicates; `None` if the top
+            module has no net of that name.
+        """
+        if self._top_net_bits is None:
+            self._top_net_bits = {
+                spelled: bit
+                for bit, names in self._net_names[self._top].items()
+                for spelled in names
+            }
+        bit = self._top_net_bits.get(name)
+        if bit is None:
+            return None
+        return list(dict.fromkeys(self._leaf_pins_of_bit(self._top, bit, ())))
 
     def _port_bits(
         self, module: str, directions: frozenset[PortDirection]
