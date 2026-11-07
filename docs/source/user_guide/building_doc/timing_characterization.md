@@ -245,6 +245,12 @@ Notes about the example:
     `FAB_OPENSTA_PATH`.
 - In physical mode you must provide SPEF/RC files (per-tile or project-wide) if
     you want wire/parasitic delays to be included.
+- OpenSTA skips SPEF nets whose names it cannot find in the netlist, which would
+    leave their wire delays at zero. So after it reads the SPEF files, FABulous runs
+    `report_parasitic_annotation` and stops with an error that names the first
+    drivers if a driver with loads got no parasitics, or got them for only some of
+    its loads. A driver without loads, such as an unused input port, is ignored. The
+    usual cause is a SPEF file from a different run than the netlist.
 - Run FABulous with `--debug` to log every Yosys and OpenSTA script and the
     tool output.
 

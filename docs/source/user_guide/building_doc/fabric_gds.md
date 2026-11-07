@@ -122,6 +122,23 @@ The per tile `gds_config.yaml` is particularly useful and important as you can s
 Some tiles, such as the `N_term_single` / `S_term_single` routing terminals, synthesize down to little more than wires, but they still occupy a grid position and must stitch with their neighbours, so they are hardened and sized like any other tile. They are routing terminals that cascade and bounce long wires back into the routing channels, not dead logic, so the one-to-one connections you see in their netlist are intended rather than over-optimised away.
 :::
 
+### Supertiles
+
+A supertile is hardened as one macro that holds all its member tiles. For a Verilog
+project, FABulous sets `SYNTH_KEEP_HIERARCHY_MODULES` to the member tile modules (for
+example `[DSP_top, DSP_bot]`), so synthesis does not flatten the members. The final
+netlist is still flat, but each member cell keeps its member instance as a name prefix
+(`\Tile_X0Y0_DSP_top/_0518_`), and each wire between two members keeps the supertile's
+wire name. The [physical timing model](#timing-characterization) needs both to time
+each member tile on its own. A `gds_config.yaml` value for
+`SYNTH_KEEP_HIERARCHY_MODULES` replaces the FABulous one; the physical timing model
+then stops with an error for that supertile.
+
+Supertile macros hardened before FABulous set this variable are flat. Harden them again
+before you run the timing model in physical mode. VHDL supertiles are still hardened
+flat: GHDL renames each entity to a lower-case `<entity>_B<architecture>` module, and
+the timing model reads Verilog only.
+
 (pin-config)=
 
 ### Pin Config

@@ -21,9 +21,12 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from librelane.flows.flow import FlowException
+from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileMacroFlow,
     FABulousTileVerilogMacroFlow,
+    FABulousTileVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
@@ -90,6 +93,68 @@ class TestFABulousTileVerilogMacroFlowInit:
         assert flow.config["DESIGN_NAME"] == "TestSuperTile"
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 4
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 3
+
+    @pytest.mark.parametrize(
+        ("flow_cls", "is_supertile", "override", "expected"),
+        [
+            pytest.param(
+                FABulousTileVerilogMacroFlow,
+                True,
+                None,
+                ["DSP_top", "DSP_bot"],
+                id="verilog-supertile-keeps-members",
+            ),
+            pytest.param(
+                FABulousTileVerilogMacroFlow,
+                True,
+                ["DSP_top"],
+                ["DSP_top"],
+                id="verilog-supertile-user-override-wins",
+            ),
+            pytest.param(
+                FABulousTileVerilogMacroFlow, False, None, None, id="verilog-tile"
+            ),
+            pytest.param(
+                FABulousTileVHDLMacroFlow, True, None, None, id="vhdl-supertile"
+            ),
+        ],
+    )
+    def test_supertile_keeps_member_hierarchy(
+        self,
+        mocker: MockerFixture,
+        mock_tile: MagicMock,
+        mock_supertile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        flow_cls: type[FABulousTileMacroFlow],
+        is_supertile: bool,
+        override: list[str] | None,
+        expected: list[str] | None,
+    ) -> None:
+        """A Verilog supertile keeps its member modules through synthesis.
+
+        The physical timing model finds each member in the post-layout netlist by
+        its instance prefix, which only survives when synthesis does not flatten
+        the member modules.
+        """
+        members = [mocker.MagicMock(bels=[]) for _ in range(2)]
+        members[0].name = "DSP_top"
+        members[1].name = "DSP_bot"
+        mock_supertile.tiles = members
+        flow_kwargs: dict[str, Any] = {
+            "tile_type": mock_supertile if is_supertile else mock_tile,
+            "io_pin_config": io_pin_config,
+            "opt_mode": OptMode.FIND_MIN_WIDTH,
+            "pdk": mock_pdk_root["pdk"],
+            "pdk_root": mock_pdk_root["pdk_root"],
+            "models_pack_path": Path("/fake/models/pack"),
+        }
+        if override is not None:
+            flow_kwargs["SYNTH_KEEP_HIERARCHY_MODULES"] = override
+
+        flow = flow_cls(**flow_kwargs)
+
+        assert flow.config.get("SYNTH_KEEP_HIERARCHY_MODULES") == expected
 
     def test_config_merging_precedence(
         self,
