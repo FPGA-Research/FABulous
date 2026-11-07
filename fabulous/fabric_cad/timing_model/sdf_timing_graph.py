@@ -21,7 +21,7 @@ from loguru import logger
 from sdf_toolkit import parse_sdf_file
 from sdf_toolkit.core.model import BaseEntry, DelayPaths, EntryType, Values
 
-from fabulous.fabric_cad.timing_db import ns
+from fabulous.fabric_definition.timing import ns
 
 
 class SDFCellType(StrEnum):

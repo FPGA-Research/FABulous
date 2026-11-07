@@ -1,5 +1,6 @@
 """Tests for nextpnr model generation, focusing on bel.v3 timing output."""
 
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 
@@ -12,22 +13,15 @@ from fabulous.fabric_cad.gen_npnr_model import (
     placeholder_bel_arcs,
     placeholder_timing,
     render_arcs,
+    tile_copies,
 )
-from fabulous.fabric_cad.timing_db import (
-    BelArcs,
-    BelPin,
-    BelTiming,
-    DelayArc,
-    FeatureIs,
-    PipTiming,
-    SwitchPip,
-    TimingDb,
-    ns,
-)
+from fabulous.fabric_cad.timing_db import PipTiming, SwitchPip, TimingDb
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.timing import BelArcs, BelPin, DelayArc, FeatureIs, ns
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
@@ -75,14 +69,11 @@ def lut_fabric() -> Fabric:
 
 
 def with_bel_arcs(fabric: Fabric, arcs: dict[str, BelArcs]) -> TimingDb:
-    """Return placeholder timing whose BELs of tile `LUT4AB` have `arcs`."""
-    return replace(
-        placeholder_timing(fabric),
-        bels=BelTiming(
-            tiles={"LUT4AB": arcs},
-            super_tiles={},
-        ),
-    )
+    """Set placeholder timing, then `arcs` on the BELs of tile X0Y0 by name."""
+    timing = placeholder_timing(fabric)
+    for bel in fabric.tile[0][0].bels:
+        bel.arcs = arcs[bel.instance_name]
+    return timing
 
 
 def test_emit_nextpnr_model_writes_timing_only_in_bel_v3(lut_fabric: Fabric) -> None:
@@ -112,6 +103,48 @@ def test_emit_nextpnr_model_writes_timing_only_in_bel_v3(lut_fabric: Fabric) -> 
     # v2 must not contain any timing lines.
     for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
         assert keyword not in belv2
+
+
+def test_placeholder_timing_sets_arcs_on_every_copy_of_a_tile_type(
+    lut_fabric: Fabric,
+) -> None:
+    """The tile type, each grid placement and each supertile member get arcs."""
+    lut = lut_fabric.tileDic["LUT4AB"]
+    fabric = make_fabric_from_grid([[deepcopy(lut), deepcopy(lut)]])
+    fabric.tileDic = {lut.name: lut}
+    member = deepcopy(lut)
+    fabric.superTileDic = {
+        "ST": SuperTile(name="ST", tileDir=Path(), tiles=[member], tileMap=[[member]])
+    }
+
+    placeholder_timing(fabric)
+
+    copies = list(tile_copies(fabric))
+    assert len(copies) == 4
+    assert len({id(tile.bels[0]) for tile in copies}) == 4
+    assert all(tile.bels[0].arcs == copies[0].bels[0].arcs for tile in copies)
+    assert copies[0].bels[0].arcs != BelArcs()
+
+
+@pytest.mark.parametrize("on_super_tile", [False, True])
+def test_emit_rejects_a_bel_without_arcs(
+    lut_fabric: Fabric, *, on_super_tile: bool
+) -> None:
+    """A placed tile or supertile BEL with no arcs is an error, not a default."""
+    tile = lut_fabric.tile[0][0]
+    super_bel = deepcopy(tile.bels[0])
+    super_bel.prefix = "ST_"
+    lut_fabric.superTileDic = {
+        "ST": SuperTile(
+            name="ST", tileDir=Path(), tiles=[tile], tileMap=[[tile]], bels=[super_bel]
+        )
+    }
+    timing = placeholder_timing(lut_fabric)
+    untimed = (lut_fabric.superTileDic["ST"] if on_super_tile else tile).bels[0]
+    untimed.arcs = None
+
+    with pytest.raises(ValueError, match=rf"{untimed.instance_name}.*X0Y0"):
+        emit_nextpnr_model(lut_fabric, timing)
 
 
 def test_unknown_bel_type_has_no_placeholder_arcs() -> None:

@@ -1,4 +1,4 @@
-"""Characterise the timing of a fabric into a `TimingDb`."""
+"""Characterise the timing of a fabric onto its BELs and into a `TimingDb`."""
 
 import tempfile
 from decimal import Decimal
@@ -6,11 +6,8 @@ from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.gen_npnr_model import CLOCK_DELAY, tile_pips
+from fabulous.fabric_cad.gen_npnr_model import CLOCK_DELAY, tile_copies, tile_pips
 from fabulous.fabric_cad.timing_db import (
-    BelArcs,
-    BelTiming,
-    Ns,
     Pip,
     PipTiming,
     SwitchPip,
@@ -29,7 +26,9 @@ from fabulous.fabric_cad.timing_model.macro import (
 )
 from fabulous.fabric_cad.timing_model.netlist import HierPath
 from fabulous.fabric_cad.timing_model.pips import characterize_pips
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.timing import BelArcs, Ns
 
 
 def _tile_scopes(macros: list[Macro]) -> dict[str, tuple[str, HierPath]]:
@@ -123,11 +122,13 @@ def _characterize_bels(
     macros: list[Macro],
     timings: dict[str, MacroTiming],
     scale: Decimal,
-) -> BelTiming:
+) -> list[tuple[Bel, BelArcs]]:
     """Return the arcs of every BEL of every placed tile and supertile type.
 
     A BEL is found by the instance name the tile or supertile generator gives
-    it, in the macro that times its tile or supertile.
+    it, in the macro that times its tile or supertile. Each BEL of a tile type
+    is characterised once, and its arcs are paired with that BEL in every copy
+    of the tile type.
 
     Parameters
     ----------
@@ -142,8 +143,8 @@ def _characterize_bels(
 
     Returns
     -------
-    BelTiming
-        Characterised BEL arcs.
+    list[tuple[Bel, BelArcs]]
+        Each BEL object of the fabric with its characterised arcs.
     """
     scopes = _tile_scopes(macros)
     tiles: dict[str, dict[str, BelArcs]] = {}
@@ -171,28 +172,42 @@ def _characterize_bels(
                     instance=(super_tile.bel_instance_name(bel),),
                     scale=scale,
                 )
-    return BelTiming(tiles=tiles, super_tiles=super_tiles)
+    placed_super_tiles = {
+        super_tile.name: super_tile
+        for _, _, super_tile in fabric.iter_super_tile_placements()
+    }
+    return [
+        (bel, tiles[tile.name][bel.instance_name])
+        for tile in tile_copies(fabric)
+        for bel in tile.bels
+    ] + [
+        (bel, super_tiles[super_tile.name][bel.instance_name])
+        for super_tile in placed_super_tiles.values()
+        for bel in super_tile.bels
+    ]
 
 
 def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
     """Characterise the pip delays and BEL arcs of `fabric` with Yosys and OpenSTA.
 
     Each macro is synthesised and timed once: a supertile with all its member
-    tiles, and every other tile type on its own. Clock arrival is not
-    characterised; it stays `CLOCK_DELAY`. The tool outputs go to a temporary
-    directory that is removed on return.
+    tiles, and every other tile type on its own. The BEL arcs are set as
+    `Bel.arcs` once every macro and BEL is characterised, so a failure leaves
+    the fabric unchanged. Clock arrival is not characterised; it stays
+    `CLOCK_DELAY`. The tool outputs go to a temporary directory that is removed
+    on return.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric.
+        The fabric; its BEL arcs are set.
     config : TimingModelConfig
         Characterisation settings.
 
     Returns
     -------
     TimingDb
-        Characterised timing of every placed tile and supertile type.
+        Characterised pip delays of every placed tile and supertile type.
     """
     logger.info(f"Characterising tile timing, with mode: {config.mode}")
     macros = fabric_macros(fabric)
@@ -208,8 +223,8 @@ def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
                 work_dir=work_dir,
             )
     scale = config.delay_scaling_factor
-    return TimingDb(
-        pips=_characterize_pips(fabric, macros=macros, timings=timings, scale=scale),
-        bels=_characterize_bels(fabric, macros=macros, timings=timings, scale=scale),
-        clock_arrival=CLOCK_DELAY,
-    )
+    pips = _characterize_pips(fabric, macros=macros, timings=timings, scale=scale)
+    bel_arcs = _characterize_bels(fabric, macros=macros, timings=timings, scale=scale)
+    for bel, arcs in bel_arcs:
+        bel.arcs = arcs
+    return TimingDb(pips=pips, clock_arrival=CLOCK_DELAY)

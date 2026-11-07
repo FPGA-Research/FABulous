@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.timing import BelArcs
 
 
 @dataclass
@@ -99,6 +100,9 @@ class Bel:
         {RESET/ENABLE,(portname, IO)}
         Local shared ports of the BEL.
         Are only shared in the Tile, not in the fabric.
+    arcs : BelArcs | None
+        Timing arcs of the BEL, set by the placeholder timing or by
+        characterisation. None until one of them ran.
 
     Raises
     ------
@@ -124,6 +128,7 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
     carry: dict[str, dict[IO, str]] = field(default_factory=dict)
     localShared: dict[str, tuple[str, IO]] = field(default_factory=dict)
+    arcs: BelArcs | None = None
 
     def __init__(
         self,
@@ -165,6 +170,7 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.arcs = None
 
     @property
     def instance_name(self) -> str:

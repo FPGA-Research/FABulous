@@ -1,13 +1,13 @@
 """Nextpnr model generation for FABulous FPGA fabrics.
 
 Emit the files nextpnr reads (pips, BELs, pin constraints, placement estimate)
-as a pure function of a fabric and its `TimingDb`. This module owns every
+as a pure function of a timed fabric and its `TimingDb`. This module owns every
 nextpnr rule: file formats, cell types, pin renames and the placeholder timing
 that reproduces nextpnr's historical hardcoded constants.
 """
 
 import string
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -16,28 +16,29 @@ from loguru import logger
 
 from fabulous.custom_exception import InvalidState
 from fabulous.fabric_cad.timing_db import (
+    Pip,
+    PipTiming,
+    SwitchPip,
+    TimingDb,
+    WirePip,
+    switch_pips,
+)
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.timing import (
     AnyConnected,
     BelArcs,
     BelPin,
-    BelTiming,
     ClockArc,
     ClockToOutArc,
     Condition,
     DelayArc,
     FeatureIs,
     Ns,
-    Pip,
-    PipTiming,
     SetupHoldArc,
-    SwitchPip,
-    TimingDb,
-    WirePip,
     ns,
-    switch_pips,
 )
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
@@ -325,6 +326,31 @@ def _placeholder_arcs_of(bel: Bel) -> BelArcs:
     )
 
 
+def tile_copies(fabric: Fabric) -> Iterator[Tile]:
+    """Yield every copy of every tile type of `fabric`.
+
+    The parser deep-copies a tile type into each grid placement and each
+    supertile member cell, so data of a tile type is written to all of them.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric.
+
+    Yields
+    ------
+    Tile
+        Each tile type, then each grid placement, then each supertile member.
+    """
+    yield from fabric.tileDic.values()
+    for _, tile in fabric:
+        if tile is not None:
+            yield tile
+    for super_tile in fabric.superTileDic.values():
+        for row in super_tile.tileMap:
+            yield from (tile for tile in row if tile is not None)
+
+
 def wire_pips(tile: Tile) -> Iterator[tuple[Wire, WirePip]]:
     """Yield the pip of each wire of `tile`, in `wireList` order.
 
@@ -361,34 +387,35 @@ def tile_pips(tile: Tile) -> Iterator[Pip]:
 
 
 def placeholder_timing(fabric: Fabric) -> TimingDb:
-    """Return the timing nextpnr historically assumed for `fabric`.
+    """Set the timing nextpnr historically assumed on `fabric`.
 
-    Every pip gets `DUMMY_PIP_DELAY` and every BEL its `placeholder_bel_arcs`.
+    Every BEL gets its `placeholder_bel_arcs` as `Bel.arcs`, and every pip
+    `DUMMY_PIP_DELAY`.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric.
+        The fabric; its BEL arcs are set.
 
     Returns
     -------
     TimingDb
-        Placeholder pip delays and BEL arcs.
+        Placeholder pip delays and clock arrival.
     """
+    for tile in tile_copies(fabric):
+        for bel in tile.bels:
+            bel.arcs = _placeholder_arcs_of(bel)
     placed_pips: dict[str, dict[Pip, Ns]] = {}
-    tile_bels: dict[str, dict[str, BelArcs]] = {}
     for _, tile in fabric:
         if tile is None:
             continue
         delays = placed_pips.setdefault(tile.name, {})
         for pip in tile_pips(tile):
             delays[pip] = DUMMY_PIP_DELAY
-        tile_bels[tile.name] = {
-            bel.instance_name: _placeholder_arcs_of(bel) for bel in tile.bels
-        }
     super_tile_pips: dict[str, dict[SwitchPip, Ns]] = {}
-    super_tile_bels: dict[str, dict[str, BelArcs]] = {}
     for super_tile in fabric.superTileDic.values():
+        for bel in super_tile.bels:
+            bel.arcs = _placeholder_arcs_of(bel)
         connections = (
             {}
             if super_tile.switch_matrix is None
@@ -397,12 +424,8 @@ def placeholder_timing(fabric: Fabric) -> TimingDb:
         super_tile_pips[super_tile.name] = dict.fromkeys(
             switch_pips(connections), DUMMY_PIP_DELAY
         )
-        super_tile_bels[super_tile.name] = {
-            bel.instance_name: _placeholder_arcs_of(bel) for bel in super_tile.bels
-        }
     return TimingDb(
         pips=PipTiming(tiles=placed_pips, super_tiles=super_tile_pips),
-        bels=BelTiming(tiles=tile_bels, super_tiles=super_tile_bels),
         clock_arrival=CLOCK_DELAY,
     )
 
@@ -511,17 +534,44 @@ class NextpnrModel:
     placement_estimate: str
 
 
+def _placed_arcs(bel: Bel, *, x: int, y: int) -> BelArcs:
+    """Return the arcs of `bel` placed at tile `(x, y)`.
+
+    Parameters
+    ----------
+    bel : Bel
+        The BEL.
+    x : int
+        Tile X coordinate.
+    y : int
+        Tile Y coordinate.
+
+    Returns
+    -------
+    BelArcs
+        The BEL arcs.
+
+    Raises
+    ------
+    ValueError
+        If `bel` has no timing arcs.
+    """
+    if bel.arcs is None:
+        raise ValueError(f"BEL {bel.instance_name!r} at X{x}Y{y} has no timing arcs.")
+    return bel.arcs
+
+
 def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
-    """Emit the nextpnr model of `fabric` with the delays in `timing`.
+    """Emit the nextpnr model of `fabric` with its BEL arcs and `timing`.
 
     Walk the fabric grid row-major, then the supertile placements.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric.
+        The fabric; every placed BEL must have `Bel.arcs`.
     timing : TimingDb
-        Timing of every pip and BEL of the fabric.
+        Timing of every pip of the fabric.
 
     Returns
     -------
@@ -549,7 +599,6 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
         first_letter: int,
         x: int,
         y: int,
-        arcs_of: Callable[[Bel], BelArcs],
     ) -> None:
         """Append the lines of `bels` placed at tile `(x, y)`.
 
@@ -563,8 +612,6 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             Tile X coordinate.
         y : int
             Tile Y coordinate.
-        arcs_of : Callable[[Bel], BelArcs]
-            Timing lookup of a BEL.
         """
         for i, bel in enumerate(bels):
             letter = string.ascii_uppercase[first_letter + i]
@@ -581,7 +628,7 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             block.extend(f"CFG,{feature}" for feature in sorted(bel.belFeatureMap))
             bel_v2.extend(block)
             bel_v3.extend(block)
-            bel_v3.extend(render_arcs(arcs_of(bel), kind=npnr.kind))
+            bel_v3.extend(render_arcs(_placed_arcs(bel, x=x, y=y), kind=npnr.kind))
             if bel.withUserCLK:
                 # Only v3 carries the arrival time; v2 uses nextpnr's default.
                 bel_v2.append("GlobalClk")
@@ -622,13 +669,7 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
         bel_v1.append(f"#Tile_X{x}Y{y}")
         bel_v2.append(f"#Tile_X{x}Y{y}")
         bel_v3.append(f"#Tile_X{x}Y{y}")
-        place_bels(
-            tile.bels,
-            first_letter=0,
-            x=x,
-            y=y,
-            arcs_of=lambda bel, name=tile.name: timing.bels.tile_arcs(name, bel),
-        )
+        place_bels(tile.bels, first_letter=0, x=x, y=y)
 
     # SJUMP pips live in tile.wireList (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
@@ -648,9 +689,6 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             first_letter=len(fabric.tile[fty][ftx].bels),
             x=ftx,
             y=fty,
-            arcs_of=lambda bel, name=super_tile.name: timing.bels.super_tile_arcs(
-                name, bel
-            ),
         )
 
         if super_tile.switch_matrix is not None:
