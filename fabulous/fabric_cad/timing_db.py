@@ -1,29 +1,14 @@
-"""Timing database of a fabric: pip delays and the clock arrival.
+"""Timing database of a fabric: wire pip delays and the clock arrival.
 
-Pure data in fabric terms (switch-matrix wire names). BEL arcs live on
-`fabulous.fabric_definition.bel.Bel.arcs`.
+Pure data in fabric terms (tile wire names). BEL arcs live on
+`fabulous.fabric_definition.bel.Bel.arcs` and switch-matrix pip delays on
+`fabulous.fabric_definition.switch_matrix.SwitchMatrix.pip_delays`.
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 
-from fabulous.fabric_definition.timing import Ns
-
-
-@dataclass(frozen=True, slots=True)
-class SwitchPip:
-    """A switch-matrix pip, mux input to mux output.
-
-    Attributes
-    ----------
-    src : str
-        Mux input wire.
-    dst : str
-        Mux output wire.
-    """
-
-    src: str
-    dst: str
+from fabulous.fabric_definition.timing import Ns, SwitchPip
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,48 +30,27 @@ class WirePip:
 type Pip = SwitchPip | WirePip
 
 
-def switch_pips(connections: Mapping[str, list[str]]) -> Iterator[SwitchPip]:
-    """Yield the pips of a switch matrix in `connections` order.
-
-    Parameters
-    ----------
-    connections : Mapping[str, list[str]]
-        Switch-matrix connections, mux output to its inputs.
-
-    Yields
-    ------
-    SwitchPip
-        One pip per mux input.
-    """
-    for dst, sources in connections.items():
-        for src in sources:
-            yield SwitchPip(src=src, dst=dst)
-
-
 @dataclass(frozen=True, slots=True)
 class PipTiming:
-    """Pip delays per tile type and per supertile type.
+    """Wire pip delays per tile type.
 
     Attributes
     ----------
-    tiles : Mapping[str, Mapping[Pip, Ns]]
-        Delays of every switch and wire pip, keyed by tile type name.
-    super_tiles : Mapping[str, Mapping[SwitchPip, Ns]]
-        Delays of supertile switch-matrix pips, keyed by supertile type name.
+    tiles : Mapping[str, Mapping[WirePip, Ns]]
+        Delays of every wire pip of every placement, keyed by tile type name.
     """
 
-    tiles: Mapping[str, Mapping[Pip, Ns]]
-    super_tiles: Mapping[str, Mapping[SwitchPip, Ns]]
+    tiles: Mapping[str, Mapping[WirePip, Ns]]
 
-    def tile_delay(self, tile: str, pip: Pip) -> Ns:
+    def tile_delay(self, tile: str, pip: WirePip) -> Ns:
         """Return the delay of `pip` in tile type `tile`.
 
         Parameters
         ----------
         tile : str
             Tile type name.
-        pip : Pip
-            The pip.
+        pip : WirePip
+            The wire pip.
 
         Returns
         -------
@@ -104,41 +68,15 @@ class PipTiming:
             raise ValueError(f"No delay for {pip} in tile {tile!r}.")
         return self.tiles[tile][pip]
 
-    def super_tile_delay(self, super_tile: str, pip: SwitchPip) -> Ns:
-        """Return the delay of a switch pip of supertile type `super_tile`.
-
-        Parameters
-        ----------
-        super_tile : str
-            Supertile type name.
-        pip : SwitchPip
-            The pip.
-
-        Returns
-        -------
-        Ns
-            The pip delay.
-
-        Raises
-        ------
-        ValueError
-            If the supertile type or the pip has no delay.
-        """
-        if super_tile not in self.super_tiles:
-            raise ValueError(f"No pip timing for supertile {super_tile!r}.")
-        if pip not in self.super_tiles[super_tile]:
-            raise ValueError(f"No delay for {pip} in supertile {super_tile!r}.")
-        return self.super_tiles[super_tile][pip]
-
 
 @dataclass(frozen=True, slots=True)
 class TimingDb:
-    """Pip delays and clock arrival of a fabric: every pip has a value.
+    """Wire pip delays and clock arrival of a fabric: every wire pip has a value.
 
     Attributes
     ----------
     pips : PipTiming
-        Pip delays.
+        Wire pip delays.
     clock_arrival : Ns
         Clock arrival at every flop; fabric-wide, so zero skew.
     """

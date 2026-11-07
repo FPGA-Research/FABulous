@@ -102,7 +102,7 @@ class Bel:
         Are only shared in the Tile, not in the fabric.
     arcs : BelArcs | None
         Timing arcs of the BEL, set by the placeholder timing or by
-        characterisation. None until one of them ran.
+        characterisation. None until one of them ran. Not part of equality.
 
     Raises
     ------
@@ -128,7 +128,7 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
     carry: dict[str, dict[IO, str]] = field(default_factory=dict)
     localShared: dict[str, tuple[str, IO]] = field(default_factory=dict)
-    arcs: BelArcs | None = None
+    arcs: BelArcs | None = field(default=None, compare=False)
 
     def __init__(
         self,

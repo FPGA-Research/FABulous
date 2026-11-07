@@ -15,13 +15,20 @@ from fabulous.fabric_cad.gen_npnr_model import (
     render_arcs,
     tile_copies,
 )
-from fabulous.fabric_cad.timing_db import PipTiming, SwitchPip, TimingDb
+from fabulous.fabric_cad.timing_db import TimingDb
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.timing import BelArcs, BelPin, DelayArc, FeatureIs, ns
+from fabulous.fabric_definition.timing import (
+    BelArcs,
+    BelPin,
+    DelayArc,
+    FeatureIs,
+    SwitchPip,
+    ns,
+)
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
@@ -108,7 +115,7 @@ def test_emit_nextpnr_model_writes_timing_only_in_bel_v3(lut_fabric: Fabric) -> 
 def test_placeholder_timing_sets_arcs_on_every_copy_of_a_tile_type(
     lut_fabric: Fabric,
 ) -> None:
-    """The tile type, each grid placement and each supertile member get arcs."""
+    """The tile type, each grid placement and each supertile member are timed."""
     lut = lut_fabric.tileDic["LUT4AB"]
     fabric = make_fabric_from_grid([[deepcopy(lut), deepcopy(lut)]])
     fabric.tileDic = {lut.name: lut}
@@ -124,6 +131,10 @@ def test_placeholder_timing_sets_arcs_on_every_copy_of_a_tile_type(
     assert len({id(tile.bels[0]) for tile in copies}) == 4
     assert all(tile.bels[0].arcs == copies[0].bels[0].arcs for tile in copies)
     assert copies[0].bels[0].arcs != BelArcs()
+    assert all(
+        tile.switch_matrix.pip_delays == {SwitchPip(src="J_BEG", dst="LA_O"): ns(8)}
+        for tile in copies
+    )
 
 
 @pytest.mark.parametrize("on_super_tile", [False, True])
@@ -144,6 +155,35 @@ def test_emit_rejects_a_bel_without_arcs(
     untimed.arcs = None
 
     with pytest.raises(ValueError, match=rf"{untimed.instance_name}.*X0Y0"):
+        emit_nextpnr_model(lut_fabric, timing)
+
+
+@pytest.mark.parametrize("pip_delays", [None, {}], ids=["unset", "missing-pip"])
+@pytest.mark.parametrize("on_super_tile", [False, True])
+def test_emit_rejects_a_switch_pip_without_delay(
+    lut_fabric: Fabric, *, on_super_tile: bool, pip_delays: dict | None
+) -> None:
+    """A placed tile or supertile switch pip with no delay is an error."""
+    tile = lut_fabric.tile[0][0]
+    super_tile = SuperTile(
+        name="ST",
+        tileDir=Path(),
+        tiles=[tile],
+        tileMap=[[tile]],
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={"ST_I0": ["X"]}),
+    )
+    lut_fabric.superTileDic = {"ST": super_tile}
+    timing = placeholder_timing(lut_fabric)
+    if on_super_tile:
+        assert super_tile.switch_matrix is not None
+        super_tile.switch_matrix = replace(
+            super_tile.switch_matrix, pip_delays=pip_delays
+        )
+    else:
+        tile.switch_matrix = replace(tile.switch_matrix, pip_delays=pip_delays)
+    owner = "supertile 'ST'" if on_super_tile else "tile 'LUT4AB'"
+
+    with pytest.raises(ValueError, match=rf"{owner} at X0Y0"):
         emit_nextpnr_model(lut_fabric, timing)
 
 
@@ -201,12 +241,10 @@ def test_bel_timing_unaffected_by_characterized_pip_delay(lut_fabric: Fabric) ->
     physically unrelated to interconnect (pip) delay - a characterised pip
     delay must NOT change bel.v3's arc values.
     """
-    timing = replace(
-        placeholder_timing(lut_fabric),
-        pips=PipTiming(
-            tiles={"LUT4AB": {SwitchPip(src="J_BEG", dst="LA_O"): ns(6.0)}},
-            super_tiles={},
-        ),
+    timing = placeholder_timing(lut_fabric)
+    tile = lut_fabric.tile[0][0]
+    tile.switch_matrix = replace(
+        tile.switch_matrix, pip_delays={SwitchPip(src="J_BEG", dst="LA_O"): ns(6.0)}
     )
 
     model = emit_nextpnr_model(lut_fabric, timing)

@@ -10,7 +10,7 @@ lives in `fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -19,10 +19,12 @@ from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefini
 from fabulous.fabric_definition.define import Direction
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     from fabulous.fabric_definition.bel import Bel
     from fabulous.fabric_definition.port import Port
+    from fabulous.fabric_definition.timing import Ns, SwitchPip
 
 
 def switch_matrix_signal_order(
@@ -88,12 +90,17 @@ class SwitchMatrix:
     hdl_config_bits : int | None
         Config-bit count declared by a hand-written HDL matrix. None for parsed
         matrices, whose `no_config_bits` is derived from `connections` instead.
+    pip_delays : Mapping[SwitchPip, Ns] | None
+        Delay of each pip, set by the placeholder timing or by characterisation
+        through `dataclasses.replace`. None until one of them ran. Not part of
+        equality.
     """
 
     matrix_file: Path
     connections: dict[str, list[str]]
     preserve_list_order: bool = False
     hdl_config_bits: int | None = None
+    pip_delays: Mapping[SwitchPip, Ns] | None = field(default=None, compare=False)
 
     @property
     def no_config_bits(self) -> int:

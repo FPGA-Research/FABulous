@@ -1,6 +1,7 @@
-"""Timing data types of the fabric model: delays and BEL timing arcs.
+"""Timing data types of the fabric model: delays, pips and BEL timing arcs.
 
-Pure data in fabric terms (BEL port names, BEL config features). The nextpnr
+Pure data in fabric terms (switch-matrix wire names, BEL port names, BEL config
+features). The nextpnr
 spelling of names and conditions lives only in
 `fabulous.fabric_cad.gen_npnr_model`.
 """
@@ -30,6 +31,22 @@ def ns(value: float) -> Ns:
         The delay as an exact decimal.
     """
     return Ns(Decimal(repr(value)))
+
+
+@dataclass(frozen=True, slots=True)
+class SwitchPip:
+    """A switch-matrix pip, mux input to mux output.
+
+    Attributes
+    ----------
+    src : str
+        Mux input wire.
+    dst : str
+        Mux output wire.
+    """
+
+    src: str
+    dst: str
 
 
 @dataclass(frozen=True, slots=True)
