@@ -1,6 +1,6 @@
 """Timing data types of the fabric model: delays, pips and BEL timing arcs.
 
-Pure data in fabric terms (switch-matrix wire names, BEL port names, BEL config
+Pure data in fabric terms (switch-matrix and tile wire names, BEL port names, BEL config
 features). The nextpnr
 spelling of names and conditions lives only in
 `fabulous.fabric_cad.gen_npnr_model`.
@@ -47,6 +47,25 @@ class SwitchPip:
 
     src: str
     dst: str
+
+
+@dataclass(frozen=True, slots=True)
+class WirePip:
+    """A tile wire from `src` in this tile to `dst` in the tile at its offset.
+
+    Attributes
+    ----------
+    src : str
+        Wire source in this tile.
+    dst : str
+        Wire destination in the tile at the wire offset.
+    """
+
+    src: str
+    dst: str
+
+
+type Pip = SwitchPip | WirePip
 
 
 @dataclass(frozen=True, slots=True)

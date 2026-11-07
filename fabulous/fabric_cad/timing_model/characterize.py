@@ -1,4 +1,4 @@
-"""Characterise the timing of a fabric onto its model and into a `TimingDb`."""
+"""Characterise the timing of a fabric onto its model."""
 
 import tempfile
 from dataclasses import replace
@@ -12,8 +12,8 @@ from fabulous.fabric_cad.gen_npnr_model import (
     switch_pips,
     tile_copies,
     tile_pips,
+    wire_pips,
 )
-from fabulous.fabric_cad.timing_db import Pip, PipTiming, TimingDb, WirePip
 from fabulous.fabric_cad.timing_model.bels import characterize_bel
 from fabulous.fabric_cad.timing_model.config import TimingModelConfig, resolve_sources
 from fabulous.fabric_cad.timing_model.macro import (
@@ -27,7 +27,7 @@ from fabulous.fabric_cad.timing_model.macro import (
 from fabulous.fabric_cad.timing_model.netlist import HierPath
 from fabulous.fabric_cad.timing_model.pips import characterize_pips
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.timing import BelArcs, Ns, SwitchPip
+from fabulous.fabric_definition.timing import BelArcs, Ns, Pip, SwitchPip
 
 
 def _tile_scopes(macros: list[Macro]) -> dict[str, tuple[str, HierPath]]:
@@ -229,28 +229,23 @@ def _characterize_super_tile_bels(
     }
 
 
-def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
-    """Characterise the pip delays and BEL arcs of `fabric` with Yosys and OpenSTA.
+def characterize(fabric: Fabric, config: TimingModelConfig) -> None:
+    """Characterise the timing of `fabric` with Yosys and OpenSTA onto the fabric.
 
     Each macro is synthesised and timed once: a supertile with all its member
     tiles, and every other tile type on its own. Every tile and supertile type
-    is characterised once, and its BEL arcs and switch-matrix pip delays are
-    set on every copy of it only after everything is characterised, so a
-    failure leaves the fabric unchanged. Clock arrival is not characterised; it stays
-    `CLOCK_DELAY`. The tool outputs go to a temporary directory that is removed
-    on return.
+    is characterised once, and its BEL arcs, switch-matrix pip delays and wire
+    delays are set on every copy of it only after everything is characterised,
+    so a failure leaves the fabric unchanged. Clock arrival is not
+    characterised; it is set to `CLOCK_DELAY`. The tool outputs go to a
+    temporary directory that is removed on return.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric; its BEL arcs and switch-matrix pip delays are set.
+        The fabric; its timing is set.
     config : TimingModelConfig
         Characterisation settings.
-
-    Returns
-    -------
-    TimingDb
-        Characterised wire pip delays of every tile type.
     """
     logger.info(f"Characterising tile timing, with mode: {config.mode}")
     macros = fabric_macros(fabric)
@@ -290,6 +285,10 @@ def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
         tile.switch_matrix = replace(
             tile.switch_matrix, pip_delays=switch_delays[tile.name]
         )
+        tile.wireList = [
+            replace(wire, delay=tile_delays[tile.name][pip])
+            for wire, pip in wire_pips(tile)
+        ]
         for bel in tile.bels:
             bel.arcs = tile_arcs[tile.name][bel.instance_name]
     for name, super_tile in fabric.superTileDic.items():
@@ -299,8 +298,4 @@ def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
             )
         for bel in super_tile.bels:
             bel.arcs = super_tile_arcs[name][bel.instance_name]
-    wire_delays = {
-        name: {pip: delay for pip, delay in delays.items() if isinstance(pip, WirePip)}
-        for name, delays in tile_delays.items()
-    }
-    return TimingDb(pips=PipTiming(tiles=wire_delays), clock_arrival=CLOCK_DELAY)
+    fabric.clock_arrival = CLOCK_DELAY

@@ -10,8 +10,8 @@ import pytest
 from fabulous.fabric_cad.gen_npnr_model import (
     emit_nextpnr_model,
     nextpnr_bel,
-    placeholder_timing,
     render_arcs,
+    set_placeholder_timing,
 )
 from fabulous.fabric_cad.timing_model.bels import characterize_bel
 from fabulous.fabric_cad.timing_model.macro import TimedNetlist
@@ -419,10 +419,10 @@ def test_sky130_lc_and_iobuf_bel_v3_matches_golden(read_netlist: ReadNetlist) ->
     tile = make_empty_tile("SKY130", pinOrderConfig={})
     tile.bels = [lc, io]
     fabric = make_fabric_from_grid([[tile]])
-    timing = placeholder_timing(fabric)
+    set_placeholder_timing(fabric)
     for bel in tile.bels:
         bel.arcs = bel_arcs(synth, bel)
-    bel_v3 = emit_nextpnr_model(fabric, timing).bel_v3
+    bel_v3 = emit_nextpnr_model(fabric).bel_v3
     golden = (FIXTURES / "sky130_lc_iobuf.bel.v3.txt").read_text()
     assert bel_v3.splitlines()[2:] == golden.splitlines()
 

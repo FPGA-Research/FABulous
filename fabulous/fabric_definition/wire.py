@@ -1,9 +1,10 @@
 """Wire class for managing connections between tiles."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fabulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.timing import Ns
 
 
 @dataclass(frozen=True, eq=True)
@@ -31,6 +32,10 @@ class Wire:
         The source tile name of the wire
     destinationTile : str
         The destination tile name of the wire
+    delay : Ns | None
+        Delay of the wire, set by the placeholder timing or by characterisation
+        through `dataclasses.replace`. None until one of them ran. Not part of
+        equality or the hash, which de-duplicates a tile's wires.
     """
 
     direction: Direction
@@ -40,6 +45,7 @@ class Wire:
     destination: str
     sourceTile: str
     destinationTile: str
+    delay: Ns | None = field(default=None, compare=False)
 
     def __repr__(self) -> str:
         """Return string representation of the wire.

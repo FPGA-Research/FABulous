@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.timing import BelArcs, BelPin, DelayArc, SwitchPip, ns
-from tests.conftest import make_muladd_bel
+from fabulous.fabric_definition.wire import Wire
+from tests.conftest import make_empty_tile, make_fabric_from_grid, make_muladd_bel
 
 
 def _bel_pair() -> tuple[object, object]:
@@ -27,8 +28,24 @@ def _switch_matrix_pair() -> tuple[object, object]:
     return untimed, replace(untimed, pip_delays={SwitchPip("A", "Y"): ns(0.5)})
 
 
+def _wire_pair() -> tuple[object, object]:
+    """Return a wire without delay and a copy of it with a delay."""
+    untimed = Wire(Direction.JUMP, "A0", 0, 0, "B0", "", "")
+    return untimed, replace(untimed, delay=ns(0.25))
+
+
+def _fabric_pair() -> tuple[object, object]:
+    """Return a fabric without clock arrival and a copy of it with one."""
+    untimed = make_fabric_from_grid([[make_empty_tile("LUT", pinOrderConfig={})]])
+    timed = deepcopy(untimed)
+    timed.clock_arrival = ns(1.0)
+    return untimed, timed
+
+
 @pytest.mark.parametrize(
-    "pair", [_bel_pair, _switch_matrix_pair], ids=["bel", "switch-matrix"]
+    "pair",
+    [_bel_pair, _switch_matrix_pair, _wire_pair, _fabric_pair],
+    ids=["bel", "switch-matrix", "wire", "fabric"],
 )
 def test_timing_is_not_part_of_model_equality(
     pair: Callable[[], tuple[object, object]],
@@ -37,3 +54,11 @@ def test_timing_is_not_part_of_model_equality(
     untimed, timed = pair()
 
     assert untimed == timed
+
+
+def test_wire_delay_is_not_part_of_the_hash() -> None:
+    """De-duplicating a tile's wires treats a timed wire as its untimed copy."""
+    untimed, timed = _wire_pair()
+
+    assert hash(untimed) == hash(timed)
+    assert list(dict.fromkeys([untimed, timed])) == [untimed]

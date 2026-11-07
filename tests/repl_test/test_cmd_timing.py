@@ -98,7 +98,7 @@ def test_timing_api_writes_characterized_timing(
 
     assert result is manual_config
     characterize.assert_called_once_with(fabric, manual_config)
-    emit.assert_called_once_with(fabric, characterize.return_value)
+    emit.assert_called_once_with(fabric)
     timing_writer.assert_called_once_with(
         emit.return_value, pip_file=pip_path, bel_file=bel_path
     )

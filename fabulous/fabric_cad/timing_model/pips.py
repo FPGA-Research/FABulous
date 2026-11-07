@@ -16,7 +16,6 @@ from decimal import Decimal
 
 from loguru import logger
 
-from fabulous.fabric_cad.timing_db import Pip
 from fabulous.fabric_cad.timing_model.config import scale_delay
 from fabulous.fabric_cad.timing_model.macro import (
     MacroTiming,
@@ -36,7 +35,7 @@ from fabulous.fabric_cad.timing_model.physical_member import (
     member_views,
 )
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
-from fabulous.fabric_definition.timing import Ns
+from fabulous.fabric_definition.timing import Ns, Pip
 
 # Delay of a pip with no timed path in the macro, such as a tile output
 # stitched to the next tile; not 0, so that no pip is free.

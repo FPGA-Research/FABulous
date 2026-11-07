@@ -6,14 +6,22 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture, MockType
 
-from fabulous.fabric_cad.gen_npnr_model import placeholder_timing, tile_copies
+from fabulous.fabric_cad.gen_npnr_model import set_placeholder_timing, tile_copies
 from fabulous.fabric_cad.timing_model.characterize import characterize
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.timing import BelArcs, BelPin, DelayArc, SwitchPip, ns
+from fabulous.fabric_definition.timing import (
+    BelArcs,
+    BelPin,
+    DelayArc,
+    SwitchPip,
+    WirePip,
+    ns,
+)
+from fabulous.fabric_definition.wire import Wire
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 CHARACTERIZE = "fabulous.fabric_cad.timing_model.characterize"
@@ -48,6 +56,11 @@ def two_lut_tiles() -> Fabric:
     )
     fabric = make_fabric_from_grid([[deepcopy(tile), deepcopy(tile)]])
     fabric.tileDic = {tile.name: tile}
+    # Placements of one tile type differ in their wires, like SJUMP wires.
+    for x, (source, destination) in enumerate([("A0", "B0"), ("C0", "D0")]):
+        fabric.tile[0][x].wireList = [
+            Wire(Direction.JUMP, source, 0, 0, destination, "", "")
+        ]
     return fabric
 
 
@@ -77,6 +90,12 @@ def test_characterize_times_each_pip_and_bel_of_a_tile_type_once(
 
     tools.assert_called_once()
     pips.assert_called_once()
+    assert {WirePip("A0", "B0"), WirePip("C0", "D0")} <= set(
+        pips.call_args.kwargs["pips"]
+    )
+    for x in (0, 1):
+        assert [wire.delay for wire in two_lut_tiles.tile[0][x].wireList] == [ns(6.0)]
+    assert two_lut_tiles.clock_arrival == ns(1.0)
     delays = two_lut_tiles.tileDic["LUT4AB"].switch_matrix.pip_delays
     assert delays == {
         SwitchPip(src="J_BEG", dst="LA_I0"): ns(6.0),
@@ -114,7 +133,9 @@ def test_characterize_leaves_bels_untimed_when_a_bel_fails(
 
     for tile in tile_copies(two_lut_tiles):
         assert tile.switch_matrix.pip_delays is None
+        assert all(wire.delay is None for wire in tile.wireList)
         assert all(bel.arcs is None for bel in tile.bels)
+    assert two_lut_tiles.clock_arrival is None
 
 
 @pytest.mark.usefixtures("tools")
@@ -138,7 +159,7 @@ def test_a_tile_type_without_placement_is_timed_like_a_placed_one(
     if characterised:
         characterize(two_lut_tiles, mocker.Mock())
     else:
-        placeholder_timing(two_lut_tiles)
+        set_placeholder_timing(two_lut_tiles)
 
     assert io.bels[0].arcs is not None
     assert io.switch_matrix.pip_delays is not None

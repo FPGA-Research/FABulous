@@ -39,6 +39,7 @@ from fabulous.fabric_definition.define import (
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.timing import Ns
 from fabulous.fabric_definition.wire import Wire
 
 
@@ -144,6 +145,10 @@ class Fabric:
         The key is the name of the tile and the value is the tile.
     commonWirePair : list[tuple[str, str]]
         A list of common wire pairs in the fabric.
+    clock_arrival : Ns | None
+        Clock arrival at every flop, set by the placeholder timing or by
+        characterisation; fabric-wide, so zero skew. None until one of them
+        ran. Not part of equality.
     """
 
     fabric_dir: Path
@@ -173,6 +178,7 @@ class Fabric:
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
     unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
+    clock_arrival: Ns | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         """Generate and get all the wire pairs in the fabric.
