@@ -17,6 +17,8 @@ from pathlib import Path
 import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field
 
+from fabulous.fabric_cad.timing_model.netlist import HierPath
+
 
 class SDFCellType(StrEnum):
     """Enumeration of cell types for the SDF timing model.
@@ -337,127 +339,6 @@ class TimingModelMode(StrEnum):
     PHYSICAL = "physical"
 
 
-class TimingModelTarget(StrEnum):
-    """Select which nextpnr timing data the timing-model flow generates.
-
-    Attributes
-    ----------
-    PIPS
-        Generate routing-resource delays in `pips.txt`.
-    BELS
-        Generate BEL-internal timing arcs in `bel.v3.txt`.
-    BOTH
-        Generate both pip and BEL timing data.
-    """
-
-    PIPS = "pips"
-    BELS = "bels"
-    BOTH = "both"
-
-
-@dataclass(frozen=True, slots=True)
-class BelClockTiming:
-    """Declare a BEL clock port and its optional activation condition.
-
-    Attributes
-    ----------
-    clock : str
-        Logical nextpnr clock-port name.
-    condition : str | None
-        Optional nextpnr timing condition.
-    """
-
-    clock: str
-    condition: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BelDelayTiming:
-    """Represent one combinational BEL timing arc.
-
-    Attributes
-    ----------
-    source : str
-        Logical nextpnr source-port name.
-    sink : str
-        Logical nextpnr destination-port name.
-    delay : float
-        Arc delay in nanoseconds.
-    condition : str | None
-        Optional nextpnr timing condition.
-    """
-
-    source: str
-    sink: str
-    delay: float
-    condition: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BelSetupHoldTiming:
-    """Represent setup and hold checks for one BEL data port.
-
-    Attributes
-    ----------
-    port : str
-        Logical nextpnr data-port name.
-    clock : str
-        Logical nextpnr clock-port name.
-    setup : float
-        Setup time in nanoseconds.
-    hold : float
-        Hold time in nanoseconds.
-    condition : str | None
-        Optional nextpnr timing condition.
-    """
-
-    port: str
-    clock: str
-    setup: float
-    hold: float
-    condition: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class BelClockToOutTiming:
-    """Represent one BEL clock-to-output timing arc.
-
-    Attributes
-    ----------
-    port : str
-        Logical nextpnr output-port name.
-    clock : str
-        Logical nextpnr clock-port name.
-    delay : float
-        Clock-to-output delay in nanoseconds.
-    condition : str | None
-        Optional nextpnr timing condition.
-    """
-
-    port: str
-    clock: str
-    delay: float
-    condition: str | None = None
-
-
-type BelTimingArc = (
-    BelClockTiming | BelDelayTiming | BelSetupHoldTiming | BelClockToOutTiming
-)
-
-
-@dataclass(frozen=True, slots=True)
-class BelTiming:
-    """Collect all characterized timing arcs for one BEL instance.
-
-    Attributes
-    ----------
-    arcs : tuple[BelTimingArc, ...]
-        Immutable sequence of timing arcs in nextpnr emission order.
-    """
-
-    arcs: tuple[BelTimingArc, ...] = ()
-
-
 class TimingModelSynthTools(StrEnum):
     """Enumeration of synthesis tools configured for the timing model.
 
@@ -607,7 +488,7 @@ class InternalPipCacheEntry:
     ----------
     begin_pip : str
         The begin pip for the internal pip delay calculation.
-    swm_mux_for_pips : list[str]
+    swm_mux_for_pips : list[HierPath]
         The list of switch matrix multiplexers (swm mux) that are relevant for the
         source and destination pips.
     swm_nearest_ports_in : tuple[dict[str, list[str]], list[str]] | None
@@ -634,7 +515,7 @@ class InternalPipCacheEntry:
     """
 
     begin_pip: str
-    swm_mux_for_pips: list[str]
+    swm_mux_for_pips: list[HierPath]
     swm_nearest_ports_in: tuple[dict[str, list[str]], list[str]] | None
     swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None
     swm_output_pin: tuple[list[str], float | None, dict[str, dict[str, float]]] | None

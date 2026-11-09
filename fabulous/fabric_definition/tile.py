@@ -359,6 +359,17 @@ class Tile:
         ]
 
     @property
+    def switch_matrix_instance_name(self) -> str:
+        """The instance name the tile generator gives the switch matrix.
+
+        Returns
+        -------
+        str
+            `Inst_{name}_switch_matrix`.
+        """
+        return f"Inst_{self.name}_switch_matrix"
+
+    @property
     def directory(self) -> Path:
         """The directory the tile's own files are written to and read from.
 

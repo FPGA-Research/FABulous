@@ -1,40 +1,49 @@
 """BEL timing regression tests using real netlist and SDF parsers."""
 
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import networkx as nx
 import pytest
 
-from fabulous.fabric_cad.gen_npnr_model import belLines
+from fabulous.fabric_cad.gen_npnr_model import (
+    emit_nextpnr_model,
+    nextpnr_bel,
+    placeholder_timing,
+    render_arcs,
+)
+from fabulous.fabric_cad.timing_db import (
+    BelArcs,
+    BelTiming,
+    FeatureIs,
+)
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
-from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
-    VerilogGateLevelTimingGraph,
+from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import (
+    HdlnxTimingModel,
 )
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
 from fabulous.fabric_cad.timing_model.models import (
-    BelClockTiming,
-    BelClockToOutTiming,
-    BelDelayTiming,
-    BelSetupHoldTiming,
     SDFPathType,
     TimingModelMode,
 )
+from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
+from tests.conftest import make_empty_tile, make_fabric_from_grid
+from tests.timing_model_test.conftest import ReadNetlist
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def make_graph(
     tmp_path: Path,
-    netlist: str,
     cells: list[str],
     interconnects: list[tuple[str, str]],
-) -> VerilogGateLevelTimingGraph:
-    """Build the real SDF graph and attach its matching structural netlist."""
+) -> HdlnxTimingModel:
+    """Build the real SDF graph without invoking external EDA tools."""
     sdf = tmp_path / "demo.sdf"
     sdf.write_text(
         '(DELAYFILE (SDFVERSION "3.0") (DESIGN "Top") (DIVIDER /) '
@@ -48,10 +57,8 @@ def make_graph(
         + " ".join(cells)
         + ")"
     )
-    graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
+    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
     SDFTimingGraph.__init__(graph, sdf)
-    graph.top_name = "Top"
-    graph.verilog_netlist_content = netlist
     return graph
 
 
@@ -98,19 +105,36 @@ def make_bel(
     )
 
 
-def make_model(graph: VerilogGateLevelTimingGraph) -> FABulousTileTimingModel:
-    """Attach a prebuilt graph without invoking external EDA tools."""
+def make_model(
+    graph: HdlnxTimingModel, netlist: NetlistIndex
+) -> FABulousTileTimingModel:
+    """Attach a prebuilt graph and its matching structural netlist."""
     model = FABulousTileTimingModel.__new__(FABulousTileTimingModel)
     model.tile_name = "demo_tile"
     model.hdlnx_tm_synth = graph
+    model.synth_netlist = netlist
     model.tm_config = SimpleNamespace(
         mode=TimingModelMode.STRUCTURAL, delay_scaling_factor=1.0
     )
     return model
 
 
+def v3_arcs(model: FABulousTileTimingModel, bel: Bel) -> list[str]:
+    """Return the `bel.v3` timing lines of one characterised BEL."""
+    return render_arcs(bel_arcs(model, bel), kind=nextpnr_bel(bel.name).kind)
+
+
+def bel_arcs(model: FABulousTileTimingModel, bel: Bel) -> BelArcs:
+    """Characterise a BEL instantiated directly under the top module."""
+    return model.bel_timing(bel, instance=(bel.instance_name,))
+
+
 def registered_bel(
-    tmp_path: Path, clock: str, buffered: bool = False
+    tmp_path: Path,
+    read_netlist: ReadNetlist,
+    clock: str,
+    buffered: bool = False,
+    name: str = "Register",
 ) -> tuple[Bel, FABulousTileTimingModel]:
     """Build a register with combinational bypass, like the LC output stage."""
     internal = {"D": (IO.INPUT, 1), "O": (IO.OUTPUT, 1)}
@@ -119,27 +143,33 @@ def registered_bel(
         shared[clock] = (IO.INPUT, 1)
     else:
         internal[clock] = (IO.INPUT, 1)
-    bel = make_bel("Register", internal, shared=shared, features=("FF",))
+    bel = make_bel(name, internal, shared=shared, features=("FF",))
     clock_net = "buffered_clock" if buffered else clock
     buffer = f"BUF cbuf (.A({clock}), .Y(buffered_clock));" if buffered else ""
     netlist = f"""
-    module Register (D, O, {clock}, ConfigBits);
+    module {name} (D, O, {clock}, ConfigBits);
+      input D, {clock};
+      input [0:0] ConfigBits;
+      output O;
       {buffer}
       DFF ff (.D(D), .CLK({clock_net}), .Q(q));
       MUX mux (.A(D), .B(q), .S(ConfigBits[0]), .Y(O));
     endmodule
     module Top (D, O, CLK, CFG);
-      Register Inst_A_Register (.D(D), .O(O), .{clock}(CLK), .ConfigBits(CFG));
+      input D, CLK, CFG;
+      output O;
+      {name} Inst_A_{name} (.D(D), .O(O), .{clock}(CLK), .ConfigBits(CFG));
     endmodule
     """
-    prefix = "Inst_A_Register/"
+    prefix = f"Inst_A_{name}/"
     cells = [dff(prefix + "ff"), mux(prefix + "mux")]
     connections = [(prefix + "ff/Q", prefix + "mux/B")]
     if buffered:
         cells.append(f"""(CELL (CELLTYPE "BUF") (INSTANCE {prefix}cbuf)
           (DELAY (ABSOLUTE (IOPATH A Y (0.1:0.1:0.1)))))""")
         connections.append((prefix + "cbuf/Y", prefix + "ff/CLK"))
-    return bel, make_model(make_graph(tmp_path, netlist, cells, connections))
+    graph = make_graph(tmp_path, cells, connections)
+    return bel, make_model(graph, read_netlist(netlist, "Top"))
 
 
 @pytest.mark.parametrize(
@@ -152,10 +182,14 @@ def registered_bel(
     ],
 )
 def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
-    tmp_path: Path, clock: str, buffered: bool, expected_checks: int
+    tmp_path: Path,
+    read_netlist: ReadNetlist,
+    clock: str,
+    buffered: bool,
+    expected_checks: int,
 ) -> None:
     """Resolve routed and shared clocks, including internal clock propagation."""
-    bel, model = registered_bel(tmp_path, clock, buffered)
+    bel, model = registered_bel(tmp_path, read_netlist, clock, buffered)
     graph = model.hdlnx_tm_synth
     prefix = "Inst_A_Register/"
     clock_pin = prefix + ("cbuf/A" if buffered else "ff/CLK")
@@ -172,14 +206,16 @@ def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
     assert complete.clock_to_output_rise.maximum == pytest.approx(
         0.9 if buffered else 0.8
     )
-    arcs = model.bel_timing(bel).arcs
-    assert any(isinstance(arc, BelClockTiming) for arc in arcs)
-    assert any(isinstance(arc, BelDelayTiming) for arc in arcs)
-    assert sum(isinstance(arc, BelSetupHoldTiming) for arc in arcs) == expected_checks
-    assert sum(isinstance(arc, BelClockToOutTiming) for arc in arcs) == expected_checks
+    arcs = bel_arcs(model, bel)
+    assert arcs.clocks
+    assert arcs.delays
+    assert len(arcs.checks) == expected_checks
+    assert len(arcs.clock_to_outs) == expected_checks
 
 
-def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> None:
+def test_iobuf_characterizes_registers_across_external_ports(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
     """IOBUF data paths cross the external boundary; CLK-to-OUT has no D edge."""
     bel = make_bel(
         "IOBUF",
@@ -198,6 +234,9 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
     )
     netlist = """
     module IOBUF (CLK, IN, EN, OUT, IN_top, EN_top, OUT_top, ConfigBits);
+      input CLK, IN, EN, OUT_top;
+      input [2:0] ConfigBits;
+      output OUT, IN_top, EN_top;
       DFF in_ff (.D(IN), .CLK(CLK), .Q(in_q));
       DFF en_ff (.D(EN), .CLK(CLK), .Q(en_q));
       DFF out_ff (.D(OUT_top), .CLK(CLK), .Q(out_q));
@@ -206,6 +245,9 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
       MUX out_mux (.A(OUT_top), .B(out_q), .S(ConfigBits[2]), .Y(OUT));
     endmodule
     module Top (CLK, IN, EN, OUT, IN_top, EN_top, OUT_top, CFG);
+      input CLK, IN, EN, OUT_top;
+      input [2:0] CFG;
+      output OUT, IN_top, EN_top;
       IOBUF Inst_A_IOBUF (.CLK(CLK), .IN(IN), .EN(EN), .OUT(OUT),
         .IN_top(IN_top), .EN_top(EN_top), .OUT_top(OUT_top), .ConfigBits(CFG));
     endmodule
@@ -216,7 +258,7 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
     for channel in ("in", "en", "out"):
         cells.extend([dff(prefix + channel + "_ff"), mux(prefix + channel + "_mux")])
         connections.append((prefix + channel + "_ff/Q", prefix + channel + "_mux/B"))
-    graph = make_graph(tmp_path, netlist, cells, connections)
+    graph = make_graph(tmp_path, cells, connections)
     # There really are valid sequential paths on all three independent channels.
     for channel in ("in", "en", "out"):
         complete = graph.query_timing_paths(
@@ -237,22 +279,23 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
     assert clock_path.rise.maximum == pytest.approx(0.8)
     assert clock_path.register_clock_pin == prefix + "out_ff/CLK"
     assert clock_path.clock_to_output_rise.maximum == pytest.approx(0.8)
-    assert make_model(graph).bel_timing(bel).arcs == (
-        BelClockTiming("CLK"),
-        BelSetupHoldTiming("IN", "CLK", 0.3, 0.03, condition="IN_REG=1"),
-        BelSetupHoldTiming("EN", "CLK", 0.3, 0.03, condition="EN_REG=1"),
-        BelClockToOutTiming("OUT", "CLK", 0.8, condition="OUT_REG=1"),
-    )
+    assert v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel) == [
+        "Clock,CLK",
+        "SetupHold,IN,CLK,0.3,0.03,IN_REG=1",
+        "SetupHold,EN,CLK,0.3,0.03,EN_REG=1",
+        "ClkToOut,OUT,CLK,0.8,OUT_REG=1",
+    ]
 
 
-def test_bel_timing_excludes_paths_through_switch_matrix(tmp_path: Path) -> None:
+def test_bel_timing_excludes_paths_through_switch_matrix(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
     """Feedback through tile routing must not become a BEL setup path."""
-    bel, model = registered_bel(tmp_path, "CLK")
-    baseline = model.bel_timing(bel)
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
+    baseline = bel_arcs(model, bel)
     prefix = "Inst_A_Register/"
     graph = make_graph(
         tmp_path,
-        model.hdlnx_tm_synth.verilog_netlist_content,
         [dff(prefix + "ff"), mux(prefix + "mux"), mux("switch_matrix/feedback")],
         [
             (prefix + "ff/Q", prefix + "mux/B"),
@@ -264,122 +307,71 @@ def test_bel_timing_excludes_paths_through_switch_matrix(tmp_path: Path) -> None
     clock_graph = graph.clock_graph
     combinational_graph = graph.combinational_graph
     model.hdlnx_tm_synth = graph
-    assert model.bel_timing(bel) == baseline
+    assert bel_arcs(model, bel) == baseline
     assert graph.clock_graph is clock_graph
     assert graph.combinational_graph is combinational_graph
     assert graph.has_path(prefix + "mux/Y", prefix + "ff/D")
 
 
-def test_vector_hierarchy_connections_resolve_bits() -> None:
-    """Follow each vector bit through a child port concatenation."""
-    graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
-    graph.top_name = "Top"
-    graph.hier_sep = "/"
-    graph.verilog_netlist_content = """
-    module Child (I, O);
-      input [3:0] I;
-      output O;
-      MUX mux (.A(I[0]), .B(I[1]), .S(I[3]), .Y(O));
-    endmodule
-    module LC (I, Ci, O);
-      input [3:0] I;
-      input Ci;
-      output O;
-      MUX input_mux (.A(I[0]), .B(Ci), .S(I[1]), .Y(index0));
-      Child lut (.I({ I[3:1], index0 }), .O(O));
-    endmodule
-    module Top (I, Ci, O);
-      LC Inst_A_LC (.I(I), .Ci(Ci), .O(O));
-    endmodule
-    """
-    assert graph.resolve_hier_pin("Inst_A_LC/I[0]") == ["Inst_A_LC/input_mux/A"]
-    assert graph.resolve_hier_pin("Inst_A_LC/I[3]") == ["Inst_A_LC/lut/mux/S"]
-
-
 @pytest.mark.parametrize("mode", list(TimingModelMode))
 def test_bel_timing_uses_synthesis_in_all_modes_and_applies_scaling(
-    tmp_path: Path, mode: TimingModelMode
+    tmp_path: Path, read_netlist: ReadNetlist, mode: TimingModelMode
 ) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
     physical_dir = tmp_path / "physical"
     physical_dir.mkdir()
-    _, physical_model = registered_bel(physical_dir, "CLK", buffered=True)
+    _, physical_model = registered_bel(physical_dir, read_netlist, "CLK", buffered=True)
     model.hdlnx_tm_phys = physical_model.hdlnx_tm_synth
     model.tm_config.mode = mode
     model.tm_config.delay_scaling_factor = 2.0
-    arcs = model.bel_timing(bel).arcs
-    assert BelDelayTiming("D", "O", 0.2, condition="FF=0") in arcs
-    assert (
-        BelSetupHoldTiming(
-            "D",
-            "CLK",
-            0.6,
-            0.06,
-            condition="FF=1",
-        )
-        in arcs
-    )
-    assert BelClockToOutTiming("O", "CLK", 1.6, condition="FF=1") in arcs
+    lines = v3_arcs(model, bel)
+    assert "Delay,D,O,0.2,FF=0" in lines
+    assert "SetupHold,D,CLK,0.6,0.06,FF=1" in lines
+    assert "ClkToOut,O,CLK,1.6,FF=1" in lines
 
 
-def test_bel_timing_does_not_require_a_physical_model(tmp_path: Path) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
-    expected = model.bel_timing(bel)
+def test_bel_timing_does_not_require_a_physical_model(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
+    expected = bel_arcs(model, bel)
     model.tm_config.mode = TimingModelMode.PHYSICAL
     model.hdlnx_tm_phys = None
-    assert model.bel_timing(bel) == expected
+    assert bel_arcs(model, bel) == expected
 
 
-def test_bel_timing_requires_a_synthesis_model(tmp_path: Path) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
+def test_bel_timing_requires_a_synthesis_model(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
     model.hdlnx_tm_synth = None
     with pytest.raises(RuntimeError, match="synthesis timing model is not initialized"):
-        model.bel_timing(bel)
+        bel_arcs(model, bel)
 
 
-def test_missing_bel_reports_the_instance_and_tile(tmp_path: Path) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
+def test_missing_bel_reports_the_instance_and_tile(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
     bel.prefix = "missing_"
     with pytest.raises(ValueError, match="missing_Register.*demo_tile"):
-        model.bel_timing(bel)
-
-
-def test_multiple_bel_instances_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
-    graph = model.hdlnx_tm_synth
-    graph.verilog_netlist_content = graph.verilog_netlist_content.replace(
-        ".ConfigBits(CFG));",
-        ".ConfigBits(CFG)); Register Other_A_Register "
-        "(.D(D), .O(O), .CLK(CLK), .ConfigBits(CFG));",
-    )
-    assert model.bel_timing(bel).arcs
-    assert "Found multiple hierarchical instance paths" in caplog.text
+        bel_arcs(model, bel)
 
 
 @pytest.mark.parametrize(
     "name", ["Register", "FABULOUS_LC", "LUT4c_frame_config_dffesr"]
 )
-def test_lc_clock_to_output_uses_nextpnr_q(tmp_path: Path, name: str) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
-    model.hdlnx_tm_synth.verilog_netlist_content = (
-        model.hdlnx_tm_synth.verilog_netlist_content.replace("Register", name)
-    )
-    # Keep SDF instance names and Verilog names identical after renaming the fixture.
-    sdf = tmp_path / "demo.sdf"
-    sdf.write_text(sdf.read_text().replace("Register", name))
-    SDFTimingGraph.__init__(model.hdlnx_tm_synth, sdf)
-    bel.name = name
-    bel.module_name = name
+def test_lc_clock_to_output_uses_nextpnr_q(
+    tmp_path: Path, read_netlist: ReadNetlist, name: str
+) -> None:
+    bel, model = registered_bel(tmp_path, read_netlist, "CLK", name=name)
     expected_port = "O" if name == "Register" else "Q"
-    assert (
-        BelClockToOutTiming(expected_port, "CLK", 0.8, condition="FF=1")
-        in model.bel_timing(bel).arcs
-    )
+    assert f"ClkToOut,{expected_port},CLK,0.8,FF=1" in v3_arcs(model, bel)
 
 
-def sky130_lc_and_iobuf() -> tuple[FABulousTileTimingModel, Bel, Bel]:
+def sky130_lc_and_iobuf(
+    read_netlist: ReadNetlist,
+) -> tuple[FABulousTileTimingModel, Bel, Bel]:
     """Build the Sky130 fixture model with its FABULOUS_LC and IOBUF BELs.
 
     Fixtures were generated from fabulous-tiles commit
@@ -389,11 +381,9 @@ def sky130_lc_and_iobuf() -> tuple[FABulousTileTimingModel, Bel, Bel]:
     Synthesis uses the timing model's hierarchical synth/renames/clockgate/
     dfflibmap/splitnets/insbuf/abc sequence, followed by OpenSTA write_sdf.
     """
-    graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
+    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
     SDFTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
-    graph.top_name = "Top"
-    graph.verilog_netlist_content = (FIXTURES / "sky130_lc_iobuf.v").read_text()
-    model = make_model(graph)
+    model = make_model(graph, read_netlist(FIXTURES / "sky130_lc_iobuf.v", "Top"))
     lc = make_bel(
         "FABULOUS_LC",
         {
@@ -426,11 +416,11 @@ def sky130_lc_and_iobuf() -> tuple[FABulousTileTimingModel, Bel, Bel]:
     return model, lc, io
 
 
-def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
+def test_sky130_lc_and_iobuf_from_yosys_opensta(read_netlist: ReadNetlist) -> None:
     """Exercise real clock gating, escaped parameter modules, and external I/O."""
-    model, lc, io = sky130_lc_and_iobuf()
-    arcs = model.bel_timing(lc).arcs
-    assert {arc.port for arc in arcs if isinstance(arc, BelSetupHoldTiming)} == {
+    model, lc, io = sky130_lc_and_iobuf(read_netlist)
+    arcs = bel_arcs(model, lc)
+    assert {arc.data.name for arc in arcs.checks} == {
         "I0",
         "I1",
         "I2",
@@ -439,67 +429,72 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
         "SR",
         "EN",
     }
-    assert any(isinstance(arc, BelClockToOutTiming) and arc.port == "Q" for arc in arcs)
-    assert any(isinstance(arc, BelDelayTiming) and arc.source == "I3" for arc in arcs)
-    assert all(
-        arc.condition is None
-        for arc in arcs
-        if isinstance(arc, BelDelayTiming) and arc.sink == "Co"
-    )
-    io_arcs = model.bel_timing(io).arcs
-    assert {arc.port for arc in io_arcs if isinstance(arc, BelSetupHoldTiming)} == {
-        "IN",
-        "EN",
-    }
-    assert {arc.port for arc in io_arcs if isinstance(arc, BelClockToOutTiming)} == {
-        "OUT"
-    }
-    assert {arc.condition for arc in io_arcs} == {
-        None,
-        "IN_REG=1",
-        "EN_REG=1",
-        "OUT_REG=1",
+    assert any(line.startswith("ClkToOut,Q,") for line in v3_arcs(model, lc))
+    assert any(arc.src.name == "I3" for arc in arcs.delays)
+    assert all(arc.when == () for arc in arcs.delays if arc.dst.name == "Co")
+    io_arcs = bel_arcs(model, io)
+    assert {arc.data.name for arc in io_arcs.checks} == {"IN", "EN"}
+    assert {arc.out.name for arc in io_arcs.clock_to_outs} == {"OUT"}
+    groups = (io_arcs.clocks, io_arcs.delays, io_arcs.checks, io_arcs.clock_to_outs)
+    assert {arc.when for group in groups for arc in group} == {
+        (),
+        (FeatureIs("IN_REG", True),),
+        (FeatureIs("EN_REG", True),),
+        (FeatureIs("OUT_REG", True),),
     }
 
 
-def test_sky130_lc_and_iobuf_bel_v3_matches_golden() -> None:
+def test_sky130_lc_and_iobuf_bel_v3_matches_golden(read_netlist: ReadNetlist) -> None:
     """Pin the characterised `bel.v3` blocks of the Sky130 LC and IOBUF."""
-    model, lc, io = sky130_lc_and_iobuf()
-    lines: list[str] = []
-    for letter, bel in zip("AB", (lc, io), strict=True):
-        _, _, v3_lines, _ = belLines(bel, letter, 0, 0, model.bel_timing(bel))
-        lines.extend(v3_lines)
+    model, lc, io = sky130_lc_and_iobuf(read_netlist)
+    tile = make_empty_tile("SKY130", pinOrderConfig={})
+    tile.bels = [lc, io]
+    fabric = make_fabric_from_grid([[tile]])
+    bels = {bel.instance_name: bel_arcs(model, bel) for bel in tile.bels}
+    timing = replace(
+        placeholder_timing(fabric),
+        bels=BelTiming(
+            tiles={tile.name: bels},
+            super_tiles={},
+        ),
+    )
+    bel_v3 = emit_nextpnr_model(fabric, timing).bel_v3
     golden = (FIXTURES / "sky130_lc_iobuf.bel.v3.txt").read_text()
-    assert "\n".join(lines) + "\n" == golden
+    assert bel_v3.splitlines()[2:] == golden.splitlines()
 
 
-def test_input_only_bel_aggregates_register_constraints(tmp_path: Path) -> None:
+def test_input_only_bel_aggregates_register_constraints(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
     bel = make_bel("InputOnly", {"D": (IO.INPUT, 1), "CLK": (IO.INPUT, 1)})
     netlist = """
 module InputOnly (D, CLK);
+    input D, CLK;
     DFF first (.D(D), .CLK(CLK), .Q(first_q));
     DFF second (.D(D), .CLK(CLK), .Q(second_q));
 endmodule
 module Top (D, CLK);
+    input D, CLK;
     InputOnly Inst_A_InputOnly (.D(D), .CLK(CLK));
 endmodule
 """
     graph = make_graph(
         tmp_path,
-        netlist,
         [
             dff("Inst_A_InputOnly/first"),
             dff("Inst_A_InputOnly/second").replace("0.1:0.2:0.3", "0.6:0.7:0.8"),
         ],
         [],
     )
-    assert make_model(graph).bel_timing(bel).arcs == (
-        BelClockTiming("CLK"),
-        BelSetupHoldTiming("D", "CLK", 0.8, 0.03),
-    )
+    assert v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel) == [
+        "Clock,CLK",
+        "SetupHold,D,CLK,0.8,0.03",
+    ]
 
 
-def test_independent_register_clocks_are_not_merged(tmp_path: Path) -> None:
+def test_independent_register_clocks_are_not_merged(
+    tmp_path: Path, read_netlist: ReadNetlist
+) -> None:
     bel = make_bel(
         "DualClock",
         {
@@ -513,26 +508,28 @@ def test_independent_register_clocks_are_not_merged(tmp_path: Path) -> None:
     )
     netlist = """
 module DualClock (D_A, D_B, CLK_A, CLK_B, Q_A, Q_B);
+    input D_A, D_B, CLK_A, CLK_B;
+    output Q_A, Q_B;
     DFF first (.D(D_A), .CLK(CLK_A), .Q(Q_A));
     DFF second (.D(D_B), .CLK(CLK_B), .Q(Q_B));
 endmodule
 module Top (D_A, D_B, CLK_A, CLK_B, Q_A, Q_B);
+    input D_A, D_B, CLK_A, CLK_B;
+    output Q_A, Q_B;
     DualClock Inst_A_DualClock (.D_A(D_A), .D_B(D_B), .CLK_A(CLK_A),
       .CLK_B(CLK_B), .Q_A(Q_A), .Q_B(Q_B));
 endmodule
 """
     graph = make_graph(
         tmp_path,
-        netlist,
         [dff("Inst_A_DualClock/first"), dff("Inst_A_DualClock/second")],
         [],
     )
-    arcs = make_model(graph).bel_timing(bel).arcs
-    assert set(arcs) == {
-        BelClockTiming("CLK_A"),
-        BelClockTiming("CLK_B"),
-        BelSetupHoldTiming("D_A", "CLK_A", 0.3, 0.03),
-        BelSetupHoldTiming("D_B", "CLK_B", 0.3, 0.03),
-        BelClockToOutTiming("Q_A", "CLK_A", 0.6),
-        BelClockToOutTiming("Q_B", "CLK_B", 0.6),
+    assert set(v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel)) == {
+        "Clock,CLK_A",
+        "Clock,CLK_B",
+        "SetupHold,D_A,CLK_A,0.3,0.03",
+        "SetupHold,D_B,CLK_B,0.3,0.03",
+        "ClkToOut,Q_A,CLK_A,0.6",
+        "ClkToOut,Q_B,CLK_B,0.6",
     }

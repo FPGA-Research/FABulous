@@ -165,3 +165,14 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+
+    @property
+    def instance_name(self) -> str:
+        """The instance name the tile generator gives this BEL.
+
+        Returns
+        -------
+        str
+            `Inst_{prefix}{name}`.
+        """
+        return f"Inst_{self.prefix}{self.name}"

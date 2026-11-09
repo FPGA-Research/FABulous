@@ -16,18 +16,31 @@ from pathlib import Path
 import networkx as nx
 from loguru import logger
 
+from fabulous.fabric_cad.timing_db import (
+    BelArcs,
+    BelPin,
+    ClockArc,
+    ClockToOutArc,
+    Condition,
+    DelayArc,
+    FeatureIs,
+    Ns,
+    SetupHoldArc,
+    ns,
+)
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.models import (
-    BelClockTiming,
-    BelClockToOutTiming,
-    BelDelayTiming,
-    BelSetupHoldTiming,
-    BelTiming,
     InternalPipCacheEntry,
     TimingModelConfig,
     TimingModelMode,
     TimingModelStaTools,
     TimingModelSynthTools,
+)
+from fabulous.fabric_cad.timing_model.netlist import (
+    HierPath,
+    NetlistIndex,
+    PortBit,
+    sdf_path,
 )
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
 from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
@@ -63,15 +76,15 @@ class FABulousTileTimingModel:
         Configuration object for the timing model.
     fabric : Fabric
         The FABulous fabric object.
-    tile_name : str | None
+    tile_name : str
         The name of the tile for which the timing model is being created.
     """
 
     def __init__(
-        self, config: TimingModelConfig, fabric: Fabric, tile_name: str | None = None
+        self, config: TimingModelConfig, fabric: Fabric, tile_name: str
     ) -> None:
         self.fabric: Fabric = fabric
-        self.tile_name: str | None = tile_name
+        self.tile_name: str = tile_name
 
         # Validate and parse the configuration using the
         # TimingModelConfig dataclass.
@@ -83,6 +96,7 @@ class FABulousTileTimingModel:
 
         self.is_in_which_super_tile: str | None = None
         self.unique_tile_name: str = self.tile_name
+        self.tile_scope: HierPath = ()
         self._get_unique_tile_name()
 
         # Verilog files for the tile.
@@ -98,10 +112,8 @@ class FABulousTileTimingModel:
         # Extract switch matrix information
         # Check super_tile_type in config to filter the correct switch matrix
 
-        self.switch_matrix_hier_path: list[str] | None = None
-        self.switch_matrix_module_name: list[str] | None = None
-        self.internal_pips_grouped_by_inst: dict[str, list[str]] | None = None
-        self.internal_pips: list[str] | None = None
+        self.switch_matrix_hier_path: HierPath = ()
+        self.internal_pips_grouped_by_inst: dict[str, list[str]] = {}
         self._extract_switch_matrix_info()
 
         self.internal_pip_cache: dict[str, InternalPipCacheEntry] = {}
@@ -161,6 +173,14 @@ class FABulousTileTimingModel:
           (which is the SuperTile name if the tile is part of a SuperTile) to find
           the correct Verilog files and switch matrix information for the tile.
           The original tile name is used for other purposes within the timing model.
+        - Inside a SuperTile, tile_scope is the path of the tile's instance in the
+          SuperTile netlist.
+
+        Raises
+        ------
+        ValueError
+            If the SuperTile places the tile more than once, so the tile has no
+            single instance to characterise.
         """
         for unique_tiles in self.fabric.get_all_unique_tiles():
             if isinstance(unique_tiles, SuperTile):
@@ -168,6 +188,19 @@ class FABulousTileTimingModel:
                     if composed_tile.name == self.tile_name:
                         self.is_in_which_super_tile = unique_tiles.name
                         self.unique_tile_name = unique_tiles.name
+                        placements = [
+                            (x, y)
+                            for y, row in enumerate(unique_tiles.tileMap)
+                            for x, tile in enumerate(row)
+                            if tile is not None and tile.name == self.tile_name
+                        ]
+                        if len(placements) != 1:
+                            raise ValueError(
+                                f"SuperTile {unique_tiles.name!r} places tile "
+                                f"{self.tile_name!r} {len(placements)} times."
+                            )
+                        x, y = placements[0]
+                        self.tile_scope = (unique_tiles.tile_instance_name(x, y),)
                         break
 
     def _cad_tools(self) -> dict[str, SynthTool | StaTool]:
@@ -267,6 +300,10 @@ class FABulousTileTimingModel:
         self.hdlnx_tm_synth = HdlnxTimingModel(
             sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
         )
+        self.synth_netlist: NetlistIndex = NetlistIndex.read(
+            synth_tool.synth_netlist_file, top=synth_tool.synth_design_name
+        )
+        synth_tool.synth_clean_up()
 
         # If the mode is STRUCTURAL, we only need the synthesis-level model and can skip
         # initializing the physical-level model.
@@ -332,6 +369,7 @@ class FABulousTileTimingModel:
         self.hdlnx_tm_phys = HdlnxTimingModel(
             sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
         )
+        synth_tool.synth_clean_up()
 
     def _find_matching_files(
         self,
@@ -393,111 +431,52 @@ class FABulousTileTimingModel:
     def _extract_switch_matrix_info(self) -> None:
         """Extract switch matrix information for the tile.
 
-        - Hierarchical path of the switch matrix instance
-        - Module name of the switch matrix
-        - Internal PIPs of the switch matrix, grouped by instance
-        - List of all internal PIPs of the switch matrix
-
-        The method uses the synthesis-level timing model to find the relevant
-        switch matrix instance and module based on regex patterns. It also
-        checks if the tile is part of a SuperTile to filter the correct switch
-        matrix information. Finally, it loads the internal PIPs of the switch
-        matrix for later use in delay calculations.
+        - Hierarchical path of the switch matrix instance, by the instance name
+          the tile generator gives it
+        - Net names on each switch matrix child instance (multiplexer), for the
+          internal PIP lookups
 
         Raises
         ------
         ValueError
-            If no switch matrix instance or module is found, or if multiple
-            instances/modules are found when not expected.
-
-        Returns
-        -------
-        None
-            If no switch matrix instance or module is found, a warning is
-            logged and the method returns None, indicating that all PIPs for
-            the tile will be considered external.
+            If the synthesis netlist has no instance of the tile's switch matrix.
         """
         logger.info("Extracting switch matrix information...")
 
-        self.switch_matrix_hier_path = self.hdlnx_tm_synth.find_instance_paths_by_regex(
-            r".*_switch_matrix$"
-        )
-
-        self.switch_matrix_module_name = self.hdlnx_tm_synth.find_verilog_modules_regex(
-            r"^[^/]*_switch_matrix$"
-        )
-
-        if (
-            len(self.switch_matrix_hier_path) == 0
-            or len(self.switch_matrix_module_name) == 0
-        ):
-            logger.warning(
-                f"No switch matrix instance or module found. "
-                f"All PIPs for {self.tile_name} will be considered external."
+        tile = self.fabric.tileDic[self.tile_name]
+        path = (*self.tile_scope, tile.switch_matrix_instance_name)
+        if path not in self.synth_netlist:
+            raise ValueError(
+                f"Switch matrix instance {'/'.join(path)!r} of tile "
+                f"{self.tile_name!r} not found in the {self.unique_tile_name!r} "
+                "netlist."
             )
-            return
-
-        if self.is_in_which_super_tile is None:
-            if (
-                len(self.switch_matrix_hier_path) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
-                raise ValueError(
-                    "Multiple switch matrix instances or modules found "
-                    "for a non-SuperTile."
-                )
-
-            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
-
-            logger.info(
-                f"Using switch matrix instance: {self.switch_matrix_hier_path}, "
-                f"module: {self.switch_matrix_module_name}"
-            )
-
-        else:
-            self.switch_matrix_hier_path = [
-                p for p in self.switch_matrix_hier_path if self.tile_name in p
-            ]
-
-            self.switch_matrix_module_name = [
-                m for m in self.switch_matrix_module_name if self.tile_name in m
-            ]
-
-            if (
-                len(self.switch_matrix_hier_path) == 0
-                or len(self.switch_matrix_module_name) == 0
-            ):
-                raise ValueError(
-                    f"No switch matrix instance or module found for SuperTile "
-                    f"{self.unique_tile_name}"
-                )
-
-            if (
-                len(self.switch_matrix_hier_path) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
-                raise ValueError(
-                    f"Multiple switch matrix instances or modules found Tile "
-                    f"{self.tile_name} in SuperTile {self.unique_tile_name}."
-                )
-
-            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
-
-            logger.info(
-                f"Tile {self.tile_name} is part of super tile {self.unique_tile_name}."
-            )
+        self.switch_matrix_hier_path = path
+        logger.info(f"Using switch matrix instance: {'/'.join(path)}")
 
         logger.info("Loading internal PIPs...")
+        self.internal_pips_grouped_by_inst = self.synth_netlist.child_nets(path)
 
-        self.internal_pips_grouped_by_inst = (
-            self.hdlnx_tm_synth.get_module_instance_nets(self.switch_matrix_module_name)
-        )
+    def _switch_matrix_muxes(self, pip_src: str, pip_dst: str) -> list[HierPath]:
+        """Return the switch matrix child instances on both PIP nets.
 
-        self.internal_pips = self.hdlnx_tm_synth.get_instance_pins(
-            self.switch_matrix_hier_path
-        )
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        list[HierPath]
+            Paths of the switch matrix children connected to both nets.
+        """
+        return [
+            (*self.switch_matrix_hier_path, instance)
+            for instance, nets in self.internal_pips_grouped_by_inst.items()
+            if pip_src in nets and pip_dst in nets
+        ]
 
     def is_tile_internal_pip(self, pip_src: str, pip_dst: str) -> bool:
         """Check if both PIPs are internal PIPs of the switch matrix.
@@ -517,16 +496,9 @@ class FABulousTileTimingModel:
         bool
             True if both PIPs are internal PIPs of the switch matrix, False otherwise.
         """
-        instance_to_nets = self.internal_pips_grouped_by_inst
-
-        if instance_to_nets is None or pip_src == pip_dst:
+        if pip_src == pip_dst:
             return False
-
-        target = set([pip_src, pip_dst])
-        for _inst, net_list in instance_to_nets.items():
-            if target.issubset(set(net_list)):
-                return True
-        return False
+        return bool(self._switch_matrix_muxes(pip_src, pip_dst))
 
     def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
         """Calculate delay between two PIPs in the switch matrix.
@@ -566,11 +538,7 @@ class FABulousTileTimingModel:
 
         # Are pip_src and pip_dst connected through the same switch matrix multiplexer?
         swm_mux_for_pips = (
-            synth_model.find_instances_paths_with_all_nets(
-                self.switch_matrix_module_name,
-                [pip_src, pip_dst],
-                filter_regex=self.switch_matrix_hier_path,
-            )
+            self._switch_matrix_muxes(pip_src, pip_dst)
             if pip_cache is None
             else pip_cache.swm_mux_for_pips
         )
@@ -586,7 +554,7 @@ class FABulousTileTimingModel:
 
         # Get the resolved pins for the switch matrix mux instance.
         swm_mux_resolved = (
-            synth_model.net_to_pin_paths_for_instance_resolved(swm_mux_for_pips[0])
+            self.synth_netlist.net_leaf_pins(swm_mux_for_pips[0])
             if pip_cache is None
             else pip_cache.swm_mux_resolved
         )
@@ -692,12 +660,8 @@ class FABulousTileTimingModel:
 
         # Algorithm_1: Are pip_src and pip_dst connected through the same
         # switch matrix multiplexer?
-        swm_mux_for_pips: list[str] = (
-            synth_model.find_instances_paths_with_all_nets(
-                self.switch_matrix_module_name,
-                [pip_src, pip_dst],
-                filter_regex=self.switch_matrix_hier_path,
-            )
+        swm_mux_for_pips: list[HierPath] = (
+            self._switch_matrix_muxes(pip_src, pip_dst)
             if pip_cache is None
             else pip_cache.swm_mux_for_pips
         )
@@ -718,8 +682,10 @@ class FABulousTileTimingModel:
         # of the swm mux input pins. We reverse the timing graph to find the
         # input ports (towards inputs). Good default value is 4. Fastest is 1.
         swm_nearest_ports_in = (
-            synth_model.nearest_ports_from_instance_pin_nets(
-                swm_mux_for_pips[0], reverse=True, num_ports=1
+            synth_model.nearest_ports_from_pins(
+                self.synth_netlist.net_leaf_pins(swm_mux_for_pips[0]),
+                reverse=True,
+                num_ports=1,
             )
             if pip_cache is None
             else pip_cache.swm_nearest_ports_in
@@ -734,8 +700,10 @@ class FABulousTileTimingModel:
         # convergence node.
         if swm_in_buf:
             swm_nearest_ports_out = (
-                synth_model.nearest_ports_from_instance_pin_nets(
-                    swm_mux_for_pips[0], reverse=False, num_ports=1
+                synth_model.nearest_ports_from_pins(
+                    self.synth_netlist.net_leaf_pins(swm_mux_for_pips[0]),
+                    reverse=False,
+                    num_ports=1,
                 )
                 if pip_cache is None
                 else pip_cache.swm_nearest_ports_out
@@ -1058,7 +1026,7 @@ class FABulousTileTimingModel:
             return _round(self.internal_pip_delay(pip_src, pip_dst))
         return _round(self.external_pip_delay(pip_src, pip_dst))
 
-    def bel_timing(self, bel: Bel) -> BelTiming:
+    def bel_timing(self, bel: Bel, *, instance: HierPath) -> BelArcs:
         """Return characterized combinational and sequential timing for one BEL.
 
         Discover clocks from paths to register clock pins. Characterize setup/hold
@@ -1071,11 +1039,13 @@ class FABulousTileTimingModel:
         ----------
         bel : Bel
             Fabric definition for the BEL being characterized.
+        instance : HierPath
+            Path of the BEL instance in the synthesis netlist.
 
         Returns
         -------
-        BelTiming
-            Timing arcs from the synthesis graph, scaled
+        BelArcs
+            Timing arcs from the synthesis graph in BEL port names, scaled
             and rounded to the nextpnr output precision.
 
         Raises
@@ -1089,32 +1059,22 @@ class FABulousTileTimingModel:
         if timing_model is None:
             raise RuntimeError("The synthesis timing model is not initialized.")
 
-        identifier = f"{bel.prefix}{bel.name}"
-        instance_paths = timing_model.find_instance_paths_by_regex(
-            rf"{re.escape(identifier)}$"
-        )
-        if not instance_paths:
+        identifier = "/".join(instance)
+        if instance not in self.synth_netlist:
             raise ValueError(
                 f"BEL {identifier!r} not found in tile {self.tile_name!r} netlist."
             )
-        if len(instance_paths) > 1:
-            logger.warning(
-                f"Found multiple hierarchical instance paths for BEL {identifier} "
-                f"in tile {self.tile_name!r}: {instance_paths}. Using the first match."
-            )
-        instance_path = instance_paths[0]
-        input_pins: dict[str, list[str]] = {}
-        output_pins: dict[str, list[str]] = {}
-        shared_inputs: dict[str, list[str]] = {}
+        input_pins: dict[BelPin, list[str]] = {}
+        output_pins: dict[BelPin, list[str]] = {}
+        shared_inputs: dict[BelPin, list[str]] = {}
         for category in ("internal", "shared"):
             for port, (direction, width) in bel.ports_vectors.get(category, {}).items():
                 if direction not in {IO.INPUT, IO.OUTPUT}:
                     continue
                 for index in range(width):
-                    name = port if width == 1 else f"{port}{index}"
-                    module_pin = port if width == 1 else f"{port}[{index}]"
-                    pins = timing_model.resolve_hier_pin(
-                        f"{instance_path}/{module_pin}"
+                    name = BelPin(port, None if width == 1 else index)
+                    pins = self.synth_netlist.leaf_pins(
+                        instance, PortBit(port, name.bit)
                     )
                     if direction == IO.INPUT:
                         if category == "shared":
@@ -1124,13 +1084,7 @@ class FABulousTileTimingModel:
                     elif category == "internal":
                         output_pins[name] = pins
 
-        hierarchical_prefix = (
-            "/".join(
-                timing_model.verilog_identifier_to_sdf(part)
-                for part in instance_path.split("/")
-            )
-            + "/"
-        )
+        hierarchical_prefix = sdf_path(instance) + "/"
         # Routing feedback belongs to PIP timing, not to the BEL's internal arcs.
         # Slice a copy so the shared tile graph stays whole for later PIP queries.
         # Filter rather than call `subgraph()`: its node set would make the arc
@@ -1152,40 +1106,33 @@ class FABulousTileTimingModel:
             f"Extracting synthesis timing for tile {self.tile_name}, "
             f"BEL {identifier} ({len(register_pins)} register input checks)"
         )
-        clock_sources: dict[str, list[tuple[str, str]]] = {}
-        clock_ports = set()
+        clock_sources: dict[str, list[tuple[BelPin, str]]] = {}
+        clock_ports: set[BelPin] = set()
         for register_clock in dict.fromkeys(clock for _, clock in register_pins):
             for port, pins in (input_pins | shared_inputs).items():
                 for pin in pins:
                     if nx.has_path(timing_model.clock_graph, pin, register_clock):
-                        clock_name = "CLK" if port == "UserCLK" else port
-                        clock_sources.setdefault(register_clock, []).append(
-                            (clock_name, pin)
-                        )
+                        clock_sources.setdefault(register_clock, []).append((port, pin))
                         clock_ports.add(port)
 
-        is_lc = bel.name in {
-            "FABULOUS_LC",
-            "LUT4c_frame_config",
-            "LUT4c_frame_config_dffesr",
-        }
-        ff_condition = "FF=1" if "FF" in bel.belFeatureMap else None
+        has_ff = "FF" in bel.belFeatureMap
+        ff_condition: Condition = (FeatureIs("FF", True),) if has_ff else ()
 
-        def sequential_condition(port: str) -> str | None:
+        def sequential_condition(port: BelPin) -> Condition:
             """Preserve the documented mode controls of the standard IOBUF and LC."""
-            feature = f"{port}_REG"
+            feature = f"{port.name}_REG"
             if bel.name == "IOBUF" and feature in bel.belFeatureMap:
-                return f"{feature}=1"
+                return (FeatureIs(feature, True),)
             return ff_condition
 
-        def scaled(value: float) -> float:
+        def scaled(value: float) -> Ns:
             """Apply the same scaling and precision as the PIP timing output."""
-            return round(value * self.tm_config.delay_scaling_factor, 3)
+            return ns(round(value * self.tm_config.delay_scaling_factor, 3))
 
-        setup_holds: dict[tuple[str, str], tuple[float, float]] = {}
-        clock_delays: dict[tuple[str, str], float] = {}
+        setup_holds: dict[tuple[BelPin, BelPin], tuple[float, float]] = {}
+        clock_delays: dict[tuple[BelPin, BelPin], float] = {}
         for data_pin, register_clock in register_pins:
-            for clock_name, clock_source in clock_sources.get(register_clock, []):
+            for clock, clock_source in clock_sources.get(register_clock, []):
                 for port, pins in input_pins.items():
                     if port in clock_ports:
                         continue
@@ -1209,7 +1156,7 @@ class FABulousTileTimingModel:
                             ]
                             if not setups or not holds:
                                 continue
-                            key = (port, clock_name)
+                            key = (port, clock)
                             setup, hold = max(setups), max(holds)
                             if key in setup_holds:
                                 setup = max(setup, setup_holds[key][0])
@@ -1217,7 +1164,7 @@ class FABulousTileTimingModel:
                             setup_holds[key] = (setup, hold)
 
         for register_clock, sources in clock_sources.items():
-            for clock_name, clock_source in sources:
+            for clock, clock_source in sources:
                 for port, pins in output_pins.items():
                     for pin in pins:
                         try:
@@ -1239,17 +1186,18 @@ class FABulousTileTimingModel:
                                 if value is not None and value.maximum is not None
                             ]
                             if delays:
-                                key = (port, clock_name)
+                                key = (port, clock)
                                 clock_delays[key] = max(
                                     max(delays), clock_delays.get(key, -float("inf"))
                                 )
 
-        clock_arcs = []
-        for clock_name in dict.fromkeys(
-            clock for _, clock in [*setup_holds, *clock_delays]
-        ):
-            clock_arcs.append(BelClockTiming(clock_name, condition=ff_condition))
-        delay_arcs = []
+        clock_arcs = tuple(
+            ClockArc(clock, when=ff_condition)
+            for clock in dict.fromkeys(
+                clock for _, clock in [*setup_holds, *clock_delays]
+            )
+        )
+        delay_arcs: list[DelayArc] = []
         registered_outputs = {port for port, _ in clock_delays}
         for source, source_pins in input_pins.items():
             if source in clock_ports:
@@ -1271,38 +1219,39 @@ class FABulousTileTimingModel:
                                 if value.maximum is not None
                             )
                 if delays:
-                    condition = (
-                        "FF=0" if ff_condition and sink in registered_outputs else None
+                    condition: Condition = (
+                        (FeatureIs("FF", False),)
+                        if has_ff and sink in registered_outputs
+                        else ()
                     )
                     delay_arcs.append(
-                        BelDelayTiming(
-                            source, sink, scaled(max(delays)), condition=condition
-                        )
+                        DelayArc(source, sink, scaled(max(delays)), when=condition)
                     )
 
-        setup_arcs = [
-            BelSetupHoldTiming(
+        setup_arcs = tuple(
+            SetupHoldArc(
                 port,
                 clock,
                 scaled(setup),
                 scaled(hold),
-                condition=sequential_condition(port),
+                when=sequential_condition(port),
             )
             for (port, clock), (setup, hold) in setup_holds.items()
-        ]
-        output_arcs = [
-            BelClockToOutTiming(
-                "Q" if is_lc and port == "O" else port,
-                clock,
-                scaled(delay),
-                condition=sequential_condition(port),
-            )
+        )
+        output_arcs = tuple(
+            ClockToOutArc(port, clock, scaled(delay), when=sequential_condition(port))
             for (port, clock), delay in clock_delays.items()
-        ]
-        arcs = (*clock_arcs, *delay_arcs, *setup_arcs, *output_arcs)
+        )
+        arcs = BelArcs(
+            clocks=clock_arcs,
+            delays=tuple(delay_arcs),
+            checks=setup_arcs,
+            clock_to_outs=output_arcs,
+        )
+        arc_count = len(clock_arcs) + len(delay_arcs) + len(setup_arcs)
         logger.info(
             f"Completed timing extraction for tile: {self.tile_name}, "
             f"BEL: {identifier} "
-            f"({len(arcs)} timing arcs)"
+            f"({arc_count + len(output_arcs)} timing arcs)"
         )
-        return BelTiming(arcs=arcs)
+        return arcs
