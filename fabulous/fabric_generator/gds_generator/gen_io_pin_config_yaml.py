@@ -113,7 +113,8 @@ def _serialize_tile_ports(
     # Place BEL external ports on the specified side
     for bel in tile.bels:
         pin_regexes = [
-            f"{prefix}{name}" for name in bel.externalInput + bel.externalOutput
+            f"{prefix}{p.name}"
+            for p in bel.external_input_ports + bel.external_output_ports
         ]
         if pin_regexes:
             port_dict[external_port_side.name].append(
@@ -211,7 +212,8 @@ def _serialize_supertile_ports(
         if tile.bels:
             for bel in tile.bels:
                 pin_regexes = [
-                    f"{prefix}{name}" for name in bel.externalInput + bel.externalOutput
+                    f"{prefix}{p.name}"
+                    for p in bel.external_input_ports + bel.external_output_ports
                 ]
                 if pin_regexes:
                     if external_port_sides and (int(x), int(y)) in external_port_sides:
@@ -234,9 +236,9 @@ def _serialize_supertile_ports(
     # NOTE: not verified end-to-end against the GDS flow.
     if super_tile.bels:
         st_pin_regexes = [
-            name
+            p.name
             for bel in super_tile.bels
-            for name in bel.externalInput + bel.externalOutput
+            for p in bel.external_input_ports + bel.external_output_ports
         ]
         mx, my = super_tile.get_master_tile_coords()
         master_key = f"X{mx}Y{my}"

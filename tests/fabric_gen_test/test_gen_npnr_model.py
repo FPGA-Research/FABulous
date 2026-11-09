@@ -19,6 +19,7 @@ from fabulous.fabric_cad.timing_model.models import (
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
@@ -106,8 +107,14 @@ def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
     bel = Bel.__new__(Bel)
     bel.name = "IO_1_bidirectional_frame_config_pass"
     bel.prefix = "A_"
-    bel.inputs = ["A_I", "A_T"]
-    bel.outputs = ["A_O", "A_Q"]
+    bel.input_ports = [
+        BelPort("I", IO.INPUT, 1, prefix="A_"),
+        BelPort("T", IO.INPUT, 1, prefix="A_"),
+    ]
+    bel.output_ports = [
+        BelPort("O", IO.OUTPUT, 1, prefix="A_"),
+        BelPort("Q", IO.OUTPUT, 1, prefix="A_"),
+    ]
     bel.belFeatureMap = {}
     bel.withUserCLK = False
 

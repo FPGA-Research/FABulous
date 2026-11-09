@@ -70,14 +70,6 @@ class Bel:
         For VHDL this is currently the same as name.
     filetype : HDLType
         The file type of the BEL.
-    inputs : list[str]
-        All the normal input ports of the BEL.
-    outputs : list[str]
-        All the normal output ports of the BEL.
-    externalInput : list[str]
-        All the external input ports of the BEL.
-    externalOutput : list[str]
-        All the external output ports of the BEL.
     configPort : list[tuple[str, IO]]
         All the config ports of the BEL.
     sharedPort : list[tuple[str, IO]]
@@ -101,9 +93,13 @@ class Bel:
         Local shared ports of the BEL.
         Are only shared in the Tile, not in the fabric.
     input_ports : list[BelPort]
-        `inputs` as ports; each port's `name` is the matching `inputs` entry.
+        The internal input ports of the BEL. Each port's `name` includes `prefix`.
     output_ports : list[BelPort]
-        `outputs` as ports; each port's `name` is the matching `outputs` entry.
+        The internal output ports of the BEL. Each port's `name` includes `prefix`.
+    external_input_ports : list[BelPort]
+        The external input ports of the BEL. Each port's `name` includes `prefix`.
+    external_output_ports : list[BelPort]
+        The external output ports of the BEL. Each port's `name` includes `prefix`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
 
@@ -111,7 +107,7 @@ class Bel:
     ------
     ValueError
         If the file type is not recognized (not .sv, .v, .vhd, or .vhdl), or an
-        internal port name does not start with `prefix`.
+        internal or external port name does not start with `prefix`.
     """
 
     src: Path
@@ -119,10 +115,6 @@ class Bel:
     name: str
     module_name: str
     filetype: HDLType
-    inputs: list[str]
-    outputs: list[str]
-    externalInput: list[str]
-    externalOutput: list[str]
     configPort: list[tuple[str, IO]]
     sharedPort: list[tuple[str, IO]]
     configBit: int
@@ -135,6 +127,8 @@ class Bel:
     # Ports compare by identity, so they stay out of `Bel` equality.
     input_ports: list[BelPort] = field(default_factory=list, compare=False)
     output_ports: list[BelPort] = field(default_factory=list, compare=False)
+    external_input_ports: list[BelPort] = field(default_factory=list, compare=False)
+    external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
 
     def __init__(
@@ -157,22 +151,30 @@ class Bel:
         self.prefix = prefix
         self.name = src.stem
         self.module_name = module_name
-        self.inputs = [p for p, io in internal if io == IO.INPUT]
-        self.outputs = [p for p, io in internal if io == IO.OUTPUT]
-        self.externalInput = [p for p, io in external if io == IO.INPUT]
-        self.externalOutput = [p for p, io in external if io == IO.OUTPUT]
-        for port, _ in internal:
+        for port, _ in internal + external:
             if not port.startswith(prefix):
                 raise ValueError(
                     f"Port {port} of BEL {src} does not start with prefix {prefix}"
                 )
         self.input_ports = [
-            BelPort(p.removeprefix(prefix), IO.INPUT, 1, prefix=prefix)
-            for p in self.inputs
+            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
+            for p, io in internal
+            if io == IO.INPUT
         ]
         self.output_ports = [
-            BelPort(p.removeprefix(prefix), IO.OUTPUT, 1, prefix=prefix)
-            for p in self.outputs
+            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
+            for p, io in internal
+            if io == IO.OUTPUT
+        ]
+        self.external_input_ports = [
+            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
+            for p, io in external
+            if io == IO.INPUT
+        ]
+        self.external_output_ports = [
+            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
+            for p, io in external
+            if io == IO.OUTPUT
         ]
         self.user_clk_port = (
             BelPort("UserCLK", IO.INPUT, 1, is_clock=True, net="UserCLK")

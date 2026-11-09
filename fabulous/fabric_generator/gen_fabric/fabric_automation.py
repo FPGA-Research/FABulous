@@ -199,8 +199,8 @@ def generateSwitchmatrixList(
     ) as dummy_file_path:
         CLBDummyFile = dummy_file_path
 
-    belIns = sum((bel.inputs for bel in bels), [])
-    belOuts = sum((bel.outputs for bel in bels), [])
+    belIns = [p.name for bel in bels for p in bel.input_ports]
+    belOuts = [p.name for bel in bels for p in bel.output_ports]
     belCarrys = [bel.carry for bel in bels]
     portPairs = parseList(CLBDummyFile)
     belLocalSharedPorts = [bel.localShared for bel in bels]
@@ -465,15 +465,15 @@ def addBelsToPrim(
             first = True
 
             # ports contain the bel prefix, but this is not needed in the prims file
-            inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
-            outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
+            inputs = [p.name.removeprefix(bel.prefix) for p in bel.input_ports]
+            outputs = [p.name.removeprefix(bel.prefix) for p in bel.output_ports]
             shared_ports = [p.removeprefix(bel.prefix) for p, _ in bel.sharedPort]
             external_inputs: list[str] = []
             external_outputs: list[str] = []
-            for external_port in bel.externalInput:
-                external_inputs.append(external_port.removeprefix(bel.prefix))
-            for external_port in bel.externalOutput:
-                external_outputs.append(external_port.removeprefix(bel.prefix))
+            for external_port in bel.external_input_ports:
+                external_inputs.append(external_port.name.removeprefix(bel.prefix))
+            for external_port in bel.external_output_ports:
+                external_outputs.append(external_port.name.removeprefix(bel.prefix))
             external_ports = external_inputs + external_outputs
 
             if support_vectors:

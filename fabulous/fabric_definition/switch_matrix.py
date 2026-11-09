@@ -57,8 +57,8 @@ def switch_matrix_signal_order(
             sources += port_inputs
             dests += port_outputs
     for bel in bels:
-        sources.extend(bel.inputs)
-        dests.extend(bel.outputs + bel.externalOutput)
+        sources.extend(p.name for p in bel.input_ports)
+        dests.extend(p.name for p in bel.output_ports + bel.external_output_ports)
     for port in ports:
         if port.wire_direction == Direction.JUMP:
             port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")

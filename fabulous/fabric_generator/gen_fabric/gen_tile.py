@@ -157,12 +157,12 @@ def generateTile(
     # because they have to be exported to the tile entity
     externalPorts = []
     for i in tile.bels:
-        for p in i.externalInput:
-            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-        for p in i.externalOutput:
-            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
-        externalPorts += i.externalInput
-        externalPorts += i.externalOutput
+        for p in i.external_input_ports:
+            writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
+        for p in i.external_output_ports:
+            writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
+        externalPorts += [p.name for p in i.external_input_ports]
+        externalPorts += [p.name for p in i.external_output_ports]
 
     # if we found BELs with top-level IO ports, we just pass them through
     sharedExternalPorts = set()
@@ -241,10 +241,10 @@ def generateTile(
     writer.addComment("BEL ports (e.g., slices)", onNewLine=True)
     repeatDeclaration = set()
     for bel in tile.bels:
-        for i in bel.inputs + bel.outputs:
-            if f"{i}" not in repeatDeclaration:
-                writer.addConnectionScalar(i)
-                repeatDeclaration.add(f"{bel.prefix}{i}")
+        for p in bel.input_ports + bel.output_ports:
+            if p.name not in repeatDeclaration:
+                writer.addConnectionScalar(p.name)
+                repeatDeclaration.add(f"{bel.prefix}{p.name}")
 
     # Jump wires
     writer.addComment("Jump wires", onNewLine=True)
@@ -511,8 +511,8 @@ def generateTile(
             )
     # bel input wire (bel output is input to switch matrix)
     for bel in tile.bels:
-        for p in bel.outputs:
-            ports_pairs.append((p, p))
+        for p in bel.output_ports:
+            ports_pairs.append((p.name, p.name))
 
     # jump input wire
     port, signal = [], []
@@ -537,8 +537,8 @@ def generateTile(
 
     # bel output wire (bel input is input to switch matrix)
     for bel in tile.bels:
-        for p in bel.inputs:
-            ports_pairs.append((p, p))
+        for p in bel.input_ports:
+            ports_pairs.append((p.name, p.name))
 
     # jump output wire
     port, signal = [], []
@@ -690,10 +690,10 @@ def generateSuperTile(
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
     for i in superTile.tiles:
         for b in i.bels:
-            for p in b.externalInput:
-                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-            for p in b.externalOutput:
-                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            for p in b.external_input_ports:
+                writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
+            for p in b.external_output_ports:
+                writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
             for p in b.sharedPort:
                 if p[0] == "UserCLK":
                     continue
@@ -703,10 +703,10 @@ def generateSuperTile(
     if superTile.bels:
         writer.addComment("SuperTile BEL IO ports", onNewLine=True, indentLevel=1)
         for b in superTile.bels:
-            for p in b.externalInput:
-                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-            for p in b.externalOutput:
-                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            for p in b.external_input_ports:
+                writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
+            for p in b.external_output_ports:
+                writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
 
     st_config_bits = superTile.total_config_bits
 
@@ -847,7 +847,7 @@ def generateSuperTile(
 
     # BEL pin signals bridging the supertile BELs and the switch matrix
     bel_pin_signals = [
-        pin for bel in superTile.bels for pin in (*bel.inputs, *bel.outputs)
+        p.name for bel in superTile.bels for p in bel.input_ports + bel.output_ports
     ]
     if bel_pin_signals:
         writer.addComment("BEL pin signals (BEL <-> supertile SM)", onNewLine=True)
@@ -970,11 +970,8 @@ def generateSuperTile(
                 ports_pairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
 
             for b in tile.bels:
-                for p in b.externalInput:
-                    ports_pairs.append((p, p))
-
-                for p in b.externalOutput:
-                    ports_pairs.append((p, p))
+                for p in b.external_input_ports + b.external_output_ports:
+                    ports_pairs.append((p.name, p.name))
 
                 if not disable_user_clk:
                     for p in b.sharedPort:
@@ -1103,12 +1100,12 @@ def generateSuperTile(
                 )
         # SM outputs drive BEL input signals (signals named after the BEL ports)
         for bel in superTile.bels:
-            for ip in bel.inputs:
-                sm_ports_pairs.append((ip, ip))
+            for p in bel.input_ports:
+                sm_ports_pairs.append((p.name, p.name))
         # BEL output signals feed back into the SM (routed to reverse SJUMP wires)
         for bel in superTile.bels:
-            for op in bel.outputs:
-                sm_ports_pairs.append((op, op))
+            for p in bel.output_ports:
+                sm_ports_pairs.append((p.name, p.name))
         # SM outputs also drive reverse SJUMP signals into child tiles
         for _ly, row in enumerate(superTile.tileMap):
             for _lx, st_tile in enumerate(row):
