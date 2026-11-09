@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -1050,7 +1050,7 @@ wheels = [
 
 [[package]]
 name = "librelane"
-version = "3.1.0.dev4"
+version = "3.1.0.dev5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ciel" },
@@ -1068,9 +1068,9 @@ dependencies = [
     { name = "semver" },
     { name = "yamlcore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/4b/493f4d4125262f7885826c5d03e49bd73d53a28cf9e641425268001b85e0/librelane-3.1.0.dev4.tar.gz", hash = "sha256:18ac90d7f2e521f07ad62d5068c0359738b131e31bcb4a7cdc08a6a78fe80ced", size = 312705, upload-time = "2026-10-23T15:11:14.211Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/54/98/a5c66f387e02a30fdf66cd0c9f9a56fd0e819ab3c2f50d531731776199e2/librelane-3.1.0.dev5.tar.gz", hash = "sha256:30ac93f95df8e9916505a3d903e5067e6f5f64fd0826322cd66e17c0fe6a4439", size = 313236, upload-time = "2026-11-03T10:44:04.39Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/db/2abd625288a8ae210762ac4d7f173a8c51517a0437bd9e5db538ec097b0a/librelane-3.1.0.dev4-py3-none-any.whl", hash = "sha256:f25170ee5ad2f35d7d1f737b70d6f80265964169dee0b278ad451d1dccc1d95b", size = 430813, upload-time = "2026-10-23T15:11:12.254Z" },
+    { url = "https://files.pythonhosted.org/packages/54/3e/467014ed67dae66a8d1f82629d23674329e36c272125a638084564620057/librelane-3.1.0.dev5-py3-none-any.whl", hash = "sha256:d7a28de3661a6d46fa76884ee97cc8c82eab88b6b9cb0de840eb7984200f1029", size = 431363, upload-time = "2026-11-03T10:44:02.848Z" },
 ]
 
 [[package]]
