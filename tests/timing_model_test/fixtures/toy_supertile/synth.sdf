@@ -1,0 +1,108 @@
+(DELAYFILE
+ (SDFVERSION "3.0")
+ (DESIGN "TOY")
+ (DATE "Sat Nov  7 03:46:27 2026")
+ (VENDOR "Parallax")
+ (PROGRAM "STA")
+ (VERSION "2.7.0")
+ (DIVIDER /)
+ (VOLTAGE 1.200::1.200)
+ (PROCESS "1.000::1.000")
+ (TEMPERATURE 25.000::25.000)
+ (TIMESCALE 1ns)
+ (CELL
+  (CELLTYPE "TOY")
+  (INSTANCE)
+  (DELAY
+   (ABSOLUTE
+    (INTERCONNECT Tile_X0Y1_W1END[2] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_W1END[2] Tile_X0Y1_TOY_bot/n1buf/A (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_W1END[1] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_W1END[1] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_1_/A1 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_W1END[0] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_1_/A0 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_WW4END[1] Tile_X0Y1_TOY_bot/inbuf/A (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_ConfigBits[1] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_0_/S (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_ConfigBits[0] Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_1_/S (0.000::0.000))
+    (INTERCONNECT Tile_X0Y0_ConfigBits Tile_X0Y0_TOY_top/Inst_TOY_top_switch_matrix/_0_/S (0.000::0.000))
+    (INTERCONNECT Tile_X0Y0_TOY_top/Inst_TOY_top_switch_matrix/_0_/X Tile_X0Y0_E1BEG (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_0_/X Tile_X0Y1_E1BEG (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_1_/X Tile_X0Y0_TOY_top/Inst_TOY_top_switch_matrix/_0_/A0 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_TOY_bot/inbuf/X Tile_X0Y1_TOY_bot/outbuf/A (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_TOY_bot/n1buf/X Tile_X0Y0_TOY_top/Inst_TOY_top_switch_matrix/_0_/A1 (0.000::0.000))
+    (INTERCONNECT Tile_X0Y1_TOY_bot/outbuf/X Tile_X0Y1_WW4BEG (0.000::0.000))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_mux2_1")
+  (INSTANCE Tile_X0Y0_TOY_top/Inst_TOY_top_switch_matrix/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.078::0.080) (0.098::0.100))
+    (IOPATH A1 X (0.071::0.072) (0.093::0.094))
+    (COND A0 == 1'b1 && A1 == 1'b0
+     (IOPATH S X (0.105::0.105) (0.128::0.128)))
+    (IOPATH S X (0.070::0.070) (0.098::0.098))
+    (COND A0 == 1'b0 && A1 == 1'b1
+     (IOPATH S X (0.070::0.070) (0.098::0.098)))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_mux2_1")
+  (INSTANCE Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_0_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.066::0.066) (0.086::0.086))
+    (IOPATH A1 X (0.063::0.063) (0.086::0.086))
+    (COND A0 == 1'b1 && A1 == 1'b0
+     (IOPATH S X (0.105::0.105) (0.128::0.128)))
+    (IOPATH S X (0.070::0.070) (0.098::0.098))
+    (COND A0 == 1'b0 && A1 == 1'b1
+     (IOPATH S X (0.070::0.070) (0.098::0.098)))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_mux2_1")
+  (INSTANCE Tile_X0Y1_TOY_bot/Inst_TOY_bot_switch_matrix/_1_)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A0 X (0.074::0.076) (0.094::0.096))
+    (IOPATH A1 X (0.071::0.073) (0.094::0.096))
+    (COND A0 == 1'b1 && A1 == 1'b0
+     (IOPATH S X (0.112::0.114) (0.135::0.136)))
+    (IOPATH S X (0.078::0.080) (0.105::0.107))
+    (COND A0 == 1'b0 && A1 == 1'b1
+     (IOPATH S X (0.078::0.080) (0.105::0.107)))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_buf_1")
+  (INSTANCE Tile_X0Y1_TOY_bot/inbuf)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A X (0.045::0.046) (0.047::0.048))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_buf_1")
+  (INSTANCE Tile_X0Y1_TOY_bot/n1buf)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A X (0.046::0.048) (0.049::0.050))
+   )
+  )
+ )
+ (CELL
+  (CELLTYPE "sg13g2_buf_1")
+  (INSTANCE Tile_X0Y1_TOY_bot/outbuf)
+  (DELAY
+   (ABSOLUTE
+    (IOPATH A X (0.047::0.047) (0.049::0.050))
+   )
+  )
+ )
+)

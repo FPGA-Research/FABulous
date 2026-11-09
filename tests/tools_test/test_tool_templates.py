@@ -5,6 +5,7 @@ text) and the `synthesize_gate_level` and `write_sdf` wrappers that check their
 files and feed the rendered script to the tool.
 """
 
+import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
@@ -118,6 +119,7 @@ def test_opensta_template_with_spef() -> None:
         "read_verilog /net.v\n"
         "link_design TOP\n"
         "read_spef /r.spef\n"
+        "report_parasitic_annotation -report_unannotated\n"
         "write_sdf /o.sdf\n"
         "exit\n"
     )
@@ -208,6 +210,23 @@ def test_synthesize_gate_level_runs_the_script_and_strips_single_bit_ranges(
     assert netlist.read_text() == "wire   a;\nwire [1:0] b;\n"
 
 
+ANNOTATION_REPORT = (
+    "Found {0} unannotated drivers.\n{1}Found 0 partially unannotated drivers.\n"
+)
+
+
+def sta_writing(
+    sdf: Path, text: str, stdout: str
+) -> Callable[..., subprocess.CompletedProcess]:
+    """Return a stand-in for `OpenStaTool.run` that writes `sdf` and prints."""
+
+    def run(**_: object) -> subprocess.CompletedProcess:
+        sdf.write_text(text)
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout)
+
+    return run
+
+
 @pytest.mark.parametrize(
     "spef_names", [pytest.param([], id="no-spef"), pytest.param(["r.spef"], id="spef")]
 )
@@ -218,7 +237,9 @@ def test_write_sdf_runs_the_script(
     spef_files = make_files(tmp_path, spef_names)
     sdf = tmp_path / "out.sdf"
     run = mocker.patch.object(
-        OpenStaTool, "run", side_effect=lambda **_: sdf.write_text("(DELAYFILE)")
+        OpenStaTool,
+        "run",
+        side_effect=sta_writing(sdf, "(DELAYFILE)", ANNOTATION_REPORT.format(0, "")),
     )
 
     write_sdf(tmp_path, spef_files=spef_files)
@@ -233,6 +254,74 @@ def test_write_sdf_runs_the_script(
             sdf_path=sdf,
         )
     )
+
+
+SDF_WITH_WIRES = (
+    '(DELAYFILE (CELL (CELLTYPE "TOP") (INSTANCE) (DELAY (ABSOLUTE '
+    "(INTERCONNECT A u\\/_1_/A (0.01::0.01)) "
+    "(INTERCONNECT u\\/_1_/X Y (0.02::0.02))))))"
+)
+
+
+@pytest.mark.parametrize(
+    ("stdout", "message"),
+    [
+        pytest.param(
+            ANNOTATION_REPORT.format(1, " A\n"),
+            r"1 driver.*no parasitics.*A",
+            id="unannotated-port",
+        ),
+        pytest.param(
+            ANNOTATION_REPORT.format(1, " u\\/_1_/X\n"),
+            r"u\\/_1_/X",
+            id="unannotated-member-cell",
+        ),
+        pytest.param(
+            "Found 0 unannotated drivers.\n"
+            "Found 1 partially unannotated drivers.\n u\\/_1_/X\n  Y\n",
+            r"1 driver.*some of its loads",
+            id="partially-annotated",
+        ),
+        pytest.param("", "no parasitic annotation report", id="no-report"),
+    ],
+)
+def test_write_sdf_raises_when_spef_misses_a_wire(
+    mocker: MockerFixture, tmp_path: Path, stdout: str, message: str
+) -> None:
+    """A wire with loads must get its parasitics from the SPEF files.
+
+    OpenSTA ignores SPEF nets it cannot find in the netlist, so a name mismatch
+    would silently leave wire delays at zero.
+    """
+    make_files(tmp_path, ["n.v", "a.lib"])
+    spef_files = make_files(tmp_path, ["r.spef"])
+    mocker.patch.object(
+        OpenStaTool,
+        "run",
+        side_effect=sta_writing(tmp_path / "out.sdf", SDF_WITH_WIRES, stdout),
+    )
+
+    with pytest.raises(RuntimeError, match=message):
+        write_sdf(tmp_path, spef_files=spef_files)
+
+
+def test_write_sdf_accepts_an_unannotated_driver_without_loads(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """A port that drives nothing has no wire, so no parasitics are missing."""
+    make_files(tmp_path, ["n.v", "a.lib"])
+    spef_files = make_files(tmp_path, ["r.spef"])
+    mocker.patch.object(
+        OpenStaTool,
+        "run",
+        side_effect=sta_writing(
+            tmp_path / "out.sdf", SDF_WITH_WIRES, ANNOTATION_REPORT.format(1, " B\n")
+        ),
+    )
+
+    write_sdf(tmp_path, spef_files=spef_files)
+
+    assert (tmp_path / "out.sdf").read_text() == SDF_WITH_WIRES
 
 
 @pytest.mark.parametrize(

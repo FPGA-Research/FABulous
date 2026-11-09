@@ -3,7 +3,6 @@
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
 
 import networkx as nx
 import pytest
@@ -19,18 +18,12 @@ from fabulous.fabric_cad.timing_db import (
     BelTiming,
     FeatureIs,
 )
-from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
-    FABulousTileTimingModel,
-)
-from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import (
-    HdlnxTimingModel,
-)
-from fabulous.fabric_cad.timing_model.models import (
+from fabulous.fabric_cad.timing_model.bels import characterize_bel
+from fabulous.fabric_cad.timing_model.macro import TimedNetlist
+from fabulous.fabric_cad.timing_model.sdf_timing_graph import (
     SDFPathType,
-    TimingModelMode,
+    SdfTimingGraph,
 )
-from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
-from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from tests.conftest import make_empty_tile, make_fabric_from_grid
@@ -43,7 +36,7 @@ def make_graph(
     tmp_path: Path,
     cells: list[str],
     interconnects: list[tuple[str, str]],
-) -> HdlnxTimingModel:
+) -> SdfTimingGraph:
     """Build the real SDF graph without invoking external EDA tools."""
     sdf = tmp_path / "demo.sdf"
     sdf.write_text(
@@ -58,9 +51,7 @@ def make_graph(
         + " ".join(cells)
         + ")"
     )
-    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
-    SdfTimingGraph.__init__(graph, sdf)
-    return graph
+    return SdfTimingGraph(sdf)
 
 
 def dff(instance: str) -> str:
@@ -106,28 +97,14 @@ def make_bel(
     )
 
 
-def make_model(
-    graph: HdlnxTimingModel, netlist: NetlistIndex
-) -> FABulousTileTimingModel:
-    """Attach a prebuilt graph and its matching structural netlist."""
-    model = FABulousTileTimingModel.__new__(FABulousTileTimingModel)
-    model.tile_name = "demo_tile"
-    model.hdlnx_tm_synth = graph
-    model.synth_netlist = netlist
-    model.tm_config = SimpleNamespace(
-        mode=TimingModelMode.STRUCTURAL, delay_scaling_factor=Decimal(1)
-    )
-    return model
-
-
-def v3_arcs(model: FABulousTileTimingModel, bel: Bel) -> list[str]:
+def v3_arcs(synth: TimedNetlist, bel: Bel) -> list[str]:
     """Return the `bel.v3` timing lines of one characterised BEL."""
-    return render_arcs(bel_arcs(model, bel), kind=nextpnr_bel(bel.name).kind)
+    return render_arcs(bel_arcs(synth, bel), kind=nextpnr_bel(bel.name).kind)
 
 
-def bel_arcs(model: FABulousTileTimingModel, bel: Bel) -> BelArcs:
+def bel_arcs(synth: TimedNetlist, bel: Bel, scale: Decimal = Decimal(1)) -> BelArcs:
     """Characterise a BEL instantiated directly under the top module."""
-    return model.bel_timing(bel, instance=(bel.instance_name,))
+    return characterize_bel(synth, bel, instance=(bel.instance_name,), scale=scale)
 
 
 def registered_bel(
@@ -136,7 +113,7 @@ def registered_bel(
     clock: str,
     buffered: bool = False,
     name: str = "Register",
-) -> tuple[Bel, FABulousTileTimingModel]:
+) -> tuple[Bel, TimedNetlist]:
     """Build a register with combinational bypass, like the LC output stage."""
     internal = {"D": (IO.INPUT, 1), "O": (IO.OUTPUT, 1)}
     shared = {}
@@ -170,7 +147,7 @@ def registered_bel(
           (DELAY (ABSOLUTE (IOPATH A Y (0.1:0.1:0.1)))))""")
         connections.append((prefix + "cbuf/Y", prefix + "ff/CLK"))
     graph = make_graph(tmp_path, cells, connections)
-    return bel, make_model(graph, read_netlist(netlist, "Top"))
+    return bel, TimedNetlist(netlist=read_netlist(netlist, "Top"), graph=graph)
 
 
 @pytest.mark.parametrize(
@@ -190,8 +167,8 @@ def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
     expected_checks: int,
 ) -> None:
     """Resolve routed and shared clocks, including internal clock propagation."""
-    bel, model = registered_bel(tmp_path, read_netlist, clock, buffered)
-    graph = model.hdlnx_tm_synth
+    bel, synth = registered_bel(tmp_path, read_netlist, clock, buffered)
+    graph = synth.graph
     prefix = "Inst_A_Register/"
     clock_pin = prefix + ("cbuf/A" if buffered else "ff/CLK")
     raw = graph.query_timing_paths(prefix + "ff/D", prefix + "mux/Y")[0]
@@ -207,7 +184,7 @@ def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
     assert complete.clock_to_output_rise.maximum == Decimal(
         "0.9" if buffered else "0.8"
     )
-    arcs = bel_arcs(model, bel)
+    arcs = bel_arcs(synth, bel)
     assert arcs.clocks
     assert arcs.delays
     assert len(arcs.checks) == expected_checks
@@ -280,7 +257,9 @@ def test_iobuf_characterizes_registers_across_external_ports(
     assert clock_path.rise.maximum == Decimal("0.8")
     assert clock_path.register_clock_pin == prefix + "out_ff/CLK"
     assert clock_path.clock_to_output_rise.maximum == Decimal("0.8")
-    assert v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel) == [
+    assert v3_arcs(
+        TimedNetlist(netlist=read_netlist(netlist, "Top"), graph=graph), bel
+    ) == [
         "Clock,CLK",
         "SetupHold,IN,CLK,0.3,0.03,IN_REG=1",
         "SetupHold,EN,CLK,0.3,0.03,EN_REG=1",
@@ -292,8 +271,8 @@ def test_bel_timing_excludes_paths_through_switch_matrix(
     tmp_path: Path, read_netlist: ReadNetlist
 ) -> None:
     """Feedback through tile routing must not become a BEL setup path."""
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
-    baseline = bel_arcs(model, bel)
+    bel, synth = registered_bel(tmp_path, read_netlist, "CLK")
+    baseline = bel_arcs(synth, bel)
     prefix = "Inst_A_Register/"
     graph = make_graph(
         tmp_path,
@@ -307,56 +286,48 @@ def test_bel_timing_excludes_paths_through_switch_matrix(
     # Shared graph views may already be cached by another timing consumer.
     clock_graph = graph.clock_graph
     combinational_graph = graph.combinational_graph
-    model.hdlnx_tm_synth = graph
-    assert bel_arcs(model, bel) == baseline
+    assert bel_arcs(replace(synth, graph=graph), bel) == baseline
     assert graph.clock_graph is clock_graph
     assert graph.combinational_graph is combinational_graph
     assert graph.has_path(prefix + "mux/Y", prefix + "ff/D")
 
 
-@pytest.mark.parametrize("mode", list(TimingModelMode))
-def test_bel_timing_uses_synthesis_in_all_modes_and_applies_scaling(
-    tmp_path: Path, read_netlist: ReadNetlist, mode: TimingModelMode
+@pytest.mark.parametrize(
+    ("scale", "expected"),
+    [
+        (
+            Decimal(1),
+            [
+                "Delay,D,O,0.1,FF=0",
+                "SetupHold,D,CLK,0.3,0.03,FF=1",
+                "ClkToOut,O,CLK,0.8,FF=1",
+            ],
+        ),
+        (
+            Decimal(2),
+            [
+                "Delay,D,O,0.2,FF=0",
+                "SetupHold,D,CLK,0.6,0.06,FF=1",
+                "ClkToOut,O,CLK,1.6,FF=1",
+            ],
+        ),
+    ],
+)
+def test_bel_timing_applies_scaling_exactly(
+    tmp_path: Path, read_netlist: ReadNetlist, scale: Decimal, expected: list[str]
 ) -> None:
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
-    physical_dir = tmp_path / "physical"
-    physical_dir.mkdir()
-    _, physical_model = registered_bel(physical_dir, read_netlist, "CLK", buffered=True)
-    model.hdlnx_tm_phys = physical_model.hdlnx_tm_synth
-    model.tm_config.mode = mode
-    model.tm_config.delay_scaling_factor = Decimal(2)
-    lines = v3_arcs(model, bel)
-    assert "Delay,D,O,0.2,FF=0" in lines
-    assert "SetupHold,D,CLK,0.6,0.06,FF=1" in lines
-    assert "ClkToOut,O,CLK,1.6,FF=1" in lines
+    bel, synth = registered_bel(tmp_path, read_netlist, "CLK")
+    lines = render_arcs(bel_arcs(synth, bel, scale), kind=nextpnr_bel(bel.name).kind)
+    assert set(expected) <= set(lines)
 
 
-def test_bel_timing_does_not_require_a_physical_model(
+def test_missing_bel_reports_the_instance(
     tmp_path: Path, read_netlist: ReadNetlist
 ) -> None:
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
-    expected = bel_arcs(model, bel)
-    model.tm_config.mode = TimingModelMode.PHYSICAL
-    model.hdlnx_tm_phys = None
-    assert bel_arcs(model, bel) == expected
-
-
-def test_bel_timing_requires_a_synthesis_model(
-    tmp_path: Path, read_netlist: ReadNetlist
-) -> None:
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
-    model.hdlnx_tm_synth = None
-    with pytest.raises(RuntimeError, match="synthesis timing model is not initialized"):
-        bel_arcs(model, bel)
-
-
-def test_missing_bel_reports_the_instance_and_tile(
-    tmp_path: Path, read_netlist: ReadNetlist
-) -> None:
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK")
+    bel, synth = registered_bel(tmp_path, read_netlist, "CLK")
     bel.prefix = "missing_"
-    with pytest.raises(ValueError, match="missing_Register.*demo_tile"):
-        bel_arcs(model, bel)
+    with pytest.raises(ValueError, match="Inst_missing_Register"):
+        bel_arcs(synth, bel)
 
 
 @pytest.mark.parametrize(
@@ -365,14 +336,14 @@ def test_missing_bel_reports_the_instance_and_tile(
 def test_lc_clock_to_output_uses_nextpnr_q(
     tmp_path: Path, read_netlist: ReadNetlist, name: str
 ) -> None:
-    bel, model = registered_bel(tmp_path, read_netlist, "CLK", name=name)
+    bel, synth = registered_bel(tmp_path, read_netlist, "CLK", name=name)
     expected_port = "O" if name == "Register" else "Q"
-    assert f"ClkToOut,{expected_port},CLK,0.8,FF=1" in v3_arcs(model, bel)
+    assert f"ClkToOut,{expected_port},CLK,0.8,FF=1" in v3_arcs(synth, bel)
 
 
 def sky130_lc_and_iobuf(
     read_netlist: ReadNetlist,
-) -> tuple[FABulousTileTimingModel, Bel, Bel]:
+) -> tuple[TimedNetlist, Bel, Bel]:
     """Build the Sky130 fixture model with its FABULOUS_LC and IOBUF BELs.
 
     Fixtures were generated from fabulous-tiles commit
@@ -382,9 +353,10 @@ def sky130_lc_and_iobuf(
     Synthesis uses the timing model's hierarchical synth/renames/clockgate/
     dfflibmap/splitnets/insbuf/abc sequence, followed by OpenSTA write_sdf.
     """
-    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
-    SdfTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
-    model = make_model(graph, read_netlist(FIXTURES / "sky130_lc_iobuf.v", "Top"))
+    synth = TimedNetlist(
+        netlist=read_netlist(FIXTURES / "sky130_lc_iobuf.v", "Top"),
+        graph=SdfTimingGraph(FIXTURES / "sky130_lc_iobuf.sdf"),
+    )
     lc = make_bel(
         "FABULOUS_LC",
         {
@@ -414,13 +386,13 @@ def sky130_lc_and_iobuf(
         },
         features=("IN_REG", "EN_REG", "OUT_REG"),
     )
-    return model, lc, io
+    return synth, lc, io
 
 
 def test_sky130_lc_and_iobuf_from_yosys_opensta(read_netlist: ReadNetlist) -> None:
     """Exercise real clock gating, escaped parameter modules, and external I/O."""
-    model, lc, io = sky130_lc_and_iobuf(read_netlist)
-    arcs = bel_arcs(model, lc)
+    synth, lc, io = sky130_lc_and_iobuf(read_netlist)
+    arcs = bel_arcs(synth, lc)
     assert {arc.data.name for arc in arcs.checks} == {
         "I0",
         "I1",
@@ -430,10 +402,10 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta(read_netlist: ReadNetlist) -> No
         "SR",
         "EN",
     }
-    assert any(line.startswith("ClkToOut,Q,") for line in v3_arcs(model, lc))
+    assert any(line.startswith("ClkToOut,Q,") for line in v3_arcs(synth, lc))
     assert any(arc.src.name == "I3" for arc in arcs.delays)
     assert all(arc.when == () for arc in arcs.delays if arc.dst.name == "Co")
-    io_arcs = bel_arcs(model, io)
+    io_arcs = bel_arcs(synth, io)
     assert {arc.data.name for arc in io_arcs.checks} == {"IN", "EN"}
     assert {arc.out.name for arc in io_arcs.clock_to_outs} == {"OUT"}
     groups = (io_arcs.clocks, io_arcs.delays, io_arcs.checks, io_arcs.clock_to_outs)
@@ -447,11 +419,11 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta(read_netlist: ReadNetlist) -> No
 
 def test_sky130_lc_and_iobuf_bel_v3_matches_golden(read_netlist: ReadNetlist) -> None:
     """Pin the characterised `bel.v3` blocks of the Sky130 LC and IOBUF."""
-    model, lc, io = sky130_lc_and_iobuf(read_netlist)
+    synth, lc, io = sky130_lc_and_iobuf(read_netlist)
     tile = make_empty_tile("SKY130", pinOrderConfig={})
     tile.bels = [lc, io]
     fabric = make_fabric_from_grid([[tile]])
-    bels = {bel.instance_name: bel_arcs(model, bel) for bel in tile.bels}
+    bels = {bel.instance_name: bel_arcs(synth, bel) for bel in tile.bels}
     timing = replace(
         placeholder_timing(fabric),
         bels=BelTiming(
@@ -487,7 +459,9 @@ endmodule
         ],
         [],
     )
-    assert v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel) == [
+    assert v3_arcs(
+        TimedNetlist(netlist=read_netlist(netlist, "Top"), graph=graph), bel
+    ) == [
         "Clock,CLK",
         "SetupHold,D,CLK,0.8,0.03",
     ]
@@ -526,7 +500,9 @@ endmodule
         [dff("Inst_A_DualClock/first"), dff("Inst_A_DualClock/second")],
         [],
     )
-    assert set(v3_arcs(make_model(graph, read_netlist(netlist, "Top")), bel)) == {
+    assert set(
+        v3_arcs(TimedNetlist(netlist=read_netlist(netlist, "Top"), graph=graph), bel)
+    ) == {
         "Clock,CLK_A",
         "Clock,CLK_B",
         "SetupHold,D_A,CLK_A,0.3,0.03",

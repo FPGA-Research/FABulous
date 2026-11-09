@@ -47,6 +47,48 @@ FABulous CLI or programmatically.
      `.FABulous/timing_model_config_resolved.json` so you can inspect what FABulous
      actually used.
 
+### Supertiles
+
+FABulous characterises a supertile as one macro. It synthesises and times the
+supertile module one time, with all its member tiles, and reads the pips and BEL arcs
+of each member tile from that run. A tile type can be in one supertile only, and only
+one time in it; else the run stops with an error.
+
+The pips of a member tile are timed at the boundary of its instance
+(`Tile_X{x}Y{y}_{tile}`) in the supertile netlist, with the same rules as a tile:
+
+- A pip through one switch-matrix mux gets the delay of the path through that mux.
+- A pip from a member input gets the delay from that input to the nearest member
+    output, inside the member.
+- A pip from a member output gets the fixed stitched delay, as a pip from a tile
+    output does. This applies also when the wire goes to a neighbour member in the
+    same supertile, so that a wire gets the same delay in a supertile and between
+    tiles.
+
+The pips of the supertile switch matrix are timed at the top of the supertile module,
+as the pips of a tile switch matrix are. The supertile BELs are timed in the same
+supertile run.
+
+In `physical` mode, FABulous finds each member tile in the flat post-layout netlist
+of the supertile. This needs a supertile macro hardened with its members kept as
+modules, which FABulous's GDS flow does for Verilog projects (see
+[supertiles in the GDS flow](#gds-supertiles)). Each member cell then carries its
+member instance as a name prefix, and each wire between two members keeps the name
+the supertile module gives it, so each member port is found on its post-layout net.
+The member pips are timed with the rules above, from the post-layout delays:
+
+- A wire between two members is charged once, at the member that receives it: a
+    pip from a member input includes the wire from the sibling member, and a pip
+    to a member output stops at the member, as the output pip is stitched.
+- A wire from or to a supertile port is charged as for a tile.
+
+The run stops with an error that names the member, the port and
+`SYNTH_KEEP_HIERARCHY_MODULES` if the post-layout netlist has no cell of a member
+(the supertile was hardened flat, for example before FABulous kept the members),
+if no post-layout net has the name of a member port's net, or if that net has no
+pin inside the member (a cell was inserted at the member boundary). Harden the
+supertile again with the member hierarchy kept.
+
 ## Running the timing model from the CLI
 
 The FABulous interactive CLI exposes the command `timing_model`. Key options:
@@ -181,7 +223,8 @@ Notes about the example:
 
 - `custom_per_tile_source_files` is optional. Use it if you have tile-specific
     post-layout netlists / SPEFs or custom RTL for a tile. The keys should match
-    your tile type names.
+    your tile type names; a tile inside a supertile is synthesised as part of the
+    supertile, so its key is the supertile name.
 - Paths may be absolute or relative to `project_dir`.
 
 ## Using templates and per-tile overrides
@@ -211,12 +254,20 @@ Notes about the example:
 
 - Missing or incorrect paths: Pydantic validation will raise errors when required
     fields are missing. Ensure `liberty_files` and `min_buf_cell_and_ports` are
-    present and correct.
+    present and correct. A tile source file (RTL, post-layout netlist or SPEF) that
+    does not exist stops the run with a `FileNotFoundError` that names the tile,
+    before any tool runs for it.
 - Tools not found or failing: Make sure `yosys` and `sta` (OpenSTA) are available
     and executable in the environment, or set `FAB_YOSYS_PATH` and
     `FAB_OPENSTA_PATH`.
 - In physical mode you must provide SPEF/RC files (per-tile or project-wide) if
     you want wire/parasitic delays to be included.
+- OpenSTA skips SPEF nets whose names it cannot find in the netlist, which would
+    leave their wire delays at zero. So after it reads the SPEF files, FABulous runs
+    `report_parasitic_annotation` and stops with an error that names the first
+    drivers if a driver with loads got no parasitics, or got them for only some of
+    its loads. A driver without loads, such as an unused input port, is ignored. The
+    usual cause is a SPEF file from a different run than the netlist.
 - Run FABulous with `--debug` to log every Yosys and OpenSTA script and the
     tool output.
 
@@ -227,7 +278,7 @@ FABulous API. Example (python):
 
 ```py
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelMode
+from fabulous.fabric_cad.timing_model.config import TimingModelConfig, TimingModelMode
 
 # instantiate FABulous API (example, depends on how you normally set it up)
 fab_api = FABulous_API(my_writer)

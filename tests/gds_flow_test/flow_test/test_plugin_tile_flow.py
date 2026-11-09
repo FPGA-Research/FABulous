@@ -351,6 +351,7 @@ class TestFABulousTileRunAdapter:
         assert flow.config["DESIGN_NAME"] == "LUT4AB"
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
+        assert flow.config.get("SYNTH_KEEP_HIERARCHY_MODULES") is None
         assert isinstance(flow.config, Config)
         super_run.assert_called_once()
 
@@ -388,11 +389,20 @@ class TestFABulousTileRunAdapter:
         with pytest.raises(FlowException, match="is not a directory"):
             flow.run(initial_state=mocker.MagicMock())
 
+    @pytest.mark.parametrize(
+        ("user_keep", "expected_keep"),
+        [
+            pytest.param(None, ["DSP_top", "DSP_bot"], id="members-by-default"),
+            pytest.param(["DSP_top"], ["DSP_top"], id="user-config-wins"),
+        ],
+    )
     def test_run_uses_get_super_tile_when_supertile_flag_set(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
         project_tree: dict[str, Path],
+        user_keep: list[str] | None,
+        expected_keep: list[str],
     ) -> None:
         from decimal import Decimal
 
@@ -406,7 +416,10 @@ class TestFABulousTileRunAdapter:
         mock_tile.max_height = 2
         mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(10))
         mock_tile.name = "LUT4AB"
-        mock_tile.tiles = []
+        members = [mocker.MagicMock(bels=[]) for _ in range(2)]
+        members[0].name = "DSP_top"
+        members[1].name = "DSP_bot"
+        mock_tile.tiles = members
         mock_tile.bels = []
 
         mocker.patch.object(plugin_tile_flow, "init_context")
@@ -435,13 +448,16 @@ class TestFABulousTileRunAdapter:
             return_value=(mocker.MagicMock(), []),
         )
 
+        config: dict[str, object] = {
+            "DESIGN_NAME": "LUT4AB",
+            "FABULOUS_TILE_DIR": [str(tile_dir)],
+            "FABULOUS_SUPERTILE": True,
+            "DESIGN_DIR": str(tile_dir),
+        }
+        if user_keep is not None:
+            config["SYNTH_KEEP_HIERARCHY_MODULES"] = user_keep
         flow = FABulousTile(
-            config={
-                "DESIGN_NAME": "LUT4AB",
-                "FABULOUS_TILE_DIR": [str(tile_dir)],
-                "FABULOUS_SUPERTILE": True,
-                "DESIGN_DIR": str(tile_dir),
-            },
+            config=config,
             design_dir=str(tile_dir),
             pdk="sky130A",
             pdk_root=str(tmp_path / "pdk"),
@@ -462,6 +478,9 @@ class TestFABulousTileRunAdapter:
         # Supertile logical dimensions must be taken from the tile itself.
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 4
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 2
+        # The timing model finds each member in the post-layout netlist by its
+        # instance prefix, which only survives synthesis without flattening.
+        assert flow.config["SYNTH_KEEP_HIERARCHY_MODULES"] == expected_keep
 
 
 SYNTHETIC_TILE_NAME = "PLUGIN_TEST_TILE"

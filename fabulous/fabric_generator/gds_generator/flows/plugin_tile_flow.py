@@ -213,6 +213,13 @@ class FABulousTile(SequentialFlow):
         if isinstance(tile, SuperTile):
             logical_width = tile.max_width
             logical_height = tile.max_height
+            # The physical timing model finds each member in the post-layout
+            # netlist by its instance prefix, which only survives a synthesis
+            # that keeps the member modules. A user value still wins.
+            if self.config.get("SYNTH_KEEP_HIERARCHY_MODULES") is None:
+                self.config = self.config.copy(
+                    SYNTH_KEEP_HIERARCHY_MODULES=[t.name for t in tile.tiles]
+                )
         else:
             logical_width = 1
             logical_height = 1

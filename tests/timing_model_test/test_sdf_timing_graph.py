@@ -6,13 +6,14 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-from fabulous.fabric_cad.timing_model.models import (
+from fabulous.fabric_cad.timing_model.sdf_timing_graph import (
+    Component,
     DelayType,
     SDFCellType,
     SDFPathType,
+    SdfTimingGraph,
     SDFTimingTriplet,
 )
-from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
 
 HEADER = '(SDFVERSION "3.0") (DESIGN "Top") (TIMESCALE 1ns)'
 
@@ -308,6 +309,109 @@ def test_hierarchical_pins_are_not_ports(tmp_path: Path) -> None:
 
     assert graph.input_ports == []
     assert graph.output_ports == []
+
+
+def test_within_keeps_only_pins_under_the_prefix(tmp_path: Path) -> None:
+    """The restricted copy rebuilds its cached views; the original is unchanged."""
+    graph = graph_of(
+        tmp_path,
+        top_cell(
+            interconnects(
+                (("P/A", "P/B", 1.0), ("P/B", "Q/A", 1.0), ("Q/A", "Q/B", 1.0))
+            )
+        ),
+    )
+    edges = list(graph.combinational_graph.edges)
+
+    view = graph.within("P/")
+
+    assert list(view.graph.edges) == [("P/A", "P/B")]
+    assert list(view.combinational_graph.edges) == [("P/A", "P/B")]
+    assert list(graph.graph.edges) == edges
+    assert list(graph.combinational_graph.edges) == edges
+
+
+def test_within_restricts_reverse_search(tmp_path: Path) -> None:
+    """A reverse search in the restricted copy cannot leave the prefix."""
+    graph = graph_of(
+        tmp_path,
+        top_cell(interconnects((("IN", "P/A", 1.0), ("P/A", "P/B", 1.0)))),
+    )
+
+    view = graph.within("P/")
+
+    assert list(view.reverse_graph.edges) == [("P/B", "P/A")]
+    assert view.path_to_nearest_target_sentinel("P/B", ["IN"], reverse=True) == (
+        None,
+        None,
+    )
+    assert graph.path_to_nearest_target_sentinel("P/B", ["IN"], reverse=True) == (
+        ["P/B", "P/A", "IN"],
+        "IN",
+    )
+
+
+# Member `P` of a supertile: its input wire comes from sibling `Q`, its output
+# leaves the supertile at port `OUT` and also feeds sibling `Q`.
+MEMBER_EDGES = (
+    ("Q/Y", "P/A", 0.04),
+    ("P/A", "P/B", 1.0),
+    ("P/B", "OUT", 0.02),
+    ("P/B", "Q/C", 0.03),
+)
+
+
+@pytest.fixture
+def member_graph(tmp_path: Path) -> SdfTimingGraph:
+    """Return the timing graph of member `P` and its siblings."""
+    return graph_of(tmp_path, top_cell(interconnects(MEMBER_EDGES)))
+
+
+def test_with_ports_adds_the_ports_of_a_member(member_graph: SdfTimingGraph) -> None:
+    """Port nodes carry the wire they stand for and become the only ports."""
+    wires = member_graph.graph.edges
+
+    view = member_graph.within("P/").with_ports(
+        inputs={"I[0]": {"P/A": wires["Q/Y", "P/A"]["component"]}},
+        outputs={"O": {"P/B": wires["P/B", "OUT"]["component"]}, "S": {"P/B": None}},
+    )
+
+    assert view.input_ports == ["I[0]"]
+    assert view.output_ports == ["O", "S"]
+    assert view.single_delay("I[0]", "O") == Decimal("1.06")
+    assert view.single_delay("I[0]", "S") == Decimal("1.04")
+    assert view.path_to_nearest_target_sentinel("P/B", ["I[0]"], reverse=True) == (
+        ["P/B", "P/A", "I[0]"],
+        "I[0]",
+    )
+    port_wire = view.graph.edges["I[0]", "P/A"]["component"]
+    assert (port_wire.c_type, port_wire.from_cell_pin, port_wire.to_cell_pin) == (
+        SDFCellType.INTERCONNECT,
+        "I[0]",
+        "A",
+    )
+    assert view.graph.edges["P/B", "S"]["component"].delay == Decimal(0)
+    assert "I[0]" not in member_graph.graph
+    assert member_graph.output_ports == ["OUT"]
+
+
+@pytest.mark.parametrize(
+    ("inputs", "outputs", "message"),
+    [
+        pytest.param({"P/A": {"P/A": None}}, {}, "P/A", id="port-is-a-node"),
+        pytest.param({"I": {"P/A": None}}, {"I": {"P/B": None}}, "'I'", id="twice"),
+        pytest.param({"I": {"P/A": None, "Q/Y": None}}, {}, "Q/Y", id="pin-outside"),
+    ],
+)
+def test_with_ports_rejects_clashing_ports(
+    member_graph: SdfTimingGraph,
+    inputs: dict[str, dict[str, Component | None]],
+    outputs: dict[str, dict[str, Component | None]],
+    message: str,
+) -> None:
+    """A port must be a new node, and may only touch pins of the graph."""
+    with pytest.raises(ValueError, match=message):
+        member_graph.within("P/").with_ports(inputs=inputs, outputs=outputs)
 
 
 @pytest.mark.parametrize(

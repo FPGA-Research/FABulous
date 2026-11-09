@@ -62,6 +62,10 @@ class FABulousTileMacroFlow(SequentialFlow):
     _hdl_files_config_key: str = "VERILOG_FILES"
     _models_pack_first: bool = False
     _extra_synth_config: dict[str, object] = {}
+    # The physical timing model finds each supertile member in the post-layout
+    # netlist by its instance prefix, which only survives a synthesis that keeps
+    # the member modules.
+    _keep_supertile_member_hierarchy: bool = True
 
     def __new__(
         cls,
@@ -148,6 +152,10 @@ class FABulousTileMacroFlow(SequentialFlow):
             "FABULOUS_OPT_MODE": OptMode(opt_mode),
             **self._extra_synth_config,
         }
+        if self._keep_supertile_member_hierarchy and isinstance(tile_type, SuperTile):
+            tile_config_dict["SYNTH_KEEP_HIERARCHY_MODULES"] = [
+                tile.name for tile in tile_type.tiles
+            ]
 
         if "FABULOUS_OPT_MODE" in custom_config_overrides:
             custom_config_overrides["FABULOUS_OPT_MODE"] = OptMode(
@@ -250,6 +258,10 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
     # `--latches`: `models_pack` defines a transparent latch primitive; GHDL errors
     # on inferred latches by default (Verilog synthesis tolerates them).
     _extra_synth_config = {"GHDL_ARGUMENTS": ["--std=08", "-fexplicit", "--latches"]}
+    # GHDL renames entities to lower-case `<entity>_B<architecture>` modules, so
+    # the member names would match nothing, and the timing model reads Verilog
+    # only.
+    _keep_supertile_member_hierarchy = False
 
 
 def _apply_tile_die_area_config(
