@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import networkx as nx
 import pytest
 
+from fabulous.fabric_cad.gen_npnr_model import belLines
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
@@ -23,6 +24,8 @@ from fabulous.fabric_cad.timing_model.models import (
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def make_graph(
@@ -376,8 +379,8 @@ def test_lc_clock_to_output_uses_nextpnr_q(tmp_path: Path, name: str) -> None:
     )
 
 
-def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
-    """Exercise real clock gating, escaped parameter modules, and external I/O.
+def sky130_lc_and_iobuf() -> tuple[FABulousTileTimingModel, Bel, Bel]:
+    """Build the Sky130 fixture model with its FABULOUS_LC and IOBUF BELs.
 
     Fixtures were generated from fabulous-tiles commit
     53cc215ce5f7bdba3375d2cad7a0fc1ce35c1f7d's FABULOUS_LC and IOBUF, using
@@ -386,11 +389,10 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
     Synthesis uses the timing model's hierarchical synth/renames/clockgate/
     dfflibmap/splitnets/insbuf/abc sequence, followed by OpenSTA write_sdf.
     """
-    fixtures = Path(__file__).parent / "fixtures"
     graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
-    SDFTimingGraph.__init__(graph, fixtures / "sky130_lc_iobuf.sdf")
+    SDFTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
     graph.top_name = "Top"
-    graph.verilog_netlist_content = (fixtures / "sky130_lc_iobuf.v").read_text()
+    graph.verilog_netlist_content = (FIXTURES / "sky130_lc_iobuf.v").read_text()
     model = make_model(graph)
     lc = make_bel(
         "FABULOUS_LC",
@@ -406,6 +408,27 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
         features=("FF",),
     )
     lc.prefix = "LA_"
+    io = make_bel(
+        "IOBUF",
+        {
+            "CLK": (IO.INPUT, 1),
+            "IN": (IO.INPUT, 1),
+            "EN": (IO.INPUT, 1),
+            "OUT": (IO.OUTPUT, 1),
+        },
+        external={
+            "IN_top": (IO.OUTPUT, 1),
+            "EN_top": (IO.OUTPUT, 1),
+            "OUT_top": (IO.INPUT, 1),
+        },
+        features=("IN_REG", "EN_REG", "OUT_REG"),
+    )
+    return model, lc, io
+
+
+def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
+    """Exercise real clock gating, escaped parameter modules, and external I/O."""
+    model, lc, io = sky130_lc_and_iobuf()
     arcs = model.bel_timing(lc).arcs
     assert {arc.port for arc in arcs if isinstance(arc, BelSetupHoldTiming)} == {
         "I0",
@@ -423,21 +446,6 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
         for arc in arcs
         if isinstance(arc, BelDelayTiming) and arc.sink == "Co"
     )
-    io = make_bel(
-        "IOBUF",
-        {
-            "CLK": (IO.INPUT, 1),
-            "IN": (IO.INPUT, 1),
-            "EN": (IO.INPUT, 1),
-            "OUT": (IO.OUTPUT, 1),
-        },
-        external={
-            "IN_top": (IO.OUTPUT, 1),
-            "EN_top": (IO.OUTPUT, 1),
-            "OUT_top": (IO.INPUT, 1),
-        },
-        features=("IN_REG", "EN_REG", "OUT_REG"),
-    )
     io_arcs = model.bel_timing(io).arcs
     assert {arc.port for arc in io_arcs if isinstance(arc, BelSetupHoldTiming)} == {
         "IN",
@@ -452,6 +460,17 @@ def test_sky130_lc_and_iobuf_from_yosys_opensta() -> None:
         "EN_REG=1",
         "OUT_REG=1",
     }
+
+
+def test_sky130_lc_and_iobuf_bel_v3_matches_golden() -> None:
+    """Pin the characterised `bel.v3` blocks of the Sky130 LC and IOBUF."""
+    model, lc, io = sky130_lc_and_iobuf()
+    lines: list[str] = []
+    for letter, bel in zip("AB", (lc, io), strict=True):
+        _, _, v3_lines, _ = belLines(bel, letter, 0, 0, model.bel_timing(bel))
+        lines.extend(v3_lines)
+    golden = (FIXTURES / "sky130_lc_iobuf.bel.v3.txt").read_text()
+    assert "\n".join(lines) + "\n" == golden
 
 
 def test_input_only_bel_aggregates_register_constraints(tmp_path: Path) -> None:
