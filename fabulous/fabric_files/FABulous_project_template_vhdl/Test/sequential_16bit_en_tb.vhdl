@@ -72,7 +72,7 @@ architecture Behavior of sequential_16bit_en_tb is
   signal s_data          : std_logic;
   signal ReceiveLED      : std_logic;
 
-  type bitstream_Type is array (MAX_BITBYTES downto 0) of std_logic_vector(7 downto 0);
+  type bitstream_Type is array(MAX_BITBYTES downto 0) of std_logic_vector(7 downto 0);
 
   signal bitstream : bitstream_Type;
 

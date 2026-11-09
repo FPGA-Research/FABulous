@@ -450,7 +450,7 @@ def writeNextpnrPipFile(
         Fabric object containing tile information.
     outputFile : Path
         File to write the pip information to.
-    delay_model : FABulousTimingModelInterface, optional
+    delay_model : FABulousTimingModelInterface
         Timing model interface to provide delay information, by default None.
     """
     pip_str, *_ = genNextpnrModel(fabric, delay_model, target=TimingModelTarget.PIPS)

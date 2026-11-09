@@ -177,7 +177,7 @@ def parseBelFile(
     ----------
     filename : Path
         The filename of the bel file.
-    belPrefix : str, optional
+    belPrefix : str
         The bel prefix provided by the CSV file. Defaults to "".
 
     Returns

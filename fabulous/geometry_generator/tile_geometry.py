@@ -113,7 +113,7 @@ class TileGeometry:
             The `Tile` object to generate geometry for
         padding : int
             The padding space to add around components
-        extra_bels : list[Bel] | None, optional
+        extra_bels : list[Bel] | None
             Additional BELs to draw in this tile (e.g. a supertile-level BEL
             hosted in this tile when it is the supertile's master tile).
         """

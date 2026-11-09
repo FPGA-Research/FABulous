@@ -347,7 +347,7 @@ class SuperTile:
             Number of tracks each north/south pin spans, by default 1.
         y_pin_thickness_mult : Decimal
             Number of tracks each east/west pin spans, by default 1.
-        edge_offset : int, optional
+        edge_offset : int
             Reserved tracks at tile edge, by default 2.
 
         Returns

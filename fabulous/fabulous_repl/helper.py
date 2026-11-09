@@ -147,7 +147,7 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     ----------
     project_dir : Path
         Directory where the project will be created.
-    lang : HDLType, optional
+    lang : HDLType
         The language of project to create ("verilog" or "vhdl"), by default "verilog".
 
     Raises
@@ -692,7 +692,7 @@ class CommandPipeline:
         ----------
         command : str
             The command string to execute.
-        error_message : str, optional
+        error_message : str
             Custom error message to use if the command fails.
             Defaults to "Command failed".
 

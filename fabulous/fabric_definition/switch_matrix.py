@@ -141,11 +141,11 @@ class SwitchMatrix:
             `.list`, `.v`, `.sv`, `.vhdl`, `.vhd`.
         tile_name : str
             Tile name, used only in the hand-written-HDL warning message.
-        ports : list[Port] | None, optional
+        ports : list[Port] | None
             Tile ports, required to canonicalise a `.list` matrix.
-        bels : list[Bel] | None, optional
+        bels : list[Bel] | None
             Tile BELs, used to canonicalise a `.list` matrix.
-        preserve_list_order : bool, optional
+        preserve_list_order : bool
             When True, a `.list`'s mux inputs keep the file order (reversed,
             MSB-first) instead of the canonical dest-column order. Defaults to
             False.

@@ -583,7 +583,7 @@ class PinPlacementPlan:
         specs : dict[Side, tuple[int, float, float, float]]
             Track specifications per side:
             side -> (total_track_count, track_step, origin, physical_dimension)
-        offset : int, optional
+        offset : int
             amount of offset tracks to reserve at start of each tile, by default 2
         """
         for side, segments in self.segments_by_side.items():

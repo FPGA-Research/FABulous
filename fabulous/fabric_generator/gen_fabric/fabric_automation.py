@@ -596,12 +596,12 @@ def genIOBel(
         List of Generative IOs to generate the IO BEL.
     bel_path : Path
         Name of the BEL to be generated.
-    overwrite : bool, optional
+    overwrite : bool
         Default is True
         Overwrite the existing BEL file if it exists, by default True.
         If False, it will read the existing BEL file and return the Bel object,
         without generating a new one.
-    multiplexerStyle : MultiplexerStyle, optional
+    multiplexerStyle : MultiplexerStyle
         Default is MultiplexerStyle.CUSTOM
         Use generic or custom multiplexers.
 
