@@ -12,7 +12,10 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
-from fabulous.fabric_cad.gen_npnr_model import emit_nextpnr_model, placeholder_timing
+from fabulous.fabric_cad.gen_npnr_model import (
+    emit_nextpnr_model,
+    set_placeholder_timing,
+)
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
@@ -304,7 +307,8 @@ class TestGenNpnrModelSupertile:
         return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
     def test_forward_pip_has_bel_input_as_destination(self, fabric: Fabric) -> None:
-        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
+        set_placeholder_timing(fabric)
+        model = emit_nextpnr_model(fabric)
         pips = set(model.pips.splitlines())
         # source DSP_bot_A0 -> destination SUPER_A0 (BEL input is the sink).
         assert "X0Y1,DSP_bot_A0,X0Y1,SUPER_A0,8,DSP_bot_A0.SUPER_A0" in pips
@@ -312,7 +316,8 @@ class TestGenNpnrModelSupertile:
         assert "X0Y1,SUPER_A0,X0Y1,DSP_bot_A0,8,SUPER_A0.DSP_bot_A0" not in pips
 
     def test_reverse_pip_has_bel_output_as_source(self, fabric: Fabric) -> None:
-        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
+        set_placeholder_timing(fabric)
+        model = emit_nextpnr_model(fabric)
         pips = set(model.pips.splitlines())
         # BEL output SUPER_Q0 -> reverse wire DSP_bot_Q0.
         assert "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0" in pips
@@ -349,7 +354,9 @@ class TestGenNpnrModelSupertile:
             t.partOfSuperTile = True
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
-        model = emit_nextpnr_model(fabric, placeholder_timing(fabric))
+        set_placeholder_timing(fabric)
+
+        model = emit_nextpnr_model(fabric)
 
         assert "X0Y1,X0,Y1,A,FABULOUS_LC" in model.bel_v1
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in model.bel_v2

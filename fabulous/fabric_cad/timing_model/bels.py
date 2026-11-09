@@ -5,7 +5,12 @@ from decimal import Decimal
 import networkx as nx
 from loguru import logger
 
-from fabulous.fabric_cad.timing_db import (
+from fabulous.fabric_cad.timing_model.config import scale_delay
+from fabulous.fabric_cad.timing_model.macro import TimedNetlist
+from fabulous.fabric_cad.timing_model.netlist import HierPath, PortBit, sdf_path
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.timing import (
     BelArcs,
     BelPin,
     ClockArc,
@@ -15,11 +20,6 @@ from fabulous.fabric_cad.timing_db import (
     FeatureIs,
     SetupHoldArc,
 )
-from fabulous.fabric_cad.timing_model.config import scale_delay
-from fabulous.fabric_cad.timing_model.macro import TimedNetlist
-from fabulous.fabric_cad.timing_model.netlist import HierPath, PortBit, sdf_path
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
 
 
 def characterize_bel(

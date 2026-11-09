@@ -18,7 +18,7 @@ from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrap
 from fabulous.fabric_cad.gen_npnr_model import (
     NextpnrModel,
     emit_nextpnr_model,
-    placeholder_timing,
+    set_placeholder_timing,
     write_timing_files,
 )
 from fabulous.fabric_cad.timing_model.characterize import characterize
@@ -419,14 +419,15 @@ class FABulous_API:
         return generate_bitstream_spec(self.fabric)
 
     def gen_routing_model(self) -> NextpnrModel:
-        """Generate the nextpnr model of the fabric with placeholder timing.
+        """Set placeholder timing on the fabric and generate its nextpnr model.
 
         Returns
         -------
         NextpnrModel
             The nextpnr files.
         """
-        return emit_nextpnr_model(self.fabric, placeholder_timing(self.fabric))
+        set_placeholder_timing(self.fabric)
+        return emit_nextpnr_model(self.fabric)
 
     def getBels(self) -> list[Bel]:
         """Return all unique Bels within a fabric.
@@ -920,8 +921,9 @@ class FABulous_API:
                 mode=mode,
             )
 
+        characterize(self.fabric, iconfig)
         write_timing_files(
-            emit_nextpnr_model(self.fabric, characterize(self.fabric, iconfig)),
+            emit_nextpnr_model(self.fabric),
             pip_file=pip_file,
             bel_file=bel_file,
         )

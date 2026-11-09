@@ -1,25 +1,28 @@
 """Nextpnr model generation for FABulous FPGA fabrics.
 
 Emit the files nextpnr reads (pips, BELs, pin constraints, placement estimate)
-as a pure function of a fabric and its `TimingDb`. This module owns every
+as a pure function of a timed fabric. This module owns every
 nextpnr rule: file formats, cell types, pin renames and the placeholder timing
 that reproduces nextpnr's historical hardcoded constants.
 """
 
 import string
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, replace
 from enum import Enum, auto
 from pathlib import Path
 
 from loguru import logger
 
 from fabulous.custom_exception import InvalidState
-from fabulous.fabric_cad.timing_db import (
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.timing import (
     AnyConnected,
     BelArcs,
     BelPin,
-    BelTiming,
     ClockArc,
     ClockToOutArc,
     Condition,
@@ -27,17 +30,11 @@ from fabulous.fabric_cad.timing_db import (
     FeatureIs,
     Ns,
     Pip,
-    PipTiming,
     SetupHoldArc,
     SwitchPip,
-    TimingDb,
     WirePip,
     ns,
-    switch_pips,
 )
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
@@ -325,6 +322,49 @@ def _placeholder_arcs_of(bel: Bel) -> BelArcs:
     )
 
 
+def tile_copies(fabric: Fabric) -> Iterator[Tile]:
+    """Yield every copy of every tile type of `fabric`.
+
+    The parser deep-copies a tile type into each grid placement and each
+    supertile member cell, so data of a tile type is written to all of them.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric.
+
+    Yields
+    ------
+    Tile
+        Each tile type, then each grid placement, then each supertile member.
+    """
+    yield from fabric.tileDic.values()
+    for _, tile in fabric:
+        if tile is not None:
+            yield tile
+    for super_tile in fabric.superTileDic.values():
+        for row in super_tile.tileMap:
+            yield from (tile for tile in row if tile is not None)
+
+
+def switch_pips(connections: Mapping[str, list[str]]) -> Iterator[SwitchPip]:
+    """Yield the pips of a switch matrix in `connections` order.
+
+    Parameters
+    ----------
+    connections : Mapping[str, list[str]]
+        Switch-matrix connections, mux output to its inputs.
+
+    Yields
+    ------
+    SwitchPip
+        One pip per mux input.
+    """
+    for dst, sources in connections.items():
+        for src in sources:
+            yield SwitchPip(src=src, dst=dst)
+
+
 def wire_pips(tile: Tile) -> Iterator[tuple[Wire, WirePip]]:
     """Yield the pip of each wire of `tile`, in `wireList` order.
 
@@ -360,50 +400,51 @@ def tile_pips(tile: Tile) -> Iterator[Pip]:
         yield pip
 
 
-def placeholder_timing(fabric: Fabric) -> TimingDb:
-    """Return the timing nextpnr historically assumed for `fabric`.
+def set_placeholder_timing(fabric: Fabric) -> None:
+    """Set the timing nextpnr historically assumed on `fabric`.
 
-    Every pip gets `DUMMY_PIP_DELAY` and every BEL its `placeholder_bel_arcs`.
+    Every BEL gets its `placeholder_bel_arcs` as `Bel.arcs`, every pip
+    `DUMMY_PIP_DELAY` (switch pips as `SwitchMatrix.pip_delays`, wires as
+    `Wire.delay`), and the fabric `CLOCK_DELAY` as `Fabric.clock_arrival`.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric.
+        The fabric; its timing is set.
+    """
+    for tile in tile_copies(fabric):
+        tile.switch_matrix = _placeholder_switch_matrix(tile.switch_matrix)
+        tile.wireList = [replace(wire, delay=DUMMY_PIP_DELAY) for wire in tile.wireList]
+        for bel in tile.bels:
+            bel.arcs = _placeholder_arcs_of(bel)
+    for super_tile in fabric.superTileDic.values():
+        if super_tile.switch_matrix is not None:
+            super_tile.switch_matrix = _placeholder_switch_matrix(
+                super_tile.switch_matrix
+            )
+        for bel in super_tile.bels:
+            bel.arcs = _placeholder_arcs_of(bel)
+    fabric.clock_arrival = CLOCK_DELAY
+
+
+def _placeholder_switch_matrix(switch_matrix: SwitchMatrix) -> SwitchMatrix:
+    """Return `switch_matrix` with `DUMMY_PIP_DELAY` on every pip.
+
+    Parameters
+    ----------
+    switch_matrix : SwitchMatrix
+        A switch matrix.
 
     Returns
     -------
-    TimingDb
-        Placeholder pip delays and BEL arcs.
+    SwitchMatrix
+        The switch matrix with placeholder `pip_delays`.
     """
-    placed_pips: dict[str, dict[Pip, Ns]] = {}
-    tile_bels: dict[str, dict[str, BelArcs]] = {}
-    for _, tile in fabric:
-        if tile is None:
-            continue
-        delays = placed_pips.setdefault(tile.name, {})
-        for pip in tile_pips(tile):
-            delays[pip] = DUMMY_PIP_DELAY
-        tile_bels[tile.name] = {
-            bel.instance_name: _placeholder_arcs_of(bel) for bel in tile.bels
-        }
-    super_tile_pips: dict[str, dict[SwitchPip, Ns]] = {}
-    super_tile_bels: dict[str, dict[str, BelArcs]] = {}
-    for super_tile in fabric.superTileDic.values():
-        connections = (
-            {}
-            if super_tile.switch_matrix is None
-            else super_tile.switch_matrix.connections
-        )
-        super_tile_pips[super_tile.name] = dict.fromkeys(
-            switch_pips(connections), DUMMY_PIP_DELAY
-        )
-        super_tile_bels[super_tile.name] = {
-            bel.instance_name: _placeholder_arcs_of(bel) for bel in super_tile.bels
-        }
-    return TimingDb(
-        pips=PipTiming(tiles=placed_pips, super_tiles=super_tile_pips),
-        bels=BelTiming(tiles=tile_bels, super_tiles=super_tile_bels),
-        clock_arrival=CLOCK_DELAY,
+    return replace(
+        switch_matrix,
+        pip_delays=dict.fromkeys(
+            switch_pips(switch_matrix.connections), DUMMY_PIP_DELAY
+        ),
     )
 
 
@@ -511,17 +552,123 @@ class NextpnrModel:
     placement_estimate: str
 
 
-def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
-    """Emit the nextpnr model of `fabric` with the delays in `timing`.
+def _placed_arcs(bel: Bel, *, x: int, y: int) -> BelArcs:
+    """Return the arcs of `bel` placed at tile `(x, y)`.
+
+    Parameters
+    ----------
+    bel : Bel
+        The BEL.
+    x : int
+        Tile X coordinate.
+    y : int
+        Tile Y coordinate.
+
+    Returns
+    -------
+    BelArcs
+        The BEL arcs.
+
+    Raises
+    ------
+    ValueError
+        If `bel` has no timing arcs.
+    """
+    if bel.arcs is None:
+        raise ValueError(f"BEL {bel.instance_name!r} at X{x}Y{y} has no timing arcs.")
+    return bel.arcs
+
+
+def _switch_pip_delay(switch_matrix: SwitchMatrix, pip: SwitchPip, *, owner: str) -> Ns:
+    """Return the delay of `pip` of `switch_matrix`.
+
+    Parameters
+    ----------
+    switch_matrix : SwitchMatrix
+        The switch matrix.
+    pip : SwitchPip
+        One of its pips.
+    owner : str
+        The placed tile or supertile that holds the switch matrix, for errors.
+
+    Returns
+    -------
+    Ns
+        The pip delay.
+
+    Raises
+    ------
+    ValueError
+        If the switch matrix has no pip delays, or none for `pip`.
+    """
+    if switch_matrix.pip_delays is None:
+        raise ValueError(f"The switch matrix of {owner} has no pip delays.")
+    if pip not in switch_matrix.pip_delays:
+        raise ValueError(f"No delay for {pip} in the switch matrix of {owner}.")
+    return switch_matrix.pip_delays[pip]
+
+
+def _wire_delay(wire: Wire, *, x: int, y: int) -> Ns:
+    """Return the delay of `wire` of the tile at `(x, y)`.
+
+    Parameters
+    ----------
+    wire : Wire
+        The wire.
+    x : int
+        Tile X coordinate.
+    y : int
+        Tile Y coordinate.
+
+    Returns
+    -------
+    Ns
+        The wire delay.
+
+    Raises
+    ------
+    ValueError
+        If the wire has no delay.
+    """
+    if wire.delay is None:
+        raise ValueError(f"Wire {wire} of the tile at X{x}Y{y} has no delay.")
+    return wire.delay
+
+
+def _clock_arrival(fabric: Fabric) -> Ns:
+    """Return the clock arrival of `fabric`.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric.
+
+    Returns
+    -------
+    Ns
+        The clock arrival at every flop.
+
+    Raises
+    ------
+    ValueError
+        If the fabric has no clock arrival.
+    """
+    if fabric.clock_arrival is None:
+        raise ValueError(f"Fabric {fabric.name!r} has no clock arrival.")
+    return fabric.clock_arrival
+
+
+def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
+    """Emit the nextpnr model of `fabric` with the timing set on it.
 
     Walk the fabric grid row-major, then the supertile placements.
 
     Parameters
     ----------
     fabric : Fabric
-        The fabric.
-    timing : TimingDb
-        Timing of every pip and BEL of the fabric.
+        The fabric; every placed BEL must have `Bel.arcs`, every placed switch
+        matrix `SwitchMatrix.pip_delays`, every placed wire `Wire.delay`, and a
+        fabric with clocked BELs `Fabric.clock_arrival`.
 
     Returns
     -------
@@ -549,7 +696,6 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
         first_letter: int,
         x: int,
         y: int,
-        arcs_of: Callable[[Bel], BelArcs],
     ) -> None:
         """Append the lines of `bels` placed at tile `(x, y)`.
 
@@ -563,8 +709,6 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             Tile X coordinate.
         y : int
             Tile Y coordinate.
-        arcs_of : Callable[[Bel], BelArcs]
-            Timing lookup of a BEL.
         """
         for i, bel in enumerate(bels):
             letter = string.ascii_uppercase[first_letter + i]
@@ -581,11 +725,11 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             block.extend(f"CFG,{feature}" for feature in sorted(bel.belFeatureMap))
             bel_v2.extend(block)
             bel_v3.extend(block)
-            bel_v3.extend(render_arcs(arcs_of(bel), kind=npnr.kind))
+            bel_v3.extend(render_arcs(_placed_arcs(bel, x=x, y=y), kind=npnr.kind))
             if bel.withUserCLK:
                 # Only v3 carries the arrival time; v2 uses nextpnr's default.
                 bel_v2.append("GlobalClk")
-                bel_v3.append(f"GlobalClk,{timing.clock_arrival}")
+                bel_v3.append(f"GlobalClk,{_clock_arrival(fabric)}")
             bel_v2.append("BelEnd")
             bel_v3.append("BelEnd")
             if npnr.pinned_io:
@@ -596,7 +740,9 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             continue
         pips.append(f"#Tile-internal pips on tile X{x}Y{y}:")
         for pip in switch_pips(tile.switch_matrix.connections):
-            delay = timing.pips.tile_delay(tile.name, pip)
+            delay = _switch_pip_delay(
+                tile.switch_matrix, pip, owner=f"tile {tile.name!r} at X{x}Y{y}"
+            )
             pips.append(
                 f"X{x}Y{y},{pip.src},X{x}Y{y},{pip.dst},{delay},{pip.src}.{pip.dst}"
             )
@@ -613,7 +759,7 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
                     f"X{x_dst}Y{y_dst}. "
                     "Please check your tile CSV file for unmatching wires/offsets!"
                 )
-            delay = timing.pips.tile_delay(tile.name, pip)
+            delay = _wire_delay(wire, x=x, y=y)
             pips.append(
                 f"X{x}Y{y},{pip.src},X{x_dst}Y{y_dst},{pip.dst},"
                 f"{delay},{pip.src}.{pip.dst}"
@@ -622,13 +768,7 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
         bel_v1.append(f"#Tile_X{x}Y{y}")
         bel_v2.append(f"#Tile_X{x}Y{y}")
         bel_v3.append(f"#Tile_X{x}Y{y}")
-        place_bels(
-            tile.bels,
-            first_letter=0,
-            x=x,
-            y=y,
-            arcs_of=lambda bel, name=tile.name: timing.bels.tile_arcs(name, bel),
-        )
+        place_bels(tile.bels, first_letter=0, x=x, y=y)
 
     # SJUMP pips live in tile.wireList (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
@@ -648,14 +788,15 @@ def emit_nextpnr_model(fabric: Fabric, timing: TimingDb) -> NextpnrModel:
             first_letter=len(fabric.tile[fty][ftx].bels),
             x=ftx,
             y=fty,
-            arcs_of=lambda bel, name=super_tile.name: timing.bels.super_tile_arcs(
-                name, bel
-            ),
         )
 
         if super_tile.switch_matrix is not None:
             for pip in switch_pips(super_tile.switch_matrix.connections):
-                delay = timing.pips.super_tile_delay(super_tile.name, pip)
+                delay = _switch_pip_delay(
+                    super_tile.switch_matrix,
+                    pip,
+                    owner=f"supertile {super_tile.name!r} at X{ftx}Y{fty}",
+                )
                 pips.append(
                     f"X{ftx}Y{fty},{pip.src},X{ftx}Y{fty},{pip.dst},{delay},"
                     f"{pip.src}.{pip.dst}"

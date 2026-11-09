@@ -13,8 +13,8 @@ from pathlib import Path
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from fabulous.fabric_cad.timing_db import Ns
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import DelayType
+from fabulous.fabric_definition.timing import Ns
 
 # Substrings of directory names skipped by the default RTL search; `yosys/`
 # holds synthesis blackboxes named after fabric BELs.

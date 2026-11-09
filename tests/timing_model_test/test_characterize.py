@@ -1,24 +1,27 @@
-"""Tests for composing the per-macro characterisation into a `TimingDb`."""
+"""Tests for composing the per-macro characterisation onto the fabric."""
 
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture, MockType
 
-from fabulous.fabric_cad.gen_npnr_model import placeholder_timing
-from fabulous.fabric_cad.timing_db import (
+from fabulous.fabric_cad.gen_npnr_model import set_placeholder_timing, tile_copies
+from fabulous.fabric_cad.timing_model.characterize import characterize
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO, Direction
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.timing import (
     BelArcs,
     BelPin,
     DelayArc,
     SwitchPip,
+    WirePip,
     ns,
 )
-from fabulous.fabric_cad.timing_model.characterize import characterize
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.wire import Wire
 from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 CHARACTERIZE = "fabulous.fabric_cad.timing_model.characterize"
@@ -45,13 +48,20 @@ def _bel(prefix: str) -> Bel:
 
 @pytest.fixture
 def two_lut_tiles() -> Fabric:
-    """Place one LUT4AB tile type, holding two BELs, twice."""
+    """Place one LUT4AB tile type, holding two BELs, twice, as parser copies."""
     tile = make_empty_tile("LUT4AB", pinOrderConfig={})
     tile.bels = [_bel("LA_"), _bel("LONG_")]
     tile.switch_matrix = SwitchMatrix(
         matrix_file=Path(), connections={"LA_I0": ["J_BEG", "LONG_O"]}
     )
-    return make_fabric_from_grid([[tile, tile]])
+    fabric = make_fabric_from_grid([[deepcopy(tile), deepcopy(tile)]])
+    fabric.tileDic = {tile.name: tile}
+    # Placements of one tile type differ in their wires, like SJUMP wires.
+    for x, (source, destination) in enumerate([("A0", "B0"), ("C0", "D0")]):
+        fabric.tile[0][x].wireList = [
+            Wire(Direction.JUMP, source, 0, 0, destination, "", "")
+        ]
+    return fabric
 
 
 @pytest.fixture
@@ -65,9 +75,9 @@ def test_characterize_times_each_pip_and_bel_of_a_tile_type_once(
     two_lut_tiles: Fabric, tools: MockType, mocker: MockerFixture
 ) -> None:
     """Repeated placements reuse the tile type's results; BEL prefixes stay apart."""
-    pip = SwitchPip(src="LONG_O", dst="LA_I0")
     pips = mocker.patch(
-        f"{CHARACTERIZE}.characterize_pips", return_value={pip: ns(6.0)}
+        f"{CHARACTERIZE}.characterize_pips",
+        side_effect=lambda _timing, *, pips, **_: dict.fromkeys(pips, ns(6.0)),
     )
     bel_timing = mocker.patch(
         f"{CHARACTERIZE}.characterize_bel",
@@ -76,26 +86,84 @@ def test_characterize_times_each_pip_and_bel_of_a_tile_type_once(
         ),
     )
 
-    timing = characterize(two_lut_tiles, mocker.Mock())
+    characterize(two_lut_tiles, mocker.Mock())
 
     tools.assert_called_once()
     pips.assert_called_once()
-    assert timing.pips.tile_delay("LUT4AB", pip) == ns(6.0)
+    assert {WirePip("A0", "B0"), WirePip("C0", "D0")} <= set(
+        pips.call_args.kwargs["pips"]
+    )
+    for x in (0, 1):
+        assert [wire.delay for wire in two_lut_tiles.tile[0][x].wireList] == [ns(6.0)]
+    assert two_lut_tiles.clock_arrival == ns(1.0)
+    delays = two_lut_tiles.tileDic["LUT4AB"].switch_matrix.pip_delays
+    assert delays == {
+        SwitchPip(src="J_BEG", dst="LA_I0"): ns(6.0),
+        SwitchPip(src="LONG_O", dst="LA_I0"): ns(6.0),
+    }
+    assert all(
+        tile.switch_matrix.pip_delays is delays for tile in tile_copies(two_lut_tiles)
+    )
     la, long = two_lut_tiles.tile[0][0].bels
     assert [call.kwargs["instance"] for call in bel_timing.call_args_list] == [
         (la.instance_name,),
         (long.instance_name,),
     ]
-    assert timing.bels.tile_arcs("LUT4AB", la).delays[0].delay == ns(3)
-    assert timing.bels.tile_arcs("LUT4AB", long).delays[0].delay == ns(5)
+    for tile in tile_copies(two_lut_tiles):
+        la, long = tile.bels
+        assert la.arcs is not None
+        assert la.arcs.delays[0].delay == ns(3)
+        assert long.arcs is not None
+        assert long.arcs.delays[0].delay == ns(5)
 
 
-def test_bel_timing_rejects_unknown_tile(two_lut_tiles: Fabric) -> None:
-    """BEL timing lookups name the tile type that has no timing."""
-    timing = placeholder_timing(two_lut_tiles)
+@pytest.mark.usefixtures("tools")
+def test_characterize_leaves_bels_untimed_when_a_bel_fails(
+    two_lut_tiles: Fabric, mocker: MockerFixture
+) -> None:
+    """No timing is set unless every BEL and pip of the fabric was characterised."""
+    mocker.patch(f"{CHARACTERIZE}.characterize_pips", return_value={})
+    mocker.patch(
+        f"{CHARACTERIZE}.characterize_bel",
+        side_effect=[BelArcs(), ValueError("no timing graph")],
+    )
 
-    with pytest.raises(ValueError, match="UNKNOWN"):
-        timing.bels.tile_arcs("UNKNOWN", _bel("LA_"))
+    with pytest.raises(ValueError, match="no timing graph"):
+        characterize(two_lut_tiles, mocker.Mock())
+
+    for tile in tile_copies(two_lut_tiles):
+        assert tile.switch_matrix.pip_delays is None
+        assert all(wire.delay is None for wire in tile.wireList)
+        assert all(bel.arcs is None for bel in tile.bels)
+    assert two_lut_tiles.clock_arrival is None
+
+
+@pytest.mark.usefixtures("tools")
+@pytest.mark.parametrize("characterised", [False, True])
+def test_a_tile_type_without_placement_is_timed_like_a_placed_one(
+    two_lut_tiles: Fabric, mocker: MockerFixture, *, characterised: bool
+) -> None:
+    """Placeholder and characterised timing both cover every tile type."""
+    io = make_empty_tile("W_IO", pinOrderConfig={})
+    io.bels = [_bel("A_")]
+    io.switch_matrix = SwitchMatrix(
+        matrix_file=Path(), connections={"A_I0": ["W1END0"]}
+    )
+    two_lut_tiles.tileDic[io.name] = io
+    mocker.patch(
+        f"{CHARACTERIZE}.characterize_pips",
+        side_effect=lambda _timing, *, pips, **_: dict.fromkeys(pips, ns(1.0)),
+    )
+    mocker.patch(f"{CHARACTERIZE}.characterize_bel", return_value=BelArcs())
+
+    if characterised:
+        characterize(two_lut_tiles, mocker.Mock())
+    else:
+        set_placeholder_timing(two_lut_tiles)
+
+    assert io.bels[0].arcs is not None
+    assert io.switch_matrix.pip_delays is not None
+    assert list(io.switch_matrix.pip_delays) == [SwitchPip(src="W1END0", dst="A_I0")]
 
 
 def test_characterize_gives_each_macro_its_own_temporary_work_dir(
@@ -131,7 +199,6 @@ def test_characterize_times_a_supertile_once_in_its_member_scopes(
         make_empty_tile(name, pinOrderConfig={}) for name in ("TOP", "BOT", "LUT")
     )
     fabric = make_fabric_from_grid([[top, lut], [bot, lut]])
-    super_pip = SwitchPip(src="BOT_SJ0", dst="ST_I0")
     st_bel = _bel("ST_")
     fabric.superTileDic = {
         "ST": SuperTile(
@@ -153,7 +220,7 @@ def test_characterize_times_a_supertile_once_in_its_member_scopes(
         f"{CHARACTERIZE}.characterize_bel", return_value=BelArcs()
     )
 
-    timing = characterize(fabric, mocker.Mock())
+    characterize(fabric, mocker.Mock())
 
     assert [call.kwargs["top"] for call in tools.call_args_list] == ["ST", "LUT"]
     assert [
@@ -165,8 +232,10 @@ def test_characterize_times_a_supertile_once_in_its_member_scopes(
         ("ST", ("Tile_X0Y1_BOT",), "Inst_BOT_switch_matrix"),
         ("ST", (), "Inst_ST_switch_matrix"),
     ]
-    assert timing.pips.super_tile_delay("ST", super_pip) == ns(1.5)
+    switch_matrix = fabric.superTileDic["ST"].switch_matrix
+    assert switch_matrix is not None
+    assert switch_matrix.pip_delays == {SwitchPip(src="BOT_SJ0", dst="ST_I0"): ns(1.5)}
     assert [
         (call.args[0], call.kwargs["instance"]) for call in bel_timing.call_args_list
     ] == [("ST", ("Inst_ST_ST_LUT4c_frame_config_dffesr",))]
-    assert timing.bels.super_tile_arcs("ST", st_bel) == BelArcs()
+    assert st_bel.arcs == BelArcs()

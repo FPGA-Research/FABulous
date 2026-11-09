@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabric_cad.timing_db import Pip, SwitchPip, WirePip
 from fabulous.fabric_cad.timing_model.macro import (
     PhysicalMacro,
     StructuralMacro,
@@ -14,6 +13,7 @@ from fabulous.fabric_cad.timing_model.macro import (
 from fabulous.fabric_cad.timing_model.netlist import HierPath, NetlistIndex
 from fabulous.fabric_cad.timing_model.pips import DEFAULT_PIP_DELAY, characterize_pips
 from fabulous.fabric_cad.timing_model.sdf_timing_graph import SdfTimingGraph
+from fabulous.fabric_definition.timing import Pip, SwitchPip, WirePip
 from tests.timing_model_test.conftest import ReadNetlist
 
 # Tile `T`: mux `mux_S1BEG0` drives a tile output, mux `mux_JN0` drives a
