@@ -11,6 +11,7 @@ approaches.
 
 import re
 from copy import copy
+from decimal import Decimal
 from pathlib import Path
 
 import networkx as nx
@@ -26,15 +27,12 @@ from fabulous.fabric_cad.timing_db import (
     FeatureIs,
     Ns,
     SetupHoldArc,
-    ns,
 )
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.models import (
     InternalPipCacheEntry,
     TimingModelConfig,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 from fabulous.fabric_cad.timing_model.netlist import (
     HierPath,
@@ -42,13 +40,12 @@ from fabulous.fabric_cad.timing_model.netlist import (
     PortBit,
     sdf_path,
 )
-from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthTool
-from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
-from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.tools.opensta import OpenStaTool
+from fabulous.tools.yosys import YosysTool
 
 
 class FABulousTileTimingModel:
@@ -64,11 +61,7 @@ class FABulousTileTimingModel:
       (within the switch matrix) and external PIPs (between the tile and the
       next tile) using either structural or physical approaches.
 
-    Supported synthesis tools:
-    - Yosys, keyword: "yosys"
-
-    Supported static timing analysis (STA) tools:
-    - OpenSTA, keyword: "opensta"
+    Synthesis runs on Yosys and STA on OpenSTA, through `fabulous.tools`.
 
     Parameters
     ----------
@@ -78,13 +71,22 @@ class FABulousTileTimingModel:
         The FABulous fabric object.
     tile_name : str
         The name of the tile for which the timing model is being created.
+    work_dir : Path
+        Existing, empty directory owned by the caller for the synthesised
+        netlist and the SDF files.
     """
 
     def __init__(
-        self, config: TimingModelConfig, fabric: Fabric, tile_name: str
+        self,
+        config: TimingModelConfig,
+        fabric: Fabric,
+        tile_name: str,
+        *,
+        work_dir: Path,
     ) -> None:
         self.fabric: Fabric = fabric
         self.tile_name: str = tile_name
+        self.work_dir: Path = work_dir
 
         # Validate and parse the configuration using the
         # TimingModelConfig dataclass.
@@ -203,76 +205,14 @@ class FABulousTileTimingModel:
                         self.tile_scope = (unique_tiles.tile_instance_name(x, y),)
                         break
 
-    def _cad_tools(self) -> dict[str, SynthTool | StaTool]:
-        """Set up the synthesis and STA tools based on the configuration.
-
-        This method can be used to initialize the tools before creating
-        the timing models. New tools can be added here by extending the
-        match-case statements for synthesis and STA
-        tools.
-
-        Returns
-        -------
-        dict[str, SynthTool | StaTool]
-            A dictionary containing the synthesis and STA tools.
-
-        Raises
-        ------
-        ValueError
-            If the synthesis or STA tool specified in the
-            configuration is not supported.
-        """
-        synth_tool: SynthTool | None = None
-        sta_tool: StaTool | None = None
-
-        # Use match-case to select the synthesis and STA tools based on the
-        # configuration.
-
-        match self.tm_config.synth_program:
-            case TimingModelSynthTools.YOSYS:
-                synth_tool = YosysTool(
-                    verilog_files=self.verilog_files,
-                    liberty_files=self.tm_config.liberty_files,
-                    top_name=self.unique_tile_name,
-                    synth_executable=self.tm_config.synth_executable,
-                    techmap_files=self.tm_config.techmap_files,
-                    tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
-                    tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
-                    min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
-                    is_gate_level=False,
-                    debug=self.tm_config.debug,
-                    flat=False,
-                )
-            case _:
-                raise ValueError(
-                    f"Unsupported synthesis tool: {self.tm_config.synth_program}"
-                )
-
-        # Use match-case to select the STA tool based on the configuration.
-
-        match self.tm_config.sta_program:
-            case TimingModelStaTools.OPENSTA:
-                sta_tool = OpenStaTool(
-                    sta_executable=self.tm_config.sta_executable,
-                    spef_files=None,
-                    debug=self.tm_config.debug,
-                )
-            case _:
-                raise ValueError(f"Unsupported STA tool: {self.tm_config.sta_program}")
-
-        # Return the initialized tools in a dictionary for use in the timing
-        # model initialization.
-
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
     def _initialize_timing_models(self) -> None:
-        """Initialize the synthesis and physical timing models using HdlnxTimingModel.
+        """Initialize the synthesis and physical timing models.
 
-        - The synthesis-level model is initialized with the RTL Verilog files
-          and the specified synthesis and STA tools.
-        - The physical-level model is initialized with the gate-level netlist,
-          and optionally with SPEF files for wire delay if consider_wire_delay
-          is True in the configuration.
+        - The synthesis-level model is built from the RTL Verilog files,
+          synthesised with Yosys into `work_dir`, and their OpenSTA SDF.
+        - The physical-level model is built from the OpenSTA SDF of the
+          gate-level netlist, annotated with the SPEF file if
+          consider_wire_delay is True in the configuration.
 
         Returns
         -------
@@ -291,19 +231,41 @@ class FABulousTileTimingModel:
         # Get the Verilog files for the project.
         self._get_project_rtl_files()
 
-        # Initialize the synthesis and STA tools based on the configuration.
-        cad_tool = self._cad_tools()
-        synth_tool: SynthTool = cad_tool["synth_tool"]
-        sta_tool: StaTool = cad_tool["sta_tool"]
+        liberty = self.tm_config.liberty_files
+        liberty_files = [liberty] if isinstance(liberty, Path) else liberty
+        techmap = self.tm_config.techmap_files
+        if techmap is None:
+            techmap_files: list[Path] = []
+        elif isinstance(techmap, Path):
+            techmap_files = [techmap]
+        else:
+            techmap_files = techmap
 
-        # Initialize the synthesis-level timing model.
+        synth_netlist_file = self.work_dir / "synth.v"
+        YosysTool.synthesize_gate_level(
+            verilog_files=self.verilog_files,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            netlist_file=synth_netlist_file,
+            techmap_files=techmap_files,
+            tiehi_cell_and_port=self.tm_config.tiehi_cell_and_port,
+            tielo_cell_and_port=self.tm_config.tielo_cell_and_port,
+            min_buf_cell_and_ports=self.tm_config.min_buf_cell_and_ports,
+        )
+        synth_sdf_file = self.work_dir / "synth.sdf"
+        OpenStaTool.write_sdf(
+            netlist_file=synth_netlist_file,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            spef_files=[],
+            sdf_file=synth_sdf_file,
+        )
         self.hdlnx_tm_synth = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+            synth_sdf_file, self.tm_config.delay_type_str
         )
         self.synth_netlist: NetlistIndex = NetlistIndex.read(
-            synth_tool.synth_netlist_file, top=synth_tool.synth_design_name
+            synth_netlist_file, top=self.unique_tile_name
         )
-        synth_tool.synth_clean_up()
 
         # If the mode is STRUCTURAL, we only need the synthesis-level model and can skip
         # initializing the physical-level model.
@@ -316,8 +278,7 @@ class FABulousTileTimingModel:
         # For the physical-level model, we need to switch to the gate-level netlist.
         logger.info("Initializing Physical-level timing model...")
 
-        # For the physical-level model, we need to switch to the gate-level netlist.
-        synth_tool.synth_rtl_files = Path(
+        physical_netlist_file = Path(
             f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
             f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"
         )
@@ -332,20 +293,17 @@ class FABulousTileTimingModel:
                 ].netlist_file
             )
         ):
-            synth_tool.synth_rtl_files = netl
+            physical_netlist_file = netl
             logger.info(
                 f"Using netlist file for tile {self.unique_tile_name}: "
-                f"{synth_tool.synth_rtl_files}"
+                f"{physical_netlist_file}"
             )
-
-        # Disable synthesis for the physical-level model since we already
-        # have the gate-level netlist.
-        synth_tool.synth_passthrough = True
 
         # Optionally load RC files for wire delay if consider_wire_delay
         # is True in the configuration.
+        spef_files: list[Path] = []
         if self.tm_config.consider_wire_delay:
-            sta_tool.sta_rc_files = Path(
+            rc_file = Path(
                 f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
                 f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"
             )
@@ -360,16 +318,22 @@ class FABulousTileTimingModel:
                     ].rc_file
                 )
             ):
-                sta_tool.sta_rc_files = rc
-                logger.info(
-                    f"Use RC file for {self.unique_tile_name}: {sta_tool.sta_rc_files}"
-                )
+                rc_file = rc
+                logger.info(f"Use RC file for {self.unique_tile_name}: {rc_file}")
+            spef_files = [rc_file]
 
         # Initialize the physical-level timing model with the gate-level netlist.
-        self.hdlnx_tm_phys = HdlnxTimingModel(
-            sta_tool, synth_tool, self.tm_config.delay_type_str, self.tm_config.debug
+        physical_sdf_file = self.work_dir / "physical.sdf"
+        OpenStaTool.write_sdf(
+            netlist_file=physical_netlist_file,
+            liberty_files=liberty_files,
+            top_name=self.unique_tile_name,
+            spef_files=spef_files,
+            sdf_file=physical_sdf_file,
         )
-        synth_tool.synth_clean_up()
+        self.hdlnx_tm_phys = HdlnxTimingModel(
+            physical_sdf_file, self.tm_config.delay_type_str
+        )
 
     def _find_matching_files(
         self,
@@ -500,7 +464,7 @@ class FABulousTileTimingModel:
             return False
         return bool(self._switch_matrix_muxes(pip_src, pip_dst))
 
-    def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay between two PIPs in the switch matrix.
 
         It is the fast variant that does not need physical design information,
@@ -515,7 +479,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Delay in nanoseconds between the two PIPs.
         """
         logger.info(
@@ -599,7 +563,7 @@ class FABulousTileTimingModel:
 
         return delay
 
-    def internal_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay_physical(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay between two PIPs using physical design information.
 
         This method uses the physical-level timing model to provide more
@@ -627,7 +591,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Delay in nanoseconds between the two PIPs.
         """
         logger.info(
@@ -761,7 +725,7 @@ class FABulousTileTimingModel:
 
         return delay
 
-    def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay for external PIPs between the tile and the next tile.
 
         Structural approach. It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM
@@ -776,7 +740,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Estimated delay in nanoseconds for the external PIP.
         """
         logger.info(
@@ -790,7 +754,7 @@ class FABulousTileTimingModel:
         synth_model = self.hdlnx_tm_synth
 
         # In general try to avoid delay of 0.
-        default_delay: float = 0.001
+        default_delay = Decimal("0.001")
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
         pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
@@ -849,12 +813,12 @@ class FABulousTileTimingModel:
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )
 
-        if delay < 1e-5:
+        if delay < Decimal("1e-5"):
             return default_delay
 
         return delay
 
-    def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> Decimal:
         """Calculate delay for external PIPs between the tile and the next tile.
 
         Physical approach. It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output
@@ -871,7 +835,7 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Estimated delay in nanoseconds for the external PIP.
         """
         logger.info(
@@ -884,7 +848,7 @@ class FABulousTileTimingModel:
 
         phys_model = self.hdlnx_tm_phys
 
-        default_delay: float = 0.001
+        default_delay = Decimal("0.001")
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
         pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
@@ -943,12 +907,12 @@ class FABulousTileTimingModel:
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )
 
-        if delay < 1e-5:
+        if delay < Decimal("1e-5"):
             return default_delay
 
         return delay
 
-    def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def internal_pip_delay(self, pip_src: str, pip_dst: str) -> Decimal:
         """Choose the method to calculate internal PIP delay based on the mode.
 
         (physical or structural).
@@ -962,14 +926,14 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Calculated delay in nanoseconds for the internal PIP.
         """
         if self.tm_config.mode == TimingModelMode.PHYSICAL:
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         return self.internal_pip_delay_structural(pip_src, pip_dst)
 
-    def external_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def external_pip_delay(self, pip_src: str, pip_dst: str) -> Decimal:
         """Choose the method to calculate external PIP delay based on the mode.
 
         (physical or structural).
@@ -983,14 +947,35 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
+        Decimal
             Calculated delay in nanoseconds for the external PIP.
         """
         if self.tm_config.mode == TimingModelMode.PHYSICAL:
             return self.external_pip_delay_physical(pip_src, pip_dst)
         return self.external_pip_delay_structural(pip_src, pip_dst)
 
-    def pip_delay(self, pip_src: str, pip_dst: str) -> float:
+    def _scaled(self, delay: Decimal) -> Ns:
+        """Return `delay` scaled by the configured `delay_scaling_factor`.
+
+        Parameters
+        ----------
+        delay : Decimal
+            Unscaled delay in nanoseconds.
+
+        Returns
+        -------
+        Ns
+            The exact scaled delay.
+        """
+        scaled = delay * self.tm_config.delay_scaling_factor
+        # The nextpnr timing file format: no trailing zeros, one decimal place at
+        # least.
+        scaled = scaled.normalize()
+        if scaled == scaled.to_integral_value():
+            scaled = scaled.quantize(Decimal("0.1"))
+        return Ns(scaled)
+
+    def pip_delay(self, pip_src: str, pip_dst: str) -> Ns:
         """Calculate the delay for a PIP, choosing between internal and external.
 
         Parameters
@@ -1002,29 +987,12 @@ class FABulousTileTimingModel:
 
         Returns
         -------
-        float
-            Calculated delay in nanoseconds for the PIP.
+        Ns
+            Scaled delay in nanoseconds for the PIP.
         """
-        d_scale: float = self.tm_config.delay_scaling_factor
-
-        def _round(x: float) -> float:
-            """Apply configured scaling and nextpnr output precision.
-
-            Parameters
-            ----------
-            x : float
-                Unscaled delay in nanoseconds.
-
-            Returns
-            -------
-            float
-                Scaled delay rounded to three decimal places.
-            """
-            return round(x * d_scale, 3)
-
         if self.is_tile_internal_pip(pip_src, pip_dst):
-            return _round(self.internal_pip_delay(pip_src, pip_dst))
-        return _round(self.external_pip_delay(pip_src, pip_dst))
+            return self._scaled(self.internal_pip_delay(pip_src, pip_dst))
+        return self._scaled(self.external_pip_delay(pip_src, pip_dst))
 
     def bel_timing(self, bel: Bel, *, instance: HierPath) -> BelArcs:
         """Return characterized combinational and sequential timing for one BEL.
@@ -1045,8 +1013,8 @@ class FABulousTileTimingModel:
         Returns
         -------
         BelArcs
-            Timing arcs from the synthesis graph in BEL port names, scaled
-            and rounded to the nextpnr output precision.
+            Timing arcs from the synthesis graph in BEL port names, scaled by
+            `delay_scaling_factor`.
 
         Raises
         ------
@@ -1125,12 +1093,8 @@ class FABulousTileTimingModel:
                 return (FeatureIs(feature, True),)
             return ff_condition
 
-        def scaled(value: float) -> Ns:
-            """Apply the same scaling and precision as the PIP timing output."""
-            return ns(round(value * self.tm_config.delay_scaling_factor, 3))
-
-        setup_holds: dict[tuple[BelPin, BelPin], tuple[float, float]] = {}
-        clock_delays: dict[tuple[BelPin, BelPin], float] = {}
+        setup_holds: dict[tuple[BelPin, BelPin], tuple[Decimal, Decimal]] = {}
+        clock_delays: dict[tuple[BelPin, BelPin], Decimal] = {}
         for data_pin, register_clock in register_pins:
             for clock, clock_source in clock_sources.get(register_clock, []):
                 for port, pins in input_pins.items():
@@ -1187,9 +1151,10 @@ class FABulousTileTimingModel:
                             ]
                             if delays:
                                 key = (port, clock)
-                                clock_delays[key] = max(
-                                    max(delays), clock_delays.get(key, -float("inf"))
-                                )
+                                delay = max(delays)
+                                if key in clock_delays:
+                                    delay = max(delay, clock_delays[key])
+                                clock_delays[key] = delay
 
         clock_arcs = tuple(
             ClockArc(clock, when=ff_condition)
@@ -1225,21 +1190,25 @@ class FABulousTileTimingModel:
                         else ()
                     )
                     delay_arcs.append(
-                        DelayArc(source, sink, scaled(max(delays)), when=condition)
+                        DelayArc(
+                            source, sink, self._scaled(max(delays)), when=condition
+                        )
                     )
 
         setup_arcs = tuple(
             SetupHoldArc(
                 port,
                 clock,
-                scaled(setup),
-                scaled(hold),
+                self._scaled(setup),
+                self._scaled(hold),
                 when=sequential_condition(port),
             )
             for (port, clock), (setup, hold) in setup_holds.items()
         )
         output_arcs = tuple(
-            ClockToOutArc(port, clock, scaled(delay), when=sequential_condition(port))
+            ClockToOutArc(
+                port, clock, self._scaled(delay), when=sequential_condition(port)
+            )
             for (port, clock), delay in clock_delays.items()
         )
         arcs = BelArcs(

@@ -1,5 +1,8 @@
 """Characterise the timing of a fabric into a `TimingDb`."""
 
+import tempfile
+from pathlib import Path
+
 from loguru import logger
 
 from fabulous.fabric_cad.gen_npnr_model import CLOCK_DELAY
@@ -11,7 +14,6 @@ from fabulous.fabric_cad.timing_db import (
     PipTiming,
     TimingDb,
     WirePip,
-    ns,
     switch_pips,
 )
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
@@ -56,7 +58,7 @@ def _characterize_pips(
         wire_pips = (WirePip(src=w.source, dst=w.destination) for w in tile.wireList)
         for pip in (*switch_pips(tile.switch_matrix.connections), *wire_pips):
             if pip not in delays:
-                delays[pip] = ns(model.pip_delay(pip.src, pip.dst))
+                delays[pip] = model.pip_delay(pip.src, pip.dst)
     for _, _, super_tile in fabric.iter_super_tile_placements():
         if super_tile.switch_matrix is not None and any(
             switch_pips(super_tile.switch_matrix.connections)
@@ -116,7 +118,9 @@ def _characterize_bels(
 def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
     """Characterise the pip delays and BEL arcs of `fabric` with Yosys and OpenSTA.
 
-    Clock arrival is not characterised; it stays `CLOCK_DELAY`.
+    Clock arrival is not characterised; it stays `CLOCK_DELAY`. The synthesised
+    netlists and SDF files of each tile type go to a temporary directory that is
+    removed on return.
 
     Parameters
     ----------
@@ -131,14 +135,19 @@ def characterize(fabric: Fabric, config: TimingModelConfig) -> TimingDb:
         Characterised timing of every placed tile and supertile type.
     """
     logger.info(f"Initializing timing models for tiles, with mode: {config.mode}")
-    models = {
-        tile_name: FABulousTileTimingModel(
-            config=config.model_copy(deep=True), fabric=fabric, tile_name=tile_name
+    with tempfile.TemporaryDirectory(prefix="fabulous_timing_") as work_root:
+        models: dict[str, FABulousTileTimingModel] = {}
+        for tile_name in fabric.tileDic:
+            work_dir = Path(work_root) / tile_name
+            work_dir.mkdir()
+            models[tile_name] = FABulousTileTimingModel(
+                config=config.model_copy(deep=True),
+                fabric=fabric,
+                tile_name=tile_name,
+                work_dir=work_dir,
+            )
+        return TimingDb(
+            pips=_characterize_pips(fabric, models),
+            bels=_characterize_bels(fabric, models),
+            clock_arrival=CLOCK_DELAY,
         )
-        for tile_name in fabric.tileDic
-    }
-    return TimingDb(
-        pips=_characterize_pips(fabric, models),
-        bels=_characterize_bels(fabric, models),
-        clock_arrival=CLOCK_DELAY,
-    )

@@ -58,7 +58,7 @@ def tile_model(mocker: MockerFixture) -> MockType:
         "fabulous.fabric_cad.timing_model.characterize.FABulousTileTimingModel"
     )
     model = model_class.return_value
-    model.pip_delay.return_value = 6.0
+    model.pip_delay.return_value = ns(6.0)
     model.tile_scope = ()
     model.bel_timing.side_effect = lambda bel, **_: BelArcs(
         delays=(DelayArc(BelPin("I0"), BelPin("O"), ns(len(bel.prefix))),)
@@ -93,3 +93,30 @@ def test_bel_timing_rejects_unknown_tile(two_lut_tiles: Fabric) -> None:
 
     with pytest.raises(ValueError, match="UNKNOWN"):
         timing.bels.tile_arcs("UNKNOWN", _bel("LA_"))
+
+
+def test_characterize_gives_each_tile_type_its_own_temporary_work_dir(
+    tile_model: MockType, mocker: MockerFixture
+) -> None:
+    """Tile types do not share tool outputs, and no files outlive the run."""
+    work_dirs: list[Path] = []
+
+    def fake_model(*, tile_name: str, work_dir: Path, **_: object) -> MockType:
+        assert work_dir.name == tile_name
+        assert work_dir.is_dir()
+        assert not any(work_dir.iterdir())
+        work_dirs.append(work_dir)
+        return tile_model
+
+    mocker.patch(
+        "fabulous.fabric_cad.timing_model.characterize.FABulousTileTimingModel",
+        side_effect=fake_model,
+    )
+    lut = make_empty_tile("LUT4AB", pinOrderConfig={})
+    io = make_empty_tile("W_IO", pinOrderConfig={})
+
+    characterize(make_fabric_from_grid([[io, lut]]), mocker.Mock())
+
+    assert len(work_dirs) == 2
+    assert work_dirs[0].parent == work_dirs[1].parent
+    assert not work_dirs[0].parent.exists()

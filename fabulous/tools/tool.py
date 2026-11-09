@@ -11,12 +11,58 @@ directly. Each subclass resolves its own executable from the FABulous context vi
 
 import subprocess
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from functools import cache
 from pathlib import Path
 from typing import NoReturn
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
 from loguru import logger
+
+
+def require_input_files(paths: Iterable[Path]) -> None:
+    """Raise unless every path is an existing, non-empty file.
+
+    Yosys (`-C`) and OpenSTA print an error for an unreadable input but still
+    exit 0, so a tool script must check its inputs before it runs.
+
+    Parameters
+    ----------
+    paths : Iterable[Path]
+        Input files of a tool script.
+
+    Raises
+    ------
+    FileNotFoundError
+        If a path is not an existing file.
+    ValueError
+        If a file is empty.
+    """
+    for path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(f"Tool input file not found: {path}")
+        if path.stat().st_size == 0:
+            raise ValueError(f"Tool input file is empty: {path}")
+
+
+def require_new_output_file(path: Path) -> None:
+    """Raise if a tool output file already exists.
+
+    Yosys (`-C`) and OpenSTA exit 0 when a script command fails, so a missing or
+    empty output file is the only sign of failure; a stale file would hide it.
+
+    Parameters
+    ----------
+    path : Path
+        Output file a tool script writes.
+
+    Raises
+    ------
+    FileExistsError
+        If `path` exists.
+    """
+    if path.exists():
+        raise FileExistsError(f"Tool output file already exists: {path}")
 
 
 @cache

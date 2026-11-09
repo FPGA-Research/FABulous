@@ -10,11 +10,11 @@ generating timing models, allowing for easier manipulation and analysis of the t
 data throughout the processing pipeline.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 
-import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field
 
 from fabulous.fabric_cad.timing_model.netlist import HierPath
@@ -61,6 +61,48 @@ class SDFCellType(StrEnum):
     WIDTH = "WIDTH"
 
 
+@dataclass(frozen=True, slots=True)
+class SDFTimingTriplet:
+    """Represent the minimum, typical, and maximum values of an SDF delay.
+
+    Attributes
+    ----------
+    minimum : Decimal | None
+        Minimum delay, or `None` when the SDF does not provide it.
+    typical : Decimal | None
+        Typical delay, called `avg` by the current SDF parser, or `None` when
+        the SDF does not provide it.
+    maximum : Decimal | None
+        Maximum delay, or `None` when the SDF does not provide it.
+    """
+
+    minimum: Decimal | None
+    typical: Decimal | None
+    maximum: Decimal | None
+
+
+@dataclass(frozen=True, slots=True)
+class SDFDelayPaths:
+    """Hold the delay triples of one SDF entry as the SDF lists them.
+
+    One triple is stored as `nominal`, two as `fast` and `slow`, and three as
+    `fast`, `nominal` and `slow`. Timing checks store their limit as `nominal`.
+
+    Attributes
+    ----------
+    nominal : SDFTimingTriplet | None
+        The only triple, or the second of three.
+    fast : SDFTimingTriplet | None
+        The first of two or three triples.
+    slow : SDFTimingTriplet | None
+        The last of two or three triples.
+    """
+
+    nominal: SDFTimingTriplet | None
+    fast: SDFTimingTriplet | None
+    slow: SDFTimingTriplet | None
+
+
 @dataclass(frozen=True)
 class Component:
     """Represents a component in the SDF timing model.
@@ -86,13 +128,14 @@ class Component:
         Pin name on the source cell.
     to_cell_pin : str
         Pin name on the destination cell.
-    delay : float
+    delay : Decimal
         Delay associated with this component: INTERCONNECT delay: cell to cell delay,
         IOPATH delay: pin to pin delay within a cell.
         Is a single delay over fast, slow (min, max)
         by using a cost function to combine them.
-    delay_paths : dict
-        Dictionary containing detailed delay paths information.
+    delay_paths : SDFDelayPaths | None
+        Delay triples as written in the SDF, or `None` for the synthetic
+        data-to-clock edge of a timing check.
     is_one_cell_instance : bool
         True if from_cell_instance and to_cell_instance are the same.
     is_timing_check : bool
@@ -105,11 +148,11 @@ class Component:
         True if the delay is incremental.
     is_cond : bool
         True if the delay is conditional.
-    cond_equation : str
+    cond_equation : str | None
         Condition equation if is_cond is True.
-    from_pin_edge : str
+    from_pin_edge : str | None
         Edge type for the from pin, e.g., "posedge" or "negedge".
-    to_pin_edge : str
+    to_pin_edge : str | None
         Edge type for the to pin, e.g., "posedge" or "negedge".
     """
 
@@ -120,71 +163,17 @@ class Component:
     to_cell_instance: str
     from_cell_pin: str
     to_cell_pin: str
-    delay: float
-    delay_paths: dict
+    delay: Decimal
+    delay_paths: SDFDelayPaths | None
     is_one_cell_instance: bool
     is_timing_check: bool
     is_timing_env: bool
     is_absolute: bool
     is_incremental: bool
     is_cond: bool
-    cond_equation: str
-    from_pin_edge: str
-    to_pin_edge: str
-
-
-@dataclass(slots=True, kw_only=True)
-class SDFGobject:
-    """Represents the SDF timing graph object.
-
-    Contains the directed graph representation of the timing model, as
-    well as associated metadata such as header information, SDF data
-    dictionary parsed from the file, cell names, instances,
-    IOPATHs, and interconnects.
-
-    Attributes
-    ----------
-    nx_graph : nx.DiGraph
-        The directed graph representation of the timing model,
-        where nodes represent pins and edges represent timing paths
-        with associated delay information.
-    hier_sep : str
-        The hierarchical separator used in instance names,
-        extracted from the SDF
-        header information.
-    header_info : dict
-        Dictionary containing header information from the SDF
-        file, such as version, date,
-        vendor, program, and hierarchical separator.
-    sdf_data : dict
-        The full SDF data parsed from the file, including
-        cells, instances, IOPATHs,
-        interconnects, and timing checks.
-    cells : list[str]
-        List of cell names defined in the SDF file.
-    instances : dict[str, list[Component]]
-        Dictionary mapping instance names of cells to lists of
-        Component instances representing the
-        timing paths (IOPATHs and INTERCONNECTs) associated
-        with each instance.
-    io_paths : list[Component]
-        List of Component instances representing the IOPATHs
-        defined in the SDF file, which represent timing paths between
-        pins within the same cell.
-    interconnects : list[Component]
-        List of Component instances representing the INTERCONNECTs
-        defined in the SDF file, which represent timing paths between pins
-        across different cells (i.e., inter-cell connections).
-    """
-
-    nx_graph: nx.DiGraph = field(default_factory=nx.DiGraph)
-    hier_sep: str
-    header_info: dict
-    sdf_data: dict
-    cells: list[str]
-    instances: dict[str, list[Component]]
-    io_paths: list[Component]
-    interconnects: list[Component]
+    cond_equation: str | None
+    from_pin_edge: str | None
+    to_pin_edge: str | None
 
 
 class DelayType(StrEnum):
@@ -238,26 +227,6 @@ class SDFPathType(StrEnum):
 
     COMBINATIONAL = "combinational"
     SEQUENTIAL = "sequential"
-
-
-@dataclass(frozen=True, slots=True)
-class SDFTimingTriplet:
-    """Represent the minimum, typical, and maximum values of an SDF delay.
-
-    Attributes
-    ----------
-    minimum : float | None
-        Minimum delay, or `None` when the SDF does not provide it.
-    typical : float | None
-        Typical delay, called `avg` by the current SDF parser, or `None` when
-        the SDF does not provide it.
-    maximum : float | None
-        Maximum delay, or `None` when the SDF does not provide it.
-    """
-
-    minimum: float | None
-    typical: float | None
-    maximum: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -339,32 +308,6 @@ class TimingModelMode(StrEnum):
     PHYSICAL = "physical"
 
 
-class TimingModelSynthTools(StrEnum):
-    """Enumeration of synthesis tools configured for the timing model.
-
-    Attributes
-    ----------
-    YOSYS
-        Represents the Yosys synthesis tool, which is an open-source
-        framework for RTL synthesis.
-    """
-
-    YOSYS = "yosys"
-
-
-class TimingModelStaTools(StrEnum):
-    """Enumeration of static STA tools configured for the timing model.
-
-    Attributes
-    ----------
-    OPENSTA
-        Represents the OpenSTA tool, which is an open-source static
-        timing analysis tool.
-    """
-
-    OPENSTA = "opensta"
-
-
 class TimingModelTileSourceFiles(BaseModel):
     """Configuration class for the source files related to a specific tile.
 
@@ -410,10 +353,6 @@ class TimingModelConfig(BaseModel):
         for timing analysis.
     min_buf_cell_and_ports : str
         The minimum buffer cell and ports "cell_name input_port output_port".
-    synth_executable : Path | str
-        The executable command for the synthesis tool.
-    sta_executable : Path | str
-        The executable command for the static timing analysis tool.
     pdk_name : str | None
         The name of the PDK being used, It's just for informational
         purposes.
@@ -431,12 +370,6 @@ class TimingModelConfig(BaseModel):
         instances containing custom
         source file paths, or None if not applicable. This will overwrite
         the default paths defined in the project directory for the specific tile.
-    sta_program : TimingModelStaTools
-        The static timing analysis tool to be used, specified as an instance of
-        the TimingModelStaTools enumeration.
-    synth_program : TimingModelSynthTools
-        The synthesis tool to be used, specified as an instance of the
-        TimingModelSynthTools enumeration.
     mode : TimingModelMode
         The timing model mode to be used, specified as an instance of the
         TimingModelMode enumeration.
@@ -445,13 +378,12 @@ class TimingModelConfig(BaseModel):
     delay_type_str : DelayType
         The type of delay to be used in the timing analysis, specified as an
         instance of the DelayType enumeration.
-    delay_scaling_factor : float
+    delay_scaling_factor : Decimal
         A scaling factor to be applied to the calculated delays, allowing for
         adjustments based on specific requirements or to account for any
         discrepancies in the delay calculations. But be careful when using this,
-        as it can lead to inaccurate timing models if not used properly.
-    debug : bool
-        Flag to enable or disable debug mode, which may provide additional logging.
+        as it can lead to inaccurate timing models if not used properly. The
+        scaled delay is exact, not rounded.
     """
 
     model_config = ConfigDict(strict=False, validate_assignment=True, extra="forbid")
@@ -459,20 +391,15 @@ class TimingModelConfig(BaseModel):
     project_dir: Path
     liberty_files: list[Path] | Path
     min_buf_cell_and_ports: str
-    synth_executable: Path | str
-    sta_executable: Path | str
     pdk_name: str | None = None
     techmap_files: list[Path] | Path | None = None
     tiehi_cell_and_port: str | None = None
     tielo_cell_and_port: str | None = None
     custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None
-    sta_program: TimingModelStaTools = Field(default=TimingModelStaTools.OPENSTA)
-    synth_program: TimingModelSynthTools = Field(default=TimingModelSynthTools.YOSYS)
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
     consider_wire_delay: bool = Field(default=True)
     delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)
-    delay_scaling_factor: float = Field(default=1.0)
-    debug: bool = Field(default=False)
+    delay_scaling_factor: Decimal = Field(default=Decimal(1))
 
 
 @dataclass(frozen=True)

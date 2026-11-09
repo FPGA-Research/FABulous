@@ -1,3 +1,4 @@
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,8 +13,6 @@ from fabulous.fabric_cad.timing_model.models import (
     DelayType,
     InternalPipCacheEntry,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 from fabulous.fabric_cad.timing_model.netlist import NetlistIndex
 from fabulous.fabric_definition.supertile import SuperTile
@@ -39,25 +38,21 @@ def make_config(
     *,
     mode: TimingModelMode = TimingModelMode.STRUCTURAL,
     consider_wire_delay: bool = False,
-    debug: bool = False,
-    synth_program: TimingModelSynthTools = TimingModelSynthTools.YOSYS,
-    sta_program: TimingModelStaTools = TimingModelStaTools.OPENSTA,
+    liberty_files: list[Path] | Path | None = None,
+    techmap_files: list[Path] | Path | None = None,
     custom_per_tile_source_files: dict[str, SimpleNamespace] | None = None,
-    delay_scaling_factor: float = 1.0,
+    delay_scaling_factor: Decimal = Decimal(1),
 ) -> SimpleNamespace:
     return SimpleNamespace(
         project_dir=tmp_path,
-        liberty_files=[tmp_path / "lib.lib"],
+        liberty_files=[tmp_path / "lib.lib"]
+        if liberty_files is None
+        else liberty_files,
         delay_type_str=DelayType.MAX_ALL,
-        debug=debug,
-        synth_program=synth_program,
-        sta_program=sta_program,
-        synth_executable="yosys",
-        sta_executable="opensta",
-        techmap_files=[tmp_path / "techmap.v"],
-        tiehi_cell_and_port=("TIEHI", "Y"),
-        tielo_cell_and_port=("TIELO", "Y"),
-        min_buf_cell_and_ports=("BUF", "A", "Y"),
+        techmap_files=techmap_files,
+        tiehi_cell_and_port="TIEHI Y",
+        tielo_cell_and_port="TIELO Y",
+        min_buf_cell_and_ports="BUF A Y",
         consider_wire_delay=consider_wire_delay,
         mode=mode,
         custom_per_tile_source_files=custom_per_tile_source_files,
@@ -84,30 +79,13 @@ class DummySuperTile:
         self.tiles = tiles
 
 
-class DummySynthTool:
-    def __init__(self) -> None:
-        self.synth_rtl_files = None
-        self.synth_passthrough = False
-        self.synth_netlist_file = Path("netlist.v")
-        self.synth_design_name = "TILE_A"
-        self.clean_ups = 0
-
-    def synth_clean_up(self) -> None:
-        self.clean_ups += 1
-
-
-class DummyStaTool:
-    def __init__(self) -> None:
-        self.sta_rc_files = None
-
-
 class DummyHdlnx:
     def __init__(self) -> None:
         self.output_ports = set()
         self.input_ports = set()
 
-    def single_delay(self, _src: object, _dst: object) -> float:
-        return 0.0
+    def single_delay(self, _src: object, _dst: object) -> Decimal:
+        return Decimal("0.0")
 
     def nearest_ports_from_pins(
         self,
@@ -157,6 +135,7 @@ def bare_model(tmp_path: Path, mocker: MockerFixture) -> FABulousTileTimingModel
     m.is_in_which_super_tile = None
     m.tm_config = make_config(tmp_path)
     m.verilog_files = None
+    m.work_dir = tmp_path / "work"
     m.hdlnx_tm_synth = DummyHdlnx()
     m.hdlnx_tm_phys = DummyHdlnx()
     m.tile_scope = ()
@@ -195,10 +174,11 @@ def test_init_sets_attributes_and_calls_helpers(
     fabric = DummyFabric([])
     cfg = make_config(tmp_path)
 
-    obj = FABulousTileTimingModel(cfg, fabric, tile_name="TILE_A")
+    obj = FABulousTileTimingModel(cfg, fabric, tile_name="TILE_A", work_dir=tmp_path)
 
     assert obj.fabric is fabric
     assert obj.tile_name == "TILE_A"
+    assert obj.work_dir == tmp_path
     assert obj.unique_tile_name == "TILE_A"
     assert obj.is_in_which_super_tile is None
     assert obj.verilog_files == [tmp_path / "a.v"]
@@ -407,354 +387,172 @@ def test_get_project_rtl_files_override_tile_entry_without_rtl_keeps_default(
     assert bare_model.verilog_files == default_files
 
 
-def test_cad_tools_success(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = {}
-
-    class FakeYosys:
-        def __init__(self, **kwargs: object) -> None:
-            calls["yosys"] = kwargs
-
-    class FakeOpenSta:
-        def __init__(self, **kwargs: object) -> None:
-            calls["opensta"] = kwargs
-
-    monkeypatch.setattr(tm_mod, "YosysTool", FakeYosys)
-    monkeypatch.setattr(tm_mod, "OpenStaTool", FakeOpenSta)
-
-    bare_model.verilog_files = [tmp_path / "rtl.v"]
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(tmp_path, debug=True)
-
-    tools = bare_model._cad_tools()  # noqa: SLF001
-
-    assert isinstance(tools["synth_tool"], FakeYosys)
-    assert isinstance(tools["sta_tool"], FakeOpenSta)
-
-    assert calls["yosys"]["verilog_files"] == [tmp_path / "rtl.v"]
-    assert calls["yosys"]["liberty_files"] == [tmp_path / "lib.lib"]
-    assert calls["yosys"]["top_name"] == "TILE_A"
-    assert calls["yosys"]["synth_executable"] == "yosys"
-    assert calls["yosys"]["is_gate_level"] is False
-    assert calls["yosys"]["debug"] is True
-    assert calls["yosys"]["flat"] is False
-
-    assert calls["opensta"]["sta_executable"] == "opensta"
-    assert calls["opensta"]["spef_files"] is None
-    assert calls["opensta"]["debug"] is True
-
-
-def test_cad_tools_unsupported_synth_raises(
-    tmp_path: Path, bare_model: FABulousTileTimingModel
-) -> None:
-    bare_model.tm_config = make_config(tmp_path, synth_program="bad_synth")
-    with pytest.raises(ValueError, match="Unsupported synthesis tool"):
-        bare_model._cad_tools()  # noqa: SLF001
-
-
-def test_cad_tools_unsupported_sta_raises(
-    tmp_path: Path, bare_model: FABulousTileTimingModel
-) -> None:
-    bare_model.tm_config = make_config(tmp_path, sta_program="bad_sta")
-    with pytest.raises(ValueError, match="Unsupported STA tool"):
-        bare_model._cad_tools()  # noqa: SLF001
-
-
 @pytest.fixture
-def netlist_read(mocker: MockerFixture) -> None:
-    """Skip elaborating the synthesised netlist, which the fake models never write."""
-    mocker.patch.object(tm_mod.NetlistIndex, "read", autospec=True)
+def tools(mocker: MockerFixture) -> SimpleNamespace:
+    """Replace Yosys, OpenSTA, the SDF graph and the netlist index with mocks."""
+    return SimpleNamespace(
+        synthesize=mocker.patch.object(tm_mod.YosysTool, "synthesize_gate_level"),
+        write_sdf=mocker.patch.object(tm_mod.OpenStaTool, "write_sdf"),
+        graph=mocker.patch.object(tm_mod, "HdlnxTimingModel"),
+        netlist_read=mocker.patch.object(tm_mod.NetlistIndex, "read"),
+    )
 
 
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_structural_calls_project_rtl_loader(
+def test_initialize_timing_models_structural_synthesises_into_work_dir(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    called = {"rtl": 0}
+    rtl = [tmp_path / "rtl.v"]
 
     def fake_get_project_rtl_files() -> None:
-        called["rtl"] += 1
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
+        bare_model.verilog_files = rtl
 
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
+    mocker.patch.object(
+        bare_model, "_get_project_rtl_files", side_effect=fake_get_project_rtl_files
     )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+    bare_model.tm_config = make_config(tmp_path, mode=TimingModelMode.STRUCTURAL)
+    work = bare_model.work_dir
 
+    bare_model._initialize_timing_models()  # noqa: SLF001
+
+    tools.synthesize.assert_called_once_with(
+        verilog_files=rtl,
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        netlist_file=work / "synth.v",
+        techmap_files=[],
+        tiehi_cell_and_port="TIEHI Y",
+        tielo_cell_and_port="TIELO Y",
+        min_buf_cell_and_ports="BUF A Y",
+    )
+    tools.write_sdf.assert_called_once_with(
+        netlist_file=work / "synth.v",
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        spef_files=[],
+        sdf_file=work / "synth.sdf",
+    )
+    tools.graph.assert_called_once_with(work / "synth.sdf", DelayType.MAX_ALL)
+    tools.netlist_read.assert_called_once_with(work / "synth.v", top="TILE_A")
+    assert bare_model.hdlnx_tm_synth is tools.graph.return_value
+    assert bare_model.synth_netlist is tools.netlist_read.return_value
+
+
+@pytest.mark.parametrize(
+    ("liberty", "techmap", "expected_liberty", "expected_techmap"),
+    [
+        pytest.param(["a.lib", "b.lib"], None, ["a.lib", "b.lib"], [], id="lists"),
+        pytest.param("a.lib", "map.v", ["a.lib"], ["map.v"], id="single-paths"),
+        pytest.param("a.lib", ["m1.v", "m2.v"], ["a.lib"], ["m1.v", "m2.v"], id="mix"),
+    ],
+)
+def test_initialize_timing_models_passes_library_files_as_lists(
+    tmp_path: Path,
+    bare_model: FABulousTileTimingModel,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
+    liberty: list[str] | str,
+    techmap: list[str] | str | None,
+    expected_liberty: list[str],
+    expected_techmap: list[str],
+) -> None:
+    def to_paths(names: list[str] | str) -> list[Path] | Path:
+        if isinstance(names, str):
+            return tmp_path / names
+        return [tmp_path / name for name in names]
+
+    mocker.patch.object(bare_model, "_get_project_rtl_files")
     bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.STRUCTURAL, debug=True
+        tmp_path,
+        liberty_files=to_paths(liberty),
+        techmap_files=None if techmap is None else to_paths(techmap),
     )
 
     bare_model._initialize_timing_models()  # noqa: SLF001
 
-    assert called["rtl"] == 1
-    assert len(created) == 1
-    assert synth_tool.clean_ups == 1
-    assert synth_tool.synth_passthrough is False
-    assert sta_tool.sta_rc_files is None
+    synth = tools.synthesize.call_args.kwargs
+    assert synth["liberty_files"] == [tmp_path / name for name in expected_liberty]
+    assert synth["techmap_files"] == [tmp_path / name for name in expected_techmap]
+    sta = tools.write_sdf.call_args.kwargs
+    assert sta["liberty_files"] == [tmp_path / name for name in expected_liberty]
 
 
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_without_wire_delay(
+DEFAULT_NETLIST = Path("Tile/TILE_A/macro/final_views/nl/TILE_A.nl.v")
+DEFAULT_SPEF = Path("Tile/TILE_A/macro/final_views/spef/nom/TILE_A.nom.spef")
+
+
+@pytest.mark.parametrize(
+    ("consider_wire_delay", "overrides", "expected_netlist", "expected_spef"),
+    [
+        pytest.param(False, None, DEFAULT_NETLIST, [], id="defaults"),
+        pytest.param(True, None, DEFAULT_NETLIST, [DEFAULT_SPEF], id="wire-delay"),
+        pytest.param(
+            False,
+            {"TILE_A": {"netlist_file": "custom.nl.v"}},
+            Path("custom.nl.v"),
+            [],
+            id="custom-netlist",
+        ),
+        pytest.param(
+            True,
+            {"TILE_A": {"rc_file": "custom.nom.spef"}},
+            DEFAULT_NETLIST,
+            [Path("custom.nom.spef")],
+            id="custom-rc",
+        ),
+        pytest.param(
+            True,
+            {"OTHER_TILE": {"netlist_file": "other.nl.v", "rc_file": "other.spef"}},
+            DEFAULT_NETLIST,
+            [DEFAULT_SPEF],
+            id="other-tile-override",
+        ),
+    ],
+)
+def test_initialize_timing_models_physical_writes_the_netlist_sdf(
     tmp_path: Path,
     bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
+    tools: SimpleNamespace,
+    mocker: MockerFixture,
+    consider_wire_delay: bool,
+    overrides: dict[str, dict[str, str]] | None,
+    expected_netlist: Path,
+    expected_spef: list[Path],
 ) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.PHYSICAL, consider_wire_delay=False
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert synth_tool.clean_ups == 2
-    assert synth_tool.synth_passthrough is True
-    assert (
-        synth_tool.synth_rtl_files
-        == tmp_path / "Tile" / "TILE_A" / "macro" / "final_views" / "nl" / "TILE_A.nl.v"
-    )
-    assert sta_tool.sta_rc_files is None
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_with_wire_delay(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path, mode=TimingModelMode.PHYSICAL, consider_wire_delay=True
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert (
-        sta_tool.sta_rc_files
-        == tmp_path
-        / "Tile"
-        / "TILE_A"
-        / "macro"
-        / "final_views"
-        / "spef"
-        / "nom"
-        / "TILE_A.nom.spef"
-    )
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_uses_custom_netlist_file(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    custom_netlist = tmp_path / "custom.nl.v"
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
+    mocker.patch.object(bare_model, "_get_project_rtl_files")
     bare_model.tm_config = make_config(
         tmp_path,
         mode=TimingModelMode.PHYSICAL,
-        custom_per_tile_source_files={
-            "TILE_A": make_source_override(netlist_file=custom_netlist)
-        },
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert synth_tool.synth_rtl_files == custom_netlist
-    assert synth_tool.synth_passthrough is True
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_uses_custom_rc_file(
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-    custom_rc = tmp_path / "custom.nom.spef"
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path,
-        mode=TimingModelMode.PHYSICAL,
-        consider_wire_delay=True,
-        custom_per_tile_source_files={
-            "TILE_A": make_source_override(rc_file=custom_rc)
-        },
-    )
-
-    bare_model._initialize_timing_models()  # noqa: SLF001
-
-    assert len(created) == 2
-    assert sta_tool.sta_rc_files == custom_rc
-
-
-@pytest.mark.usefixtures("netlist_read")
-def test_initialize_timing_models_physical_missing_tile_in_custom_source_mapping_keeps_defaults(  # noqa: E501
-    tmp_path: Path,
-    bare_model: FABulousTileTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    synth_tool = DummySynthTool()
-    sta_tool = DummyStaTool()
-    created = []
-
-    def fake_get_project_rtl_files() -> None:
-        bare_model.verilog_files = [tmp_path / "rtl.v"]
-
-    def fake_cad_tools() -> dict[str, object]:
-        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
-
-    class FakeHdlnxTimingModel:
-        def __init__(
-            self, sta: object, synth: object, delay_type: object, debug: object
-        ) -> None:
-            created.append((sta, synth, delay_type, debug))
-
-    monkeypatch.setattr(
-        bare_model, "_get_project_rtl_files", fake_get_project_rtl_files
-    )
-    monkeypatch.setattr(bare_model, "_cad_tools", fake_cad_tools)
-    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
-
-    bare_model.unique_tile_name = "TILE_A"
-    bare_model.tm_config = make_config(
-        tmp_path,
-        mode=TimingModelMode.PHYSICAL,
-        consider_wire_delay=True,
-        custom_per_tile_source_files={
-            "OTHER_TILE": make_source_override(
-                netlist_file=tmp_path / "other.nl.v",
-                rc_file=tmp_path / "other.spef",
+        consider_wire_delay=consider_wire_delay,
+        custom_per_tile_source_files=None
+        if overrides is None
+        else {
+            tile: make_source_override(
+                **{field: tmp_path / name for field, name in fields.items()}
             )
+            for tile, fields in overrides.items()
         },
     )
+    work = bare_model.work_dir
+    physical_graph = mocker.Mock()
+    tools.graph.side_effect = [mocker.Mock(), physical_graph]
 
     bare_model._initialize_timing_models()  # noqa: SLF001
 
-    assert len(created) == 2
-    assert (
-        synth_tool.synth_rtl_files
-        == tmp_path / "Tile" / "TILE_A" / "macro" / "final_views" / "nl" / "TILE_A.nl.v"
+    assert tools.synthesize.call_count == 1
+    assert tools.write_sdf.call_args_list[1] == mocker.call(
+        netlist_file=tmp_path / expected_netlist,
+        liberty_files=[tmp_path / "lib.lib"],
+        top_name="TILE_A",
+        spef_files=[tmp_path / spef for spef in expected_spef],
+        sdf_file=work / "physical.sdf",
     )
-    assert (
-        sta_tool.sta_rc_files
-        == tmp_path
-        / "Tile"
-        / "TILE_A"
-        / "macro"
-        / "final_views"
-        / "spef"
-        / "nom"
-        / "TILE_A.nom.spef"
+    assert tools.graph.call_args_list[1] == mocker.call(
+        work / "physical.sdf", DelayType.MAX_ALL
     )
+    assert bare_model.hdlnx_tm_phys is physical_graph
 
 
 def test_find_matching_files_filters_dirs_and_files(
@@ -890,8 +688,8 @@ def test_internal_pip_delay_structural_success_and_caches(
     bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.123
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.123")
 
     netlist = mocker.create_autospec(NetlistIndex, instance=True)
     netlist.net_leaf_pins.return_value = {
@@ -909,7 +707,7 @@ def test_internal_pip_delay_structural_success_and_caches(
 
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
-    assert delay == 0.123
+    assert delay == Decimal("0.123")
     netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert "Y" in bare_model.internal_pip_cache
     cache_entry = bare_model.internal_pip_cache["Y"]
@@ -929,8 +727,8 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
     bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
     class Synth(DummyHdlnx):
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 1.5
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("1.5")
 
     netlist = mocker.create_autospec(NetlistIndex, instance=True)
     netlist.net_leaf_pins.return_value = {"bad": ["bad"]}
@@ -952,7 +750,7 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(
 
     delay = bare_model.internal_pip_delay_structural("A", "Y")
 
-    assert delay == 1.5
+    assert delay == Decimal("1.5")
     netlist.net_leaf_pins.assert_not_called()
 
 
@@ -1007,8 +805,8 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
             assert follow_steps_to_sentinel == 3
             return ["OUT2", "OUT1"], 3, {"dummy": 1}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.456
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.456")
 
     synth = Synth()
     phys = Phys()
@@ -1024,7 +822,7 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 0.456
+    assert delay == Decimal("0.456")
     netlist.net_leaf_pins.assert_called_once_with(("tile_inst_switch_matrix", "mux0"))
     assert synth.nearest_calls == 1
     assert phys.earliest_calls == 1
@@ -1087,8 +885,8 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             assert follow_steps_to_sentinel == 3
             return ["PHYS_OUT"], 1, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.789
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.789")
 
     synth = Synth()
     phys = Phys()
@@ -1100,7 +898,7 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 0.789
+    assert delay == Decimal("0.789")
     assert synth.nearest_calls == 2
     cache_entry = bare_model.internal_pip_cache["Y"]
     assert cache_entry.swm_nearest_ports_out == ({"Y": ["OUT_REF"]}, ["OUT_REF"])
@@ -1148,8 +946,8 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
             self.earliest_calls += 1
             return ["should_not_be_used"], 0, {}
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 1.234
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("1.234")
 
     synth = Synth()
     phys = Phys()
@@ -1175,7 +973,7 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(
 
     delay = bare_model.internal_pip_delay_physical("A", "Y")
 
-    assert delay == 1.234
+    assert delay == Decimal("1.234")
     netlist.net_leaf_pins.assert_not_called()
     assert synth.nearest_calls == 0
     assert phys.earliest_calls == 0
@@ -1188,7 +986,7 @@ def test_external_pip_delay_structural_output_port_returns_default(
     synth.output_ports = {"NN2BEG[3]"}
     bare_model.hdlnx_tm_synth = synth
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_structural_input_port_no_nearest_returns_default_real_input_branch(  # noqa: E501
@@ -1209,7 +1007,7 @@ def test_external_pip_delay_structural_input_port_no_nearest_returns_default_rea
 
     bare_model.hdlnx_tm_synth = Synth()
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_structural_input_port_uses_single_delay(
@@ -1226,12 +1024,12 @@ def test_external_pip_delay_structural_input_port_uses_single_delay(
         ) -> tuple[list[str], object | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.222
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.222")
 
     bare_model.hdlnx_tm_synth = Synth()
 
-    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.222
+    assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == Decimal("0.222")
 
 
 def test_external_pip_delay_structural_swm_to_swm_without_cache_returns_default(
@@ -1243,7 +1041,9 @@ def test_external_pip_delay_structural_swm_to_swm_without_cache_returns_default(
     bare_model.hdlnx_tm_synth = synth
     bare_model.internal_pip_cache = {}
 
-    assert bare_model.external_pip_delay_structural("SOME_INTERNAL", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("SOME_INTERNAL", "X") == Decimal(
+        "0.001"
+    )
 
 
 def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_delay(
@@ -1257,10 +1057,10 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, src: object, dst: object) -> float:
+        def single_delay(self, src: object, dst: object) -> Decimal:
             assert src == "SWM_OUT_PIN"
             assert dst == "NEXT_INPUT_PIN"
-            return 0.444
+            return Decimal("0.444")
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1274,7 +1074,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
         )
     }
 
-    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == 0.444
+    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == Decimal("0.444")
 
 
 def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_default(
@@ -1288,8 +1088,8 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.0
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.0")
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1303,7 +1103,7 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
         )
     }
 
-    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == 0.001
+    assert bare_model.external_pip_delay_structural("PIP_SRC", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_output_port_returns_default(
@@ -1313,7 +1113,7 @@ def test_external_pip_delay_physical_output_port_returns_default(
     phys.output_ports = {"NN2BEG[3]"}
     bare_model.hdlnx_tm_phys = phys
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_input_branch(  # noqa: E501
@@ -1334,7 +1134,7 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
 
     bare_model.hdlnx_tm_phys = Phys()
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.001")
 
 
 def test_external_pip_delay_physical_input_port_uses_single_delay(
@@ -1351,12 +1151,12 @@ def test_external_pip_delay_physical_input_port_uses_single_delay(
         ) -> tuple[list[str], object | None]:
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.333
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.333")
 
     bare_model.hdlnx_tm_phys = Phys()
 
-    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.333
+    assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == Decimal("0.333")
 
 
 def test_external_pip_delay_physical_swm_to_swm_without_cache_returns_default(
@@ -1368,7 +1168,9 @@ def test_external_pip_delay_physical_swm_to_swm_without_cache_returns_default(
     bare_model.hdlnx_tm_phys = phys
     bare_model.internal_pip_cache = {}
 
-    assert bare_model.external_pip_delay_physical("SOME_INTERNAL", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("SOME_INTERNAL", "X") == Decimal(
+        "0.001"
+    )
 
 
 def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay(
@@ -1382,10 +1184,10 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, src: object, dst: object) -> float:
+        def single_delay(self, src: object, dst: object) -> Decimal:
             assert src == "PHYS_OUT_PIN"
             assert dst == "NEXT_PHYS_INPUT"
-            return 0.555
+            return Decimal("0.555")
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {
@@ -1399,7 +1201,7 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
         )
     }
 
-    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == 0.555
+    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == Decimal("0.555")
 
 
 def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
@@ -1413,8 +1215,8 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def single_delay(self, _src: object, _dst: object) -> float:
-            return 0.0
+        def single_delay(self, _src: object, _dst: object) -> Decimal:
+            return Decimal("0.0")
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {
@@ -1428,74 +1230,101 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
         )
     }
 
-    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == 0.001
+    assert bare_model.external_pip_delay_physical("PIP_SRC", "X") == Decimal("0.001")
 
 
 def test_internal_pip_delay_dispatch_physical(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.PHYSICAL
-    monkeypatch.setattr(bare_model, "internal_pip_delay_physical", lambda _s, _d: 1.23)
     monkeypatch.setattr(
-        bare_model, "internal_pip_delay_structural", lambda _s, _d: 9.99
+        bare_model, "internal_pip_delay_physical", lambda _s, _d: Decimal("1.23")
+    )
+    monkeypatch.setattr(
+        bare_model, "internal_pip_delay_structural", lambda _s, _d: Decimal("9.99")
     )
 
-    assert bare_model.internal_pip_delay("A", "Y") == 1.23
+    assert bare_model.internal_pip_delay("A", "Y") == Decimal("1.23")
 
 
 def test_internal_pip_delay_dispatch_structural(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
-    monkeypatch.setattr(bare_model, "internal_pip_delay_physical", lambda _s, _d: 9.99)
     monkeypatch.setattr(
-        bare_model, "internal_pip_delay_structural", lambda _s, _d: 2.34
+        bare_model, "internal_pip_delay_physical", lambda _s, _d: Decimal("9.99")
+    )
+    monkeypatch.setattr(
+        bare_model, "internal_pip_delay_structural", lambda _s, _d: Decimal("2.34")
     )
 
-    assert bare_model.internal_pip_delay("A", "Y") == 2.34
+    assert bare_model.internal_pip_delay("A", "Y") == Decimal("2.34")
 
 
 def test_external_pip_delay_dispatch_physical(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.PHYSICAL
-    monkeypatch.setattr(bare_model, "external_pip_delay_physical", lambda _s, _d: 3.45)
     monkeypatch.setattr(
-        bare_model, "external_pip_delay_structural", lambda _s, _d: 9.99
+        bare_model, "external_pip_delay_physical", lambda _s, _d: Decimal("3.45")
+    )
+    monkeypatch.setattr(
+        bare_model, "external_pip_delay_structural", lambda _s, _d: Decimal("9.99")
     )
 
-    assert bare_model.external_pip_delay("A", "Y") == 3.45
+    assert bare_model.external_pip_delay("A", "Y") == Decimal("3.45")
 
 
 def test_external_pip_delay_dispatch_structural(
     bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
-    monkeypatch.setattr(bare_model, "external_pip_delay_physical", lambda _s, _d: 9.99)
     monkeypatch.setattr(
-        bare_model, "external_pip_delay_structural", lambda _s, _d: 4.56
+        bare_model, "external_pip_delay_physical", lambda _s, _d: Decimal("9.99")
+    )
+    monkeypatch.setattr(
+        bare_model, "external_pip_delay_structural", lambda _s, _d: Decimal("4.56")
     )
 
-    assert bare_model.external_pip_delay("A", "Y") == 4.56
+    assert bare_model.external_pip_delay("A", "Y") == Decimal("4.56")
 
 
-def test_pip_delay_dispatch_internal_applies_scaling_and_rounding(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("internal", [True, False], ids=["internal", "external"])
+@pytest.mark.parametrize(
+    ("delay", "scale", "expected"),
+    [
+        pytest.param(Decimal("1.234"), Decimal("2.5"), "3.085", id="exact"),
+        pytest.param(Decimal("0.333"), Decimal(3), "0.999", id="integer-scale"),
+        pytest.param(Decimal("0.25"), Decimal("2.0"), "0.5", id="trailing-zeros"),
+        pytest.param(Decimal("1.5"), Decimal(2), "3.0", id="integral"),
+        pytest.param(Decimal("0.0"), Decimal(1), "0.0", id="zero"),
+        pytest.param(Decimal("0.123"), Decimal("1.05"), "0.12915", id="sub-ps-scale"),
+        pytest.param(Decimal("0.333"), Decimal("0.5"), "0.1665", id="sub-ps-half"),
+        pytest.param(Decimal("1.23456"), Decimal(1), "1.23456", id="sub-ps-sdf"),
+    ],
+)
+def test_pip_delay_scales_exactly(
+    bare_model: FABulousTileTimingModel,
+    mocker: MockerFixture,
+    internal: bool,
+    delay: Decimal,
+    scale: Decimal,
+    expected: str,
 ) -> None:
-    bare_model.tm_config.delay_scaling_factor = 2.5
-    monkeypatch.setattr(bare_model, "is_tile_internal_pip", lambda _s, _d: True)
-    monkeypatch.setattr(bare_model, "internal_pip_delay", lambda _s, _d: 1.23456)
-    monkeypatch.setattr(bare_model, "external_pip_delay", lambda _s, _d: 9.99)
+    bare_model.tm_config.delay_scaling_factor = scale
+    mocker.patch.object(bare_model, "is_tile_internal_pip", return_value=internal)
+    mocker.patch.object(bare_model, "internal_pip_delay", return_value=delay)
+    mocker.patch.object(bare_model, "external_pip_delay", return_value=delay)
 
-    assert bare_model.pip_delay("A", "Y") == round(1.23456 * 2.5, 3)
+    assert str(bare_model.pip_delay("A", "Y")) == expected
 
 
-def test_pip_delay_dispatch_external_applies_scaling_and_rounding(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+def test_pip_delay_float_scale_raises(
+    bare_model: FABulousTileTimingModel, mocker: MockerFixture
 ) -> None:
-    bare_model.tm_config.delay_scaling_factor = 3.0
-    monkeypatch.setattr(bare_model, "is_tile_internal_pip", lambda _s, _d: False)
-    monkeypatch.setattr(bare_model, "internal_pip_delay", lambda _s, _d: 9.99)
-    monkeypatch.setattr(bare_model, "external_pip_delay", lambda _s, _d: 0.33333)
+    bare_model.tm_config.delay_scaling_factor = 2.0  # ty: ignore[invalid-assignment]
+    mocker.patch.object(bare_model, "is_tile_internal_pip", return_value=True)
+    mocker.patch.object(bare_model, "internal_pip_delay", return_value=Decimal("0.1"))
 
-    assert bare_model.pip_delay("A", "Y") == round(0.33333 * 3.0, 3)
+    with pytest.raises(TypeError):
+        bare_model.pip_delay("A", "Y")

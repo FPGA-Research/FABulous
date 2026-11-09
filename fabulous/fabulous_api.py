@@ -25,8 +25,6 @@ from fabulous.fabric_cad.timing_model.characterize import characterize
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
-    TimingModelStaTools,
-    TimingModelSynthTools,
 )
 
 # Importing Modules from FABulous Framework.
@@ -827,7 +825,6 @@ class FABulous_API:
         mode: TimingModelMode,
         pip_file: Path,
         bel_file: Path,
-        debug: bool,
         manual_config: TimingModelConfig | None = None,
     ) -> TimingModelConfig:
         """Characterise the fabric and write its nextpnr timing files.
@@ -840,9 +837,6 @@ class FABulous_API:
             Destination of the pip delays (`pips.txt`).
         bel_file : Path
             Destination of the BEL timing blocks (`bel.v3.txt`).
-        debug : bool
-            Whether to enable debug mode for the timing model,
-            which may provide more verbose logging.
         manual_config : TimingModelConfig | None
             Optional manual configuration for the timing model.
             If provided, this configuration will be used instead of the default
@@ -923,12 +917,7 @@ class FABulous_API:
                 techmap_files=techmap_files,
                 pdk_name=pdk,
                 min_buf_cell_and_ports=min_buf_cell_and_ports,
-                synth_executable=get_context().yosys_path,
-                synth_program=TimingModelSynthTools.YOSYS,
-                sta_executable=get_context().opensta_path,
-                sta_program=TimingModelStaTools.OPENSTA,
                 mode=mode,
-                debug=debug,
             )
 
         write_timing_files(

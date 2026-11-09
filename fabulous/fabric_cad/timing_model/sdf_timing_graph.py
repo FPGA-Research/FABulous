@@ -1,43 +1,326 @@
-"""SDF to Timing Graph Conversion Module.
+"""Timing graph built from an SDF file.
 
-This module provides functionality to convert SDF files into timing graphs represented
-as NetworkX directed graphs. It is the main class used to create timing graphs from SDF
-files. It is derived from SDFTimingGraphBase which provides basic functionality.
-
-New algorithms can be added here. Note that this is a low level module focused on graph
-algorithms based on the SDF, and should not contain high-level algorithms based on
-verilog netlists.
+This module is the only user of `sdf_toolkit`. It parses the SDF, turns its IOPATH and
+INTERCONNECT entries into a `networkx` graph of pins, and answers the path queries the
+FABulous timing model needs. `sdf_toolkit` parses SDF numbers as `float`; each one is
+converted to `Decimal` here, once, so all timing arithmetic is exact.
 """
 
 from dataclasses import replace
+from decimal import Decimal
 from functools import cached_property
 from itertools import islice, pairwise
 from math import isclose
+from pathlib import Path
 
 import networkx as nx
 from loguru import logger
+from sdf_toolkit import parse_sdf_file
+from sdf_toolkit.core.model import BaseEntry, DelayPaths, EntryType, Values
 
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import (
-    SDFTimingGraphBase,
-)
+from fabulous.fabric_cad.timing_db import ns
 from fabulous.fabric_cad.timing_model.models import (
     Component,
+    DelayType,
     SDFCellType,
+    SDFDelayPaths,
     SDFPathTiming,
     SDFPathType,
     SDFTimingTriplet,
 )
 
 
-class SDFTimingGraph(SDFTimingGraphBase):
-    """Class to represent a timing graph generated from an SDF file.
+def _triplet(values: Values | None) -> SDFTimingTriplet | None:
+    """Convert an `sdf_toolkit` value triple into the timing model's triple."""
+    if values is None:
+        return None
+    return SDFTimingTriplet(
+        minimum=None if values.min is None else ns(values.min),
+        typical=None if values.avg is None else ns(values.avg),
+        maximum=None if values.max is None else ns(values.max),
+    )
 
-    It extends SDFTimingGraphBase to allow for additional algorithms specific to timing
-    analysis on the SDF timing graph. Inherits all attributes and methods from
-    SDFTimingGraphBase.
+
+def _delay_paths(delay_paths: DelayPaths) -> SDFDelayPaths:
+    """Keep the nominal, fast and slow triples of one SDF entry."""
+    return SDFDelayPaths(
+        nominal=_triplet(delay_paths.nominal),
+        fast=_triplet(delay_paths.fast),
+        slow=_triplet(delay_paths.slow),
+    )
+
+
+def _scalar_delay(delay_paths: SDFDelayPaths, kind: DelayType) -> Decimal:
+    """Reduce the delay triples of one entry to the graph edge weight.
+
+    A nominal triple gives the larger of its minimum and maximum. Otherwise the fast
+    and slow triples are combined as `kind` selects. Missing values count as zero.
+
+    Parameters
+    ----------
+    delay_paths : SDFDelayPaths
+        Delay triples of the entry.
+    kind : DelayType
+        Combination of the fast and slow triples.
+
+    Returns
+    -------
+    Decimal
+        The edge weight.
+
+    Raises
+    ------
+    ValueError
+        If `kind` is not a known delay type.
+    """
+    empty = SDFTimingTriplet(minimum=None, typical=None, maximum=None)
+    if delay_paths.nominal is not None:
+        return max(
+            delay_paths.nominal.minimum or Decimal(0),
+            delay_paths.nominal.maximum or Decimal(0),
+        )
+
+    fast = delay_paths.fast or empty
+    slow = delay_paths.slow or empty
+    fast_min = fast.minimum or Decimal(0)
+    fast_max = fast.maximum or Decimal(0)
+    slow_min = slow.minimum or Decimal(0)
+    slow_max = slow.maximum or Decimal(0)
+
+    match kind:
+        case DelayType.MIN_ALL:
+            return min(fast_min, fast_max, slow_min, slow_max)
+        case DelayType.MAX_ALL:
+            return max(fast_min, fast_max, slow_min, slow_max)
+        case DelayType.AVG_ALL:
+            return (fast_min + fast_max + slow_min + slow_max) / 4
+        case DelayType.AVG_FAST:
+            return (fast_min + fast_max) / 2
+        case DelayType.AVG_SLOW:
+            return (slow_min + slow_max) / 2
+        case DelayType.MAX_FAST:
+            return max(fast_min, fast_max)
+        case DelayType.MAX_SLOW:
+            return max(slow_min, slow_max)
+        case DelayType.MIN_FAST:
+            return min(fast_min, fast_max)
+        case DelayType.MIN_SLOW:
+            return min(slow_min, slow_max)
+        case _:
+            raise ValueError(f"Unknown delay type: {kind!r}")
+
+
+def _check_limit(check: Component) -> SDFTimingTriplet:
+    """Return the limit of a setup or hold check, which the SDF gives as one triple.
+
+    Parameters
+    ----------
+    check : Component
+        A SETUP or HOLD entry.
+
+    Returns
+    -------
+    SDFTimingTriplet
+        The check limit.
+
+    Raises
+    ------
+    ValueError
+        If the check has no single limit triple.
+    """
+    if check.delay_paths is None or check.delay_paths.nominal is None:
+        raise ValueError(
+            f"Timing check {check.connection_string!r} of {check.from_cell_instance!r} "
+            "has no single limit value."
+        )
+    return check.delay_paths.nominal
+
+
+class SdfTimingGraph:
+    """Timing graph of an SDF file, with path queries for timing extraction.
+
+    Each IOPATH and INTERCONNECT entry becomes an edge between hierarchical pin names.
+    A SETUP or HOLD check also becomes a zero-delay edge from the data pin to the
+    clock pin, so a path can cross a register from its data input through its
+    clock-to-output arc. All entries of each instance, timing checks included, are
+    kept in `instances`.
+
+    Parameters
+    ----------
+    sdf_file : Path
+        Path to the SDF file.
+    delay_type : DelayType
+        How the delay triples of an entry reduce to its edge weight.
+
+    Attributes
+    ----------
+    graph : nx.DiGraph
+        Pin graph. Each edge holds its `weight` and its `component`.
+    reverse_graph : nx.DiGraph
+        `graph` with every edge reversed.
+    hier_sep : str
+        Hierarchy divider of the SDF.
+    instances : dict[str, list[Component]]
+        All non-INTERCONNECT entries of each instance.
+    input_ports : list[str]
+        Top-level pins with no incoming edge.
+    output_ports : list[str]
+        Top-level pins with no outgoing edge.
     """
 
-    ### Public Methods ###
+    graph: nx.DiGraph
+    reverse_graph: nx.DiGraph
+    hier_sep: str
+    instances: dict[str, list[Component]]
+    input_ports: list[str]
+    output_ports: list[str]
+
+    def __init__(
+        self, sdf_file: Path, delay_type: DelayType = DelayType.MAX_ALL
+    ) -> None:
+        sdf = parse_sdf_file(sdf_file)
+        self.hier_sep = sdf.header.divider or "/"
+        self.instances = {}
+        # Cell edges go in before interconnect edges; the node and edge order this
+        # gives decides which of several equally short paths a query returns first.
+        cell_edges: list[Component] = []
+        interconnects: list[Component] = []
+        for cell_name, cell_instances in sdf.cells.items():
+            for instance_name, entries in cell_instances.items():
+                self.instances[instance_name] = []
+                for entry_name, entry in entries.items():
+                    component = self._component(
+                        entry=entry,
+                        entry_name=entry_name,
+                        cell_name=cell_name,
+                        instance_name=instance_name,
+                        delay_type=delay_type,
+                    )
+                    if entry.type == EntryType.INTERCONNECT:
+                        interconnects.append(component)
+                        continue
+                    self.instances[instance_name].append(component)
+                    if entry.type == EntryType.IOPATH:
+                        cell_edges.append(component)
+                    elif entry.type in (EntryType.SETUP, EntryType.HOLD):
+                        # A check runs from the clock to the data pin. The edge
+                        # runs from data to clock and carries no delay, so the
+                        # path continues through the clock-to-output IOPATH.
+                        cell_edges.append(
+                            replace(
+                                component,
+                                c_type=SDFCellType.IOPATH,
+                                connection_string=entry_name.split("_", 1)[-1],
+                                from_cell_pin=component.to_cell_pin,
+                                to_cell_pin=component.from_cell_pin,
+                                delay=Decimal(0),
+                                delay_paths=None,
+                                from_pin_edge=None,
+                                to_pin_edge=None,
+                            )
+                        )
+
+        self.graph = nx.DiGraph()
+        for component in [*cell_edges, *interconnects]:
+            self.graph.add_edge(
+                self._node(component.from_cell_instance, component.from_cell_pin),
+                self._node(component.to_cell_instance, component.to_cell_pin),
+                weight=component.delay,
+                component=component,
+            )
+        self.reverse_graph = self.graph.reverse(copy=True)
+        self.input_ports = list(
+            {
+                node
+                for node in self.graph.nodes
+                if self.graph.in_degree(node) == 0 and self.hier_sep not in node
+            }
+        )
+        self.output_ports = list(
+            {
+                node
+                for node in self.graph.nodes
+                if self.graph.out_degree(node) == 0 and self.hier_sep not in node
+            }
+        )
+
+    def _component(
+        self,
+        *,
+        entry: BaseEntry,
+        entry_name: str,
+        cell_name: str,
+        instance_name: str,
+        delay_type: DelayType,
+    ) -> Component:
+        """Convert one parsed SDF entry into a timing model component.
+
+        Parameters
+        ----------
+        entry : BaseEntry
+            Parsed SDF entry.
+        entry_name : str
+            Unique name of the entry within its instance.
+        cell_name : str
+            Cell type of the instance.
+        instance_name : str
+            Instance holding the entry, empty for the top cell.
+        delay_type : DelayType
+            How the delay triples reduce to the edge weight.
+
+        Returns
+        -------
+        Component
+            The entry with typed delays. INTERCONNECT pins are split into instance
+            and pin at the last hierarchy divider.
+
+        Raises
+        ------
+        ValueError
+            If the entry has no pins or no delays, or its type is not one the timing
+            model handles.
+        """
+        if entry.from_pin is None or entry.to_pin is None:
+            raise ValueError(
+                f"SDF entry {entry_name!r} of instance {instance_name!r} has no pins."
+            )
+        if entry.delay_paths is None:
+            raise ValueError(
+                f"SDF entry {entry_name!r} of instance {instance_name!r} has no delays."
+            )
+        if entry.type == EntryType.INTERCONNECT:
+            from_instance, _, from_pin = entry.from_pin.rpartition(self.hier_sep)
+            to_instance, _, to_pin = entry.to_pin.rpartition(self.hier_sep)
+        else:
+            from_instance, from_pin = instance_name, entry.from_pin
+            to_instance, to_pin = instance_name, entry.to_pin
+        delay_paths = _delay_paths(entry.delay_paths)
+        return Component(
+            c_type=SDFCellType(entry.type.value.upper()),
+            cell_name=cell_name,
+            connection_string=entry_name,
+            from_cell_instance=from_instance,
+            to_cell_instance=to_instance,
+            from_cell_pin=from_pin,
+            to_cell_pin=to_pin,
+            delay=_scalar_delay(delay_paths, delay_type),
+            delay_paths=delay_paths,
+            is_one_cell_instance=from_instance == to_instance,
+            is_timing_check=entry.is_timing_check,
+            is_timing_env=entry.is_timing_env,
+            is_absolute=entry.is_absolute,
+            is_incremental=entry.is_incremental,
+            is_cond=entry.is_cond,
+            cond_equation=entry.cond_equation,
+            from_pin_edge=None
+            if entry.from_pin_edge is None
+            else entry.from_pin_edge.value,
+            to_pin_edge=None if entry.to_pin_edge is None else entry.to_pin_edge.value,
+        )
+
+    def _node(self, instance: str, pin: str) -> str:
+        """Return the graph node of a pin, which is the pin alone at the top level."""
+        return f"{instance}{self.hier_sep}{pin}".removeprefix(self.hier_sep)
 
     def has_path(self, source: str, target: str) -> bool:
         """Check if there is a path from source to target in the timing graph.
@@ -47,21 +330,16 @@ class SDFTimingGraph(SDFTimingGraphBase):
         source : str
             The source node.
         target : str
-
             The target node.
 
         Returns
         -------
         bool
             True if a path exists, False otherwise.
-
-        Examples
-        --------
-            exists = sdf_graph.has_path("nodeA/pin", "nodeB/pin")
         """
         return nx.has_path(self.graph, source=source, target=target)
 
-    def single_delay(self, source: str, target: str) -> float:
+    def single_delay(self, source: str, target: str) -> Decimal:
         """Find path with delay between source and target nodes in the timing graph.
 
         Note: The delay value depends on delay_type_str when creating the graph.
@@ -80,7 +358,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         Returns
         -------
-        float
+        Decimal
             The total delay between the source and target nodes.
 
         Examples
@@ -90,10 +368,12 @@ class SDFTimingGraph(SDFTimingGraphBase):
         logger.warning(
             "single_delay() is deprecated. Use query_timing_paths() instead."
         )
-        length: float = nx.dijkstra_path_length(
+        length: Decimal | int = nx.dijkstra_path_length(
             self.graph, source=source, target=target, weight="weight"
         )
-        return length
+        # networkx returns the int 0 for an empty path. Adding to Decimal(0) gives a
+        # Decimal and raises TypeError on a float weight.
+        return Decimal(0) + length
 
     def query_timing_paths(
         self,
@@ -476,12 +756,12 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         timing_checks: list[Component] = self._path_timing_checks(components)
         setup: tuple[SDFTimingTriplet, ...] = tuple(
-            self._timing_triplet(component.delay_paths["nominal"])
+            _check_limit(component)
             for component in timing_checks
             if component.c_type == SDFCellType.SETUP
         )
         hold: tuple[SDFTimingTriplet, ...] = tuple(
-            self._timing_triplet(component.delay_paths["nominal"])
+            _check_limit(component)
             for component in timing_checks
             if component.c_type == SDFCellType.HOLD
         )
@@ -579,7 +859,9 @@ class SDFTimingGraph(SDFTimingGraphBase):
         rise_values: list[SDFTimingTriplet] = []
         fall_values: list[SDFTimingTriplet] = []
         high_impedance_values: list[SDFTimingTriplet | None] = []
-        zero_delay = SDFTimingTriplet(minimum=0.0, typical=0.0, maximum=0.0)
+        zero_delay = SDFTimingTriplet(
+            minimum=Decimal(0), typical=Decimal(0), maximum=Decimal(0)
+        )
         for component in components:
             if component.delay_paths is None:
                 rise_values.append(zero_delay)
@@ -587,26 +869,34 @@ class SDFTimingGraph(SDFTimingGraphBase):
                 high_impedance_values.append(zero_delay)
                 continue
 
-            delay_path_keys: set[str] = set(component.delay_paths)
-            if delay_path_keys == {"nominal"}:
-                rise_delay = self._timing_triplet(component.delay_paths["nominal"])
-                fall_delay = rise_delay
-                high_impedance_delay: SDFTimingTriplet | None = rise_delay
-            elif delay_path_keys == {"fast", "slow"}:
-                rise_delay = self._timing_triplet(component.delay_paths["fast"])
-                fall_delay = self._timing_triplet(component.delay_paths["slow"])
-                high_impedance_delay = None
-            elif delay_path_keys == {"fast", "nominal", "slow"}:
-                rise_delay = self._timing_triplet(component.delay_paths["fast"])
-                fall_delay = self._timing_triplet(component.delay_paths["nominal"])
-                high_impedance_delay = self._timing_triplet(
-                    component.delay_paths["slow"]
-                )
-            else:
-                raise ValueError(
-                    f"Unsupported SDF delay-path shape {delay_path_keys!r} for "
-                    f"component {component.connection_string!r}."
-                )
+            match component.delay_paths:
+                case SDFDelayPaths(
+                    nominal=SDFTimingTriplet() as nominal, fast=None, slow=None
+                ):
+                    rise_delay = nominal
+                    fall_delay = nominal
+                    high_impedance_delay: SDFTimingTriplet | None = nominal
+                case SDFDelayPaths(
+                    nominal=None,
+                    fast=SDFTimingTriplet() as fast,
+                    slow=SDFTimingTriplet() as slow,
+                ):
+                    rise_delay = fast
+                    fall_delay = slow
+                    high_impedance_delay = None
+                case SDFDelayPaths(
+                    nominal=SDFTimingTriplet() as nominal,
+                    fast=SDFTimingTriplet() as fast,
+                    slow=SDFTimingTriplet() as slow,
+                ):
+                    rise_delay = fast
+                    fall_delay = nominal
+                    high_impedance_delay = slow
+                case _:
+                    raise ValueError(
+                        f"Unsupported SDF delay-path shape {component.delay_paths!r} "
+                        f"for component {component.connection_string!r}."
+                    )
             rise_values.append(rise_delay)
             fall_values.append(fall_delay)
             high_impedance_values.append(high_impedance_delay)
@@ -723,28 +1013,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
         )
         return effective_setup, effective_hold
 
-    def _timing_triplet(
-        self,
-        delay_values: dict[str, float | None],
-    ) -> SDFTimingTriplet:
-        """Convert one parser delay triple into the public timing model.
-
-        Parameters
-        ----------
-        delay_values : dict[str, float | None]
-            Parser dictionary containing `min`, `avg`, and `max` values.
-
-        Returns
-        -------
-        SDFTimingTriplet
-            Normalized minimum, typical, and maximum delay values.
-        """
-        return SDFTimingTriplet(
-            minimum=delay_values.get("min"),
-            typical=delay_values.get("avg"),
-            maximum=delay_values.get("max"),
-        )
-
     def _sum_timing_triplets(
         self,
         values: list[SDFTimingTriplet],
@@ -762,22 +1030,31 @@ class SDFTimingGraph(SDFTimingGraphBase):
             Component-wise path sum. A field remains `None` if any traversed
             component does not provide that field.
         """
-        minimum_values: list[float | None] = [value.minimum for value in values]
-        typical_values: list[float | None] = [value.typical for value in values]
-        maximum_values: list[float | None] = [value.maximum for value in values]
+        minimum_values: list[Decimal | None] = [value.minimum for value in values]
+        typical_values: list[Decimal | None] = [value.typical for value in values]
+        maximum_values: list[Decimal | None] = [value.maximum for value in values]
         return SDFTimingTriplet(
             minimum=(
-                sum(value for value in minimum_values if value is not None)
+                sum(
+                    (value for value in minimum_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in minimum_values)
                 else None
             ),
             typical=(
-                sum(value for value in typical_values if value is not None)
+                sum(
+                    (value for value in typical_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in typical_values)
                 else None
             ),
             maximum=(
-                sum(value for value in maximum_values if value is not None)
+                sum(
+                    (value for value in maximum_values if value is not None),
+                    start=Decimal(0),
+                )
                 if all(value is not None for value in maximum_values)
                 else None
             ),
@@ -787,7 +1064,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         self,
         rise: SDFTimingTriplet,
         fall: SDFTimingTriplet,
-    ) -> tuple[float | None, float | None, float | None, float | None]:
+    ) -> tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
         """Return conservative extrema across rise and fall transitions.
 
         Parameters
@@ -799,26 +1076,26 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         Returns
         -------
-        tuple[float | None, float | None, float | None, float | None]
+        tuple[Decimal | None, Decimal | None, Decimal | None, Decimal | None]
             Minimum, typical minimum, typical maximum, and maximum values. An
             extremum is `None` when either transition does not provide that corner.
         """
-        minimum: float | None = (
+        minimum: Decimal | None = (
             min(rise.minimum, fall.minimum)
             if rise.minimum is not None and fall.minimum is not None
             else None
         )
-        typical_minimum: float | None = (
+        typical_minimum: Decimal | None = (
             min(rise.typical, fall.typical)
             if rise.typical is not None and fall.typical is not None
             else None
         )
-        typical_maximum: float | None = (
+        typical_maximum: Decimal | None = (
             max(rise.typical, fall.typical)
             if rise.typical is not None and fall.typical is not None
             else None
         )
-        maximum: float | None = (
+        maximum: Decimal | None = (
             max(rise.maximum, fall.maximum)
             if rise.maximum is not None and fall.maximum is not None
             else None
@@ -827,24 +1104,24 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
     def _sum_and_subtract(
         self,
-        first_addend: float | None,
-        second_addend: float | None,
-        subtrahend: float | None,
-    ) -> float | None:
+        first_addend: Decimal | None,
+        second_addend: Decimal | None,
+        subtrahend: Decimal | None,
+    ) -> Decimal | None:
         """Add two timing values and subtract a third when all are available.
 
         Parameters
         ----------
-        first_addend : float | None
+        first_addend : Decimal | None
             First value to add.
-        second_addend : float | None
+        second_addend : Decimal | None
             Second value to add.
-        subtrahend : float | None
+        subtrahend : Decimal | None
             Value to subtract.
 
         Returns
         -------
-        float | None
+        Decimal | None
             Calculated value, or `None` when any operand is unavailable.
         """
         if first_addend is None or second_addend is None or subtrahend is None:

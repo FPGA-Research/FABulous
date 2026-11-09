@@ -1,11 +1,11 @@
 """Tests for the Jinja-rendered tool scripts and their Python-side wiring.
 
 Covers the Yosys synthesis and OpenSTA SDF templates directly (exact rendered
-text) and the `analyze` wrapper that normalizes its inputs and feeds the rendered
-script to the tool.
+text) and the `synthesize_gate_level` and `write_sdf` wrappers that check their
+files and feed the rendered script to the tool.
 """
 
-import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -123,46 +123,211 @@ def test_opensta_template_with_spef() -> None:
     )
 
 
-def test_analyze_normalizes_inputs(mocker: MockerFixture, tmp_path: Path) -> None:
-    run = mocker.patch.object(OpenStaTool, "run")
-    lib = tmp_path / "x.lib"
-    lib.write_text("lib")
-    netlist = tmp_path / "n.v"
-    netlist.write_text("module n(); endmodule")
+def make_files(directory: Path, names: list[str]) -> list[Path]:
+    """Write one non-empty file per name and return their paths."""
+    paths = [directory / name for name in names]
+    for path in paths:
+        path.write_text("x")
+    return paths
 
-    sdf = Path(tempfile.gettempdir()) / "sta_NORM_tmp.sdf"
-    if sdf.exists():
-        sdf.unlink()
 
-    # run is mocked, so produce the SDF file analyze reads back.
-    def write_sdf(*_args: object, **_kwargs: object) -> None:
-        sdf.write_text("(DELAYFILE)")
+def synthesize(
+    directory: Path,
+    *,
+    tiehi_cell_and_port: str | None = None,
+    tielo_cell_and_port: str | None = None,
+    min_buf_cell_and_ports: str = "BUF A Y",
+) -> None:
+    """Run `YosysTool.synthesize_gate_level` on files in `directory`."""
+    YosysTool.synthesize_gate_level(
+        verilog_files=[directory / "rtl.v"],
+        liberty_files=[directory / "a.lib"],
+        top_name="TOP",
+        netlist_file=directory / "out.v",
+        techmap_files=[directory / "map.v"],
+        tiehi_cell_and_port=tiehi_cell_and_port,
+        tielo_cell_and_port=tielo_cell_and_port,
+        min_buf_cell_and_ports=min_buf_cell_and_ports,
+    )
 
-    try:
-        run.side_effect = write_sdf
-        result = OpenStaTool.analyze(netlist, lib, "NORM")
 
-        assert result == sdf
-        assert run.call_args.kwargs["stdin_data"] == OpenStaTool.render_template(
+def write_sdf(directory: Path, *, spef_files: list[Path] | None = None) -> None:
+    """Run `OpenStaTool.write_sdf` on files in `directory`."""
+    OpenStaTool.write_sdf(
+        netlist_file=directory / "n.v",
+        liberty_files=[directory / "a.lib"],
+        top_name="TOP",
+        spef_files=[] if spef_files is None else spef_files,
+        sdf_file=directory / "out.sdf",
+    )
+
+
+@pytest.mark.parametrize(
+    ("tie_cells", "min_buf"),
+    [
+        pytest.param((None, None), "BUF A Y", id="no-tie-cells"),
+        pytest.param(("HI Y", "LO Y"), "BUF A Y", id="tie-cells"),
+    ],
+)
+def test_synthesize_gate_level_runs_the_script_and_strips_single_bit_ranges(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    tie_cells: tuple[str | None, str | None],
+    min_buf: str,
+) -> None:
+    rtl, lib, techmap = make_files(tmp_path, ["rtl.v", "a.lib", "map.v"])
+    netlist = tmp_path / "out.v"
+    run = mocker.patch.object(
+        YosysTool,
+        "run",
+        side_effect=lambda **_: netlist.write_text("wire [0:0] a;\nwire [1:0] b;\n"),
+    )
+
+    synthesize(
+        tmp_path,
+        tiehi_cell_and_port=tie_cells[0],
+        tielo_cell_and_port=tie_cells[1],
+        min_buf_cell_and_ports=min_buf,
+    )
+
+    run.assert_called_once_with(
+        args=["-C"],
+        stdin_data=YosysTool.render_template(
+            "yosys_synth.j2",
+            liberty_files=[lib],
+            verilog_files=[rtl],
+            techmap_files=[techmap],
+            top_name="TOP",
+            flat=False,
+            tiehi_cell_and_port=tie_cells[0],
+            tielo_cell_and_port=tie_cells[1],
+            min_buf_cell_and_ports=min_buf,
+            netlist_path=netlist,
+        ),
+    )
+    assert netlist.read_text() == "wire   a;\nwire [1:0] b;\n"
+
+
+@pytest.mark.parametrize(
+    "spef_names", [pytest.param([], id="no-spef"), pytest.param(["r.spef"], id="spef")]
+)
+def test_write_sdf_runs_the_script(
+    mocker: MockerFixture, tmp_path: Path, spef_names: list[str]
+) -> None:
+    netlist, lib = make_files(tmp_path, ["n.v", "a.lib"])
+    spef_files = make_files(tmp_path, spef_names)
+    sdf = tmp_path / "out.sdf"
+    run = mocker.patch.object(
+        OpenStaTool, "run", side_effect=lambda **_: sdf.write_text("(DELAYFILE)")
+    )
+
+    write_sdf(tmp_path, spef_files=spef_files)
+
+    run.assert_called_once_with(
+        stdin_data=OpenStaTool.render_template(
             "opensta_sdf.j2",
             liberty_files=[lib],
             verilog_netlist=netlist,
-            top_name="NORM",
-            spef_files=None,
+            top_name="TOP",
+            spef_files=spef_files,
             sdf_path=sdf,
         )
-    finally:
-        sdf.unlink(missing_ok=True)
+    )
 
 
-def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None:
-    mocker.patch.object(OpenStaTool, "run")
-    sdf = Path(tempfile.gettempdir()) / "sta_EMPTY_tmp.sdf"
-    sdf.write_text("")
+@pytest.mark.parametrize(
+    ("tool", "call", "inputs", "output", "message"),
+    [
+        pytest.param(
+            YosysTool,
+            synthesize,
+            ["rtl.v", "a.lib", "map.v"],
+            "out.v",
+            "empty gate-level netlist",
+            id="yosys",
+        ),
+        pytest.param(
+            OpenStaTool,
+            write_sdf,
+            ["n.v", "a.lib"],
+            "out.sdf",
+            "empty SDF file",
+            id="opensta",
+        ),
+    ],
+)
+def test_empty_tool_output_raises(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    tool: type[Tool],
+    call: Callable[[Path], None],
+    inputs: list[str],
+    output: str,
+    message: str,
+) -> None:
+    make_files(tmp_path, inputs)
+    mocker.patch.object(
+        tool, "run", side_effect=lambda **_: (tmp_path / output).write_text("")
+    )
 
-    with pytest.raises(RuntimeError, match="No content in SDF file"):
-        OpenStaTool.analyze(tmp_path / "n.v", tmp_path / "x.lib", "EMPTY")
-    assert not sdf.exists()
+    with pytest.raises(RuntimeError, match=message):
+        call(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("tool", "call", "inputs", "output"),
+    [
+        pytest.param(
+            YosysTool, synthesize, ["rtl.v", "a.lib", "map.v"], "out.v", id="yosys"
+        ),
+        pytest.param(OpenStaTool, write_sdf, ["n.v", "a.lib"], "out.sdf", id="opensta"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("damage", "error"),
+    [
+        pytest.param("missing", FileNotFoundError, id="missing-input"),
+        pytest.param("empty", ValueError, id="empty-input"),
+        pytest.param("stale-output", FileExistsError, id="stale-output"),
+    ],
+)
+def test_bad_tool_files_raise_before_running(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    tool: type[Tool],
+    call: Callable[[Path], None],
+    inputs: list[str],
+    output: str,
+    damage: str,
+    error: type[Exception],
+) -> None:
+    paths = make_files(tmp_path, inputs)
+    match damage:
+        case "missing":
+            paths[-1].unlink()
+        case "empty":
+            paths[-1].write_text("")
+        case "stale-output":
+            (tmp_path / output).write_text("old")
+    run = mocker.patch.object(tool, "run")
+
+    with pytest.raises(error):
+        call(tmp_path)
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("tiehi", "tielo"), [("HI Y", None), (None, "LO Y")], ids=["hi-only", "lo-only"]
+)
+def test_synthesize_gate_level_needs_both_tie_cells(
+    mocker: MockerFixture, tmp_path: Path, tiehi: str | None, tielo: str | None
+) -> None:
+    make_files(tmp_path, ["rtl.v", "a.lib", "map.v"])
+    run = mocker.patch.object(YosysTool, "run")
+
+    with pytest.raises(ValueError, match="specified together"):
+        synthesize(tmp_path, tiehi_cell_and_port=tiehi, tielo_cell_and_port=tielo)
+    run.assert_not_called()
 
 
 @pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])
