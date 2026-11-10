@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, BelRole, HDLType
 from fabulous.fabric_definition.port import BelPort
+from fabulous.fabric_definition.timing import BelArcs
 
 
 @dataclass
@@ -106,6 +107,9 @@ class Bel:
         The `UserCLK` clock port, or None when the BEL has none.
     role : BelRole
         How place and route treats the BEL, from its `ROLE` HDL attribute.
+    arcs : BelArcs | None
+        Timing arcs of the BEL, set by the placeholder timing or by
+        characterisation. None until one of them ran. Not part of equality.
 
     Raises
     ------
@@ -135,6 +139,7 @@ class Bel:
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
     role: BelRole = BelRole.OTHER
+    arcs: BelArcs | None = field(default=None, compare=False)
 
     def __init__(
         self,
@@ -204,6 +209,7 @@ class Bel:
         self.carry = carry
         self.localShared = localShared
         self.role = role
+        self.arcs = None
 
     @property
     def is_fabric_pin(self) -> bool:

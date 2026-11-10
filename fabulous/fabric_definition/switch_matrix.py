@@ -8,7 +8,8 @@ lives in `fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 """
 
 import re
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Self
 
@@ -18,6 +19,7 @@ from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefini
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_definition.port import TilePort
+from fabulous.fabric_definition.timing import Ns, SwitchPip
 
 
 def switch_matrix_signal_order(
@@ -83,12 +85,29 @@ class SwitchMatrix:
     hdl_config_bits : int | None
         Config-bit count declared by a hand-written HDL matrix. None for parsed
         matrices, whose `no_config_bits` is derived from `connections` instead.
+    pip_delays : Mapping[SwitchPip, Ns] | None
+        Delay of each pip, set by the placeholder timing or by characterisation
+        through `dataclasses.replace`. None until one of them ran. Not part of
+        equality.
     """
 
     matrix_file: Path
     connections: dict[str, list[str]]
     preserve_list_order: bool = False
     hdl_config_bits: int | None = None
+    pip_delays: Mapping[SwitchPip, Ns] | None = field(default=None, compare=False)
+
+    def pips(self) -> Iterator[SwitchPip]:
+        """Yield the pips of the switch matrix in `connections` order.
+
+        Yields
+        ------
+        SwitchPip
+            One pip per mux input, from that input to the mux output.
+        """
+        for dst, sources in self.connections.items():
+            for src in sources:
+                yield SwitchPip(src=src, dst=dst)
 
     @property
     def no_config_bits(self) -> int:

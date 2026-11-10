@@ -491,7 +491,7 @@ def generateTile(
 
         writer.addInstantiation(
             compName=bel.name,
-            compInsName=f"Inst_{bel.prefix}{bel.name}",
+            compInsName=tile.bel_instance_name(bel),
             portsPairs=ports_pairs,
         )
 
@@ -586,7 +586,7 @@ def generateTile(
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",
-        compInsName=f"Inst_{tile.name}_switch_matrix",
+        compInsName=tile.switch_matrix_instance_name,
         portsPairs=ports_pairs,
     )
 
@@ -1030,7 +1030,7 @@ def generateSuperTile(
 
             writer.addInstantiation(
                 compName=tile.name,
-                compInsName=f"Tile_X{x}Y{y}_{tile.name}",
+                compInsName=superTile.tile_instance_name(x, y),
                 portsPairs=ports_pairs,
                 emulateParamPairs=emulateParamPairs,
             )
@@ -1133,7 +1133,7 @@ def generateSuperTile(
             )
         writer.addInstantiation(
             compName=f"{superTile.name}_switch_matrix",
-            compInsName=f"Inst_{superTile.name}_switch_matrix",
+            compInsName=superTile.switch_matrix_instance_name,
             portsPairs=sm_ports_pairs,
         )
 
@@ -1186,7 +1186,7 @@ def generateSuperTile(
         st_bel_config_offset += bel.configBit
         writer.addInstantiation(
             compName=bel.name,
-            compInsName=f"Inst_ST_{bel.prefix}{bel.name}",
+            compInsName=superTile.bel_instance_name(bel),
             portsPairs=bel_ports_pairs,
         )
 
