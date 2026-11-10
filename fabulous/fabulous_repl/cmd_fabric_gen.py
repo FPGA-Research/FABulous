@@ -13,7 +13,7 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
-from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
+from fabulous.fabric_cad.gen_nextpnr_model import write_nextpnr_model
 from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -362,41 +362,19 @@ class FabricGenCommandSet(ReplCommandSet):
     def do_gen_routing_model(self, *_ignored: str) -> None:
         """Generate nextpnr routing model of fabric.
 
-        By parsing various required files for place and route such as `pips.txt`,
-        `bel.txt`, `bel.v2.txt` and `template.pcf`. Output files are written to the
-        directory specified by `metaDataDir` within `projectDir`.
+        Write the files nextpnr reads for place and route: `pips.txt`, `bel.txt`,
+        `bel.v2.txt`, `bel.v3.txt`, `template.pcf` and `placement_estimate.txt`.
+        They go to the directory specified by `metaDataDir` within `projectDir`.
+        The timing is the placeholder timing, unless `timing_model` characterised
+        the fabric in this session.
 
         Logs output file directories.
         """
         repl = self._cmd
         logger.info("Generating nextpnr routing model")
-        npnr_model = repl.fabulousAPI.gen_routing_model()
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/pips.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
-            f.write(npnr_model[0])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.txt").open("w") as f:
-            f.write(npnr_model[1])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.v2.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
-            f.write(npnr_model[2])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.v3.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
-            f.write(npnr_model[3])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/template.pcf")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnr_model[4])
-
-        estimate_path = Path(
-            f"{repl.projectDir}/{META_DATA_DIR}/placement_estimate.txt"
+        write_nextpnr_model(
+            repl.fabulousAPI.gen_routing_model(), repl.projectDir / META_DATA_DIR
         )
-        logger.info(f"output file: {estimate_path}")
-        estimate_path.write_text(PLACEMENT_ESTIMATE_TEXT)
-
         logger.info("Generated nextpnr routing model")
 
     def do_gen_model_npnr(self, *_ignored: str) -> None:

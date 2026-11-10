@@ -1,0 +1,25 @@
+{# The timing lines of one BEL in bel.v3 syntax, shared by bel.v3.txt and
+   placement_estimate.txt. #}
+{% macro condition(when) %}
+{%- if when.ports is defined -%}
+,{{ when.ports | map("pin") | join("/") }}?
+{%- elif when -%}
+,{% for test in when %}{{ "" if loop.first else "&" }}{{ test.feature }}={{ test.enabled | int }}{% endfor %}
+{%- endif -%}
+{% endmacro %}
+
+{% macro lines(arcs, logic_cell) %}
+{% for arc in arcs.clocks %}
+Clock,{{ arc.clock | clock }}{{ condition(arc.when) }}
+{% endfor %}
+{% for arc in arcs.delays %}
+Delay,{{ arc.src | pin }},{{ arc.dst | pin }},{{ arc.delay }}{{ condition(arc.when) }}
+{% endfor %}
+{% for arc in arcs.checks %}
+SetupHold,{{ arc.data | pin }},{{ arc.clock | clock }},{{ arc.setup }},{{ arc.hold }}{{ condition(arc.when) }}
+{% endfor %}
+{% for arc in arcs.clock_to_outs %}
+{# nextpnr's packer renames the registered output of a logic cell from O to Q. #}
+ClkToOut,{{ "Q" if logic_cell and (arc.out | pin) == "O" else (arc.out | pin) }},{{ arc.clock | clock }},{{ arc.delay }}{{ condition(arc.when) }}
+{% endfor %}
+{% endmacro %}

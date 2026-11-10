@@ -1,0 +1,8 @@
+{% for section in sections %}
+{% if section.title %}
+{{ section.title }}
+{% endif %}
+{% for pip in section.pips %}
+X{{ pip.x }}Y{{ pip.y }},{{ pip.src }},X{{ pip.x_dst }}Y{{ pip.y_dst }},{{ pip.dst }},{{ pip.delay }},{{ pip.src }}.{{ pip.dst }}
+{% endfor %}
+{% endfor %}

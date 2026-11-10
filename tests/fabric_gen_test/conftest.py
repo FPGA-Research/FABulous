@@ -11,15 +11,18 @@ import pytest
 from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import ConfigMemFrame, empty_config_mem
-from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_definition.define import IO, ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.yosys_obj import YosysJson
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
+from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_settings import get_context, init_context
+from tests.conftest import make_empty_tile, make_fabric_from_grid
 
 
 class FabricConfig(NamedTuple):
@@ -742,3 +745,62 @@ def elaborate(tmp_path: Path) -> Callable[..., Netlist]:
         return Netlist(YosysJson(path))
 
     return _elaborate
+
+
+@pytest.fixture
+def lut_fabric() -> Fabric:
+    """Build one LUT tile without invoking an external HDL parser.
+
+    Returns
+    -------
+    Fabric
+        In-memory fabric containing one LUT tile and one switch-matrix connection.
+    """
+    bel = Bel(
+        src=Path("LUT4c_frame_config_dffesr.v"),
+        prefix="LA_",
+        module_name="LUT4c_frame_config_dffesr",
+        internal=[
+            ("LA_I0", IO.INPUT),
+            ("LA_I1", IO.INPUT),
+            ("LA_I2", IO.INPUT),
+            ("LA_I3", IO.INPUT),
+            ("LA_Ci", IO.INPUT),
+            ("LA_SR", IO.INPUT),
+            ("LA_EN", IO.INPUT),
+            ("LA_O", IO.OUTPUT),
+            ("LA_Co", IO.OUTPUT),
+        ],
+        external=[],
+        configPort=[],
+        sharedPort=[("UserCLK", IO.INPUT)],
+        configBit=0,
+        belMap={},
+        userCLK=True,
+        ports_vectors={},
+        carry={},
+        localShared={},
+    )
+    tile = make_empty_tile("LUT4AB", pinOrderConfig={})
+    tile.bels = [bel]
+    tile.withUserCLK = True
+    tile.switch_matrix = SwitchMatrix(
+        matrix_file=Path(), connections={"LA_O": ["J_BEG"]}
+    )
+    return make_fabric_from_grid([[tile]])
+
+
+@pytest.fixture
+def out(tmp_path: Path) -> Path:
+    """Return an empty output directory; `tmp_path` itself holds test set-up."""
+    out = tmp_path / "out"
+    out.mkdir()
+    return out
+
+
+@pytest.fixture
+def api(lut_fabric: Fabric, mocker: MockerFixture) -> FABulous_API:
+    """Return the API holding `lut_fabric`, without a project or HDL writer."""
+    api = FABulous_API(mocker.Mock())
+    api.fabric = lut_fabric
+    return api
