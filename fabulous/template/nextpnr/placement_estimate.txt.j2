@@ -1,0 +1,14 @@
+{# nextpnr placer and router tunables, then one representative timing block
+   per timed cell type. #}
+{% import "nextpnr/arcs.j2" as timing %}
+delayScale={{ delay_scale }}
+delayOffset={{ delay_offset }}
+delayEpsilon={{ delay_epsilon }}
+ripupPenalty={{ ripup_penalty }}
+carryPredictDelay={{ carry_predict_delay }}
+pipDelayScale={{ pip_delay_scale }}
+{% for block in blocks %}
+BelBegin,{{ block.cell_type }}
+{{ timing.lines(block.arcs, block.logic_cell) -}}
+BelEnd
+{% endfor %}

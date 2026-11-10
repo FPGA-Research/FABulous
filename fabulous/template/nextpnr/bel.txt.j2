@@ -1,0 +1,7 @@
+{{ header }}
+{% for group in groups %}
+{{ group.title }}
+{% for placed in group.bels %}
+X{{ placed.x }}Y{{ placed.y }},X{{ placed.x }},Y{{ placed.y }},{{ placed.letter }},{{ placed.cell_type }},{{ (placed.bel.input_ports + placed.bel.output_ports) | map(attribute="name") | join(",") }}
+{% endfor %}
+{% endfor %}
