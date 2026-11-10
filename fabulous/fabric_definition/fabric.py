@@ -5,8 +5,8 @@ including tile layout, configuration parameters, and connectivity information. T
 fabric is the top-level container for all tiles, BELs, and routing resources.
 """
 
-from collections.abc import Generator
-from dataclasses import dataclass, field
+from collections.abc import Generator, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
@@ -39,6 +39,7 @@ from fabulous.fabric_definition.define import (
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.timing import BelArcs, Ns, Pip, SwitchPip
 from fabulous.fabric_definition.wire import Wire
 
 
@@ -144,6 +145,10 @@ class Fabric:
         The key is the name of the tile and the value is the tile.
     commonWirePair : list[tuple[str, str]]
         A list of common wire pairs in the fabric.
+    clock_arrival : Ns | None
+        Clock arrival at every flop, set by the placeholder timing or by
+        characterisation; fabric-wide, so zero skew. None until one of them
+        ran. Not part of equality.
     """
 
     fabric_dir: Path
@@ -173,6 +178,7 @@ class Fabric:
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
     unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
+    clock_arrival: Ns | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         """Generate and get all the wire pairs in the fabric.
@@ -481,6 +487,107 @@ class Fabric:
         for fx, fy in touched:
             tile = self.tile[fy][fx]
             tile.wireList = list(dict.fromkeys(tile.wireList))
+
+    @property
+    def has_timing(self) -> bool:
+        """Whether `set_timing` ran on the fabric.
+
+        Returns
+        -------
+        bool
+            True once the fabric holds placeholder or characterised timing.
+        """
+        return self.clock_arrival is not None
+
+    def tile_copies(self) -> Iterator[Tile]:
+        """Yield every copy of every tile type.
+
+        The parser deep-copies a tile type into each grid placement and each
+        supertile member cell, so data of a tile type is written to all of them.
+
+        Yields
+        ------
+        Tile
+            Each tile type, then each grid placement, then each supertile member.
+        """
+        yield from self.tileDic.values()
+        for _, tile in self:
+            if tile is not None:
+                yield tile
+        for super_tile in self.superTileDic.values():
+            for row in super_tile.tileMap:
+                yield from (tile for tile in row if tile is not None)
+
+    def pips_by_tile_type(self) -> dict[str, list[Pip]]:
+        """Return the switch pips and the wire pips of every tile type.
+
+        Copies of one tile type differ in their SJUMP wires, so the wire pips of
+        a type are those of all its copies.
+
+        Returns
+        -------
+        dict[str, list[Pip]]
+            By tile type name: its switch pips, then each distinct wire pip.
+        """
+        pips: dict[str, dict[Pip, None]] = {
+            name: dict.fromkeys(tile.switch_matrix.pips())
+            for name, tile in self.tileDic.items()
+        }
+        for tile in self.tile_copies():
+            pips[tile.name].update(dict.fromkeys(wire.pip for wire in tile.wireList))
+        return {name: list(type_pips) for name, type_pips in pips.items()}
+
+    def set_timing(
+        self,
+        *,
+        tile_arcs: Mapping[str, Sequence[BelArcs]],
+        tile_pip_delays: Mapping[str, Mapping[Pip, Ns]],
+        super_tile_arcs: Mapping[str, Sequence[BelArcs]],
+        super_tile_pip_delays: Mapping[str, Mapping[SwitchPip, Ns]],
+        clock_arrival: Ns,
+    ) -> None:
+        """Set the timing of every tile and supertile type on all its copies.
+
+        Copies of a type share the arcs and the switch-matrix delays given for
+        it, so an arc names the ports of the BEL of the tile type.
+
+        Parameters
+        ----------
+        tile_arcs : Mapping[str, Sequence[BelArcs]]
+            By tile type name: the arcs of its BELs, in `Tile.bels` order.
+        tile_pip_delays : Mapping[str, Mapping[Pip, Ns]]
+            By tile type name: the delay of every pip of `pips_by_tile_type`.
+        super_tile_arcs : Mapping[str, Sequence[BelArcs]]
+            By supertile type name: the arcs of its BELs, in `SuperTile.bels`
+            order.
+        super_tile_pip_delays : Mapping[str, Mapping[SwitchPip, Ns]]
+            By name of each supertile type with a switch matrix: the delay of
+            every pip of that matrix.
+        clock_arrival : Ns
+            Clock arrival at every flop.
+        """
+        switch_delays = {
+            name: {pip: tile_pip_delays[name][pip] for pip in tile.switch_matrix.pips()}
+            for name, tile in self.tileDic.items()
+        }
+        for tile in self.tile_copies():
+            tile.switch_matrix = replace(
+                tile.switch_matrix, pip_delays=switch_delays[tile.name]
+            )
+            tile.wireList = [
+                replace(wire, delay=tile_pip_delays[tile.name][wire.pip])
+                for wire in tile.wireList
+            ]
+            for bel, arcs in zip(tile.bels, tile_arcs[tile.name], strict=True):
+                bel.arcs = arcs
+        for name, super_tile in self.superTileDic.items():
+            if super_tile.switch_matrix is not None:
+                super_tile.switch_matrix = replace(
+                    super_tile.switch_matrix, pip_delays=super_tile_pip_delays[name]
+                )
+            for bel, arcs in zip(super_tile.bels, super_tile_arcs[name], strict=True):
+                bel.arcs = arcs
+        self.clock_arrival = clock_arrival
 
     def iter_super_tile_placements(
         self, superTile: SuperTile | None = None
