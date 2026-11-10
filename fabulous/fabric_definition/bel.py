@@ -9,8 +9,48 @@ such as LUTs, flip-flops, and other logic elements.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.define import IO, BelRole, HDLType
 from fabulous.fabric_definition.port import BelPort
+from fabulous.fabric_definition.timing import BelArcs
+
+# TODO: read the role and the pin flag from a FABulous attribute in the BEL's
+# HDL. Until then they follow the BEL names nextpnr hardcodes.
+_LOGIC_CELLS = frozenset(
+    {"FABULOUS_LC", "LUT4c_frame_config", "LUT4c_frame_config_dffesr"}
+)
+_OUT_PASS_PREFIX = "OutPass4_frame_config"
+_IN_PASS_PREFIX = "InPass4_frame_config"
+_PINNED_IO = frozenset(
+    {
+        "IO_1_bidirectional_frame_config_pass",
+        "InPass4_frame_config",
+        "OutPass4_frame_config",
+        "InPass4_frame_config_mux",
+        "OutPass4_frame_config_mux",
+    }
+)
+
+
+def bel_role(name: str) -> BelRole:
+    """Return the place-and-route role of the BEL type `name`.
+
+    Parameters
+    ----------
+    name : str
+        The BEL type name.
+
+    Returns
+    -------
+    BelRole
+        The role of the BEL type.
+    """
+    if name in _LOGIC_CELLS:
+        return BelRole.LOGIC_CELL
+    if name.startswith(_OUT_PASS_PREFIX):
+        return BelRole.OUT_PASS
+    if name.startswith(_IN_PASS_PREFIX):
+        return BelRole.IN_PASS
+    return BelRole.OTHER
 
 
 @dataclass
@@ -102,6 +142,9 @@ class Bel:
         The external output ports of the BEL. Each port's `name` includes `prefix`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
+    arcs : BelArcs | None
+        Timing arcs of the BEL, set by the placeholder timing or by
+        characterisation. None until one of them ran. Not part of equality.
 
     Raises
     ------
@@ -130,6 +173,7 @@ class Bel:
     external_input_ports: list[BelPort] = field(default_factory=list, compare=False)
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
+    arcs: BelArcs | None = field(default=None, compare=False)
 
     def __init__(
         self,
@@ -197,3 +241,26 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.arcs = None
+
+    @property
+    def role(self) -> BelRole:
+        """How place and route treats the BEL.
+
+        Returns
+        -------
+        BelRole
+            The role of the BEL type.
+        """
+        return bel_role(self.name)
+
+    @property
+    def pinned_io(self) -> bool:
+        """Whether the BEL is a fabric pin that a design can be constrained to.
+
+        Returns
+        -------
+        bool
+            True for the I/O BEL types.
+        """
+        return self.name in _PINNED_IO
