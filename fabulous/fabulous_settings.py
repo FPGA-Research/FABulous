@@ -398,9 +398,6 @@ class FABulousSettings(BaseSettings):
             "klayout_path": "klayout",
         }
         tool = value or tool_map[info.field_name]
-        # `which` searches `PATH` for a bare name and takes anything with a directory
-        # part as a path, so a project's `yosys/` folder never replaces the command
-        # and a toolchain can ship the tool under another name (`fab-yosys`).
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
