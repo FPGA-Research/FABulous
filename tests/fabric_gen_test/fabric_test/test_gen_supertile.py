@@ -50,6 +50,7 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
+from tests.conftest import make_pad_bel
 from tests.fabric_definition.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
 
@@ -122,8 +123,12 @@ def _tile_stub(
         direction = "input" if p.io_direction == IO.INPUT else "output"
         decls.append(f"    {direction} [{width}:0] {p.name}")
     for bel in tile.bels:
-        decls += [f"    input {p.name}" for p in bel.external_input_ports]
-        decls += [f"    output {p.name}" for p in bel.external_output_ports]
+        decls += [
+            f"    input [{p.width - 1}:0] {p.name}" for p in bel.external_input_ports
+        ]
+        decls += [
+            f"    output [{p.width - 1}:0] {p.name}" for p in bel.external_output_ports
+        ]
     decls += [
         "    input  UserCLK",
         "    output UserCLKo",
@@ -511,6 +516,34 @@ class TestBelExternalPorts:
 
         assert net.top_port_net("io_in") == net.cell_net(0, 0, "io_in")
         assert net.cell_net(0, 0, "io_out") == net.top_port_net("io_out")
+
+    @pytest.mark.parametrize(
+        ("keep_vector_ports", "ports"),
+        [
+            pytest.param(
+                False,
+                {f"A_DI{i}": 1 for i in range(4)}
+                | {"A_EN": 1}
+                | {f"A_DO{i}": 1 for i in range(4)},
+                id="split",
+            ),
+            pytest.param(True, {"A_DI": 4, "A_EN": 1, "A_DO": 4}, id="vector_ports"),
+        ],
+    )
+    def test_external_vector_ports_connect_to_boundary(
+        self,
+        supertile_netlist: Callable[..., GridConnectivity],
+        keep_vector_ports: bool,
+        ports: dict[str, int],
+    ) -> None:
+        """Every bit of a child tile's external port reaches the boundary port."""
+        tile = make_empty_tile("BelTile")
+        tile.bels = [make_pad_bel(keep_vector_ports)]
+        net = supertile_netlist([[tile]])
+
+        for name, width in ports.items():
+            assert len(net.top_port_net(name)) == width
+            assert net.top_port_net(name) == net.cell_net(0, 0, name)
 
 
 class TestInterTileRouting:

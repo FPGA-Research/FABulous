@@ -220,7 +220,8 @@ def parseBelFile(
     bel as vectors in the Yosys primitive and in the nextpnr model, so a user
     design connects ``.D(d)`` instead of ``.D0(d[0]), .D1(d[1])``. This attribute
     should be placed before the start of the module. Without it every vector port
-    is split into one pin per bit.
+    is split into one pin per bit. With it, an **EXTERNAL** vector port is also
+    exported from the tile and the fabric as a vector instead of one port per bit.
 
     Example
     -------

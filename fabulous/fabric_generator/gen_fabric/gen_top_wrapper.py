@@ -106,26 +106,28 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 for bel in tile.bels:
-                    for p in bel.external_input_ports:
-                        externalPorts.append((IO.INPUT, f"Tile_X{x}Y{y}_{p.name}"))
-                    for p in bel.external_output_ports:
-                        externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{p.name}"))
+                    for p in bel.external_input_ports + bel.external_output_ports:
+                        externalPorts.append(
+                            (p.io_direction, f"Tile_X{x}Y{y}_{p.name}", p.width)
+                        )
     # supertile-level BEL external ports, named at the wrapper anchor so they
     # match the eFPGA module's top-level ports.
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
-            for p in bel.external_input_ports:
-                externalPorts.append((IO.INPUT, f"Tile_X{ax}Y{ay}_{p.name}"))
-            for p in bel.external_output_ports:
-                externalPorts.append((IO.OUTPUT, f"Tile_X{ax}Y{ay}_{p.name}"))
-    for iodir, name in externalPorts:
+            for p in bel.external_input_ports + bel.external_output_ports:
+                externalPorts.append(
+                    (p.io_direction, f"Tile_X{ax}Y{ay}_{p.name}", p.width)
+                )
+    # A group is one top-level vector. Its members are (fabric port, width):
+    # a fabric port that is itself a vector takes `width` consecutive bits.
+    for iodir, name, width in externalPorts:
         _yx, _indices, port = split_port(name)
         if port not in portGroups:
             portGroups[port] = (iodir, [])
-        portGroups[port][1].append(name)
+        portGroups[port][1].append((name, width))
     # sort port groups according to vectorisation order
     for _name, g in portGroups.items():
-        g[1].sort(key=lambda x: split_port(x))
+        g[1].sort(key=lambda x: split_port(x[0]))
 
     # header
     numberOfRows = fabric.numberOfRows - 2
@@ -157,7 +159,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     for name, group in sorted(portGroups.items(), key=lambda x: x[0]):
         if fabric.numberOfBRAMs > 0 and ("RAM2FAB" in name or "FAB2RAM" in name):
             continue
-        writer.addPortVector(name, group[0], len(group[1]) - 1, indentLevel=2)
+        group_width = sum(width for _sig, width in group[1])
+        writer.addPortVector(name, group[0], group_width - 1, indentLevel=2)
     writer.addComment("Config related ports", onNewLine=True, indentLevel=2)
     writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
     writer.addPortScalar("resetn", IO.INPUT, indentLevel=2)
@@ -312,9 +315,14 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
 
     # external ports (IO, config access, BRAM, etc)
     for name, group in sorted(portGroups.items(), key=lambda x: x[0]):
-        for i, sig in enumerate(group[1]):
+        lsb = 0
+        for sig, width in group[1]:
             portList.append(sig)
-            signal.append(f"{name}[{i}]")
+            if width > 1:
+                signal.append(f"{name}[{lsb + width - 1}:{lsb}]")
+            else:
+                signal.append(f"{name}[{lsb}]")
+            lsb += width
 
     portList.append("UserCLK")
     signal.append("CLK")
