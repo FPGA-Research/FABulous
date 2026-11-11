@@ -58,15 +58,6 @@ runs:
         purge-last-accessed: 0
         purge-primary-key: never
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-      with:
-        python-version: "3.12"
-
-    - name: Generate librelane_plugin_fabulous side-package
-      shell: bash
-      run: uv sync --locked
-
     - name: Build nix environment
       shell: bash
       # nix-eda fetches some sources (magic) through the GitHub API; anonymous calls

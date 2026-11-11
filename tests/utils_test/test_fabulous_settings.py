@@ -404,6 +404,21 @@ class TestToolPathResolution:
 
         assert result == Path("/usr/bin/yosys").resolve()
 
+    def test_resolve_tool_paths_bare_name_selects_command(
+        self, mocker: MockerFixture
+    ) -> None:
+        """A bare name other than the default is the command searched in `PATH`."""
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mock_which = mocker.patch(
+            "fabulous.fabulous_settings.which", return_value="/usr/bin/fab-yosys"
+        )
+
+        result = FABulousSettings.resolve_tool_paths("fab-yosys", mock_info)
+
+        assert result == Path("/usr/bin/fab-yosys").resolve()
+        mock_which.assert_called_once_with("fab-yosys")
+
     @pytest.mark.parametrize(
         "relative_path",
         [

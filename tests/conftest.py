@@ -385,8 +385,12 @@ def fabulous_test_environment(
 
     # FAB_GL_FABRIC_PROJECT selects the hardened project for the GL suite; it
     # is test-control input, not project state, so it must survive the scrub.
+    # FAB_YOSYS_PATH names the toolchain's yosys binary. The Nix shell ships
+    # the FABulous-capable build as `fab-yosys` next to a stock `yosys` that
+    # lacks the fabulous primitives, so dropping it selects the wrong tool.
+    preserved_keys = ("FAB_GL_FABRIC_PROJECT", "FAB_YOSYS_PATH")
     for key in list(os.environ.keys()):
-        if key.startswith("FAB_") and key != "FAB_GL_FABRIC_PROJECT":
+        if key.startswith("FAB_") and key not in preserved_keys:
             monkeypatch.delenv(key, raising=False)
 
     fake_user_config_dir = tmp_path / ".fabulous"

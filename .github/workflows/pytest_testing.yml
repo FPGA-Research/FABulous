@@ -65,6 +65,9 @@ jobs:
   pytest_testing:
     needs: restore_test_durations
     runs-on: ubuntu-latest
+    # A leg takes about ten minutes. A simulation that never terminates would
+    # otherwise hold the runner until the six hour job limit.
+    timeout-minutes: 60
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:

@@ -169,6 +169,12 @@
             customPkgs.fabulator
             customPkgs.ghdl
             pkgs.nvc
+            # Verilator compiles its models at run time. Without a Nix
+            # compiler it picks up the host one, and the resulting binary
+            # links the host glibc, which the Nix libraries it loads
+            # (libpython, tcl) can be too new for.
+            pkgs.gcc
+            pkgs.gnumake
           ]
           ++ (builtins.filter systemSupported librelane-pkg.includedTools);
         in

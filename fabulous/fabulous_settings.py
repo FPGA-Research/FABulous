@@ -366,7 +366,8 @@ class FABulousSettings(BaseSettings):
         This method is used as a field validator to automatically resolve tool paths
         during settings initialization. If a tool path is not explicitly provided,
         it searches for the tool in the system `PATH`. A value without a directory
-        part counts as not provided, so the current directory never supplies a tool.
+        part is a command name looked up in `PATH`, so the current directory never
+        supplies a tool.
 
         Parameters
         ----------
@@ -405,7 +406,11 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name)
+        tool = tool_map[info.field_name]
+        # A bare name selects the command to look up, so a toolchain can ship the
+        # tool under another name (the Nix shell's `fab-yosys`).
+        if isinstance(value, str) and value and Path(value).name == value:
+            tool = value
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
@@ -415,7 +420,7 @@ class FABulousSettings(BaseSettings):
             f"{tool} not found in PATH during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return tool_map[info.field_name]
+        return tool
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:
