@@ -30,6 +30,7 @@ from fabulous.fabric_generator.code_generator.code_generator import CodeGenerato
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+from fabulous.fabric_generator.gen_fabric.gen_tile import add_external_bel_port
 
 # (side port getter, neighbour dx, dy) for the four fabric edges. Each side's
 # local INPUT ports pair with the same-side OUTPUT ports of the neighbour at the
@@ -92,30 +93,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 for bel in tile.bels:
-                    for p in bel.external_input_ports:
-                        writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{p.name}", IO.INPUT, indentLevel=2
-                        )
-                        writer.addComment("EXTERNAL", onNewLine=False)
-                    for p in bel.external_output_ports:
-                        writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{p.name}", IO.OUTPUT, indentLevel=2
-                        )
+                    for p in bel.external_input_ports + bel.external_output_ports:
+                        add_external_bel_port(writer, p, f"Tile_X{x}Y{y}_{p.name}")
                         writer.addComment("EXTERNAL", onNewLine=False)
 
     # supertile-level BEL external ports (the BEL lives in the wrapper, not a
     # child tile); declare them at the wrapper's anchor coordinates.
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
-            for p in bel.external_input_ports:
-                writer.addPortScalar(
-                    f"Tile_X{ax}Y{ay}_{p.name}", IO.INPUT, indentLevel=2
-                )
-                writer.addComment("EXTERNAL", onNewLine=False)
-            for p in bel.external_output_ports:
-                writer.addPortScalar(
-                    f"Tile_X{ax}Y{ay}_{p.name}", IO.OUTPUT, indentLevel=2
-                )
+            for p in bel.external_input_ports + bel.external_output_ports:
+                add_external_bel_port(writer, p, f"Tile_X{ax}Y{ay}_{p.name}")
                 writer.addComment("EXTERNAL", onNewLine=False)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
