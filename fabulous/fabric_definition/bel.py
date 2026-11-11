@@ -55,6 +55,9 @@ class Bel:
         Carry chains by name.
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
+    keep_vector_ports : bool
+        Whether the BEL's vector ports stay vectors in the Yosys primitive and the
+        nextpnr model. Defaults to False.
 
     Attributes
     ----------
@@ -102,6 +105,10 @@ class Bel:
         The external output ports of the BEL. Each port's `name` includes `prefix`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
+    keep_vector_ports : bool
+        Whether the BEL's vector ports stay vectors in the Yosys primitive and the
+        nextpnr model, so a user design instantiates the BEL with `.D(d)` instead
+        of `.D0(d[0]), .D1(d[1])`.
 
     Raises
     ------
@@ -130,6 +137,7 @@ class Bel:
     external_input_ports: list[BelPort] = field(default_factory=list, compare=False)
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
+    keep_vector_ports: bool = False
 
     def __init__(
         self,
@@ -146,6 +154,7 @@ class Bel:
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
+        keep_vector_ports: bool = False,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -197,3 +206,4 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.keep_vector_ports = keep_vector_ports
