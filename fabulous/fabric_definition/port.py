@@ -670,11 +670,15 @@ class BelPort(Port):
         Whether the port is driven by a fabric-wide signal. Defaults to False.
     net : str
         The net the port belongs to. Defaults to "", the global net.
+    pin_name : str | None
+        The name a user design connects the port by. Defaults to None, which
+        resolves to `name` without the prefix.
     """
 
     _prefix: str
     _external: bool
     _control: bool
+    _pin_name: str
 
     def __init__(
         self,
@@ -687,11 +691,13 @@ class BelPort(Port):
         is_clock: bool = False,
         is_global: bool = False,
         net: str = "",
+        pin_name: str | None = None,
     ) -> None:
         super().__init__(name, io_direction, width, is_clock, is_global, net)
         self._prefix = prefix
         self._external = external
         self._control = control
+        self._pin_name = name if pin_name is None else pin_name
 
     @property
     def prefix(self) -> str:
@@ -707,6 +713,17 @@ class BelPort(Port):
     def control(self) -> bool:
         """Whether the port is a control signal."""
         return self._control
+
+    @property
+    def pin_name(self) -> str:
+        """The name a user design connects the port by.
+
+        This is the pin of the BEL's Yosys primitive and of its nextpnr model.
+        It differs from `name` by the missing prefix, and for one bit of a
+        vector port that the BEL keeps as a vector: the bit is routed on the
+        wire `D0` but is the pin `D[0]`.
+        """
+        return self._pin_name
 
     def __repr__(self) -> str:
         """Return a string representation of the BelPort."""
@@ -735,6 +752,7 @@ class BelPort(Port):
             "prefix": self.prefix,
             "external": self.external,
             "control": self.control,
+            "pin_name": self.pin_name,
         }
 
 
