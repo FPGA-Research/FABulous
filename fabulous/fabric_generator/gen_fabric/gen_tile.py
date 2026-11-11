@@ -26,7 +26,7 @@ from fabulous.fabric_definition.define import (
     grid_at,
 )
 from fabulous.fabric_definition.fabric import resolve_wire_pair
-from fabulous.fabric_definition.port import NULL_PORT_NAME
+from fabulous.fabric_definition.port import NULL_PORT_NAME, BelPort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -36,6 +36,24 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+
+
+def add_external_bel_port(writer: CodeGenerator, port: BelPort, name: str) -> None:
+    """Declare an external BEL port on the module being written.
+
+    Parameters
+    ----------
+    writer : CodeGenerator
+        The code generator of the module.
+    port : BelPort
+        The external BEL port. A port wider than one bit becomes a vector port.
+    name : str
+        The name of the port on the module.
+    """
+    if port.width > 1:
+        writer.addPortVector(name, port.io_direction, port.width - 1, indentLevel=2)
+    else:
+        writer.addPortScalar(name, port.io_direction, indentLevel=2)
 
 
 def generateTile(
@@ -157,10 +175,8 @@ def generateTile(
     # because they have to be exported to the tile entity
     externalPorts = []
     for i in tile.bels:
-        for p in i.external_input_ports:
-            writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
-        for p in i.external_output_ports:
-            writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
+        for p in i.external_input_ports + i.external_output_ports:
+            add_external_bel_port(writer, p, p.name)
         externalPorts += [p.name for p in i.external_input_ports]
         externalPorts += [p.name for p in i.external_output_ports]
 
@@ -446,7 +462,11 @@ def generateTile(
             if port_type in ["external", "internal"]:
                 for port_name, info in bel_ports.items():
                     _direction, width = info
-                    if width > 1:
+                    # An external vector kept as a vector is a tile port of
+                    # the same width, so it connects without a concatenation.
+                    if port_type == "external" and bel.keep_vector_ports:
+                        port_dict[port_name] = [(f"{bel.prefix}{port_name}", "0")]
+                    elif width > 1:
                         port_dict[port_name] = [
                             (f"{bel.prefix}{port_name}{i}", f"{i}")
                             for i in range(width)
@@ -690,10 +710,8 @@ def generateSuperTile(
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
     for i in superTile.tiles:
         for b in i.bels:
-            for p in b.external_input_ports:
-                writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
-            for p in b.external_output_ports:
-                writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
+            for p in b.external_input_ports + b.external_output_ports:
+                add_external_bel_port(writer, p, p.name)
             for p in b.sharedPort:
                 if p[0] == "UserCLK":
                     continue
@@ -703,10 +721,8 @@ def generateSuperTile(
     if superTile.bels:
         writer.addComment("SuperTile BEL IO ports", onNewLine=True, indentLevel=1)
         for b in superTile.bels:
-            for p in b.external_input_ports:
-                writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
-            for p in b.external_output_ports:
-                writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
+            for p in b.external_input_ports + b.external_output_ports:
+                add_external_bel_port(writer, p, p.name)
 
     st_config_bits = superTile.total_config_bits
 
@@ -1149,7 +1165,11 @@ def generateSuperTile(
             if port_type in ("external", "internal"):
                 for port_name, info in bel_ports.items():
                     _direction, width = info
-                    if width > 1:
+                    # An external vector kept as a vector is a tile port of
+                    # the same width, so it connects without a concatenation.
+                    if port_type == "external" and bel.keep_vector_ports:
+                        port_dict[port_name] = [(f"{bel.prefix}{port_name}", "0")]
+                    elif width > 1:
                         port_dict[port_name] = [
                             (f"{bel.prefix}{port_name}{i}", f"{i}")
                             for i in range(width)

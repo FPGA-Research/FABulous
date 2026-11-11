@@ -172,7 +172,8 @@ class FABulousAttribute(StrEnum):
     - USER_CLK: User clock attribute
     - CONFIG_BIT: Configuration bit attribute
     - VECTOR_PORTS: Module attribute keeping the BEL's vector ports as vectors in
-      the Yosys primitive and the nextpnr model
+      the Yosys primitive and the nextpnr model, and its external vector ports as
+      vectors on the tile and the fabric
     """
 
     EXTERNAL = "EXTERNAL"

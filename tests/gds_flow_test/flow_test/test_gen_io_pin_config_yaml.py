@@ -26,7 +26,7 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
 from fabulous.fabric_generator.parser.parse_csv import parse_port_line
-from tests.conftest import make_empty_tile, make_fabric_from_grid
+from tests.conftest import make_empty_tile, make_fabric_from_grid, make_pad_bel
 
 
 class TestPinOrderConfig:
@@ -270,6 +270,40 @@ class TestSerializeTilePorts:
 
         assert "ext_in" in all_pins
         assert "ext_out" in all_pins
+
+    @pytest.mark.parametrize(
+        ("keep_vector_ports", "expected_pins"),
+        [
+            pytest.param(
+                False,
+                [
+                    "A_DI0",
+                    "A_DI1",
+                    "A_DI2",
+                    "A_DI3",
+                    "A_EN",
+                    "A_DO0",
+                    "A_DO1",
+                    "A_DO2",
+                    "A_DO3",
+                ],
+                id="split",
+            ),
+            pytest.param(
+                True, [r"A_DI\[\d+\]", "A_EN", r"A_DO\[\d+\]"], id="vector_ports"
+            ),
+        ],
+    )
+    def test_serialize_tile_ports_with_external_vector_ports(
+        self, keep_vector_ports: bool, expected_pins: list[str]
+    ) -> None:
+        """A vector port is placed through a regex matching its `name[i]` pins."""
+        tile = make_empty_tile("PAD")
+        tile.bels = [make_pad_bel(keep_vector_ports)]
+
+        result = _serialize_tile_ports(tile, external_port_side=Side.EAST)
+
+        assert result["EAST"][-1]["pins"] == expected_pins
 
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""

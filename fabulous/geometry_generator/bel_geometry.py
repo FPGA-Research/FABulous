@@ -85,8 +85,12 @@ class BelGeometry:
         self.src = bel.src
         self.internalInputs = [p.name for p in bel.input_ports]
         self.internalOutputs = [p.name for p in bel.output_ports]
-        self.externalInputs = [p.name for p in bel.external_input_ports]
-        self.externalOutputs = [p.name for p in bel.external_output_ports]
+        self.externalInputs = [
+            bit for p in bel.external_input_ports for bit in p.expand()
+        ]
+        self.externalOutputs = [
+            bit for p in bel.external_output_ports for bit in p.expand()
+        ]
 
         internalPortsAmount = len(self.internalInputs) + len(self.internalOutputs)
         externalPortsAmount = len(self.externalInputs) + len(self.externalOutputs)

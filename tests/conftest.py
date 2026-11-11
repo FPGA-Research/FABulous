@@ -267,6 +267,51 @@ def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -
     )
 
 
+def make_pad_bel(keep_vector_ports: bool, *, prefix: str = "A_") -> Bel:
+    """Build a BEL with only external ports: two 4-bit vectors and a scalar.
+
+    Parameters
+    ----------
+    keep_vector_ports : bool
+        Whether the BEL sets the `VECTOR_PORTS` attribute.
+    prefix : str
+        BEL prefix.
+
+    Returns
+    -------
+    Bel
+        A BEL with the external ports `DI[3:0]` (input), `EN` (input) and
+        `DO[3:0]` (output), as `parseBelFile` would return it.
+    """
+    return Bel(
+        src=Path("Pads.v"),
+        prefix=prefix,
+        module_name="Pads",
+        internal=[],
+        external=[(f"{prefix}DI{i}", IO.INPUT) for i in range(4)]
+        + [(f"{prefix}EN", IO.INPUT)]
+        + [(f"{prefix}DO{i}", IO.OUTPUT) for i in range(4)],
+        configPort=[],
+        sharedPort=[],
+        configBit=0,
+        belMap={},
+        userCLK=False,
+        ports_vectors={
+            "internal": {},
+            "external": {
+                "DI": (IO.INPUT, 4),
+                "EN": (IO.INPUT, 1),
+                "DO": (IO.OUTPUT, 4),
+            },
+            "config": {},
+            "shared": {},
+        },
+        carry={},
+        localShared={},
+        keep_vector_ports=keep_vector_ports,
+    )
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
     """Register opt-in flags for the marker-gated test buckets.
 
