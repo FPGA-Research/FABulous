@@ -720,6 +720,9 @@ entity LUT4 is
  UserCLK : in    STD_LOGIC;
  ConfigBits : in      STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )
  );
+ attribute EXTERNAL : string;
+ attribute SHARED_PORT : string;
+ attribute GLOBAL : string;
  -- EXTERNAL sends this signal all the way to the top and
  -- SHARED_PORT allows multiple BELs using same port (exports 1 clock to top)
  attribute EXTERNAL of UserCLK : signal is "TRUE";
@@ -727,9 +730,6 @@ entity LUT4 is
  attribute GLOBAL of ConfigBits : signal is "TRUE";
 end entity LUT4;
 ```
-
-The attribute names have to be declared in a package first, see
-[](#vhdl-attributes).
 
 And the equivalent in Verilog:
 
