@@ -890,9 +890,10 @@ FABulous defines the following coding rules for BELs:
     attribute SHARED_RESET of SR : signal is "TRUE";
     ```
 
-  - `VECTOR_PORTS`: This directive belongs to the module, not to a port. It keeps
-    the vector ports of the BEL as vectors in the Yosys primitive and in the
-    nextpnr model, so a user design instantiates the BEL with its vector ports:
+  - `VECTOR_PORTS`: By default, FABulous splits every vector port of a BEL into
+    one pin per bit, so a user design that instantiates the BEL has to connect
+    each bit on its own (`.D0(data[0]), .D1(data[1]), ...`). With this directive
+    the BEL keeps its vector ports, and the user design connects them as vectors:
 
     ```verilog
     my_ram i_ram (
@@ -902,11 +903,9 @@ FABulous defines the following coding rules for BELs:
     );
     ```
 
-    Without the directive every vector port is split into one pin per bit, and
-    the instantiation has to connect `.D0(data[0]), .D1(data[1]), ...`.
-
-    In Verilog the directive goes into the attribute in front of the module,
-    together with the `BelMap` if there is one:
+    Unlike the directives above, `VECTOR_PORTS` is set on the module and applies
+    to all of its ports. In Verilog, add it to the attribute in front of the
+    module, next to the `BelMap` if there is one:
 
     ```verilog
     (* FABulous, BelMap, VECTOR_PORTS, Q_reg=0 *)
@@ -923,14 +922,20 @@ FABulous defines the following coding rules for BELs:
     attribute VECTOR_PORTS of my_ram : entity is "TRUE";
     ```
 
-    The directive only changes how the user design sees the BEL. Inside the
-    tile the bits stay individual switch matrix wires named `D0`, `D1`, ...,
-    and `EXTERNAL` vector ports are still exported one bit at a time.
+    The directive changes two generated files, which have to match each other:
 
-    The primitive in `custom_prims.v` and the nextpnr model have to agree, so
-    regenerate both after adding or removing the directive. A primitive that is
-    already in `custom_prims.v` is only replaced when
-    [`add_as_custom_prim`](#add-as-custom-prim) is run with `--overwrite`.
+    - the Yosys primitive in `user_design/custom_prims.v`, which declares the
+      ports as vectors;
+    - the nextpnr model, where the pins are named `D[0]`, `D[1]`, ... instead
+      of `D0`, `D1`, ...
+
+    Regenerate both after adding or removing the directive. A primitive that
+    is already in `custom_prims.v` is not updated automatically: run
+    [`add_as_custom_prim`](#add-as-custom-prim) with `--overwrite` to replace it.
+
+    The fabric itself does not change. Inside the tile each bit is still its
+    own switch matrix wire (`D0`, `D1`, ...), and `EXTERNAL` vector ports are
+    still exported one bit at a time.
 
     :::{note}
     The LUT BELs `LUT4c_frame_config` and `LUT4c_frame_config_dffesr` cannot
