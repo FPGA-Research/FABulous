@@ -12,7 +12,9 @@ from fabulous.fabric_cad.gen_npnr_model import (
     write_nextpnr_timing_files,
 )
 from fabulous.fabric_cad.timing_model.models import (
+    BelClockToOutTiming,
     BelDelayTiming,
+    BelSetupHoldTiming,
     BelTiming,
     TimingModelTarget,
 )
@@ -337,3 +339,120 @@ def test_write_nextpnr_timing_files_writes_only_selected_outputs(
 
     assert pip_path.exists() is pip_exists
     assert bel_path.exists() is bel_exists
+
+
+def make_vector_bel(name: str, keep_vector_ports: bool) -> Bel:
+    """Build a BEL with a 2-bit input `D`, a 2-bit output `Q` and a scalar `EN`.
+
+    Parameters
+    ----------
+    name : str
+        The BEL name, which is also its nextpnr type.
+    keep_vector_ports : bool
+        Whether the BEL sets the `VECTOR_PORTS` attribute.
+
+    Returns
+    -------
+    Bel
+        The BEL, with the prefix `A_`.
+    """
+    return Bel(
+        src=Path(f"{name}.v"),
+        prefix="A_",
+        module_name=name,
+        internal=[
+            ("A_D0", IO.INPUT),
+            ("A_D1", IO.INPUT),
+            ("A_EN", IO.INPUT),
+            ("A_Q0", IO.OUTPUT),
+            ("A_Q1", IO.OUTPUT),
+        ],
+        external=[],
+        configPort=[],
+        sharedPort=[],
+        configBit=0,
+        belMap={},
+        userCLK=False,
+        ports_vectors={
+            "internal": {
+                "D": (IO.INPUT, 2),
+                "EN": (IO.INPUT, 1),
+                "Q": (IO.OUTPUT, 2),
+            },
+            "external": {},
+            "config": {},
+            "shared": {},
+        },
+        carry={},
+        localShared={},
+        keep_vector_ports=keep_vector_ports,
+    )
+
+
+VECTOR_BEL_TIMING = BelTiming(
+    arcs=(
+        BelDelayTiming("D1", "Q0", 1.5),
+        BelSetupHoldTiming("D0", "CLK", 0.5, 0.1),
+        BelClockToOutTiming("Q1", "CLK", 0.7),
+        BelDelayTiming("EN", "Q1", 2.0),
+    )
+)
+
+
+@pytest.mark.parametrize(
+    ("keep_vector_ports", "expected_lines"),
+    [
+        pytest.param(
+            False,
+            [
+                "I,D0,X1Y2.A_D0",
+                "I,D1,X1Y2.A_D1",
+                "I,EN,X1Y2.A_EN",
+                "O,Q0,X1Y2.A_Q0",
+                "O,Q1,X1Y2.A_Q1",
+                "Delay,D1,Q0,1.5",
+                "SetupHold,D0,CLK,0.5,0.1",
+                "ClkToOut,Q1,CLK,0.7",
+                "Delay,EN,Q1,2.0",
+            ],
+            id="split",
+        ),
+        pytest.param(
+            True,
+            [
+                "I,D[0],X1Y2.A_D0",
+                "I,D[1],X1Y2.A_D1",
+                "I,EN,X1Y2.A_EN",
+                "O,Q[0],X1Y2.A_Q0",
+                "O,Q[1],X1Y2.A_Q1",
+                "Delay,D[1],Q[0],1.5",
+                "SetupHold,D[0],CLK,0.5,0.1",
+                "ClkToOut,Q[1],CLK,0.7",
+                "Delay,EN,Q[1],2.0",
+            ],
+            id="vector",
+        ),
+    ],
+)
+def test_belLines_names_vector_port_pins(
+    keep_vector_ports: bool, expected_lines: list[str]
+) -> None:
+    """A BEL that keeps its vector ports gets nextpnr bus pin names.
+
+    Only the pin name changes: the wire a pin sits on keeps its split name, and
+    a scalar port keeps its name either way.
+    """
+    bel = make_vector_bel("my_bel", keep_vector_ports)
+
+    _, v2_lines, v3_lines, _ = belLines(bel, "A", 1, 2, VECTOR_BEL_TIMING)
+
+    assert v2_lines == ["BelBegin,X1Y2,A,my_bel,A_", *expected_lines[:5], "BelEnd"]
+    assert v3_lines == ["BelBegin,X1Y2,A,my_bel,A_", *expected_lines, "BelEnd"]
+
+
+def test_belLines_rejects_vector_ports_on_lut_bel() -> None:
+    """nextpnr packs LUTs through the pins I0.., so the LUT BEL must stay split."""
+    bel = make_vector_bel("LUT4c_frame_config", keep_vector_ports=True)
+
+    with pytest.raises(ValueError, match="VECTOR_PORTS"):
+        belLines(bel, "A", 0, 0)

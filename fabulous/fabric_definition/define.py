@@ -171,6 +171,8 @@ class FABulousAttribute(StrEnum):
     - GLOBAL: Global attribute
     - USER_CLK: User clock attribute
     - CONFIG_BIT: Configuration bit attribute
+    - VECTOR_PORTS: Module attribute keeping the BEL's vector ports as vectors in
+      the Yosys primitive and the nextpnr model
     """
 
     EXTERNAL = "EXTERNAL"
@@ -178,6 +180,7 @@ class FABulousAttribute(StrEnum):
     GLOBAL = "GLOBAL"
     USER_CLK = "USER_CLK"
     CONFIG_BIT = "CONFIG_BIT"
+    VECTOR_PORTS = "VECTOR_PORTS"
 
 
 class PinSortMode(StrEnum):

@@ -47,6 +47,7 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     exclude_attributes = {
         "BelMap",
         "FABulous",
+        FABulousAttribute.VECTOR_PORTS,
         "dynports",
         "cells_not_processed",
         "src",
@@ -116,6 +117,7 @@ def parseBelFile(
     * **CONFIG_PORT**
     * **SHARED_ENABLE**
     * **SHARED_RESET**
+    * **VECTOR_PORTS**
 
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
@@ -149,6 +151,12 @@ def parseBelFile(
     attribute.
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
+
+    **VECTOR_PORTS** attribute will notify FABulous to keep the vector ports of the
+    bel as vectors in the Yosys primitive and in the nextpnr model, so a user
+    design connects ``.D(d)`` instead of ``.D0(d[0]), .D1(d[1])``. This attribute
+    should be placed before the start of the module. Without it every vector port
+    is split into one pin per bit.
 
     Example
     -------
@@ -312,6 +320,8 @@ def parseBelFile(
             ports_vectors["internal"][portName] = (direction, len(bits))
 
     belMapDic = belMapProcessing(module_info)
+    module_attributes = {key.casefold() for key in module_info.attributes}
+    keep_vector_ports = FABulousAttribute.VECTOR_PORTS.casefold() in module_attributes
     if len(belMapDic) != noConfigBits:
         raise ValueError(
             f"NoConfigBits does not match with the BEL map in file {filename}, "
@@ -333,4 +343,5 @@ def parseBelFile(
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,
+        keep_vector_ports=keep_vector_ports,
     )

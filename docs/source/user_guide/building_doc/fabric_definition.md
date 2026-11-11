@@ -890,6 +890,53 @@ FABulous defines the following coding rules for BELs:
     attribute SHARED_RESET of SR : signal is "TRUE";
     ```
 
+  - `VECTOR_PORTS`: This directive belongs to the module, not to a port. It keeps
+    the vector ports of the BEL as vectors in the Yosys primitive and in the
+    nextpnr model, so a user design instantiates the BEL with its vector ports:
+
+    ```verilog
+    my_ram i_ram (
+        .D   (data),      // [3:0]
+        .ADR (address),   // [4:0]
+        .Q   (q)          // [3:0]
+    );
+    ```
+
+    Without the directive every vector port is split into one pin per bit, and
+    the instantiation has to connect `.D0(data[0]), .D1(data[1]), ...`.
+
+    In Verilog the directive goes into the attribute in front of the module,
+    together with the `BelMap` if there is one:
+
+    ```verilog
+    (* FABulous, BelMap, VECTOR_PORTS, Q_reg=0 *)
+    module my_ram (
+        input [3:0] D,
+        input [4:0] ADR,
+        output [3:0] Q,
+        ...
+    ```
+
+    In VHDL, use an entity-level attribute:
+
+    ```VHDL
+    attribute VECTOR_PORTS of my_ram : entity is "TRUE";
+    ```
+
+    The directive only changes how the user design sees the BEL. Inside the
+    tile the bits stay individual switch matrix wires named `D0`, `D1`, ...,
+    and `EXTERNAL` vector ports are still exported one bit at a time.
+
+    The primitive in `custom_prims.v` and the nextpnr model have to agree, so
+    regenerate both after adding or removing the directive. A primitive that is
+    already in `custom_prims.v` is only replaced when
+    [`add_as_custom_prim`](#add-as-custom-prim) is run with `--overwrite`.
+
+    :::{note}
+    The LUT BELs `LUT4c_frame_config` and `LUT4c_frame_config_dffesr` cannot
+    use this directive, because nextpnr packs LUTs through the pins `I0`, `I1`, ...
+    :::
+
 (vhdl-attributes)=
 
 #### VHDL attribute syntax

@@ -1,6 +1,5 @@
 """Functions for fabric automation, such as generating tile configurations and IOs."""
 
-import json
 import math
 import re
 from importlib import resources
@@ -399,9 +398,10 @@ def addBelsToPrim(
     bels : list[Bel]
         List of bels to add
     support_vectors : bool
-        Boolean to support vectors for ports in the prims file
-        Default False,
-        since the FABulous nextpn integration does not support vectors
+        Declare vector ports for every bel, also for the ones that do not set the
+        `VECTOR_PORTS` attribute. The nextpnr model of such a bel still has one
+        pin per bit, so the primitive cannot be placed.
+        Default False
     overwrite : bool
         Replace primitives that are already present in the prims file,
         instead of keeping the existing definition.
@@ -476,47 +476,23 @@ def addBelsToPrim(
                 external_outputs.append(external_port.name.removeprefix(bel.prefix))
             external_ports = external_inputs + external_outputs
 
-            if support_vectors:
-                # Find all ports with their directions
-                # need to parse the json file again, since port width
-                # is not known in BEL object
-                with bel.src.with_suffix(".json").open() as f:
-                    bel_dict = json.load(f)
-                module_ports = bel_dict["modules"][bel.module_name]["ports"]
-
-                # UserCLK needs to be renamed, otherwise yosys can't map the CLK
-                if module_ports["UserCLK"]:
-                    module_ports["CLK"] = module_ports["UserCLK"]
-                    del module_ports["UserCLK"]
-                # ConfigBits are not needed in the prims file
-                if "ConfigBits" in module_ports:
-                    del module_ports["ConfigBits"]
-
-                ports_dict = {}
-                for port_name, details in module_ports.items():
-                    if details["direction"] not in ports_dict:
-                        ports_dict[details["direction"]] = []
-                    if len(details["bits"]) > 1:
-                        ports_dict[details["direction"]].append(
-                            f"[{len(details['bits']) - 1}:0] {port_name}"
-                        )
-                    else:
-                        ports_dict[details["direction"]].append(port_name)
-
-                # build portlist
-                for direction, ports in ports_dict.items():
-                    if not first:
-                        modline += ",\n"
-                    else:
-                        first = False
-                    for port in ports:
-                        if port in external_ports:
-                            # add pad attribute to external ports
+            if support_vectors or bel.keep_vector_ports:
+                for category in ("internal", "external", "shared"):
+                    for port, (direction, width) in bel.ports_vectors[category].items():
+                        if not first:
+                            modline += ",\n"
+                        else:
+                            first = False
+                        if category == "external":
                             modline += "    (* iopad_external_pin *)\n"
-                        if port in shared_ports and port == "UserCLK":
+                        if port == "UserCLK":
+                            # Rename UserCLK to CLK
+                            # Otherwise Yosys can't map the CLK
                             port = "CLK"
-
-                        modline += f"    {direction} {port}"
+                        vector_range = f"[{width - 1}:0] " if width > 1 else ""
+                        modline += (
+                            f"    {str(direction.value).lower()} {vector_range}{port}"
+                        )
             else:  # No vector support
                 ports = inputs + outputs + external_ports + shared_ports
 

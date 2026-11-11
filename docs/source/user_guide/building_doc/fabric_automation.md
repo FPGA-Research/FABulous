@@ -371,9 +371,13 @@ This removes every definition of the given modules, including hand-written ones,
 your own implementation or techmap description of that module is lost. Definitions of
 other modules are kept.
 
-With `--support-vectors` (`-v`), vector ports are emitted as vectors instead of being
-unrolled into individual scalar ports. Only use this if your CAD flow can handle it,
-the FABulous nextpnr integration currently cannot:
+A BEL that sets the [`VECTOR_PORTS` directive](#primitives) gets its vector ports
+emitted as vectors, matching the pins FABulous gives it in the nextpnr model.
+
+With `--support-vectors` (`-v`), vector ports are emitted as vectors for every given
+BEL, also without the directive. The nextpnr model of such a BEL still has one pin per
+bit, so only use this if your CAD flow does not go through the FABulous nextpnr
+integration:
 
 ```console
 FABulous> add_as_custom_prim --support-vectors Tile/CRC5/crc5.v
