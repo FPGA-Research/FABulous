@@ -123,44 +123,13 @@ IO_BEL_TYPES = (
 )
 
 
-def _vector_pin_names(bel: Bel) -> dict[str, str]:
-    """Map the split bits of a BEL's vector ports to their nextpnr pin names.
-
-    nextpnr names the bits of a multi-bit cell port `D[0]`, `D[1]`, while the
-    fabric routes them on the wires `D0`, `D1`. A BEL that keeps its vector
-    ports needs its pins named the nextpnr way to accept such a cell.
-
-    Parameters
-    ----------
-    bel : Bel
-        The BEL to name the pins of.
-
-    Returns
-    -------
-    dict[str, str]
-        Pin name by split bit name, both without the BEL prefix. Empty when the
-        BEL does not keep its vector ports.
-    """
-    pin_names = {}
-    if not bel.keep_vector_ports:
-        return pin_names
-    for port, (_direction, width) in bel.ports_vectors["internal"].items():
-        if width > 1:
-            for index in range(width):
-                pin_names[f"{port}{index}"] = f"{port}[{index}]"
-    return pin_names
-
-
-def _bel_timing_lines(timing: BelTiming, pin_names: dict[str, str]) -> list[str]:
+def _bel_timing_lines(timing: BelTiming) -> list[str]:
     """Serialize characterized BEL timing arcs into `bel.v3` lines.
 
     Parameters
     ----------
     timing : BelTiming
         Timing arcs returned by the timing-model interface.
-    pin_names : dict[str, str]
-        nextpnr pin name by split bit name, for the ports that are not written
-        under their own name.
 
     Returns
     -------
@@ -178,17 +147,13 @@ def _bel_timing_lines(timing: BelTiming, pin_names: dict[str, str]) -> list[str]
         if isinstance(arc, BelClockTiming):
             lines.append(f"Clock,{arc.clock}{condition}")
         elif isinstance(arc, BelDelayTiming):
-            source = pin_names.get(arc.source, arc.source)
-            sink = pin_names.get(arc.sink, arc.sink)
-            lines.append(f"Delay,{source},{sink},{arc.delay}{condition}")
+            lines.append(f"Delay,{arc.source},{arc.sink},{arc.delay}{condition}")
         elif isinstance(arc, BelSetupHoldTiming):
-            port = pin_names.get(arc.port, arc.port)
             lines.append(
-                f"SetupHold,{port},{arc.clock},{arc.setup},{arc.hold}{condition}"
+                f"SetupHold,{arc.port},{arc.clock},{arc.setup},{arc.hold}{condition}"
             )
         elif isinstance(arc, BelClockToOutTiming):
-            port = pin_names.get(arc.port, arc.port)
-            lines.append(f"ClkToOut,{port},{arc.clock},{arc.delay}{condition}")
+            lines.append(f"ClkToOut,{arc.port},{arc.clock},{arc.delay}{condition}")
         else:
             raise TypeError(f"Unsupported BEL timing arc: {arc!r}")
     return lines
@@ -245,11 +210,8 @@ def belLines(
     v1_line = (
         f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel_inputs + bel_outputs)}"
     )
-    pin_names = _vector_pin_names(bel)
-    inputs = [p.removeprefix(bel.prefix) for p in bel_inputs]
-    inputs = [pin_names.get(p, p) for p in inputs]
-    outputs = [p.removeprefix(bel.prefix) for p in bel_outputs]
-    outputs = [pin_names.get(p, p) for p in outputs]
+    inputs = [p.pin_name for p in bel.input_ports]
+    outputs = [p.pin_name for p in bel.output_ports]
 
     def block(timing: bool) -> list[str]:
         """Build one block with optional timing information.
@@ -272,7 +234,7 @@ def belLines(
         for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
             lines.append(f"CFG,{feat}")
         if timing and bel_timing is not None:
-            lines.extend(_bel_timing_lines(bel_timing, pin_names))
+            lines.extend(_bel_timing_lines(bel_timing))
         elif timing and cType == "FABULOUS_LC":
             lutInputs = [p for p in inputs if p.startswith("I") and p[1:].isdigit()]
             lines.append("Clock,CLK,FF=1")

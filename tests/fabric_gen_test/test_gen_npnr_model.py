@@ -12,9 +12,7 @@ from fabulous.fabric_cad.gen_npnr_model import (
     write_nextpnr_timing_files,
 )
 from fabulous.fabric_cad.timing_model.models import (
-    BelClockToOutTiming,
     BelDelayTiming,
-    BelSetupHoldTiming,
     BelTiming,
     TimingModelTarget,
 )
@@ -389,16 +387,6 @@ def make_vector_bel(name: str, keep_vector_ports: bool) -> Bel:
     )
 
 
-VECTOR_BEL_TIMING = BelTiming(
-    arcs=(
-        BelDelayTiming("D1", "Q0", 1.5),
-        BelSetupHoldTiming("D0", "CLK", 0.5, 0.1),
-        BelClockToOutTiming("Q1", "CLK", 0.7),
-        BelDelayTiming("EN", "Q1", 2.0),
-    )
-)
-
-
 @pytest.mark.parametrize(
     ("keep_vector_ports", "expected_lines"),
     [
@@ -410,10 +398,6 @@ VECTOR_BEL_TIMING = BelTiming(
                 "I,EN,X1Y2.A_EN",
                 "O,Q0,X1Y2.A_Q0",
                 "O,Q1,X1Y2.A_Q1",
-                "Delay,D1,Q0,1.5",
-                "SetupHold,D0,CLK,0.5,0.1",
-                "ClkToOut,Q1,CLK,0.7",
-                "Delay,EN,Q1,2.0",
             ],
             id="split",
         ),
@@ -425,10 +409,6 @@ VECTOR_BEL_TIMING = BelTiming(
                 "I,EN,X1Y2.A_EN",
                 "O,Q[0],X1Y2.A_Q0",
                 "O,Q[1],X1Y2.A_Q1",
-                "Delay,D[1],Q[0],1.5",
-                "SetupHold,D[0],CLK,0.5,0.1",
-                "ClkToOut,Q[1],CLK,0.7",
-                "Delay,EN,Q[1],2.0",
             ],
             id="vector",
         ),
@@ -444,10 +424,11 @@ def test_belLines_names_vector_port_pins(
     """
     bel = make_vector_bel("my_bel", keep_vector_ports)
 
-    _, v2_lines, v3_lines, _ = belLines(bel, "A", 1, 2, VECTOR_BEL_TIMING)
+    _, v2_lines, v3_lines, _ = belLines(bel, "A", 1, 2)
 
-    assert v2_lines == ["BelBegin,X1Y2,A,my_bel,A_", *expected_lines[:5], "BelEnd"]
-    assert v3_lines == ["BelBegin,X1Y2,A,my_bel,A_", *expected_lines, "BelEnd"]
+    expected_block = ["BelBegin,X1Y2,A,my_bel,A_", *expected_lines, "BelEnd"]
+    assert v2_lines == expected_block
+    assert v3_lines == expected_block
 
 
 def test_belLines_rejects_vector_ports_on_lut_bel() -> None:

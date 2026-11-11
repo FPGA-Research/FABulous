@@ -106,3 +106,55 @@ def test_identically_built_bels_are_equal() -> None:
     internal = [("LA_I0", IO.INPUT), ("LA_O", IO.OUTPUT)]
 
     assert make_bel(internal) == make_bel(internal)
+
+
+@pytest.mark.parametrize(
+    ("keep_vector_ports", "input_pins", "output_pins"),
+    [
+        pytest.param(False, ["D0", "D1", "EN"], ["Q0", "Q1"], id="split"),
+        pytest.param(True, ["D[0]", "D[1]", "EN"], ["Q[0]", "Q[1]"], id="vector"),
+    ],
+)
+def test_bel_port_pin_names_follow_keep_vector_ports(
+    keep_vector_ports: bool, input_pins: list[str], output_pins: list[str]
+) -> None:
+    """A bit of a kept vector port is the pin `D[0]` on the wire `LA_D0`.
+
+    A scalar port is the same pin either way, and the wire names never change.
+    """
+    bel = Bel(
+        src=Path("my_bel.v"),
+        prefix="LA_",
+        module_name="my_bel",
+        internal=[
+            ("LA_D0", IO.INPUT),
+            ("LA_D1", IO.INPUT),
+            ("LA_EN", IO.INPUT),
+            ("LA_Q0", IO.OUTPUT),
+            ("LA_Q1", IO.OUTPUT),
+        ],
+        external=[],
+        configPort=[],
+        sharedPort=[],
+        configBit=0,
+        belMap={},
+        userCLK=False,
+        ports_vectors={
+            "internal": {
+                "D": (IO.INPUT, 2),
+                "EN": (IO.INPUT, 1),
+                "Q": (IO.OUTPUT, 2),
+            },
+            "external": {},
+            "config": {},
+            "shared": {},
+        },
+        carry={},
+        localShared={},
+        keep_vector_ports=keep_vector_ports,
+    )
+
+    assert [p.pin_name for p in bel.input_ports] == input_pins
+    assert [p.pin_name for p in bel.output_ports] == output_pins
+    assert [p.name for p in bel.input_ports] == ["LA_D0", "LA_D1", "LA_EN"]
+    assert [p.name for p in bel.output_ports] == ["LA_Q0", "LA_Q1"]

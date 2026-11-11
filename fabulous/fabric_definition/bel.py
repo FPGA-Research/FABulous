@@ -165,16 +165,25 @@ class Bel:
                 raise ValueError(
                     f"Port {port} of BEL {src} does not start with prefix {prefix}"
                 )
-        self.input_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
-            for p, io in internal
-            if io == IO.INPUT
-        ]
-        self.output_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
-            for p, io in internal
-            if io == IO.OUTPUT
-        ]
+        # One bit of a kept vector port is routed on the wire `D0` but is the
+        # pin `D[0]`, the name Yosys and nextpnr give the bit of a vector port.
+        pin_names: dict[str, str] = {}
+        if keep_vector_ports:
+            for port, (io, width) in ports_vectors["internal"].items():
+                if width > 1:
+                    pins = BelPort(port, io, width).expand()
+                    pin_names |= {f"{port}{i}": pin for i, pin in enumerate(pins)}
+        self.input_ports = []
+        self.output_ports = []
+        for port, io in internal:
+            name = port.removeprefix(prefix)
+            bel_port = BelPort(
+                name, io, 1, prefix=prefix, pin_name=pin_names.get(name, name)
+            )
+            if io == IO.INPUT:
+                self.input_ports.append(bel_port)
+            elif io == IO.OUTPUT:
+                self.output_ports.append(bel_port)
         self.external_input_ports = [
             BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
             for p, io in external
