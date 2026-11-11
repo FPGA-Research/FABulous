@@ -19,7 +19,6 @@ library IEEE;
 
 -- InPass and OutPass are the same except for changing which side
 -- I0,I1,I2,I3 or O0,O1,O2,O3 gets connected to the top entity
--- (* FABulous, BelMap, O0_reg=0, O1_reg=1, O2_reg=2, O3_reg=3 *)
 
 entity OutPass4_frame_config_mux is
   generic (
@@ -28,11 +27,11 @@ entity OutPass4_frame_config_mux is
   port (
     -- Pin0
     I : in    std_logic_vector(3 downto 0);
-    O : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
+    O : out   std_logic_vector(3 downto 0);
     -- Tile IO ports from BELs
-    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic;
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
 
   attribute FABulous of OutPass4_frame_config_mux : entity is "TRUE";
@@ -54,7 +53,7 @@ architecture Behavioral of OutPass4_frame_config_mux is
   --         |             |  U |-------> O
   --         +-------------|0 X |
   -- I am instantiating an IOBUF primitive.
-  -- However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
+  -- However, it is possible to connect corresponding pins all the way to top, just by adding an EXTERNAL attribute (see PAD in the entity)
 
   signal Q : std_logic_vector(3 downto 0); -- FLOPs
 

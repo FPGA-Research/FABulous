@@ -712,19 +712,13 @@ def genIOBel(
         )
 
     if configBits > 0:
-        if language == "vhdl":
-            writer.addComment("GLOBAL", True, indentLevel=2)
-            writer.addPortVector(
-                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
-        else:  #  Verilog
-            writer.addPortVector(
-                "ConfigBits",
-                IO.INPUT,
-                "NoConfigBits -1",
-                attribute="GLOBAL",
-                indentLevel=2,
-            )
+        writer.addPortVector(
+            "ConfigBits",
+            IO.INPUT,
+            "NoConfigBits -1",
+            attribute="GLOBAL",
+            indentLevel=2,
+        )
 
     writer.addPortEnd(indentLevel=1)
     writer.addHeaderEnd(f"{bel_name}")
