@@ -14,7 +14,7 @@
 
 `default_nettype none
 
-(* FABulous, BelMap,
+(* FABulous, BelMap, VECTOR_PORTS,
     A_reg=0,
     B_reg=1,
     C_reg=2,

@@ -13,6 +13,12 @@ Yosys 0.67 reworked `synth_fabulous`: it no longer ships the FABulous primitives
 and technology maps, which a FABulous project now carries in its `yosys/` folder.
 FABulous works with Yosys on either side of the rework. Support for Yosys 0.66
 and older ends in FABulous 3.0.
+
+The library bundled with Yosys 0.66 and older declares `RegFile_32x4` and
+`MULADD` with one port per bit, while the BELs of a new project keep their
+vector ports (see `VECTOR_PORTS` in [](#primitives)). A design that infers a
+register file or instantiates either primitive therefore needs Yosys 0.67 or
+newer in a new project.
 :::
 
 ## Upgrading a project created before Yosys 0.67

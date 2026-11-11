@@ -936,6 +936,10 @@ FABulous defines the following coding rules for BELs:
     own switch matrix wire (`D0`, `D1`, ...), and `EXTERNAL` vector ports are
     still exported one bit at a time.
 
+    The `RegFile_32x4` and `MULADD` BELs of the project template use this
+    directive, and the library in the project's `yosys/` folder declares them
+    with vector ports to match.
+
     :::{note}
     The LUT BELs `LUT4c_frame_config` and `LUT4c_frame_config_dffesr` cannot
     use this directive, because nextpnr packs LUTs through the pins `I0`, `I1`, ...

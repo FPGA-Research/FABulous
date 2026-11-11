@@ -2,6 +2,7 @@ package attr_pack_DSP_MULADD is
 
   attribute FABulous      : string;
   attribute BelMap        : string;
+  attribute VECTOR_PORTS  : string;
   attribute A_reg         : integer;
   attribute B_reg         : integer;
   attribute C_reg         : integer;
@@ -34,6 +35,7 @@ entity MULADD is
   );
   attribute FABulous of MULADD      : entity is "TRUE";
   attribute BelMap of MULADD        : entity is "TRUE";
+  attribute VECTOR_PORTS of MULADD        : entity is "TRUE";
   attribute A_reg of MULADD         : entity is 0;
   attribute B_reg of MULADD         : entity is 1;
   attribute C_reg of MULADD         : entity is 2;

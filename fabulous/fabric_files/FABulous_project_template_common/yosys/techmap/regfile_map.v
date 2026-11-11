@@ -1,5 +1,7 @@
 // Taken from Yosys techlibs/fabulous (ISC licence) as of 49ecb1ac1, the last
-// revision before Yosys stopped shipping FABulous primitives and maps.
+// revision before Yosys stopped shipping FABulous primitives and maps, and
+// changed to connect whole vectors, since the RegFile_32x4 BEL keeps its
+// vector ports (VECTOR_PORTS).
 
 (* techmap_celltype = "$__REGFILE_[AS][AS]_" *)
 module \$__REGFILE_XX_ (...);
@@ -32,13 +34,13 @@ RegFile_32x4 #(
     .AD_reg(A_SYNC),
     .BD_reg(B_SYNC)
 ) _TECHMAP_REPLACE_ (
-    .D0(PORT_W_WR_DATA[0]), .D1(PORT_W_WR_DATA[1]), .D2(PORT_W_WR_DATA[2]), .D3(PORT_W_WR_DATA[3]),
-    .W_ADR0(PORT_W_ADDR[0]), .W_ADR1(PORT_W_ADDR[1]), .W_ADR2(PORT_W_ADDR[2]), .W_ADR3(PORT_W_ADDR[3]), .W_ADR4(PORT_W_ADDR[4]),
+    .D(PORT_W_WR_DATA),
+    .W_ADR(PORT_W_ADDR),
     .W_en(PORT_W_WR_EN),
-    .AD0(PORT_A_RD_DATA[0]), .AD1(PORT_A_RD_DATA[1]), .AD2(PORT_A_RD_DATA[2]), .AD3(PORT_A_RD_DATA[3]),
-    .A_ADR0(PORT_A_ADDR[0]), .A_ADR1(PORT_A_ADDR[1]), .A_ADR2(PORT_A_ADDR[2]), .A_ADR3(PORT_A_ADDR[3]), .A_ADR4(PORT_A_ADDR[4]),
-    .BD0(PORT_B_RD_DATA[0]), .BD1(PORT_B_RD_DATA[1]), .BD2(PORT_B_RD_DATA[2]), .BD3(PORT_B_RD_DATA[3]),
-    .B_ADR0(PORT_B_ADDR[0]), .B_ADR1(PORT_B_ADDR[1]), .B_ADR2(PORT_B_ADDR[2]), .B_ADR3(PORT_B_ADDR[3]), .B_ADR4(PORT_B_ADDR[4]),
+    .AD(PORT_A_RD_DATA),
+    .A_ADR(PORT_A_ADDR),
+    .BD(PORT_B_RD_DATA),
+    .B_ADR(PORT_B_ADDR),
     .CLK(CLK_CLK)
 );
 
