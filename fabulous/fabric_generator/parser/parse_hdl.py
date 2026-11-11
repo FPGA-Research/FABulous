@@ -11,6 +11,15 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, FABulousAttribute
 from fabulous.fabric_definition.yosys_obj import YosysJson, YosysModule
 
+_PORT_DIRECTIVES = (
+    "EXTERNAL",
+    "SHARED_PORT",
+    "GLOBAL",
+    "SHARED_RESET",
+    "SHARED_ENABLE",
+    "CONFIG_PORT",
+)
+
 
 def belMapProcessing(module_info: YosysModule) -> dict:
     """Extract and transform BEL mapping attributes in `YosysModule`.
@@ -95,6 +104,61 @@ def belMapProcessing(module_info: YosysModule) -> dict:
         belMapDic[key] = {0: {0: "1"}}
 
     return belMapDic
+
+
+def _check_vhdl_comment_directives(filename: Path, module_info: YosysModule) -> None:
+    """Reject FABulous directives that a VHDL BEL declares only in comments.
+
+    FABulous reads directives from native VHDL attributes only. Older BEL files
+    declared them in comments (`-- (* FABulous, EXTERNAL *)` or `-- EXTERNAL`),
+    which are ignored now, so such a file would silently lose its BelMap or
+    its EXTERNAL ports.
+
+    Parameters
+    ----------
+    filename : Path
+        The VHDL BEL file.
+    module_info : YosysModule
+        The parsed BEL module.
+
+    Raises
+    ------
+    InvalidBelDefinition
+        If a comment declares a directive the native attributes do not.
+    """
+    text = filename.read_text()
+    module_attributes = {key.casefold() for key in module_info.attributes}
+    netnames = {name.casefold(): net for name, net in module_info.netnames.items()}
+    missing: list[str] = []
+
+    if (
+        re.search(r"--\s*\(\*\s*FABulous\s*,\s*BelMap", text, re.IGNORECASE)
+        and "belmap" not in module_attributes
+    ):
+        missing.append("BelMap of the entity")
+
+    for line in text.splitlines():
+        code, sep, comment = line.partition("--")
+        port = re.match(r"\s*(\w+)\s*:\s*(in|out|inout)\b", code, re.IGNORECASE)
+        if not sep or port is None or port.group(1).casefold() not in netnames:
+            continue
+        port_attributes = {
+            key.casefold() for key in netnames[port.group(1).casefold()].attributes
+        }
+        for directive in _PORT_DIRECTIVES:
+            if (
+                re.search(rf"\b{directive}\b", comment)
+                and directive.casefold() not in port_attributes
+            ):
+                missing.append(f"{directive} of port {port.group(1)}")
+
+    if missing:
+        raise InvalidBelDefinition(
+            f"{filename} declares FABulous directives in VHDL comments, which "
+            f"FABulous no longer reads: {', '.join(missing)}. Declare them as "
+            "native VHDL attributes, e.g. `attribute EXTERNAL of <port> : signal is "
+            '"TRUE";` (see "VHDL attribute syntax" in the FABulous documentation).'
+        )
 
 
 def parseBelFile(
@@ -199,7 +263,8 @@ def parseBelFile(
         Fabric cannot be parsed
     InvalidBelDefinition
         The BEL file contains invalid BEL definitions. Such as wrong attribute type on
-        wrong port type. i.e SHARE_EN on output ports
+        wrong port type. i.e SHARE_EN on output ports, or FABulous directives that
+        a VHDL file declares only in comments.
     ValueError
         - If CARRY port prefix is not a string
         - Port naming is reused
@@ -231,6 +296,8 @@ def parseBelFile(
     # Gathers port name and direction, filters out configbits as they show in ports.
     # modules should only contain one module
     module_name, module_info = yosys_json.getTopModule()
+    if filename.suffix in {".vhd", ".vhdl"}:
+        _check_vhdl_comment_directives(filename, module_info)
     for port_name, details in module_info.ports.items():
         if "ConfigBits" in port_name:
             continue
