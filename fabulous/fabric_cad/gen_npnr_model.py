@@ -191,17 +191,27 @@ def belLines(
     tuple[str, list[str], list[str], list[str]]
         `(v1_line, v2_lines, v3_lines, constrain_lines)` - the legacy bel.txt
         line, the bel.v2/bel.v3 block lines, and zero or one `set_io` line.
+
+    Raises
+    ------
+    ValueError
+        If the BEL is a LUT BEL and keeps its vector ports.
     """
     cType = bel.name
     if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
         cType = "FABULOUS_LC"
+    if cType == "FABULOUS_LC" and bel.keep_vector_ports:
+        raise ValueError(
+            f"BEL {bel.name} cannot set the VECTOR_PORTS attribute: nextpnr packs "
+            "LUTs into FABULOUS_LC through the pins I0, I1, ..."
+        )
     bel_inputs = [p.name for p in bel.input_ports]
     bel_outputs = [p.name for p in bel.output_ports]
     v1_line = (
         f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel_inputs + bel_outputs)}"
     )
-    inputs = [p.removeprefix(bel.prefix) for p in bel_inputs]
-    outputs = [p.removeprefix(bel.prefix) for p in bel_outputs]
+    inputs = [p.pin_name for p in bel.input_ports]
+    outputs = [p.pin_name for p in bel.output_ports]
 
     def block(timing: bool) -> list[str]:
         """Build one block with optional timing information.

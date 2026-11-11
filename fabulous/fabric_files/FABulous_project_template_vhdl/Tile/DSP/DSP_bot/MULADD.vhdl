@@ -18,20 +18,19 @@ library IEEE;
   use IEEE.STD_LOGIC_1164.all;
   use IEEE.NUMERIC_STD.all;
   use work.attr_pack_DSP_MULADD.all;
--- (* FABulous, BelMap, A_reg=0, B_reg=1, C_reg=2, ACC=3, signExtension=4, ACCout=5 *)
 
 entity MULADD is
   generic (
     NoConfigBits : integer := 6
   );
-  port (                                                           -- IMPORTANT: this has to be in a dedicated line
-    A          : in    std_logic_vector(7 downto 0);               -- operand A
-    B          : in    std_logic_vector(7 downto 0);               -- operand B
-    C          : in    std_logic_vector(19 downto 0);              -- operand C
+  port (                                              -- IMPORTANT: this has to be in a dedicated line
+    A          : in    std_logic_vector(7 downto 0);  -- operand A
+    B          : in    std_logic_vector(7 downto 0);  -- operand B
+    C          : in    std_logic_vector(19 downto 0); -- operand C
     Q          : out   std_logic_vector(19 downto 0);
-    clr        : in    std_logic;                                  -- clear
-    UserCLK    : in    std_logic;                                  -- (* FABulous, EXTERNAL, SHARED_PORT *)
-    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    clr        : in    std_logic;                     -- clear
+    UserCLK    : in    std_logic;
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
   attribute FABulous of MULADD      : entity is "TRUE";
   attribute BelMap of MULADD        : entity is "TRUE";

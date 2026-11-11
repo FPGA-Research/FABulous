@@ -24,11 +24,11 @@ entity IO_1_bidirectional_frame_config_pass is
     T     : in    std_logic; -- tristate control
     O     : out   std_logic; -- from external pin to fabric
     Q     : out   std_logic; -- from external pin to fabric (registered)
-    I_top : out   std_logic; -- (* FABulous, EXTERNAL *) has to ge to top-level entity not the switch matrix
-    T_top : out   std_logic; -- (* FABulous, EXTERNAL *) has to ge to top-level entity not the switch matrix
-    O_top : in    std_logic; -- (* FABulous, EXTERNAL *) has to ge to top-level entity not the switch matrix
+    I_top : out   std_logic;
+    T_top : out   std_logic;
+    O_top : in    std_logic;
     -- Tile IO ports from BELs
-    UserCLK : in    std_logic -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic
   -- ## the EXTERNAL keyword will send this signal all the way to top and the
   -- SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
   -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
@@ -36,6 +36,11 @@ entity IO_1_bidirectional_frame_config_pass is
   );
   attribute FABulous of IO_1_bidirectional_frame_config_pass : entity is "TRUE";
   attribute BelMap of IO_1_bidirectional_frame_config_pass   : entity is "TRUE";
+  -- EXTERNAL sends these signals all the way to the top-level entity
+  -- instead of the switch matrix
+  attribute EXTERNAL of I_top                                : signal is "TRUE";
+  attribute EXTERNAL of T_top                                : signal is "TRUE";
+  attribute EXTERNAL of O_top                                : signal is "TRUE";
   attribute EXTERNAL of UserCLK                              : signal is "TRUE";
   -- SHARED_PORT allows multiple BELs using the same port
   -- (e.g. for exporting a clock to the top)
@@ -51,7 +56,7 @@ architecture Behavioral of IO_1_bidirectional_frame_config_pass is
 
 -- I am instantiating an IOBUF primitive.
 -- However, it is possible to connect corresponding pins all the way to top,
--- just by adding an "-- EXTERNAL" comment (see PAD in the entity)
+-- just by adding an EXTERNAL attribute (see PAD in the entity)
 
 -- signal fromPad : std_logic;
 

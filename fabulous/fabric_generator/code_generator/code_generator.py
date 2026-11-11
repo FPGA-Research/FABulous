@@ -822,8 +822,12 @@ class CodeGenerator(abc.ABC):
             ```
                 (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
             ```
-            VHDL:
+            VHDL (written into the entity by `addHeaderEnd`):
             ```
-                -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
+                attribute FABulous of <entity> : entity is "TRUE";
+                attribute BelMap of <entity> : entity is "TRUE";
+                attribute INIT of <entity> : entity is 0;
+                attribute INIT_1 of <entity> : entity is 1;
+                ...
             ```
         """
