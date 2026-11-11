@@ -2,8 +2,8 @@ package attr_pack_LUT4AB_MUX8LUT_frame_config_mux is
 
   attribute FABulous    : string;
   attribute BelMap      : string;
-  attribute C0          : integer;
-  attribute C1          : integer;
+  attribute c0          : integer;
+  attribute c1          : integer;
   attribute EXTERNAL    : string;
   attribute SHARED_PORT : string;
   attribute GLOBAL      : string;
@@ -14,8 +14,6 @@ library IEEE;
   use IEEE.STD_LOGIC_1164.all;
   use IEEE.NUMERIC_STD.all;
   use work.attr_pack_LUT4AB_MUX8LUT_frame_config_mux.all;
-
--- (* FABulous, BelMap, c0=0, c1=1 *)
 
 entity MUX8LUT_frame_config_mux is
   generic (
@@ -36,12 +34,12 @@ entity MUX8LUT_frame_config_mux is
     M_AH : out   std_logic;
     M_EF : out   std_logic;
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
   attribute FABulous of MUX8LUT_frame_config_mux : entity is "TRUE";
   attribute BelMap of MUX8LUT_frame_config_mux   : entity is "TRUE";
-  attribute C0 of MUX8LUT_frame_config_mux       : entity is 0;
-  attribute C1 of MUX8LUT_frame_config_mux       : entity is 1;
+  attribute c0 of MUX8LUT_frame_config_mux       : entity is 0;
+  attribute c1 of MUX8LUT_frame_config_mux       : entity is 1;
   attribute GLOBAL of ConfigBits                 : signal is "TRUE";
 end entity MUX8LUT_frame_config_mux;
 

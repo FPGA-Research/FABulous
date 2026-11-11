@@ -1,10 +1,9 @@
 """Object representation of the Yosys Json file."""
 
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 from loguru import logger
 
@@ -237,8 +236,6 @@ class YosysJson:
         If the JSON file doesn't exist.
     InvalidFileType
         If the file type is not .vhd, .vhdl, .v, or .sv.
-    ValueError
-        If there is a miss match in the VHDL entity and the Yosys top module.
     """
 
     srcPath: Path
@@ -285,64 +282,6 @@ class YosysJson:
             for k, v in o.get("modules", {}).items()  # Use .get() for safety
         }
         self.models = o.get("models", {})  # Use .get() for safety
-
-        # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
-        if self.srcPath.suffix in [".vhd", ".vhdl"]:
-            vhdl_content = self.srcPath.read_text()
-
-            if r := re.search(r"entity\s+(\w+)\s+is", vhdl_content):
-                module_name = r.group(1)
-            else:
-                raise ValueError(f"Could not find entity name in {self.srcPath}")
-
-            module = self.modules.get(module_name)
-            if not module:
-                raise ValueError(
-                    f"Module {module_name} not found in Yosys JSON for {self.srcPath}"
-                )
-
-            if r := re.search(r"\(\*.*?BelMap(.*?) \*\)", vhdl_content):
-                res = r.group(1).split(",")
-                res = [x.strip() for x in res]
-                res = [x for x in res if x]  # Remove empty strings
-                res = dict(x.split("=", 1) for x in res)
-                # FIXME: This is a workaround for the VHDL parser until GHDL
-                # fixes the issue that all attributes are converted to lowercase.
-                # https://github.com/ghdl/ghdl/issues/3067
-                _update_dict_ignore_case(module.attributes, res)
-                _update_dict_ignore_case(
-                    module.attributes, {"BelMap": True, "FABulous": True}
-                )
-
-            # because yosys reverses the order of attributes, we need to do the same
-            module.attributes = dict(reversed(list(module.attributes.items())))
-
-            ports_entry = []
-            port_start = False
-            for i in vhdl_content.splitlines():
-                if re.search(r"^\s*port \(", i, flags=re.IGNORECASE):
-                    port_start = True
-                if port_start and re.search(r"^\s*\);\s*", i):
-                    port_start = False
-                if port_start:
-                    ports_entry.append(i)
-
-            for p in ports_entry:
-                if r := re.search(r"(\w+)\s*:.*? --\s*\(\* (.*?) \*\)", p):
-                    port_name = r.group(1)
-                    attribute_entries = r.group(2).split(",")
-                    module.netnames[port_name].attributes.update(
-                        {x.strip(): 1 for x in attribute_entries}
-                    )
-                if r := re.search(r"(\w+)\s*:.*? --.*", p):
-                    port_name = r.group(1)
-
-                    if "EXTERNAL" in p:
-                        module.netnames[port_name].attributes["EXTERNAL"] = 1
-                    if "SHARED_PORT" in p:
-                        module.netnames[port_name].attributes["SHARED_PORT"] = 1
-                    if "GLOBAL" in p:
-                        module.netnames[port_name].attributes["GLOBAL"] = 1
 
     def getTopModule(self) -> tuple[str, YosysModule]:
         """Find and return the top-level module in the design.
@@ -444,33 +383,3 @@ class YosysJson:
             raise ValueError(f"Multiple driver found for net {net}: {src}")
 
         return src[0], sinks
-
-
-def _update_dict_ignore_case(
-    original: dict[str, Any], updates: dict[str, Any]
-) -> dict[str, Any]:
-    """Update a dictionary with another dictionary, ignoring key case.
-
-    Parameters
-    ----------
-    original : dict[str, Any]
-        The original dictionary to be updated.
-    updates : dict[str, Any]
-        The dictionary containing updates.
-
-    Returns
-    -------
-    dict[str, Any]
-        The updated dictionary with keys from `updates` applied to `original`,
-        ignoring case differences.
-    """
-    lower_original = {k.lower(): k for k in original}
-
-    for key, value in updates.items():
-        lower_key = key.lower()
-        if lower_key in lower_original:
-            # overwrite existing key (case-insensitive)
-            original.pop(lower_original[lower_key])
-        original[key] = value
-
-    return original
