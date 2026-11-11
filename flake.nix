@@ -169,10 +169,7 @@
             customPkgs.fabulator
             customPkgs.ghdl
             pkgs.nvc
-            # Verilator compiles its models at run time. Without a Nix
-            # compiler it picks up the host one, and the resulting binary
-            # links the host glibc, which the Nix libraries it loads
-            # (libpython, tcl) can be too new for.
+            # Build dependencies of the models Verilator generates.
             pkgs.gcc
             pkgs.gnumake
           ]
