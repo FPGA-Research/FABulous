@@ -37,18 +37,6 @@
       url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz";
       flake = false;
     };
-    yosys-src = {
-      url = "git+https://github.com/YosysHQ/yosys?submodules=1";
-      flake = false;
-    };
-    # ghdl-yosys-plugin tracks ghdl master and has no GitHub releases, only a
-    # `ghdl-v<X>` tag that lines up with each ghdl release. Pin to the tag
-    # matching our ghdl-bin version; bumping ghdl-bin should bump this in
-    # lockstep.
-    ghdl-yosys-plugin-src = {
-      url = "github:ghdl/ghdl-yosys-plugin/ghdl-v6.0.0";
-      flake = false;
-    };
     nextpnr-src = {
       url = "github:YosysHQ/nextpnr";
       flake = false;
@@ -76,8 +64,6 @@
       librelane,
       ghdl-bin-x86_64-linux,
       ghdl-bin-aarch64-darwin,
-      yosys-src,
-      ghdl-yosys-plugin-src,
       nextpnr-src,
       fabulator-src,
       pyproject-nix,
@@ -142,8 +128,6 @@
             srcs = {
               ghdl-linux-bin = ghdl-bin-x86_64-linux;
               ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
-              yosys = yosys-src;
-              ghdl-yosys-plugin = ghdl-yosys-plugin-src;
               nextpnr = nextpnr-src;
               fabulator = fabulator-src;
             };
@@ -164,7 +148,6 @@
             pkgs.fish
             pkgs.zsh
             pkgs.gtkwave
-            customPkgs.yosys
             customPkgs.nextpnr
             customPkgs.fabulator
             customPkgs.ghdl
@@ -182,12 +165,6 @@
             ;
           # Runtime environment shared by the wrapped package and the dev shells.
           envVars = {
-            # Tells FABulous the nix yosys binary is named fab-yosys.
-            FAB_YOSYS_PATH = "fab-yosys";
-            # libghdl, dlopen'd by the yosys ghdl plugin, can't derive its own
-            # install prefix (only the ghdl binary can), so it needs this to
-            # find the IEEE libraries.
-            GHDL_PREFIX = "${customPkgs.ghdl}/lib/ghdl";
             # Silence known third-party import warnings (fasm, textX).
             PYTHONWARNINGS = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
           };
