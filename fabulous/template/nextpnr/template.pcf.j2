@@ -1,0 +1,5 @@
+{% for group in groups %}
+{% for placed in group.bels if placed.bel.pinned_io %}
+set_io Tile_X{{ placed.x }}Y{{ placed.y }}_{{ placed.letter }} Tile_X{{ placed.x }}Y{{ placed.y }}.{{ placed.letter }}
+{% endfor %}
+{% endfor %}

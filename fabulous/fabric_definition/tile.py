@@ -358,6 +358,32 @@ class Tile:
             and p.is_output
         ]
 
+    def bel_instance_name(self, bel: Bel) -> str:
+        """Return the instance name the tile generator gives one of its BELs.
+
+        Parameters
+        ----------
+        bel : Bel
+            A BEL of `bels`.
+
+        Returns
+        -------
+        str
+            `Inst_{prefix}{name}`.
+        """
+        return f"Inst_{bel.prefix}{bel.name}"
+
+    @property
+    def switch_matrix_instance_name(self) -> str:
+        """The instance name the tile generator gives the switch matrix.
+
+        Returns
+        -------
+        str
+            `Inst_{name}_switch_matrix`.
+        """
+        return f"Inst_{self.name}_switch_matrix"
+
     @property
     def directory(self) -> Path:
         """The directory the tile's own files are written to and read from.

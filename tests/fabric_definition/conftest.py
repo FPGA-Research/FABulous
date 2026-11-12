@@ -32,6 +32,14 @@ def make_fabric() -> Callable[..., Fabric]:
             "numberOfColumns": 15,
         }
         defaults.update(overrides)
+        # The parser lists every placed tile type in `tileDic`.
+        if "tile" in defaults and "tileDic" not in defaults:
+            defaults["tileDic"] = {
+                tile.name: tile
+                for row in reversed(defaults["tile"])
+                for tile in reversed(row)
+                if tile is not None
+            }
         return Fabric(**defaults)
 
     return _make
