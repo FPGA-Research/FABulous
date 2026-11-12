@@ -88,7 +88,7 @@ class FABulous_API:
     ----------
     writer : CodeGenerator
         Object responsible for generating code from code_generator.py
-    fabricCSV : str, optional
+    fabricCSV : str
         Path to the CSV file containing fabric data, by default ""
 
     Attributes
@@ -155,7 +155,7 @@ class FABulous_API:
             List data to be converted.
         matrix : Path
             Destination `.csv` file (created or overwritten).
-        preserve_list_order : bool, optional
+        preserve_list_order : bool
             Keep the mux-input order (MSB-first) so the conversion is
             order-faithful; otherwise the reader falls back to column order.
             Defaults to False.
@@ -175,7 +175,7 @@ class FABulous_API:
             CSV matrix data to be converted.
         listFile : Path
             Destination `.list` file (created or overwritten).
-        preserve_list_order : bool, optional
+        preserve_list_order : bool
             Keep the cell-encoded mux-input order so the conversion is
             order-faithful; otherwise the reader falls back to column order.
             Defaults to False.
@@ -395,7 +395,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        geomPadding : int, optional
+        geomPadding : int
             Padding value for geometry generation, by default 8.
         """
         self.geometryGenerator.generateGeometry(geomPadding)
@@ -447,7 +447,7 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the Tile.
-        raises_on_miss : bool, optional
+        raises_on_miss : bool
             Whether to raise an error if the tile is not found, by default 'False'.
 
         Returns
@@ -487,7 +487,7 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the SuperTile.
-        raises_on_miss : bool, optional
+        raises_on_miss : bool
             Whether to raise an error if the supertile is not found, by default 'False'.
 
         Returns
@@ -727,7 +727,7 @@ class FABulous_API:
             Path to PDK root directory.
         base_config_path : Path | None
             Path to base configuration YAML file.
-        config_override_path : Path | None, optional
+        config_override_path : Path | None
             Additional configuration overrides.
         frm : str | None
             LibreLane step ID to start from. With `run_tag` or `last_run`, the

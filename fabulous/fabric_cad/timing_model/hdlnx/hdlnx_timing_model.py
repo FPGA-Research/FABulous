@@ -37,9 +37,9 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         The static timing analysis tool to use for generating the timing graph.
     synth_tool : SynthTool
         The synthesis tool to use for converting RTL to gate-level netlist.
-    delay_type_str : DelayType, optional
+    delay_type_str : DelayType
         The type of delay to use for the timing graph (default is DelayType.MAX_ALL).
-    debug : bool, optional
+    debug : bool
         If True, print debug warnings about overwriting STA tool
         configurations (default is False).
     """

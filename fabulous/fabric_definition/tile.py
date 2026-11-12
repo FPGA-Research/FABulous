@@ -70,7 +70,7 @@ class Tile:
         List of general I/O components
     userCLK : bool
         True if the tile uses a clk signal
-    pinOrderConfig : dict[Side, PinOrderConfig] | None, optional
+    pinOrderConfig : dict[Side, PinOrderConfig] | None
         Configuration for pin ordering on each side of the tile. If None, defaults to
         BUS_MAJOR sorting on all sides.
 
@@ -94,9 +94,9 @@ class Tile:
         The list of wires of the tile
     tileDir : Path
         The path to the tile folder
-    partOfSuperTile : bool, optional
+    partOfSuperTile : bool
         Whether the tile is part of a super tile. Default is False.
-    pinOrderConfig : dict, optional
+    pinOrderConfig : dict
         Configuration for pin ordering on each side of the tile.
     """
 
@@ -448,11 +448,11 @@ class Tile:
             Number of tracks each north/south pin spans, by default 1.
         y_pin_thickness_mult : Decimal
             Number of tracks each east/west pin spans, by default 1.
-        frame_data_width : int, optional
+        frame_data_width : int
             Frame data width, by default 32.
-        frame_strobe_width : int, optional
+        frame_strobe_width : int
             Frame strobe width, by default 20.
-        edge_offset : int, optional
+        edge_offset : int
             Reserved tracks at tile edge, by default 2.
 
         Returns

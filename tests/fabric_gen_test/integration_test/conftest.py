@@ -185,7 +185,7 @@ class PCF:
         ----------
         signal : str
             User-design signal name as it appears in the PCF.
-        index : int | None, optional
+        index : int | None
             If ``None`` (default), the whole bus is returned as a
             :class:`LogicArray`. Otherwise a single bit as a :class:`Logic`.
 
@@ -217,7 +217,7 @@ class PCF:
         value : LogicArray | Logic
             New value. Must be a :class:`LogicArray` of matching width when
             ``index`` is ``None``, otherwise a single :class:`Logic`.
-        index : int | None, optional
+        index : int | None
             If given, only this bit is updated.
         """
         if index is None:
@@ -238,7 +238,7 @@ class PCF:
             User-design signal name.
         use : str
             ``"IN"``, ``"OUT"`` or ``"EN"``.
-        index : int, optional
+        index : int
             Bit index. Default ``0``.
 
         Returns
@@ -260,7 +260,7 @@ async def zero_bitstream(dut: FabricConfigDUT, delay_ns: int = 10) -> None:
     ----------
     dut : FabricConfigDUT
         cocotb top-level handle exposing ``FrameData`` and ``FrameStrobe``.
-    delay_ns : int, optional
+    delay_ns : int
         Duration each phase is held, in nanoseconds. Default ``10``.
     """
     dut.FrameData.value = 0
@@ -285,10 +285,10 @@ async def upload_bitstream(
         cocotb top-level handle exposing `FrameData` and `FrameStrobe`.
     bitstream_path : Path
         Path to a FABulous `.bin` bitstream.
-    delay_ns : int, optional
+    delay_ns : int
         Duration each strobe is held high (and then low) per row, in
         nanoseconds. Default `10`.
-    num_data_rows : int | None, optional
+    num_data_rows : int | None
         Number of 32-bit row words per frame in the bitstream payload.
 
     Raises
@@ -371,7 +371,7 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
     ----------
     dut : FabricConfigDUT
         cocotb top-level handle.
-    settle_ns : int, optional
+    settle_ns : int
         Per-phase settling delay in ns. Default ``10``.
 
     Returns
@@ -478,7 +478,7 @@ def stage_user_design(
         The project directory to stage the user design into.
     design_name : str
         Basename of the packaged design under ``user_designs/``.
-    lang : HDLType, optional
+    lang : HDLType
         Source language to select the file extension. Default
         ``HDLType.VERILOG``.
 

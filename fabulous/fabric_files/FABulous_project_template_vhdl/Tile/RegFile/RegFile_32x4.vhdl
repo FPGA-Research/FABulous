@@ -47,7 +47,7 @@ end entity RegFile_32x4;
 
 architecture Behavioral of RegFile_32x4 is
 
-  type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); -- 32 entries of 4 bit
+  type memtype is array(31 downto 0) of std_logic_vector(3 downto 0); -- 32 entries of 4 bit
 
   signal mem : memtype;
 

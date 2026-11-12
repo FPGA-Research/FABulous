@@ -337,11 +337,11 @@ class TilePort(Port):
 
         Parameters
         ----------
-        indexed : bool, optional
+        indexed : bool
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
-        prefix : str, optional
+        prefix : str
             A prefix to prepend to the port name, by default "".
 
         Returns
@@ -368,13 +368,13 @@ class TilePort(Port):
 
         Parameters
         ----------
-        indexed : bool, optional
+        indexed : bool
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
-        prefix : str, optional
+        prefix : str
             A prefix to prepend to the port name, by default "".
-        escape : bool, optional
+        escape : bool
             If True, escape special characters in the port names (e.g., for regex),
             by default False.
 
@@ -416,13 +416,13 @@ class TilePort(Port):
 
         Parameters
         ----------
-        indexed : bool, optional
+        indexed : bool
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
-        prefix : str, optional
+        prefix : str
             A prefix to prepend to the port name, by default "".
-        escape : bool, optional
+        escape : bool
             If True, escape special characters in the port names (e.g., for regex),
             by default False.
 
@@ -471,7 +471,7 @@ class TilePort(Port):
 
         Parameters
         ----------
-        mode : str, optional
+        mode : str
             Mode for expansion. Defaults to "SwitchMatrix".
             Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
             'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',

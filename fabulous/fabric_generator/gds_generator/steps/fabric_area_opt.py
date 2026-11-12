@@ -42,11 +42,11 @@ class NLPTileProblem(ElementwiseProblem):
         The fabric whose tiles are being sized.
     tile_metrics : dict[OptMode, dict]
         Per-mode compilation metrics for tiles that compiled successfully.
-    all_tile_metrics : dict[OptMode, dict] | None, optional
+    all_tile_metrics : dict[OptMode, dict] | None
         Retained for backwards compatibility; should contain the same
         successful-compilation entries as *tile_metrics*. Falls back to
         *tile_metrics* when `None`.
-    area_margin : float, optional
+    area_margin : float
         Fractional margin added to standard-cell area constraints,
         by default 0.05 (5 %).
 

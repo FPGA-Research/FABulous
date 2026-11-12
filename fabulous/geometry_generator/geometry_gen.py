@@ -32,7 +32,7 @@ class GeometryGenerator:
     ----------
     fabric : Fabric
         The fabric object passed from the CSV definition files
-    fabricGeometry : FabricGeometry | None, optional
+    fabricGeometry : FabricGeometry | None
         The generated geometry object
     """
 
@@ -52,7 +52,7 @@ class GeometryGenerator:
 
         Parameters
         ----------
-        padding : int, optional
+        padding : int
             Padding used throughout the geometry, by default 8
         """
         self.fabricGeometry = FabricGeometry(self.fabric, padding)

@@ -296,7 +296,7 @@ def parseTilesCSV(
     ----------
     fileName : Path
         The path to the CSV file.
-    preserve_list_order : bool, optional
+    preserve_list_order : bool
         Passed to each tile's switch matrix so a `.list` keeps its file order
         (MSB-first) instead of the canonical dest-column order. Defaults to False.
 

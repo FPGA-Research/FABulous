@@ -1071,10 +1071,10 @@ class SDFTimingGraph(SDFTimingGraphBase):
             Source node.
         targets : list[str]
             List of target nodes.
-        weight : str | None, optional
+        weight : str | None
             Edge attribute name to use as weight. If None, the graph is treated
             as unweighted (hop count).
-        sentinel_prefix : str, optional
+        sentinel_prefix : str
             Base name for the temporary sentinel node (ensured to be unique).
         reverse : bool
             If True, find the shortest path from the nearest target to the source

@@ -248,9 +248,9 @@ def run_fabulous_commands_with_logging(
         Pytest log capture fixture for collecting log output.
     monkeypatch : pytest.MonkeyPatch
         Pytest monkeypatch fixture for environment management.
-    commands : list[str] | None, optional
+    commands : list[str] | None
         Optional list of commands to run. If None, runs standard sequence.
-    skip_on_fail : bool, optional
+    skip_on_fail : bool
         Whether to skip remaining commands if one fails.
 
     Returns

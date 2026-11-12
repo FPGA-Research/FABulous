@@ -494,7 +494,7 @@ class Fabric:
 
         Parameters
         ----------
-        superTile : SuperTile | None, optional
+        superTile : SuperTile | None
             If given, only placements of this supertile are yielded; otherwise
             every supertile type in the fabric is scanned.
 

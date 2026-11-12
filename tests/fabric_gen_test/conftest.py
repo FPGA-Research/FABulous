@@ -277,7 +277,7 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
     ----------
     file_path : Path
         The path to the CSV file to verify
-    expected_rows : int | None, optional
+    expected_rows : int | None
         Expected number of rows in the CSV
 
     Returns

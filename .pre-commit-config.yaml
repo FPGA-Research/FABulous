@@ -3,7 +3,7 @@ default_language_version:
   python: python3.12
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.11.25
+    rev: 0.13.7
     hooks:
       - id: uv-lock
 
@@ -50,13 +50,13 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/jsh9/pydoclint
-    rev: 0.9.0
+    rev: 0.12.0
     hooks:
       - id: pydoclint
         args: [ --style=numpy ]
 
   - repo: https://github.com/jeremiah-c-leary/vhdl-style-guide
-    rev: 3.35.0
+    rev: 3.36.0
     hooks:
       - id: vsg
         args: [ --configuration=.vsg.yaml ]

@@ -29,13 +29,13 @@ class PortGeometry:
 
     Attributes
     ----------
-    name : str | None, optional
+    name : str | None
         Name of the port
-    source_name : str | None, optional
+    source_name : str | None
         Name of the port source
-    destName : str | None, optional
+    destName : str | None
         Name of the port destination
-    type : PortType | None, optional
+    type : PortType | None
         Type of the port
     io_direction : IO
         IO direction of the port.
@@ -43,7 +43,7 @@ class PortGeometry:
         Side of the tile the port's wire is on.
     offset : int
         Offset to the connected port.
-    wire_direction : Direction | None, optional
+    wire_direction : Direction | None
         Direction of the ports wire
     groupId : int
         ID of the port group.

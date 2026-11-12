@@ -69,7 +69,7 @@ class CodeGenerator(abc.ABC):
         ----------
         line : str
             The line of code to add.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level (each level = 4 spaces). Defaults to 0.
         """
         if indentLevel == 0:
@@ -101,11 +101,11 @@ class CodeGenerator(abc.ABC):
         ----------
         comment : str
             The comment text to add.
-        onNewLine : bool, optional
+        onNewLine : bool
             If True, put the comment on a new line. Defaults to False.
-        end : str, optional
+        end : str
             The end token of the comment. Defaults to an empty string "".
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation for the comment. Defaults to 0.
 
         Examples
@@ -125,10 +125,10 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the module.
-        package : str, optional
+        package : str
             The package used by VHDL. Only useful with VHDL.
             Defaults to an empty string ''.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -153,7 +153,7 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the module.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -168,7 +168,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -186,7 +186,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -212,7 +212,7 @@ class CodeGenerator(abc.ABC):
             Type of the parameter. Only useful with VHDL.
         value : str
             Value of the parameter.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -230,7 +230,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -248,7 +248,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -277,11 +277,11 @@ class CodeGenerator(abc.ABC):
             Name of the port.
         io : IO
             Direction of the port (input, output, inout).
-        reg: bool, optional
+        reg: bool
             port is a register. Only useful with Verilog.
-        attribute: str, optional
+        attribute: str
             Add a FABulous ATTRIBUTE to the port.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -313,11 +313,11 @@ class CodeGenerator(abc.ABC):
             Direction of the port (input, output, inout).
         msbIndex : str | int
             Index of the MSB of the vector. Can be a string.
-        reg : bool, optional
+        reg : bool
             port is a register. Only useful with Verilog.
-        attribute : str, optional
+        attribute : str
             Add a FABulous ATTRIBUTE to the port.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -337,7 +337,7 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the module.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -352,7 +352,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -374,7 +374,7 @@ class CodeGenerator(abc.ABC):
             Name of the constant.
         value : str
             The value of the constant.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -396,9 +396,9 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the connection
-        reg : bool, optional
+        reg : bool
             Connection is a register. Only useful with Verilog.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -426,11 +426,11 @@ class CodeGenerator(abc.ABC):
             Name of the connection
         startIndex : str | int
             Start index of the vector.
-        endIndex : str | int, optional
+        endIndex : str | int
             End index of the vector. Defaults to 0.
-        reg : bool, optional
+        reg : bool
             Connection is a register. Only useful with Verilog.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -447,7 +447,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -469,7 +469,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
         """
 
@@ -499,16 +499,16 @@ class CodeGenerator(abc.ABC):
             Name of the component instance.
         portsPairs : list[tuple[str, str]]
             List of tuples pairing component ports with signals.
-        paramPairs : list[tuple[str, str]] | None, optional
+        paramPairs : list[tuple[str, str]] | None
             List of tuples pairing parameter ports with parameter signals.
             Defaults to None.
-        emulateParamPairs : list[tuple[str, str]] | None, optional
+        emulateParamPairs : list[tuple[str, str]] | None
             List of parameter signals of the component in emulation mode only.
             Defaults to None.
-        add_keep : bool, optional
+        add_keep : bool
             Whether to add a FABulous "keep" attribute to the instance.
             Defaults to False.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -577,11 +577,11 @@ class CodeGenerator(abc.ABC):
             The name of the register.
         regIn : str
             The input signal of the register.
-        clk : str, optional
+        clk : str
             The clock signal of the register. Defaults to "UserCLK".
-        inverted : bool, optional
+        inverted : bool
             Invert the input signal. Defaults to False.
-        indentLevel : int, optional
+        indentLevel : int
             The level of indentation. Defaults to 0.
 
         Examples
@@ -624,11 +624,11 @@ class CodeGenerator(abc.ABC):
             The left hand side of the assign statement.
         right : str
             The right hand side of the assign statement.
-        delay : int, optional
+        delay : int
             Delay in the assignment. Defaults to 0.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
-        inverted : bool, optional
+        inverted : bool
             Invert **right**. Default False.
 
         Examples
@@ -662,9 +662,9 @@ class CodeGenerator(abc.ABC):
             The start index of the vector.
         widthR : str | int
             The end index of the vector.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
-        inverted : bool, optional
+        inverted : bool
             Invert **right**. Default False.
 
         Examples
@@ -706,9 +706,9 @@ class CodeGenerator(abc.ABC):
             Index of the lowest select bit within **selectVector**.
         selectWidth : int
             Number of select bits.
-        delay : int, optional
+        delay : int
             Delay in the assignment. Defaults to 0.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -729,7 +729,7 @@ class CodeGenerator(abc.ABC):
         ----------
         macro : str
             The macro to check for.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -749,7 +749,7 @@ class CodeGenerator(abc.ABC):
         ----------
         macro : str
             The macro to check for.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -767,7 +767,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -785,7 +785,7 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples
@@ -810,7 +810,7 @@ class CodeGenerator(abc.ABC):
             Each config bit should have a name and number of bits
             Should be sorted by number list is equal to NoConfigBits map.
 
-        indentLevel : int, optional
+        indentLevel : int
             The indentation Level. Defaults to 0.
 
         Examples

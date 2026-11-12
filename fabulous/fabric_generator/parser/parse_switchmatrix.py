@@ -36,7 +36,7 @@ def parseMatrix(
     ----------
     fileName : Path
         Directory of the matrix CSV file.
-    preserve_list_order : bool, optional
+    preserve_list_order : bool
         Keep the cell-encoded mux-input order when True; otherwise treat every
         connection as `1` and use CSV-column order. Defaults to False.
 
@@ -171,7 +171,7 @@ def parseList(
     ----------
     filePath : Path
         The path to the list file to parse.
-    collect : Literal["pair", "source", "sink"], optional
+    collect : Literal["pair", "source", "sink"]
         Collect value by source, sink or just as (source, sink) pair.
         Defaults to "pair".
 

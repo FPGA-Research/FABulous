@@ -60,8 +60,8 @@ architecture Behavioral of MULADD is
   signal sum      : std_logic_vector(19 downto 0); -- port B read data register
   signal sum_in   : std_logic_vector(19 downto 0); -- port B read data register
 
-  signal OPA_extended     : signed(8  downto 0);
-  signal OPB_extended     : signed(8  downto 0);
+  signal OPA_extended     : signed(8 downto 0);
+  signal OPB_extended     : signed(8 downto 0);
   signal product_signed   : signed(17 downto 0);
   signal product_extended : std_logic_vector(19 downto 0);
 

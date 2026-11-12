@@ -119,10 +119,10 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Name of the top-level module in the Verilog netlist.
     sta_tool : StaTool
         Instance of the STA tool used for timing analysis.
-    delay_type_str : DelayType, optional
+    delay_type_str : DelayType
         Type of delay to consider (e.g., DelayType.MAX_ALL).
         Default is DelayType.MAX_ALL.
-    debug : bool, optional
+    debug : bool
         Flag to enable debug mode. Default is False.
     """
 

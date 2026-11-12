@@ -67,9 +67,9 @@ class YosysCellDetails:
         Cell attributes including metadata and synthesis directives.
     connections : dict[str, BitVector]
         Port connections mapping port names to bit vectors.
-    port_directions : dict[str, Literal["input", "output", "inout"]], optional
+    port_directions : dict[str, Literal["input", "output", "inout"]]
         Direction of each port. Default is empty dict.
-    model : str, optional
+    model : str
         Associated model name. Default is "".
     """
 

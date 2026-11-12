@@ -25,7 +25,7 @@ class FabricGeometry:
     ----------
     fabric : Fabric
         The fabric object from CSV definition files
-    padding : int, optional
+    padding : int
         Padding used throughout the geometry, by default 8
 
     Attributes
