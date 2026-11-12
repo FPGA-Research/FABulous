@@ -7,16 +7,14 @@
   python3,
   boost,
   eigen,
-  python3Packages,
   darwin ? null,
-  prefetchedSrc,
+  src,
+  version,
 }:
 
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   pname = "nextpnr";
-  version = "unstable";
-
-  src = prefetchedSrc;
+  inherit src version;
 
   nativeBuildInputs = [
     cmake
@@ -38,7 +36,7 @@ stdenv.mkDerivation rec {
 
   enableParallelBuilding = true;
 
-  meta = with lib; {
+  meta = {
     description = "Portable FPGA place and route tool";
     longDescription = ''
       nextpnr is a vendor neutral, timing driven, FOSS FPGA place and route
@@ -46,8 +44,8 @@ stdenv.mkDerivation rec {
       * Generic FPGA architecture for research and education
     '';
     homepage = "https://github.com/YosysHQ/nextpnr";
-    license = licenses.isc;
-    platforms = platforms.linux ++ platforms.darwin;
-    maintainers = with maintainers; [ ];
+    license = lib.licenses.isc;
+    platforms = lib.platforms.linux ++ lib.platforms.darwin;
+    mainProgram = "nextpnr-generic";
   };
 }

@@ -1,6 +1,5 @@
 {
-  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more.
-    nix-eda and nixpkgs follow librelane's pins for binary cache compatibility.";
+  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more.";
 
   inputs = {
     # dev carries the 3.1 line (ciel 3); main is the 3.0.x stable branch.
@@ -28,7 +27,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Prebuilt GHDL v6.0.0 binary tarballs (locked in flake.lock)
+    # Prebuilt GHDL binary tarballs; no source build.
     ghdl-bin-x86_64-linux = {
       url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz";
       flake = false;
@@ -80,188 +79,172 @@
       ghdl-yosys-plugin-src,
       nextpnr-src,
       fabulator-src,
-      pyproject-nix,
       uv2nix,
+      pyproject-nix,
       pyproject-build-systems,
       ...
     }:
     let
       inherit (nixpkgs) lib;
-      forAllSystems = lib.genAttrs lib.systems.flakeExposed;
+
+      ghdlBin = {
+        x86_64-linux = ghdl-bin-x86_64-linux;
+        aarch64-darwin = ghdl-bin-aarch64-darwin;
+      };
+
+      # Only the systems a prebuilt GHDL tarball exists for. Claiming
+      # `lib.systems.flakeExposed` would make `nix flake check` fail to evaluate
+      # on every system that has no toolchain.
+      forAllSystems = lib.genAttrs (lib.attrNames ghdlBin);
 
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
-      overlay = workspace.mkPyprojectOverlay {
-        sourcePreference = "wheel";
-      };
+      # Resolves `fabulous` and the generated side-packages under $REPO_ROOT so
+      # source edits apply without a rebuild. Dev shells only.
+      editableOverlay = workspace.mkEditablePyprojectOverlay { root = "$REPO_ROOT"; };
 
-      # Custom Python package overlay for packages that need special handling
-      pyproject_pkg_overlay = import ./nix/overlay/python.nix;
+      # Shared by the overlay and `checks.python-fixups`.
+      pythonFixups = import ./nix/overlay/python.nix { inherit lib; };
 
-      editableOverlay = workspace.mkEditablePyprojectOverlay {
-        root = "$REPO_ROOT";
-      };
-
-      pythonSets = forAllSystems (
-        system:
-        let
-          pkgs = nixpkgs.legacyPackages.${system};
-          python = nixpkgs.legacyPackages.${system}.python3;
-        in
-        (pkgs.callPackage pyproject-nix.build.packages {
-          inherit python;
-        }).overrideScope
-          (
-            lib.composeManyExtensions [
-              pyproject-build-systems.overlays.wheel
-              overlay
-              pyproject_pkg_overlay
-            ]
-          )
-      );
-
-      devshell-overlay = librelane.inputs.devshell;
-      nix_eda_pkgs = nix-eda.forAllSystems (
-        system:
-        import nix-eda.inputs.nixpkgs {
-          inherit system;
-          overlays = [
-            nix-eda.overlays.default
-            devshell-overlay.overlays.default
-            librelane.overlays.default
-          ];
-        }
-      );
-
-      fabulousToolchain = forAllSystems (
-        system:
-        let
-          pkgs = nix_eda_pkgs.${system};
-          customPkgs = import ./nix {
-            inherit pkgs;
-            srcs = {
-              ghdl-linux-bin = ghdl-bin-x86_64-linux;
-              ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
-              yosys = yosys-src;
-              ghdl-yosys-plugin = ghdl-yosys-plugin-src;
-              nextpnr = nextpnr-src;
-              fabulator = fabulator-src;
-            };
-          };
-          librelane-pkg = pkgs.python3.pkgs.librelane;
-          tkinter-pkg = nixpkgs.legacyPackages.${system}.python3Packages.tkinter;
-          tkinter-python-path = "${tkinter-pkg}/${nixpkgs.legacyPackages.${system}.python3.sitePackages}";
-          systemSupported =
-            tool:
-            let
-              platforms = tool.meta.platforms or [ ];
-            in
-            platforms == [ ] || (builtins.elem system platforms);
-          toolPackages = [
-            pkgs.uv
-            pkgs.which
-            pkgs.git
-            pkgs.fish
-            pkgs.zsh
-            pkgs.gtkwave
-            customPkgs.yosys
-            customPkgs.nextpnr
-            customPkgs.fabulator
-            customPkgs.ghdl
-            pkgs.nvc
-          ]
-          ++ (builtins.filter systemSupported librelane-pkg.includedTools);
-        in
-        {
-          inherit
-            pkgs
-            customPkgs
-            librelane-pkg
-            tkinter-python-path
-            toolPackages
-            ;
-          # Runtime environment shared by the wrapped package and the dev shells.
-          envVars = {
-            # Tells FABulous the nix yosys binary is named fab-yosys.
-            FAB_YOSYS_PATH = "fab-yosys";
-            # libghdl, dlopen'd by the yosys ghdl plugin, can't derive its own
-            # install prefix (only the ghdl binary can), so it needs this to
-            # find the IEEE libraries.
-            GHDL_PREFIX = "${customPkgs.ghdl}/lib/ghdl";
-            # Silence known third-party import warnings (fasm, textX).
-            PYTHONWARNINGS = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
-          };
-        }
-      );
-
+      lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
     in
     {
+      # FABulous's own attributes. They need the nix-eda, devshell and
+      # librelane overlays underneath, which `default` adds.
+      overlays.fabulous = import ./nix/overlay {
+        inherit
+          workspace
+          uv2nix
+          pyproject-nix
+          pyproject-build-systems
+          lockedPackages
+          pythonFixups
+          ;
+        srcs = {
+          ghdl-bin = ghdlBin;
+          yosys = yosys-src;
+          ghdl-yosys-plugin = ghdl-yosys-plugin-src;
+          nextpnr = nextpnr-src;
+          fabulator = fabulator-src;
+        };
+      };
+
+      # Applies to any nixpkgs instance on its own.
+      overlays.default = lib.composeManyExtensions [
+        nix-eda.overlays.default
+        librelane.inputs.devshell.overlays.default
+        librelane.overlays.default
+        self.overlays.fabulous
+      ];
+
+      # A nixpkgs instance carrying the EDA toolchain, librelane, and FABulous,
+      # on the nixpkgs pin the fossi-foundation cache is built from.
+      legacyPackages = forAllSystems (
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = [ self.overlays.default ];
+        }
+      );
+
       packages = forAllSystems (
         system:
         let
-          tc = fabulousToolchain.${system};
-          virtualenv = pythonSets.${system}.mkVirtualEnv "FABulous-env" workspace.deps.default;
-          fabulousApp = import ./nix/package.nix {
-            inherit lib virtualenv;
-            pkgs = tc.pkgs;
-            toolchain = tc;
-          };
+          pkgs = self.legacyPackages.${system};
         in
         {
-          default = fabulousApp;
-          fabulous = fabulousApp;
+          inherit (pkgs)
+            fabulous
+            fabulous-shell
+            fab-yosys
+            fab-nextpnr
+            fab-ghdl
+            fabulator
+            ;
+          default = pkgs.fabulous;
         }
       );
+
       devShells = forAllSystems (
         system:
         let
-          tc = fabulousToolchain.${system};
-          pythonSet = pythonSets.${system}.overrideScope editableOverlay;
+          pkgs = self.legacyPackages.${system};
         in
         import ./nix/devshells.nix {
-          inherit lib;
-          pkgs = tc.pkgs;
-          toolchain = tc;
-          virtualenv = pythonSet.mkVirtualEnv "FABulous-env" workspace.deps.all;
-          pythonInterpreter = pythonSet.python.interpreter;
+          inherit pkgs;
+          editableVenv = (pkgs.fabulous-python-set.overrideScope editableOverlay).mkVirtualEnv "FABulous-env" workspace.deps.all;
           repoRoot = ./.;
         }
       );
 
-      # Consumer-facing composition surface. Downstream chip/fabric projects
-      # build their shell from `mkConsumerShell { extraPackages = ...; extraPythonPackages = ...; }`
-      # (a hermetic uv.lock-pinned FABulous + librelane + plugin, plus their own
-      # non-Python tools and Python packages).
-      lib = forAllSystems (
+      checks = forAllSystems (
         system:
         let
-          tc = fabulousToolchain.${system};
-          consumerVenv = pythonSets.${system}.mkVirtualEnv "FABulous-consumer-env" workspace.deps.default;
+          pkgs = self.legacyPackages.${system};
+
+          # Every fixup in `nix/overlay/python.nix` must still name a package
+          # uv.lock resolves. Nix only forces an override when something depends
+          # on the package, so a renamed package otherwise leaves its fixup a
+          # silent no-op. Checked against the lock rather than the Python set,
+          # which also holds build-system-pkgs' packages.
+          stale = lib.filter (name: !(builtins.elem name lockedPackages)) pythonFixups.patchedPackages;
         in
-        {
-          mkConsumerShell = import ./nix/consumer.nix {
-            pkgs = tc.pkgs;
-            python = nixpkgs.legacyPackages.${system}.python3;
-            toolchain = tc;
-            virtualenv = consumerVenv;
-          };
+        self.packages.${system}
+        // {
+          devShell = self.devShells.${system}.default;
+
+          python-fixups =
+            if stale != [ ] then
+              throw ''
+                nix/overlay/python.nix patches ${lib.concatStringsSep ", " stale}, which uv.lock no longer resolves.
+                Drop the fixup, or rename it to whatever the package is called now.
+              ''
+            else
+              pkgs.runCommand "fabulous-python-fixups-current" { } "touch $out";
         }
       );
 
-      overlays.default = final: prev: {
-        fabulous = self.packages.${final.system}.default;
+      # `nix flake init -t github:FPGA-Research/FABulous` scaffolds a project
+      # that consumes FABulous through `pkgs.fabulous-shell`.
+      templates.default = {
+        path = ./nix/templates/downstream;
+        description = "A chip or fabric project built on FABulous";
       };
 
-      apps = forAllSystems (system: {
-        default = {
-          type = "app";
-          program = "${self.packages.${system}.default}/bin/FABulous";
-        };
-        librelane = {
-          type = "app";
-          program = "${self.packages.${system}.default}/bin/librelane";
-        };
+      # The v2.2.0 consumer API, kept so flakes written against it still
+      # evaluate. New code should use `pkgs.fabulous-shell.override`.
+      lib = forAllSystems (system: {
+        mkConsumerShell =
+          {
+            extraPackages ? [ ],
+            extraPythonPackages ? (ps: [ ]),
+          }:
+          let
+            pkgs = self.legacyPackages.${system};
+          in
+          pkgs.fabulous-shell.override {
+            extra-packages = if builtins.isFunction extraPackages then extraPackages pkgs else extraPackages;
+            extra-python-packages = extraPythonPackages;
+          };
       });
 
+      formatter = forAllSystems (system: nix-eda.formatter.${system});
+
+      apps = forAllSystems (
+        system:
+        let
+          pkgs = self.legacyPackages.${system};
+        in
+        {
+          default = {
+            type = "app";
+            program = lib.getExe pkgs.fabulous;
+          };
+          librelane = {
+            type = "app";
+            program = lib.getExe' pkgs.fabulous "librelane";
+          };
+        }
+      );
     };
 }
