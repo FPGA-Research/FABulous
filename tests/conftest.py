@@ -394,7 +394,9 @@ def fabulous_test_environment(
     monkeypatch.setenv("FAB_ROOT", fabulous_root)
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
+    # `Path.home` is a classmethod: a bare lambda breaks `Path.home()`, which the
+    # timing tools call for their scratch files.
+    monkeypatch.setattr(Path, "home", classmethod(lambda _: tmp_path))
     monkeypatch.setattr(
         fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir
     )

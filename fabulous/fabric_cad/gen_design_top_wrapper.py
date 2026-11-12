@@ -92,13 +92,13 @@ def generateUserDesignTopWrapper(
             ):  # we walk backwards trough the bel list
                 belstr = ""
                 # we only add bels with external ports to the top wrapper.
-                if not bel.externalInput and not bel.externalOutput:
+                if not bel.external_input_ports and not bel.external_output_ports:
                     logger.info(
                         f"Skipping bel {bel.name} in tile X{x}Y{y} since it has no "
                         f"external ports"
                     )
                     continue
-                if len(bel.inputs + bel.outputs) == 0:
+                if len(bel.input_ports + bel.output_ports) == 0:
                     logger.info(
                         f"{bel.name} in tile X{x}Y{y} has no internal ports, "
                         "only external ports, we just add a dummy to the user design "
@@ -109,10 +109,10 @@ def generateUserDesignTopWrapper(
                 if bel.name not in bel_count:
                     bel_count[bel.name] = 0
                     bel_inputs[bel.name] = [
-                        port.removeprefix(bel.prefix) for port in bel.inputs
+                        port.name.removeprefix(bel.prefix) for port in bel.input_ports
                     ]
                     bel_outputs[bel.name] = [
-                        port.removeprefix(bel.prefix) for port in bel.outputs
+                        port.name.removeprefix(bel.prefix) for port in bel.output_ports
                     ]
                 else:
                     # count number of times a BEL type is used
@@ -144,8 +144,8 @@ def generateUserDesignTopWrapper(
                 )
 
                 first = True
-                for port in bel.inputs + bel.outputs:
-                    port_name = port.removeprefix(bel.prefix)
+                for port in bel.input_ports + bel.output_ports:
+                    port_name = port.name.removeprefix(bel.prefix)
                     if first:
                         first = False
                     else:

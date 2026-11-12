@@ -92,14 +92,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 for bel in tile.bels:
-                    for i in bel.externalInput:
+                    for p in bel.external_input_ports:
                         writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{i}", IO.INPUT, indentLevel=2
+                            f"Tile_X{x}Y{y}_{p.name}", IO.INPUT, indentLevel=2
                         )
                         writer.addComment("EXTERNAL", onNewLine=False)
-                    for i in bel.externalOutput:
+                    for p in bel.external_output_ports:
                         writer.addPortScalar(
-                            f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2
+                            f"Tile_X{x}Y{y}_{p.name}", IO.OUTPUT, indentLevel=2
                         )
                         writer.addComment("EXTERNAL", onNewLine=False)
 
@@ -107,11 +107,15 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # child tile); declare them at the wrapper's anchor coordinates.
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
-            for i in bel.externalInput:
-                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
+            for p in bel.external_input_ports:
+                writer.addPortScalar(
+                    f"Tile_X{ax}Y{ay}_{p.name}", IO.INPUT, indentLevel=2
+                )
                 writer.addComment("EXTERNAL", onNewLine=False)
-            for i in bel.externalOutput:
-                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.OUTPUT, indentLevel=2)
+            for p in bel.external_output_ports:
+                writer.addPortScalar(
+                    f"Tile_X{ax}Y{ay}_{p.name}", IO.OUTPUT, indentLevel=2
+                )
                 writer.addComment("EXTERNAL", onNewLine=False)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -368,11 +372,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             )
             for i, j in tileLocationOffset:
                 for b in fabric.tile[base_y + j][base_x + i].bels:
-                    for p in b.externalInput:
-                        portsPairs.append((p, f"Tile_X{base_x + i}Y{base_y + j}_{p}"))
-
-                    for p in b.externalOutput:
-                        portsPairs.append((p, f"Tile_X{base_x + i}Y{base_y + j}_{p}"))
+                    for p in b.external_input_ports + b.external_output_ports:
+                        portsPairs.append(
+                            (p.name, f"Tile_X{base_x + i}Y{base_y + j}_{p.name}")
+                        )
 
                     if not fabric.disableUserCLK:
                         for p in b.sharedPort:
@@ -383,10 +386,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # ports to the top-level nets declared at the anchor coordinates.
             if superTile:
                 for b in superTile.bels:
-                    for p in b.externalInput:
-                        portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
-                    for p in b.externalOutput:
-                        portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
+                    for p in b.external_input_ports + b.external_output_ports:
+                        portsPairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
 
             if not fabric.disableUserCLK:
                 dx, dy = USER_CLK_PREDECESSOR[fabric.userCLKSide]
