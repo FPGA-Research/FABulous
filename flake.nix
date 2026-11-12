@@ -169,6 +169,9 @@
             customPkgs.fabulator
             customPkgs.ghdl
             pkgs.nvc
+            # Build dependencies of the models Verilator generates.
+            pkgs.gcc
+            pkgs.gnumake
           ]
           ++ (builtins.filter systemSupported librelane-pkg.includedTools);
         in

@@ -364,9 +364,9 @@ class FABulousSettings(BaseSettings):
         """Resolve tool paths by checking if tools are available in `PATH`.
 
         This method is used as a field validator to automatically resolve tool paths
-        during settings initialization. If a tool path is not explicitly provided,
-        it searches for the tool in the system `PATH`. A value without a directory
-        part counts as not provided, so the current directory never supplies a tool.
+        during settings initialization. A value without a directory part is a
+        command name searched in the system `PATH`, the tool's usual name when none
+        is provided. A value with a directory part is the path of the executable.
 
         Parameters
         ----------
@@ -382,19 +382,11 @@ class FABulousSettings(BaseSettings):
 
         Notes
         -----
-        This method logs a warning if a tool is not found in `PATH`, as some
-        features may be unavailable without the tool.
+        This method logs a warning if the tool is not found, as some features may
+        be unavailable without the tool.
         """
         if isinstance(value, Path):
             return value
-        # A bare name is a command for `PATH`, not a path: a project's `yosys/` folder
-        # would otherwise replace the tool whenever FABulous runs inside the project.
-        if (
-            isinstance(value, str)
-            and Path(value).name != value
-            and Path(value).exists()
-        ):
-            return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
             "opensta_path": "sta",
@@ -405,17 +397,17 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name)
+        tool = value or tool_map[info.field_name]
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
             return Path(tool_path).resolve()
 
         logger.warning(
-            f"{tool} not found in PATH during settings initialisation. "
+            f"{tool} not found during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return tool_map[info.field_name]
+        return tool
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:

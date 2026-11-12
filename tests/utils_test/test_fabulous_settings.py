@@ -168,7 +168,6 @@ class TestFABulousSettings:
         self,
         project: Path,
         monkeypatch: pytest.MonkeyPatch,
-        mocker: MockerFixture,
         tmp_path: Path,
     ) -> None:
         """Test FABulousSettings initialization with explicitly set tool paths."""
@@ -177,18 +176,19 @@ class TestFABulousSettings:
             if key.startswith("FAB_"):
                 monkeypatch.delenv(key, raising=False)
 
-        # Set minimal PATH to avoid system tools
-        monkeypatch.setenv("PATH", "/bin:/usr/bin")
+        # An empty PATH keeps the tools that are not set explicitly unresolved.
+        empty_bin = tmp_path / "empty_bin"
+        empty_bin.mkdir()
+        monkeypatch.setenv("PATH", str(empty_bin))
 
         yosys_path = tmp_path / "yosys"
         nextpnr_path = tmp_path / "nextpnr-generic"
-        yosys_path.touch()
-        nextpnr_path.touch()
+        yosys_path.touch(mode=0o755)
+        nextpnr_path.touch(mode=0o755)
 
         monkeypatch.setenv("FAB_YOSYS_PATH", str(yosys_path))
         monkeypatch.setenv("FAB_NEXTPNR_PATH", str(nextpnr_path))
 
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         settings = init_context(project)
 
         assert settings.yosys_path == Path(yosys_path)
@@ -404,6 +404,21 @@ class TestToolPathResolution:
 
         assert result == Path("/usr/bin/yosys").resolve()
 
+    def test_resolve_tool_paths_bare_name_selects_command(
+        self, mocker: MockerFixture
+    ) -> None:
+        """A bare name other than the default is the command searched in `PATH`."""
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+        mock_which = mocker.patch(
+            "fabulous.fabulous_settings.which", return_value="/usr/bin/fab-yosys"
+        )
+
+        result = FABulousSettings.resolve_tool_paths("fab-yosys", mock_info)
+
+        assert result == Path("/usr/bin/fab-yosys").resolve()
+        mock_which.assert_called_once_with("fab-yosys")
+
     @pytest.mark.parametrize(
         "relative_path",
         [
@@ -421,16 +436,26 @@ class TestToolPathResolution:
         """A value with a directory part stays a path relative to the cwd."""
         tool = tmp_path / relative_path
         tool.parent.mkdir(exist_ok=True)
-        tool.touch()
+        tool.touch(mode=0o755)
         monkeypatch.chdir(tmp_path)
         mock_info = mocker.Mock()
         mock_info.field_name = "yosys_path"
-        mock_which = mocker.patch("fabulous.fabulous_settings.which")
 
         result = FABulousSettings.resolve_tool_paths(relative_path, mock_info)
 
         assert result == tool.resolve()
-        mock_which.assert_not_called()
+
+    def test_resolve_tool_paths_missing_path_is_not_replaced(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """A path that names no executable is kept, not swapped for a `PATH` tool."""
+        missing = str(tmp_path / "bin" / "yosys")
+        mock_info = mocker.Mock()
+        mock_info.field_name = "yosys_path"
+
+        result = FABulousSettings.resolve_tool_paths(missing, mock_info)
+
+        assert result == missing
 
 
 class TestModelsPackValidation:
@@ -915,7 +940,9 @@ class TestIntegration:
         global_env = tmp_path / "global.env"
         global_env.touch()
         set_key(global_env, "FAB_PROJ_LANG", "vhdl")
-        set_key(global_env, "FAB_YOSYS_PATH", "/custom/yosys")
+        custom_yosys = tmp_path / "custom_yosys"
+        custom_yosys.touch(mode=0o755)
+        set_key(global_env, "FAB_YOSYS_PATH", str(custom_yosys))
 
         # Modify the project's existing .env file instead of creating a new one
         project_env = project / ".FABulous" / ".env"
@@ -929,7 +956,6 @@ class TestIntegration:
         # Set environment variables
         monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
-        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         mocker.patch("pathlib.Path.exists", return_value=True)
         # Initialize context
         settings = init_context(project_dir=project, global_dot_env=global_env)
@@ -941,7 +967,7 @@ class TestIntegration:
         assert settings.proj_dir == project
         assert settings.proj_lang == "vhdl"
         assert settings.proj_version_created == Version("2.0.0")
-        assert settings.yosys_path == Path("/custom/yosys")
+        assert settings.yosys_path == custom_yosys
 
         # Test context reset
         reset_context()
