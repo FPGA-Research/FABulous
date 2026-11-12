@@ -106,18 +106,18 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 for bel in tile.bels:
-                    for i in bel.externalInput:
-                        externalPorts.append((IO.INPUT, f"Tile_X{x}Y{y}_{i}"))
-                    for i in bel.externalOutput:
-                        externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{i}"))
+                    for p in bel.external_input_ports:
+                        externalPorts.append((IO.INPUT, f"Tile_X{x}Y{y}_{p.name}"))
+                    for p in bel.external_output_ports:
+                        externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{p.name}"))
     # supertile-level BEL external ports, named at the wrapper anchor so they
     # match the eFPGA module's top-level ports.
     for ax, ay, superTile in iter_super_tile_anchors(fabric):
         for bel in superTile.bels:
-            for i in bel.externalInput:
-                externalPorts.append((IO.INPUT, f"Tile_X{ax}Y{ay}_{i}"))
-            for i in bel.externalOutput:
-                externalPorts.append((IO.OUTPUT, f"Tile_X{ax}Y{ay}_{i}"))
+            for p in bel.external_input_ports:
+                externalPorts.append((IO.INPUT, f"Tile_X{ax}Y{ay}_{p.name}"))
+            for p in bel.external_output_ports:
+                externalPorts.append((IO.OUTPUT, f"Tile_X{ax}Y{ay}_{p.name}"))
     for iodir, name in externalPorts:
         _yx, _indices, port = split_port(name)
         if port not in portGroups:

@@ -274,8 +274,8 @@ class SuperTile:
                         valid_sinks |= names
 
         for bel in self.bels:
-            valid_sinks.update(bel.inputs)
-            valid_sources.update(bel.outputs)
+            valid_sinks.update(p.name for p in bel.input_ports)
+            valid_sources.update(p.name for p in bel.output_ports)
 
         return valid_sources, valid_sinks
 
