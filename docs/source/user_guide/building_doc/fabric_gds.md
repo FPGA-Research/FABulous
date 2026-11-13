@@ -132,8 +132,8 @@ During the generation process there will be an extra file generated in each tile
 fabulous_generated_sha256: 3f9a...
 X0Y0:
     EAST:
-    - max_distance: null
-      min_distance: null
+    - max_track_stride: null
+      min_track_stride: null
       pins:
       - E1BEG\[\d+\]
       - 5
@@ -141,8 +141,8 @@ X0Y0:
       sort_mode: bus_major
       ...
     WEST:
-    - max_distance: null
-      min_distance: null
+    - max_track_stride: null
+      min_track_stride: null
       pins:
       - Co
       reverse_result: false
@@ -158,7 +158,7 @@ The entry key `X0Y0` represents the location of the pins on a tile. For a normal
 
 The second layer of key sets along which side of the tile the allocated pins should be placed. Each entry within a `side` controls a pin placement group. The `pins` field is a list of entries for the pins that you want to set. Each entry can be either a regular expression that matches actual pins, or an integer which indicates a virtual pin. A virtual pin is a placeholder to space out the pins, and the integer value represents the number of virtual pins to be added.
 
-In each group you can set the `min_distance` and `max_distance` and the placement script will try its best to fulfil the requirement, and yield an error if the constraint cannot be achieved. The order of the pin layout will be in the following format:
+In each group you can set `min_track_stride` and `max_track_stride`, the fewest and most routing tracks from one pin centre to the next. Both are integer track counts on the side's pin layer, so `1` allows pins on adjacent tracks and `2` leaves one empty track between them. A `null` `min_track_stride` takes the smallest stride whose centre distance covers the pin width plus the layer spacing, and the placement script raises an error when a set value is below that floor or is not a positive integer. A `null` `max_track_stride` leaves the gap unbounded. Pin files written before this rename use `min_distance` and `max_distance`, centre distances in µm. The script still reads them, rounding `min_distance` up to whole tracks and raising it to the floor, rounding `max_distance` down, and warns that they are deprecated. Setting both the old and the new key on one segment is an error. The script also raises when a side has too few tracks for its pins and reports how much the die must grow. The order of the pin layout will be in the following format:
 
 ```{figure} _static/pin_layout_order.svg
 :align: center
