@@ -125,6 +125,12 @@ class Fabric:
     multiClkDomains : bool
         Whether the fabric uses multiple clock domains. When True, CLK features
         are kept in the bitstream instead of being filtered out.
+    bitbang_enable : int
+        Whether the BitBang configuration interface is enabled (1) or disabled (0).
+    uart_enable : int
+        Whether the UART configuration interface is enabled (1) or disabled (0).
+    parallel_enable : int
+        Whether the Parallel configuration interface is enabled (1) or disabled (0).
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.
@@ -166,6 +172,9 @@ class Fabric:
     disableUserCLK: bool = DEFAULT_DISABLE_USER_CLK
     userCLKSide: Side = DEFAULT_USER_CLK_SIDE
     multiClkDomains: bool = DEFAULT_MULTI_CLK_DOMAINS
+    bitbang_enable: int = 1
+    uart_enable: int = 1
+    parallel_enable: int = 1
     syncHeaderHex: str = DEFAULT_SYNC_HEADER_HEX
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
@@ -554,6 +563,9 @@ class Fabric:
         fabric += f"package: {self.package}\n"
         fabric += f"generateDelayInSwitchMatrix: {self.generateDelayInSwitchMatrix}\n"
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
+        fabric += f"bitbang_enable: {self.bitbang_enable}\n"
+        fabric += f"UART_enable: {self.uart_enable}\n"
+        fabric += f"Parallel_enable: {self.parallel_enable}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
         fabric += f"disableUserCLK: {self.disableUserCLK}\n"
         fabric += f"userCLKSide: {self.userCLKSide}\n"
