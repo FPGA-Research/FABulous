@@ -14,7 +14,7 @@ import pytest
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
 from fabulous.fabric_definition.configmem import ConfigMem
-from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
@@ -370,7 +370,7 @@ class TestGenBitstreamSpecSupertileMux:
     """
 
     @pytest.fixture
-    def spec(self, make_fabric: Callable[..., Fabric], tmp_path: Path) -> dict:
+    def fabric(self, make_fabric: Callable[..., Fabric], tmp_path: Path) -> Fabric:
         # Child tiles each need a (header-only) switch-matrix CSV so the main
         # bitstream-spec loop's parseMatrix() succeeds; neither carries config
         # bits of its own.
@@ -422,6 +422,10 @@ class TestGenBitstreamSpecSupertileMux:
             frame_bits_per_row=fabric.frameBitsPerRow,
             max_frames_per_col=fabric.maxFramesPerCol,
         )
+        return fabric
+
+    @pytest.fixture
+    def spec(self, fabric: Fabric) -> dict:
         return generate_bitstream_spec(fabric)
 
     def test_mux_select_bits_mapped_at_master_tile(self, spec: dict) -> None:
@@ -440,3 +444,20 @@ class TestGenBitstreamSpecSupertileMux:
         # used-bit mask for frame 0 is merged into its FrameMap.
         master_frame_map = spec["FrameMap"]["DSP_bot"]
         assert master_frame_map[0] == "1" * 2 + "0" * 30
+
+    def test_chain_select_bits_follow_the_master_tile_bits(
+        self, fabric: Fabric
+    ) -> None:
+        # On a chain the supertile's bits start after the master tile's 3 bits.
+        fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+        master = fabric.tile[1][0]
+        master.switch_matrix = SwitchMatrix(
+            matrix_file=master.switch_matrix.matrix_file,
+            connections={},
+            hdl_config_bits=3,
+        )
+
+        master_specs = generate_bitstream_spec(fabric)["TileSpecs"]["X0Y1"]
+
+        assert master_specs["s3.SUPER_A0"] == {3: "1", 4: "1"}
+        assert master_specs["s0.SUPER_A0"] == {3: "0", 4: "0"}
