@@ -24,7 +24,8 @@ jobs:
   # "Index was out of range" errors in the post-run phase.
   generate_old_project:
     name: Generate old project (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    # ghdl/setup-ghdl reads its OS matrix from the GHDL release inventory.json; v6.0.0 has no Ubuntu 26.04 build.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
@@ -50,7 +51,8 @@ jobs:
   run_simulation:
     name: Run simulation with PR branch against base project (${{ matrix.name }})
     needs: generate_old_project
-    runs-on: ubuntu-latest
+    # ghdl/setup-ghdl reads its OS matrix from the GHDL release inventory.json; v6.0.0 has no Ubuntu 26.04 build.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
