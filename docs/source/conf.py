@@ -335,6 +335,21 @@ suppress_warnings = [
 # of dataclass attributes (like hide_name, bits, etc. that appear in multiple classes).
 # These are cosmetic only - the documentation content is complete and correct.
 
+# sphinx-markdown-builder has no visitor for these nodes, so sphinx-llm drops them
+# from llms.txt. sphinx-llm >= 1.0 relays that as a warning, which -W turns into an
+# error. An explicit list keeps any new unhandled node type failing the build.
+llms_txt_suppress_unknown_node_warnings = [
+    "abbreviation",
+    "admonition",
+    "caption",
+    "citation",
+    "classifier",
+    "desc_type_parameter_list",
+    "mermaid",
+    "toctree",
+    "WavedromNode",
+]
+
 
 # Exclude patterns to prevent conflicts
 exclude_patterns = [
