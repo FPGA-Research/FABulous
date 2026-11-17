@@ -195,11 +195,13 @@ def belLines(
     cType = bel.name
     if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
         cType = "FABULOUS_LC"
+    bel_inputs = [p.name for p in bel.input_ports]
+    bel_outputs = [p.name for p in bel.output_ports]
     v1_line = (
-        f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel.inputs + bel.outputs)}"
+        f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(bel_inputs + bel_outputs)}"
     )
-    inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
-    outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
+    inputs = [p.removeprefix(bel.prefix) for p in bel_inputs]
+    outputs = [p.removeprefix(bel.prefix) for p in bel_outputs]
 
     def block(timing: bool) -> list[str]:
         """Build one block with optional timing information.
@@ -215,9 +217,9 @@ def belLines(
             Serialized BEL block lines.
         """
         lines = [f"BelBegin,X{x}Y{y},{letter},{cType},{bel.prefix}"]
-        for inp, stripped in zip(bel.inputs, inputs, strict=True):
+        for inp, stripped in zip(bel_inputs, inputs, strict=True):
             lines.append(f"I,{stripped},X{x}Y{y}.{inp}")
-        for outp, stripped in zip(bel.outputs, outputs, strict=True):
+        for outp, stripped in zip(bel_outputs, outputs, strict=True):
             lines.append(f"O,{stripped},X{x}Y{y}.{outp}")
         for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
             lines.append(f"CFG,{feat}")

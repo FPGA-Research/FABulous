@@ -49,7 +49,8 @@ class TestCanonicalListOrder:
                 ("X", IO.OUTPUT),
                 ("Y", IO.OUTPUT),
                 ("Z", IO.OUTPUT),
-            ]
+            ],
+            prefix="",
         )
         list_file = tmp_path / "m.list"
         # Deliberately out of canonical order: Z, X, Y.
@@ -96,7 +97,8 @@ class TestListExport:
 
     def test_preserve_list_order_round_trips(self, tmp_path: Path) -> None:
         bel = make_muladd_bel(
-            [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)]
+            [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)],
+            prefix="",
         )
         sm = SwitchMatrix(
             matrix_file=Path("x.csv"),
@@ -145,7 +147,7 @@ class TestSwitchMatrixValidation:
 
     def _bel(self) -> Bel:
         # BEL input A is a valid mux output; BEL output X a valid mux input.
-        return make_muladd_bel([("A", IO.INPUT), ("X", IO.OUTPUT)])
+        return make_muladd_bel([("A", IO.INPUT), ("X", IO.OUTPUT)], prefix="")
 
     def test_csv_rejects_unknown_output(self, tmp_path: Path) -> None:
         csv = tmp_path / "m.csv"

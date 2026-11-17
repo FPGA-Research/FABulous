@@ -14,8 +14,9 @@ import yaml
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import StaleIOPinConfigError
-from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_definition.define import IO, PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -256,8 +257,8 @@ class TestSerializeTilePorts:
 
         # BEL with external ports
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = ["ext_out"]
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = [BelPort("ext_out", IO.OUTPUT, 1, external=True)]
         tile.bels = [bel]
 
         result = _serialize_tile_ports(tile, external_port_side=Side.SOUTH)
@@ -664,8 +665,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test generation uses SOUTH for external ports by default."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -686,8 +687,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test generation without fabric placement context."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -715,8 +716,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test that explicit external side is used for external ports."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -752,8 +753,8 @@ class TestGenerateIOPinOrderConfig:
             Side.WEST: PinOrderConfig(),
         }
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = []
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
@@ -796,8 +797,8 @@ class TestGenerateIOPinOrderConfig:
             Side.WEST: PinOrderConfig(),
         }
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input_ports = [BelPort("ext_in", IO.INPUT, 1, external=True)]
+        bel.external_output_ports = []
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
