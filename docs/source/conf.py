@@ -255,6 +255,7 @@ _XREF_REWRITE = {
     "Cmd2ArgumentParser": "cmd2.argparse_utils.Cmd2ArgumentParser",
     "State": "librelane.state.State",
     "Config": "librelane.config.config.Config",
+    "Flow": "librelane.flows.flow.Flow",
     "FlowException": "librelane.flows.flow.FlowException",
     # Re-exported by librelane.steps.magic but only documented under common.drc.
     "librelane.steps.magic.DRC": "librelane.common.drc.DRC",
@@ -290,6 +291,7 @@ _XREF_AS_TEXT = {
     "SubstitutionsObject",
     "librelane.flows.sequential.SubstitutionsObject",
     "librelane.steps.openroad.GeneratePDN",
+    "typer.Exit",
 }
 
 
