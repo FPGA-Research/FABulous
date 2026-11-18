@@ -159,7 +159,6 @@ class BuildPyWithFabulousNix(build_py):
         ("nix/tools/fabulator.nix", "nix/tools/fabulator.nix"),
         ("nix/tools/ghdl-bin.nix", "nix/tools/ghdl-bin.nix"),
         ("nix/tools/nextpnr.nix", "nix/tools/nextpnr.nix"),
-        ("nix/tools/yosys.nix", "nix/tools/yosys.nix"),
     )
 
     def run(self) -> None:

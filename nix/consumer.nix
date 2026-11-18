@@ -37,8 +37,6 @@ in
 pkgs.mkShell {
   packages = [ virtualenv ] ++ toolPackages ++ resolvedTools;
 
-  FAB_YOSYS_PATH = envVars.FAB_YOSYS_PATH;
-  GHDL_PREFIX = envVars.GHDL_PREFIX;
   PYTHONWARNINGS = envVars.PYTHONWARNINGS;
 
   shellHook = ''

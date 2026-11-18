@@ -29,8 +29,6 @@ pkgs.runCommand "fabulous"
       makeWrapper ${virtualenv}/bin/$prog $out/bin/$prog \
         --prefix PATH : ${lib.makeBinPath toolchain.toolPackages} \
         --prefix PYTHONPATH : "${toolchain.tkinter-python-path}" \
-        --set FAB_YOSYS_PATH ${toolchain.envVars.FAB_YOSYS_PATH} \
-        --set GHDL_PREFIX ${toolchain.envVars.GHDL_PREFIX} \
         --set PYTHONWARNINGS "${toolchain.envVars.PYTHONWARNINGS}"
     done
   ''
