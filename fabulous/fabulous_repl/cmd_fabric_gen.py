@@ -383,7 +383,7 @@ class FabricGenCommandSet(ReplCommandSet):
         """
         repl = self._cmd
         logger.info("Generating routing model")
-        artifacts = repl.fabulousAPI.gen_pnr_model(tool=backend)
+        artifacts = repl.fabulousAPI.gen_routing_model(tool=backend)
         write_pnr_model(artifacts, repl.projectDir / META_DATA_DIR)
         logger.info("Generated routing model")
 

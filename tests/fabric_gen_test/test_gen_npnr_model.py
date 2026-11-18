@@ -77,27 +77,21 @@ def lut_fabric() -> Fabric:
 
 
 def test_generate_nextpnr_model_emits_the_full_artifact_set(lut_fabric: Fabric) -> None:
-    """The nextpnr backend emits exactly its six model files, all non-empty.
+    """The nextpnr backend emits its six model files with `genNextpnrModel`'s text.
 
-    This is the contract the CLI writes out verbatim, so a backend dropping or
-    renaming a file is a breaking change for downstream nextpnr invocations.
+    The CLI writes these out verbatim, so a backend dropping or renaming a file
+    breaks downstream nextpnr invocations.
     """
-    artifacts = generate_nextpnr_model(lut_fabric)
-
-    assert tuple(artifacts) == NEXTPNR_ARTIFACTS
-    assert artifacts["placement_estimate.txt"] == PLACEMENT_ESTIMATE_TEXT
-
-
-def test_generate_nextpnr_model_matches_gen_nextpnr_model(lut_fabric: Fabric) -> None:
-    """The artifact dict carries `genNextpnrModel`'s strings unaltered."""
     pips, bel, bel_v2, bel_v3, constraints = genNextpnrModel(lut_fabric)
-    artifacts = generate_nextpnr_model(lut_fabric)
 
-    assert artifacts["pips.txt"] == pips
-    assert artifacts["bel.txt"] == bel
-    assert artifacts["bel.v2.txt"] == bel_v2
-    assert artifacts["bel.v3.txt"] == bel_v3
-    assert artifacts["template.pcf"] == constraints
+    assert generate_nextpnr_model(lut_fabric) == {
+        "pips.txt": pips,
+        "bel.txt": bel,
+        "bel.v2.txt": bel_v2,
+        "bel.v3.txt": bel_v3,
+        "template.pcf": constraints,
+        "placement_estimate.txt": PLACEMENT_ESTIMATE_TEXT,
+    }
 
 
 def test_generate_nextpnr_model_returns_bel_v3_with_timing(lut_fabric: Fabric) -> None:

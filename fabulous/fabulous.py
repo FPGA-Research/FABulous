@@ -827,10 +827,12 @@ def main() -> None:
         if len(sys.argv) == 1:
             app()
         sys.argv = reorder_options(sys.argv)
-        known = [c.name for c in app.registered_commands]
-        known += [g.name for g in app.registered_groups]
         for i in sys.argv[1:]:
-            if i in known or i == "--help":
+            if (
+                i in [i.name for i in app.registered_commands]
+                or i in [g.name for g in app.registered_groups if g.name]
+                or i == "--help"
+            ):
                 app()
                 break
         else:

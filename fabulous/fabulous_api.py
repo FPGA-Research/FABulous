@@ -13,9 +13,6 @@ from typing import TYPE_CHECKING
 from librelane.flows.flow import Flow
 from loguru import logger
 
-if TYPE_CHECKING:
-    from fabulous.plugins.manager import PluginManager
-
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -93,7 +90,8 @@ class FABulous_API:
     plugin_manager : PluginManager
         The plugin manager resolving parsers and firing lifecycle hooks.
     fabricCSV : str
-        Path to the CSV file containing fabric data, by default ""
+        Path to a fabric file to load, by default "". Its suffix selects the
+        parser.
 
     Attributes
     ----------
@@ -419,7 +417,7 @@ class FABulous_API:
         """
         return generate_bitstream_spec(self.fabric)
 
-    def gen_pnr_model(
+    def gen_routing_model(
         self,
         tool: str | None = None,
         delay_model: FABulousTimingModelInterface | None = None,
@@ -973,4 +971,6 @@ class FABulous_API:
 
         ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
 
-        return iconfig, self.gen_pnr_model(tool=tool, delay_model=ftmi, target=target)
+        return iconfig, self.gen_routing_model(
+            tool=tool, delay_model=ftmi, target=target
+        )

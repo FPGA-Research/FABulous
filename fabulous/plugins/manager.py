@@ -230,7 +230,8 @@ class PluginManager:
         -------
         list
             One entry per implementation that returned a result, in pluggy's
-            call order.
+            call order (last registered first, honouring `tryfirst` and
+            `trylast`).
 
         Raises
         ------
@@ -239,7 +240,8 @@ class PluginManager:
             is a hook wrapper, which this call path cannot drive.
         """
         results = []
-        for impl in list(hook_caller.get_hookimpls()):
+        # pluggy runs the implementations last-registered first.
+        for impl in reversed(hook_caller.get_hookimpls()):
             if impl.hookwrapper or impl.wrapper:
                 raise PluginError(
                     f"Plugin '{impl.plugin_name}' implements "
@@ -247,7 +249,9 @@ class PluginManager:
                     "does not support."
                 )
             try:
-                result = impl.function(**kwargs)
+                # pluggy lets an implementation declare a subset of the spec's
+                # arguments, so pass only the ones it names.
+                result = impl.function(*(kwargs[arg] for arg in impl.argnames))
             except Exception as exc:  # noqa: BLE001 - policy decides re-raise
                 if not self.skip_broken:
                     raise PluginError(
@@ -313,6 +317,10 @@ class PluginManager:
     def build_registries(self) -> None:
         """Fold the aggregating hooks into keyed registries and settings.
 
+        Under `skip_broken` a plugin can be unregistered part-way through, after
+        an earlier hook already folded its providers. The registries are then
+        rebuilt without it, so a dropped plugin contributes nothing.
+
         Raises
         ------
         PluginError
@@ -321,6 +329,7 @@ class PluginManager:
             same group, or if a hook implementation raises and `skip_broken`
             is False.
         """
+        plugin_count = len(self.pm.get_plugins())
         self._code_generators = self._fold_registry(
             self.pm.hook.fabulous_register_code_generators,
             key=lambda p: p.hdl_type,
@@ -344,6 +353,10 @@ class PluginManager:
                     f"Settings group '{model.group}' registered more than once"
                 )
             new_settings[model.group] = model()
+
+        if len(self.pm.get_plugins()) != plugin_count:
+            self.build_registries()
+            return
 
         store = get_context().plugin_settings
         store.clear()
