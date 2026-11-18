@@ -1,4 +1,16 @@
 version: 2
+
+multi-ecosystem-groups:
+  eda-toolchain:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
 updates:
   - package-ecosystem: "uv"
     directories:
@@ -13,6 +25,9 @@ updates:
     # Our pyproject.toml constraints are deliberately loose lower bounds. Only
     # refresh the resolved versions in uv.lock; never rewrite the manifests.
     versioning-strategy: "lockfile-only"
+    multi-ecosystem-group: "eda-toolchain"
+    patterns:
+      - "librelane"
     groups:
       minor-and-patch:
         update-types:
@@ -21,29 +36,12 @@ updates:
       major:
         update-types:
           - "major"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
 
   - package-ecosystem: "nix"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 2
-    labels:
-      - "dependencies"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "minor"
-          - "patch"
-      major:
-        update-types:
-          - "major"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
+    multi-ecosystem-group: "eda-toolchain"
+    patterns:
+      - "*"
 
   - package-ecosystem: "github-actions"
     directories:

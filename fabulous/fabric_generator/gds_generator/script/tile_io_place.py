@@ -1000,26 +1000,12 @@ def io_place(
     if hor_length is not None:
         h_length = int(micron_in_units * hor_length)
     else:
-        h_length = max(
-            int(
-                math.ceil(
-                    h_layer.getArea() * micron_in_units * micron_in_units / h_width
-                )
-            ),
-            h_width,
-        )
+        h_length = max(int(math.ceil(h_layer.getArea() / h_width)), h_width)
 
     if ver_length is not None:
         v_length = int(micron_in_units * ver_length)
     else:
-        v_length = max(
-            int(
-                math.ceil(
-                    v_layer.getArea() * micron_in_units * micron_in_units / v_width
-                )
-            ),
-            v_width,
-        )
+        v_length = max(int(math.ceil(v_layer.getArea() / v_width)), v_width)
 
     with config_file_name.open(encoding="utf8") as file:
         config_data = yaml.safe_load(file)
