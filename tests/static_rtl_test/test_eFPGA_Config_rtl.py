@@ -103,7 +103,8 @@ async def cocotb_test_efpga_config_basic(dut: eFPGAConfigProtocol) -> None:
     await Timer(Decimal(1), unit="ps")  # Wait for non-blocking assignments
 
     # Verify ConfigWriteStrobe was propagated during the strobe
-    # (combinational through muxes: SelfWriteStrobe -> BitBangWriteStrobe_Mux -> UART_WriteStrobe_Mux -> ConfigWriteStrobe)
+    # (combinational through muxes: SelfWriteStrobe -> BitBangWriteStrobe_Mux
+    # -> UART_WriteStrobe_Mux -> ConfigWriteStrobe)
     assert dut.ConfigWriteStrobe.value == 1, (
         "ConfigWriteStrobe should be 1 while SelfWriteStrobe is active"
     )
@@ -126,7 +127,8 @@ async def cocotb_test_efpga_config_basic(dut: eFPGAConfigProtocol) -> None:
     dut.SelfWriteStrobe.value = 0
 
     # FrameAddressRegister should be updated synchronously on this clock edge
-    # ConfigFSM state machine: state 1 -> WriteStrobe & !desync -> latch FrameAddressRegister
+    # ConfigFSM state machine: state 1 -> WriteStrobe & !desync
+    # -> latch FrameAddressRegister
     actual_value = int(dut.FrameAddressRegister.value)
     assert actual_value == frame_addr, (
         f"FrameAddressRegister should update synchronously: "
@@ -167,7 +169,8 @@ async def cocotb_test_efpga_config_uart_interface(dut: eFPGAConfigProtocol) -> N
     for _ in range(20):
         await RisingEdge(dut.CLK)
 
-    # The UART module should be responsive (exact behavior depends on baud rate and data)
+    # The UART module should be responsive
+    # (exact behavior depends on baud rate and data)
 
 
 @cocotb.test
@@ -305,7 +308,7 @@ async def cocotb_test_efpga_config_frame_strobe_generation(
 
     # Check if FrameAddressRegister was updated (with tolerance)
     actual_frame_addr = int(dut.FrameAddressRegister.value)
-    frame_addr_updated = (actual_frame_addr == frame_address_header)
+    frame_addr_updated = actual_frame_addr == frame_address_header
 
     if not frame_addr_updated:
         cocotb.log.info(
@@ -315,7 +318,9 @@ async def cocotb_test_efpga_config_frame_strobe_generation(
         )
 
     # Verify LongFrameStrobe is initially low
-    assert int(dut.LongFrameStrobe.value) == 0, "LongFrameStrobe should be 0 before frames"
+    assert int(dut.LongFrameStrobe.value) == 0, (
+        "LongFrameStrobe should be 0 before frames"
+    )
 
     # Send frame data (NumberOfRows = 16 by default)
     # RowSelect progression is only validated if the FSM processed the header correctly
@@ -353,7 +358,8 @@ async def cocotb_test_efpga_config_frame_strobe_generation(
                     break
                 await RisingEdge(dut.CLK)
 
-    # Critical assertion: LongFrameStrobe must be observed after a complete frame sequence
+    # Critical assertion: LongFrameStrobe must be observed after a complete
+    # frame sequence
     # This validates the core integration functionality
     if frame_addr_updated:
         assert longframe_strobe_seen, (
@@ -363,7 +369,8 @@ async def cocotb_test_efpga_config_frame_strobe_generation(
     else:
         cocotb.log.warning(
             "LongFrameStrobe check skipped due to FSM not processing header. "
-            "This suggests the integration test may need adjustment for sub-module initialization."
+            "This suggests the integration test may need adjustment for "
+            "sub-module initialization."
         )
 
 

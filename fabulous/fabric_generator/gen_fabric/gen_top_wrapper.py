@@ -160,7 +160,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         writer.addPortVector(name, group[0], len(group[1]) - 1, indentLevel=2)
     writer.addComment("Config related ports", onNewLine=True, indentLevel=2)
     writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("resetn", IO.INPUT, indentLevel=2)
+    writer.addPortScalar("reset_n", IO.INPUT, indentLevel=2)
     writer.addPortScalar("SelfWriteStrobe", IO.INPUT, indentLevel=2)
     writer.addPortVector(
         "SelfWriteData", IO.INPUT, fabric.frameBitsPerRow - 1, indentLevel=2
@@ -233,7 +233,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         compInsName="eFPGA_Config_inst",
         portsPairs=[
             ("CLK", "CLK"),
-            ("resetn", "resetn"),
+            ("reset_n", "reset_n"),
             ("Rx", "Rx"),
             ("ComActive", "ComActive"),
             ("ReceiveLED", "ReceiveLED"),
