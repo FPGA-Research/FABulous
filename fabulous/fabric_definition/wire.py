@@ -58,6 +58,23 @@ class Wire:
         """
         return WirePip(src=self.source, dst=self.destination)
 
+    def get_delay(self) -> Ns:
+        """Return the delay of the wire.
+
+        Returns
+        -------
+        Ns
+            The wire delay.
+
+        Raises
+        ------
+        ValueError
+            If no timing is set on the wire.
+        """
+        if self.delay is None:
+            raise ValueError(f"Wire {self} of tile {self.sourceTile!r} has no delay.")
+        return self.delay
+
     def __repr__(self) -> str:
         """Return string representation of the wire.
 

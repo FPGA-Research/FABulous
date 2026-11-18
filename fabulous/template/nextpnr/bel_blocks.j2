@@ -6,10 +6,10 @@
 {% for placed in group.bels %}
 BelBegin,X{{ placed.x }}Y{{ placed.y }},{{ placed.letter }},{{ placed.cell_type }},{{ placed.bel.prefix }}
 {% for port in placed.bel.input_ports %}
-I,{{ port | pin }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
+I,{{ port.pin_name }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
 {% endfor %}
 {% for port in placed.bel.output_ports %}
-O,{{ port | pin }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
+O,{{ port.pin_name }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
 {% endfor %}
 {% for feature in placed.bel.belFeatureMap | sort(case_sensitive=true) %}
 CFG,{{ feature }}

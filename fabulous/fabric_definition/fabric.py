@@ -499,6 +499,23 @@ class Fabric:
         """
         return self.clock_arrival is not None
 
+    def get_clock_arrival(self) -> Ns:
+        """Return the clock arrival at every flop of the fabric.
+
+        Returns
+        -------
+        Ns
+            The clock arrival.
+
+        Raises
+        ------
+        ValueError
+            If no timing is set on the fabric.
+        """
+        if self.clock_arrival is None:
+            raise ValueError(f"Fabric {self.name!r} has no clock arrival.")
+        return self.clock_arrival
+
     def tile_copies(self) -> Iterator[Tile]:
         """Yield every copy of every tile type.
 

@@ -8,8 +8,15 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.define import IO, Direction
+from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.timing import BelArcs, DelayArc, SwitchPip, ns
+from fabulous.fabric_definition.timing import (
+    BelArcs,
+    ClockArc,
+    DelayArc,
+    SwitchPip,
+    ns,
+)
 from fabulous.fabric_definition.wire import Wire
 from tests.conftest import make_empty_tile, make_fabric_from_grid, make_muladd_bel
 
@@ -83,3 +90,12 @@ def test_fabric_has_timing_once_timing_is_set() -> None:
 
     assert fabric.has_timing
     assert fabric.tile[0][0].switch_matrix.pip_delays == {SwitchPip("A", "Y"): ns(0.5)}
+
+
+def test_bel_arcs_reject_clocks_with_one_pin_name() -> None:
+    """Two clock ports that a user design would connect by one name are an error."""
+    user_clk = BelPort("UserCLK", IO.INPUT, 1, is_clock=True)
+    clk = BelPort("CLK", IO.INPUT, 1, prefix="LA_", is_clock=True)
+
+    with pytest.raises(ValueError, match="share a pin name"):
+        BelArcs(clocks=(ClockArc(user_clk), ClockArc(clk)))

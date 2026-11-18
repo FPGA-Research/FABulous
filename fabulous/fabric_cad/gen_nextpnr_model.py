@@ -21,7 +21,6 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, BelRole
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
-from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.timing import (
     AnyConnected,
     BelArcs,
@@ -31,10 +30,8 @@ from fabulous.fabric_definition.timing import (
     FeatureIs,
     Ns,
     SetupHoldArc,
-    SwitchPip,
     ns,
 )
-from fabulous.fabric_definition.wire import Wire
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
 # constants (fabulous.cc, seed_default_estimates).
@@ -75,39 +72,6 @@ PIP_DELAY_SCALE = 0.05
 _IO_PORTS = 4
 
 
-def pin_name(port: BelPort) -> str:
-    """Return the nextpnr name of a BEL port: its name without the BEL prefix.
-
-    Parameters
-    ----------
-    port : BelPort
-        A BEL port.
-
-    Returns
-    -------
-    str
-        The nextpnr pin name.
-    """
-    return port.name.removeprefix(port.prefix)
-
-
-def clock_name(port: BelPort) -> str:
-    """Return the nextpnr name of a clock port; nextpnr calls `UserCLK` `CLK`.
-
-    Parameters
-    ----------
-    port : BelPort
-        A clock port.
-
-    Returns
-    -------
-    str
-        The nextpnr clock-pin name.
-    """
-    name = pin_name(port)
-    return "CLK" if name == "UserCLK" else name
-
-
 @cache
 def _template_env() -> Environment:
     """Return the Jinja environment of the nextpnr file templates.
@@ -115,38 +79,15 @@ def _template_env() -> Environment:
     Returns
     -------
     Environment
-        The cached environment, with the `pin` and `clock` name filters.
+        The cached environment.
     """
-    env = Environment(
+    return Environment(
         loader=PackageLoader("fabulous", "template"),
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
     )
-    env.filters["pin"] = pin_name
-    env.filters["clock"] = clock_name
-    return env
-
-
-def _check_clock_names(arcs: BelArcs, *, owner: str) -> None:
-    """Raise if two clock ports of one BEL get the same nextpnr name.
-
-    Parameters
-    ----------
-    arcs : BelArcs
-        The BEL arcs.
-    owner : str
-        The BEL, for the error.
-
-    Raises
-    ------
-    ValueError
-        If two clock ports share a nextpnr name.
-    """
-    names = [clock_name(arc.clock) for arc in arcs.clocks]
-    if len(set(names)) != len(names):
-        raise ValueError(f"Clock ports of {owner} share a nextpnr name: {names}")
 
 
 def render_arcs(arcs: BelArcs, *, logic_cell: bool) -> list[str]:
@@ -165,27 +106,8 @@ def render_arcs(arcs: BelArcs, *, logic_cell: bool) -> list[str]:
     list[str]
         `Clock`, `Delay`, `SetupHold` and `ClkToOut` lines in that order.
     """
-    _check_clock_names(arcs, owner="the BEL")
     template = _template_env().get_template("nextpnr/arcs.j2")
     return str(template.module.lines(arcs, logic_cell)).splitlines()
-
-
-def _free_port(name: str, io: IO) -> BelPort:
-    """Return a port that belongs to no BEL.
-
-    Parameters
-    ----------
-    name : str
-        The port name.
-    io : IO
-        The port direction.
-
-    Returns
-    -------
-    BelPort
-        A one-bit port without a prefix.
-    """
-    return BelPort(name, io, 1, is_clock=name == "UserCLK")
 
 
 def placeholder_bel_arcs(
@@ -218,8 +140,8 @@ def placeholder_bel_arcs(
     BelArcs
         Logic-cell, input-pass or output-pass arcs; no arcs for other BELs.
     """
-    clk = clock or _free_port("UserCLK", IO.INPUT)
-    own = {pin_name(port): port for port in (*inputs, *outputs)}
+    clk = clock or BelPort.free("UserCLK", IO.INPUT)
+    own = {port.pin_name: port for port in (*inputs, *outputs)}
 
     def port(name: str, io: IO) -> BelPort:
         """Return the BEL's port `name`, or a free one.
@@ -236,7 +158,7 @@ def placeholder_bel_arcs(
         BelPort
             The port.
         """
-        return own.get(name) or _free_port(name, io)
+        return own.get(name) or BelPort.free(name, io)
 
     def numbered(ports: Sequence[BelPort], letter: str) -> list[BelPort]:
         """Return the ports named `letter` followed by a number.
@@ -256,7 +178,7 @@ def placeholder_bel_arcs(
         return [
             p
             for p in ports
-            if pin_name(p).startswith(letter) and pin_name(p)[1:].isdigit()
+            if p.pin_name.startswith(letter) and p.pin_name[1:].isdigit()
         ]
 
     match role:
@@ -387,8 +309,8 @@ def placement_estimate() -> str:
     str
         The nextpnr tunables and one timing block per timed cell type.
     """
-    inputs = [_free_port(f"I{i}", IO.INPUT) for i in range(_IO_PORTS)]
-    outputs = [_free_port(f"O{i}", IO.OUTPUT) for i in range(_IO_PORTS)]
+    inputs = [BelPort.free(f"I{i}", IO.INPUT) for i in range(_IO_PORTS)]
+    outputs = [BelPort.free(f"O{i}", IO.OUTPUT) for i in range(_IO_PORTS)]
     logic = placeholder_bel_arcs(role=BelRole.LOGIC_CELL, inputs=inputs, outputs=[])
     out_pass = placeholder_bel_arcs(role=BelRole.OUT_PASS, inputs=inputs, outputs=[])
     in_pass = placeholder_bel_arcs(role=BelRole.IN_PASS, inputs=[], outputs=outputs)
@@ -439,112 +361,6 @@ class NextpnrModel:
     bel_v3: str
     pcf: str
     placement_estimate: str
-
-
-def _placed_arcs(bel: Bel, *, x: int, y: int) -> BelArcs:
-    """Return the arcs of `bel` placed at tile `(x, y)`.
-
-    Parameters
-    ----------
-    bel : Bel
-        The BEL.
-    x : int
-        Tile X coordinate.
-    y : int
-        Tile Y coordinate.
-
-    Returns
-    -------
-    BelArcs
-        The BEL arcs.
-
-    Raises
-    ------
-    ValueError
-        If `bel` has no timing arcs.
-    """
-    if bel.arcs is None:
-        raise ValueError(f"BEL {bel.prefix}{bel.name} at X{x}Y{y} has no timing arcs.")
-    return bel.arcs
-
-
-def _switch_pip_delay(switch_matrix: SwitchMatrix, pip: SwitchPip, *, owner: str) -> Ns:
-    """Return the delay of `pip` of `switch_matrix`.
-
-    Parameters
-    ----------
-    switch_matrix : SwitchMatrix
-        The switch matrix.
-    pip : SwitchPip
-        One of its pips.
-    owner : str
-        The placed tile or supertile that holds the switch matrix, for errors.
-
-    Returns
-    -------
-    Ns
-        The pip delay.
-
-    Raises
-    ------
-    ValueError
-        If the switch matrix has no pip delays, or none for `pip`.
-    """
-    if switch_matrix.pip_delays is None:
-        raise ValueError(f"The switch matrix of {owner} has no pip delays.")
-    if pip not in switch_matrix.pip_delays:
-        raise ValueError(f"No delay for {pip} in the switch matrix of {owner}.")
-    return switch_matrix.pip_delays[pip]
-
-
-def _wire_delay(wire: Wire, *, x: int, y: int) -> Ns:
-    """Return the delay of `wire` of the tile at `(x, y)`.
-
-    Parameters
-    ----------
-    wire : Wire
-        The wire.
-    x : int
-        Tile X coordinate.
-    y : int
-        Tile Y coordinate.
-
-    Returns
-    -------
-    Ns
-        The wire delay.
-
-    Raises
-    ------
-    ValueError
-        If the wire has no delay.
-    """
-    if wire.delay is None:
-        raise ValueError(f"Wire {wire} of the tile at X{x}Y{y} has no delay.")
-    return wire.delay
-
-
-def _clock_arrival(fabric: Fabric) -> Ns:
-    """Return the clock arrival of `fabric`.
-
-    Parameters
-    ----------
-    fabric : Fabric
-        The fabric.
-
-    Returns
-    -------
-    Ns
-        The clock arrival at every flop.
-
-    Raises
-    ------
-    ValueError
-        If the fabric has no clock arrival.
-    """
-    if fabric.clock_arrival is None:
-        raise ValueError(f"Fabric {fabric.name!r} has no clock arrival.")
-    return fabric.clock_arrival
 
 
 @dataclass(frozen=True, slots=True)
@@ -678,14 +494,10 @@ def _place_bels(
     list[_PlacedBel]
         The placed BELs.
     """
-    placed = []
-    for i, bel in enumerate(bels):
-        arcs = _placed_arcs(bel, x=x, y=y)
-        _check_clock_names(arcs, owner=f"BEL {bel.prefix}{bel.name} at X{x}Y{y}")
-        placed.append(
-            _PlacedBel(x, y, string.ascii_uppercase[first_letter + i], bel, arcs)
-        )
-    return placed
+    return [
+        _PlacedBel(x, y, string.ascii_uppercase[first_letter + i], bel, bel.get_arcs())
+        for i, bel in enumerate(bels)
+    ]
 
 
 def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
@@ -727,11 +539,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
                         x,
                         y,
                         pip.dst,
-                        _switch_pip_delay(
-                            tile.switch_matrix,
-                            pip,
-                            owner=f"tile {tile.name!r} at X{x}Y{y}",
-                        ),
+                        tile.switch_matrix.get_pip_delay(pip),
                     )
                     for pip in tile.switch_matrix.pips()
                 ],
@@ -757,7 +565,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
                     x_dst,
                     y_dst,
                     wire.destination,
-                    _wire_delay(wire, x=x, y=y),
+                    wire.get_delay(),
                 )
             )
         pip_sections.append(external)
@@ -799,11 +607,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
                             ftx,
                             fty,
                             pip.dst,
-                            _switch_pip_delay(
-                                super_tile.switch_matrix,
-                                pip,
-                                owner=f"supertile {super_tile.name!r} at X{ftx}Y{fty}",
-                            ),
+                            super_tile.switch_matrix.get_pip_delay(pip),
                         )
                         for pip in super_tile.switch_matrix.pips()
                     ],
@@ -820,7 +624,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
     bels = {
         "header": header,
         "groups": bel_groups,
-        "clock_arrival": _clock_arrival(fabric) if clocked else None,
+        "clock_arrival": fabric.get_clock_arrival() if clocked else None,
     }
     return NextpnrModel(
         pips=_render("pips.txt.j2", sections=pip_sections),

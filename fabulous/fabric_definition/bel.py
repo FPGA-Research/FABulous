@@ -243,6 +243,23 @@ class Bel:
         self.localShared = localShared
         self.arcs = None
 
+    def get_arcs(self) -> BelArcs:
+        """Return the timing arcs of the BEL.
+
+        Returns
+        -------
+        BelArcs
+            The arcs.
+
+        Raises
+        ------
+        ValueError
+            If no timing is set on the BEL.
+        """
+        if self.arcs is None:
+            raise ValueError(f"BEL {self.prefix}{self.name} has no timing arcs.")
+        return self.arcs
+
     @property
     def role(self) -> BelRole:
         """How place and route treats the BEL.
