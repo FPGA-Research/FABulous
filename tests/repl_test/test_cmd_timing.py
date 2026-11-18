@@ -5,8 +5,13 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_cad.timing_model.models import TimingModelTarget
+from fabulous.fabric_cad.timing_model.models import (
+    TimingModelConfig,
+    TimingModelMode,
+    TimingModelTarget,
+)
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from fabulous.fabulous_settings import get_context
 
 
 @pytest.mark.parametrize(
@@ -47,6 +52,50 @@ def test_timing_command_passes_target_and_output_paths_to_api(
         manual_config=None,
         target=expected_target,
         bel_output_file=bel_path,
+    )
+
+
+def test_timing_command_reads_relative_paths_from_project_dir(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Relative paths name files in the project, wherever FABulous was launched."""
+    proj_dir = get_context().proj_dir
+    config = TimingModelConfig(
+        project_dir=proj_dir,
+        liberty_files=Path("cells.lib"),
+        min_buf_cell_and_ports="buf A X",
+        synth_executable=Path("yosys"),
+        sta_executable=Path("sta"),
+        mode=TimingModelMode.STRUCTURAL,
+    )
+    (proj_dir / ".FABulous" / "timing_config.json").write_text(config.model_dump_json())
+    resolved_config = mocker.Mock()
+    resolved_config.model_dump_json.return_value = "{}"
+    timing_api = mocker.patch.object(
+        cli.fabulousAPI,
+        "timing_model_interface",
+        return_value=resolved_config,
+    )
+    launch_dir = tmp_path / "elsewhere"
+    launch_dir.mkdir()
+    monkeypatch.chdir(launch_dir)
+
+    cli.onecmd_plus_hooks(
+        "timing_model --mode structural "
+        "--with-config-file .FABulous/timing_config.json "
+        "--outfile out/pips.txt --bel-outfile out/bel.v3.txt"
+    )
+
+    timing_api.assert_called_once_with(
+        mode="structural",
+        output_file=proj_dir / "out" / "pips.txt",
+        debug=cli.debug,
+        manual_config=config,
+        target=TimingModelTarget.BOTH,
+        bel_output_file=proj_dir / "out" / "bel.v3.txt",
     )
 
 

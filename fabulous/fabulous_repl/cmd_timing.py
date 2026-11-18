@@ -95,10 +95,21 @@ class TimingCommandSet(ReplCommandSet):
         is provided, it will be used for timing model generation instead of command
         arguments. This allows for more complex configurations like different PDK
         support. If `emit-config-template` is specified, a config template will be
-        output and no timing model will be generated.
+        output and no timing model will be generated. Relative paths are taken
+        from the project directory.
         """
         repl = self._cmd
         manual_config: TimingModelConfig | None = None
+
+        # Like the other REPL commands, relative paths are read from the project
+        # directory, not from wherever FABulous was launched.
+        proj_dir = get_context().proj_dir
+        if outfile is not None and not outfile.is_absolute():
+            outfile = proj_dir / outfile
+        if bel_outfile is not None and not bel_outfile.is_absolute():
+            bel_outfile = proj_dir / bel_outfile
+        if with_config_file is not None and not with_config_file.is_absolute():
+            with_config_file = proj_dir / with_config_file
 
         # If a config file is provided, use it to generate the timing model
         # instead of command arguments This allows for more complex configurations
