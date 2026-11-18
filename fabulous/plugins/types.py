@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
         FABulousTimingModelInterface,
     )
+    from fabulous.fabric_cad.timing_model.models import TimingModelTarget
     from fabulous.fabric_definition.fabric import Fabric
     from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
@@ -24,7 +25,8 @@ if TYPE_CHECKING:
 type CodeGeneratorFactory = Callable[[], CodeGenerator]
 type FabricParser = Callable[[Path], Fabric]
 type PnRModelGenerator = Callable[
-    [Fabric, FABulousTimingModelInterface | None], dict[str, str | bytes]
+    [Fabric, FABulousTimingModelInterface | None, TimingModelTarget],
+    dict[str, str | bytes],
 ]
 
 
@@ -83,8 +85,10 @@ class PnRModelProvider:
         `PnRTool` value; plugins may use any name not already registered.
     generate : PnRModelGenerator
         Build the model from a fabric. The second argument is a delay model,
-        or `None` to generate an untimed model. Returns a mapping of file
-        name, relative to the output directory, to file content.
+        or `None` to generate an untimed model. The third selects which
+        delays (pips, BELs or both) to take from that delay model, and is
+        meaningless without one. Returns a mapping of file name, relative to
+        the output directory, to file content.
     supports_timing : bool
         Whether `generate` honours a delay model. Passing one to a backend
         that does not is an error, never a silent untimed generation.

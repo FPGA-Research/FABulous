@@ -10,8 +10,10 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelMode,
     TimingModelTarget,
 )
+from fabulous.fabric_definition.define import PnRTool
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_settings import get_context
+from tests.conftest import run_cmd
 
 
 @pytest.mark.parametrize(
@@ -22,7 +24,7 @@ from fabulous.fabulous_settings import get_context
         pytest.param("--target bels", TimingModelTarget.BELS, id="bels"),
     ],
 )
-def test_timing_command_passes_target_and_output_paths_to_api(
+def test_timing_command_passes_target_to_api(
     cli: FABulousREPL,
     mocker: MockerFixture,
     tmp_path: Path,
@@ -35,23 +37,23 @@ def test_timing_command_passes_target_and_output_paths_to_api(
     timing_api = mocker.patch.object(
         cli.fabulousAPI,
         "timing_model_interface",
-        return_value=resolved_config,
+        return_value=(
+            resolved_config,
+            {"pips.txt": "timed pips", "bel.v3.txt": "timed bels"},
+        ),
     )
-    pip_path = tmp_path / "custom-pips.txt"
-    bel_path = tmp_path / "custom-bel.v3.txt"
 
     cli.onecmd_plus_hooks(
         f"timing_model --mode structural {target_option} "
-        f"--outfile {pip_path} --bel-outfile {bel_path}"
+        f"--outfile {tmp_path / 'pips.txt'} --bel-outfile {tmp_path / 'bel.v3.txt'}"
     )
 
     timing_api.assert_called_once_with(
         mode="structural",
-        output_file=pip_path,
         debug=cli.debug,
         manual_config=None,
+        tool=PnRTool.NEXTPNR,
         target=expected_target,
-        bel_output_file=bel_path,
     )
 
 
@@ -72,12 +74,16 @@ def test_timing_command_reads_relative_paths_from_project_dir(
         mode=TimingModelMode.STRUCTURAL,
     )
     (proj_dir / ".FABulous" / "timing_config.json").write_text(config.model_dump_json())
+    (proj_dir / "out").mkdir()
     resolved_config = mocker.Mock()
     resolved_config.model_dump_json.return_value = "{}"
     timing_api = mocker.patch.object(
         cli.fabulousAPI,
         "timing_model_interface",
-        return_value=resolved_config,
+        return_value=(
+            resolved_config,
+            {"pips.txt": "timed pips", "bel.v3.txt": "timed bels"},
+        ),
     )
     launch_dir = tmp_path / "elsewhere"
     launch_dir.mkdir()
@@ -91,45 +97,87 @@ def test_timing_command_reads_relative_paths_from_project_dir(
 
     timing_api.assert_called_once_with(
         mode="structural",
-        output_file=proj_dir / "out" / "pips.txt",
         debug=cli.debug,
         manual_config=config,
+        tool=PnRTool.NEXTPNR,
         target=TimingModelTarget.BOTH,
-        bel_output_file=proj_dir / "out" / "bel.v3.txt",
+    )
+    assert (proj_dir / "out" / "pips.txt").read_text() == "timed pips"
+    assert (proj_dir / "out" / "bel.v3.txt").read_text() == "timed bels"
+
+
+@pytest.mark.parametrize(
+    ("target", "pip_written", "bel_written"),
+    [
+        pytest.param("pips", True, False, id="pips"),
+        pytest.param("bels", False, True, id="bels"),
+        pytest.param("both", True, True, id="both"),
+    ],
+)
+def test_timing_command_writes_only_selected_outputs(
+    cli: FABulousREPL,
+    mocker: MockerFixture,
+    tmp_path: Path,
+    target: str,
+    pip_written: bool,
+    bel_written: bool,
+) -> None:
+    """Only the targeted files are replaced, and each old copy is backed up."""
+    pip_path = tmp_path / "custom-pips.txt"
+    bel_path = tmp_path / "custom-bel.v3.txt"
+    pip_path.write_text("untimed pips")
+    bel_path.write_text("untimed bels")
+    resolved_config = mocker.Mock()
+    resolved_config.model_dump_json.return_value = "{}"
+    mocker.patch.object(
+        cli.fabulousAPI,
+        "timing_model_interface",
+        return_value=(
+            resolved_config,
+            {"pips.txt": "timed pips", "bel.v3.txt": "timed bels"},
+        ),
     )
 
+    run_cmd(
+        cli,
+        f"timing_model --target {target} --outfile {pip_path} --bel-outfile {bel_path}",
+    )
 
-def test_timing_api_passes_target_to_nextpnr_writer(
-    cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+    assert cli.exit_code == 0
+    expected_pip = "timed pips" if pip_written else "untimed pips"
+    expected_bel = "timed bels" if bel_written else "untimed bels"
+    assert pip_path.read_text() == expected_pip
+    assert bel_path.read_text() == expected_bel
+    assert pip_path.with_suffix(".backup.txt").exists() is pip_written
+    assert bel_path.with_suffix(".backup.txt").exists() is bel_written
+
+
+def test_timing_api_forwards_target_to_backend(
+    cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
-    """The public API keeps its existing call shape and forwards output selection."""
+    """The API hands the delay model and target to the selected backend."""
     manual_config = mocker.Mock()
     fabric = mocker.Mock()
     cli.fabulousAPI.fabric = fabric
     timing_interface = mocker.patch(
         "fabulous.fabulous_api.FABulousTimingModelInterface"
     )
-    timing_writer = mocker.patch(
-        "fabulous.fabulous_api.model_gen_npnr.write_nextpnr_timing_files"
+    gen_pnr_model = mocker.patch.object(
+        cli.fabulousAPI, "gen_pnr_model", return_value={"pips.txt": "timed"}
     )
-    pip_path = tmp_path / "pips.txt"
-    bel_path = tmp_path / "bel.v3.txt"
 
     result = cli.fabulousAPI.timing_model_interface(
         mode="structural",
-        output_file=pip_path,
         debug=False,
         manual_config=manual_config,
+        tool=PnRTool.NEXTPNR,
         target=TimingModelTarget.BELS,
-        bel_output_file=bel_path,
     )
 
-    assert result is manual_config
+    assert result == (manual_config, {"pips.txt": "timed"})
     timing_interface.assert_called_once_with(config=manual_config, fabric=fabric)
-    timing_writer.assert_called_once_with(
-        fabric=fabric,
-        pip_output_file=pip_path,
-        bel_output_file=bel_path,
+    gen_pnr_model.assert_called_once_with(
+        tool=PnRTool.NEXTPNR,
         delay_model=timing_interface.return_value,
         target=TimingModelTarget.BELS,
     )

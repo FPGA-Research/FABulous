@@ -1,8 +1,10 @@
 """The top-level `FABulous plugins` group shares the management operations."""
 
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+from dotenv import set_key
 from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
@@ -58,6 +60,9 @@ def test_plugins_group_honours_explicit_project_dir(
     if discovery ran against the passed directory rather than the cwd.
     """
     (tmp_path / ".FABulous").mkdir()
+    env_file = tmp_path / ".FABulous" / ".env"
+    env_file.touch()
+    set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
     plugin_dir = tmp_path / "plugins" / "demo_plug"
     plugin_dir.mkdir(parents=True)
     (plugin_dir / "__init__.py").write_text(

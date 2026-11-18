@@ -26,6 +26,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelMode,
     TimingModelStaTools,
     TimingModelSynthTools,
+    TimingModelTarget,
 )
 
 # Importing Modules from FABulous Framework.
@@ -91,7 +92,7 @@ class FABulous_API:
         Object responsible for generating code from code_generator.py
     plugin_manager : PluginManager
         The plugin manager resolving parsers and firing lifecycle hooks.
-    fabricCSV : str, optional
+    fabricCSV : str
         Path to the CSV file containing fabric data, by default ""
 
     Attributes
@@ -422,6 +423,7 @@ class FABulous_API:
         self,
         tool: str | None = None,
         delay_model: FABulousTimingModelInterface | None = None,
+        target: TimingModelTarget = TimingModelTarget.BOTH,
     ) -> dict[str, str | bytes]:
         """Generate the place-and-route model for the loaded fabric.
 
@@ -433,6 +435,9 @@ class FABulous_API:
         delay_model : FABulousTimingModelInterface | None
             Timing model interface providing real delays. Defaults to None,
             which generates an untimed model.
+        target : TimingModelTarget
+            Which delays to take from `delay_model`: pips, BELs, or both.
+            Defaults to both. Ignored without a delay model.
 
         Returns
         -------
@@ -442,7 +447,7 @@ class FABulous_API:
         provider = self.plugin_manager.make_pnr_model(
             tool, timed=delay_model is not None
         )
-        return provider.generate(self.fabric, delay_model)
+        return provider.generate(self.fabric, delay_model, target)
 
     def getBels(self) -> list[Bel]:
         """Return all unique Bels within a fabric.
@@ -861,6 +866,8 @@ class FABulous_API:
         debug: bool,
         manual_config: TimingModelConfig | None = None,
         tool: str | None = None,
+        *,
+        target: TimingModelTarget = TimingModelTarget.BOTH,
     ) -> tuple[TimingModelConfig, dict[str, str | bytes]]:
         """Initialise the timing model and generate a timed place-and-route model.
 
@@ -878,6 +885,8 @@ class FABulous_API:
         tool : str | None
             The place-and-route backend to generate for. Defaults to None,
             which selects the project's `pnr_backend` setting.
+        target : TimingModelTarget
+            Characterize pip timing, BEL timing, or both, by default both.
 
         Returns
         -------
@@ -964,4 +973,4 @@ class FABulous_API:
 
         ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
 
-        return iconfig, self.gen_pnr_model(tool=tool, delay_model=ftmi)
+        return iconfig, self.gen_pnr_model(tool=tool, delay_model=ftmi, target=target)

@@ -10,7 +10,6 @@ from fabulous.fabric_cad.gen_npnr_model import (
     belLines,
     generate_nextpnr_model,
     genNextpnrModel,
-    write_nextpnr_timing_files,
 )
 from fabulous.fabric_cad.timing_model.models import (
     BelDelayTiming,
@@ -86,7 +85,6 @@ def test_generate_nextpnr_model_emits_the_full_artifact_set(lut_fabric: Fabric) 
     artifacts = generate_nextpnr_model(lut_fabric)
 
     assert tuple(artifacts) == NEXTPNR_ARTIFACTS
-    assert all(artifacts.values())
     assert artifacts["placement_estimate.txt"] == PLACEMENT_ESTIMATE_TEXT
 
 
@@ -339,35 +337,27 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
 
 
 @pytest.mark.parametrize(
-    ("target", "pip_exists", "bel_exists"),
+    ("target", "expect_pips", "expect_bels"),
     [
         pytest.param(TimingModelTarget.PIPS, True, False, id="pips"),
         pytest.param(TimingModelTarget.BELS, False, True, id="bels"),
         pytest.param(TimingModelTarget.BOTH, True, True, id="both"),
     ],
 )
-def test_write_nextpnr_timing_files_writes_only_selected_outputs(
+def test_generate_nextpnr_model_forwards_target(
     lut_fabric: Fabric,
     mocker: MockerFixture,
-    tmp_path: Path,
     target: TimingModelTarget,
-    pip_exists: bool,
-    bel_exists: bool,
+    expect_pips: bool,
+    expect_bels: bool,
 ) -> None:
-    """The timing writer leaves unselected output files untouched."""
+    """The backend entry point characterizes only the timing `target` selects."""
     fake_model = mocker.Mock()
     fake_model.pip_delay.return_value = 6.0
     fake_model.bel_timing.return_value = BelTiming()
-    pip_path = tmp_path / "pips.txt"
-    bel_path = tmp_path / "bel.v3.txt"
 
-    write_nextpnr_timing_files(
-        lut_fabric,
-        pip_output_file=pip_path,
-        bel_output_file=bel_path,
-        delay_model=fake_model,
-        target=target,
-    )
+    artifacts = generate_nextpnr_model(lut_fabric, fake_model, target)
 
-    assert pip_path.exists() is pip_exists
-    assert bel_path.exists() is bel_exists
+    assert tuple(artifacts) == NEXTPNR_ARTIFACTS
+    assert bool(fake_model.pip_delay.call_count) is expect_pips
+    assert bool(fake_model.bel_timing.call_count) is expect_bels

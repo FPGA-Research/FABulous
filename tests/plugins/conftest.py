@@ -92,7 +92,9 @@ def make_pnr_model_module(
     """
     module = types.ModuleType(f"fake_pnr_plugin_{tool}")
 
-    def generate(_fabric: object, delay_model: object) -> dict[str, str | bytes]:
+    def generate(
+        _fabric: object, delay_model: object, _target: object
+    ) -> dict[str, str | bytes]:
         return {f"{tool}.txt": f"timed={delay_model is not None}"}
 
     @hookspecs.hookimpl
