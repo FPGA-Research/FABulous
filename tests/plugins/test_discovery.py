@@ -9,6 +9,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
 from fabulous.plugins import PLUGIN_API_VERSION
 from fabulous.plugins import manager as manager_module
 from fabulous.plugins.manager import BuiltinPlugin, PluginManager
@@ -77,7 +78,8 @@ def test_core_only_registers_default_plugins() -> None:
     for plugin in BuiltinPlugin:
         assert manager.pm.get_plugin(plugin.value) is not None
     assert manager.make_writer(HDLType.VERILOG).file_extension == ".v"
-    assert manager.make_parser(Path("fabric.csv")) is not None
+    assert manager.make_writer(HDLType.VHDL).file_extension == ".vhdl"
+    assert manager.make_parser(Path("fabric.csv")) is parseFabricCSV
 
 
 def test_dir_scan_registers_subpackages(tmp_path: Path, mocker: MockerFixture) -> None:
@@ -157,6 +159,39 @@ def test_broken_plugin_lenient_drops_only_it(
 
     assert manager.pm.get_plugin("broke") is None
     assert manager.make_writer(HDLType.VERILOG).file_extension == ".v"
+
+
+def test_lenient_drop_removes_providers_already_folded(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """A plugin dropped in a later hook leaves nothing from its earlier hooks.
+
+    The code-generator registry is folded before the parser hook raises, so
+    without a rebuild the dropped plugin's generator would stay usable.
+    """
+    _write_dir_plugin(
+        tmp_path,
+        "half",
+        "from fabulous.fabric_definition.define import HDLType\n"
+        "from fabulous.plugins import PLUGIN_API_VERSION, hookimpl\n"
+        "from fabulous.plugins.types import CodeGeneratorProvider\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+        "@hookimpl\n"
+        "def fabulous_register_code_generators():\n"
+        "    return [CodeGeneratorProvider(\n"
+        "        hdl_type=HDLType.SYSTEM_VERILOG, factory=object, name='half'\n"
+        "    )]\n"
+        "@hookimpl\n"
+        "def fabulous_register_parsers():\n"
+        "    raise RuntimeError('boom')\n",
+    )
+    _patch_context(mocker, tmp_path, skip_broken=True)
+
+    manager = PluginManager.create()
+
+    assert manager.pm.get_plugin("half") is None
+    with pytest.raises(PluginError):
+        manager.make_writer(HDLType.SYSTEM_VERILOG)
 
 
 def test_package_plugin_resolves_relative_import(

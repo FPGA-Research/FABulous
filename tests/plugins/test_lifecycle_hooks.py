@@ -42,6 +42,18 @@ def test_notify_startup_fires_every_implementation() -> None:
     assert fired == [True]
 
 
+def test_hookimpl_may_omit_spec_arguments() -> None:
+    """pluggy lets an implementation take a subset of the spec's arguments."""
+    fired = []
+    manager = _manager_with(
+        "spy", fabulous_after_fabric_loaded=lambda: fired.append(True)
+    )
+
+    manager.notify_fabric_loaded(object())
+
+    assert fired == [True]
+
+
 def test_notify_fabric_loaded_passes_the_api() -> None:
     received = []
     manager = _manager_with(

@@ -162,8 +162,8 @@ def test_timing_api_forwards_target_to_backend(
     timing_interface = mocker.patch(
         "fabulous.fabulous_api.FABulousTimingModelInterface"
     )
-    gen_pnr_model = mocker.patch.object(
-        cli.fabulousAPI, "gen_pnr_model", return_value={"pips.txt": "timed"}
+    gen_routing_model = mocker.patch.object(
+        cli.fabulousAPI, "gen_routing_model", return_value={"pips.txt": "timed"}
     )
 
     result = cli.fabulousAPI.timing_model_interface(
@@ -176,7 +176,7 @@ def test_timing_api_forwards_target_to_backend(
 
     assert result == (manual_config, {"pips.txt": "timed"})
     timing_interface.assert_called_once_with(config=manual_config, fabric=fabric)
-    gen_pnr_model.assert_called_once_with(
+    gen_routing_model.assert_called_once_with(
         tool=PnRTool.NEXTPNR,
         delay_model=timing_interface.return_value,
         target=TimingModelTarget.BELS,
