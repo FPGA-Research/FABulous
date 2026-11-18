@@ -19,11 +19,11 @@ class VerilogCodeGenerator(CodeGenerator):
         ----------
         comment : str
             The comment text to add
-        onNewLine : bool, optional
+        onNewLine : bool
             Whether to add the comment on a new line
-        end : str, optional
+        end : str
             Additional text to append at the end
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level for the comment
         """
         if onNewLine:
@@ -40,9 +40,9 @@ class VerilogCodeGenerator(CodeGenerator):
         ----------
         name : str
             Module name
-        _package : str, optional
+        _package : str
             Package parameter (unused in Verilog)
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add(f"module {name}", indentLevel)
@@ -54,7 +54,7 @@ class VerilogCodeGenerator(CodeGenerator):
         ----------
         name : str
             Module name (unused)
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level (unused)
         """
 
@@ -63,7 +63,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add("#(", indentLevel)
@@ -73,7 +73,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         temp = self._content.pop()
@@ -98,7 +98,7 @@ class VerilogCodeGenerator(CodeGenerator):
             Parameter type or width specification
         value : str
             Default value
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         if storageType.startswith("["):
@@ -111,7 +111,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add("(", indentLevel)
@@ -121,7 +121,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
 
@@ -155,11 +155,11 @@ class VerilogCodeGenerator(CodeGenerator):
             Port name
         io : IO
             Input/output direction
-        reg : bool, optional
+        reg : bool
             Whether the port should be declared as a `reg` type
-        attribute : str, optional
+        attribute : str
             Additional attributes to add as Verilog attribute
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         ioString = io.value.lower()
@@ -187,11 +187,11 @@ class VerilogCodeGenerator(CodeGenerator):
             Input/output direction
         msbIndex : int | str
             Most significant bit index
-        reg : bool, optional
+        reg : bool
             Whether port should be declared as `reg` type
-        attribute : str, optional
+        attribute : str
             Additional attributes to add as Verilog attribute
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         ioString = io.value.lower()
@@ -209,7 +209,7 @@ class VerilogCodeGenerator(CodeGenerator):
         ----------
         name : str
             Module name (unused)
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level (unused)
         """
 
@@ -218,7 +218,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add("endmodule", indentLevel)
@@ -232,7 +232,7 @@ class VerilogCodeGenerator(CodeGenerator):
             Constant name
         value : str
             Constant value
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add(f"parameter {name} = {value};", indentLevel)
@@ -246,11 +246,11 @@ class VerilogCodeGenerator(CodeGenerator):
         ----------
         name : str
             Signal name
-        reg : bool, optional
+        reg : bool
             If True, the connection will be declared as a `reg` type.
             If False, the connection will be declared as a `wire`.
             Defaults to False.
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         con_type = "reg" if reg else "wire"
@@ -272,11 +272,11 @@ class VerilogCodeGenerator(CodeGenerator):
             Signal name
         startIndex : int
             Start index (MSB)
-        endIndex : int, optional
+        endIndex : int
             End index (LSB)
-        reg : bool, optional
+        reg : bool
             Whether to declare as `reg` type
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         con_type = "reg" if reg else "wire"
@@ -287,7 +287,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level (unused)
         """
 
@@ -296,7 +296,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level (unused)
         """
 
@@ -320,13 +320,13 @@ class VerilogCodeGenerator(CodeGenerator):
             Instance name
         portsPairs : list[tuple[str, str]]
             List of (port, signal) pairs for port mapping
-        paramPairs : list[tuple[str, str]] | None, optional
+        paramPairs : list[tuple[str, str]] | None
             List of (parameter, value) pairs for parameter mapping
-        emulateParamPairs : list[tuple[str, str]] | None, optional
+        emulateParamPairs : list[tuple[str, str]] | None
             Parameters for emulation mode only
-        add_keep : bool, optional
+        add_keep : bool
             Whether to add a "keep" attribute to the instance
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         if emulateParamPairs is None:
@@ -425,11 +425,11 @@ class VerilogCodeGenerator(CodeGenerator):
             Register output signal name
         regIn : str
             Register input signal name
-        clk : str, optional
+        clk : str
             Clock signal name
-        inverted : bool, optional
+        inverted : bool
             Whether to invert the input
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         inv = "~" if inverted else ""
@@ -457,11 +457,11 @@ end
             Left-hand side signal
         right : str
             Right-hand side signal or expression
-        delay : int, optional
+        delay : int
             Delay (unused in Verilog implementation)
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
-        inverted : bool, optional
+        inverted : bool
             Whether to invert the right-hand side of the expression
         """
         inv = "~" if inverted else ""
@@ -491,9 +491,9 @@ end
             Upper bound of slice
         widthR : int | str
             Lower bound of slice
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
-        inverted : bool, optional
+        inverted : bool
             Whether to invert the right-hand side of the expression
         """
         inv = "~" if inverted else ""
@@ -534,7 +534,7 @@ end
         ----------
         macro : str
             Macro name to check
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add(f"`ifdef {macro}", indentLevel)
@@ -546,7 +546,7 @@ end
         ----------
         macro : str
             Macro name to check
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add(f"`ifndef {macro}", indentLevel)
@@ -556,7 +556,7 @@ end
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add("`else", indentLevel)
@@ -566,7 +566,7 @@ end
 
         Parameters
         ----------
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         self._add("`endif", indentLevel)
@@ -580,7 +580,7 @@ end
         ----------
         configBitValues : list[tuple[str, int]]
             List of (name, count) pairs for configuration bits
-        indentLevel : int, optional
+        indentLevel : int
             The indentation level
         """
         template = "(* FABulous, BelMap"
