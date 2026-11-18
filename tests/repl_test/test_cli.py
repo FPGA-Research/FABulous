@@ -5,6 +5,7 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import shutil
 import sys
 import tkinter as tk
 from decimal import Decimal
@@ -1405,3 +1406,27 @@ def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
         add_prim("does_not_exist.v")
 
     assert custom_prims_file(cli) == before
+
+
+def test_generate_custom_tile_config_roundtrip(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The REPL command builds a tile CSV and its generated switch matrix.
+
+    Drives ``generate_custom_tile_config`` end-to-end: it must write the tile
+    CSV, trigger ``parseTilesCSV`` to emit the generated switch-matrix list, and
+    register the BEL as a yosys blackbox primitive — all without logging errors.
+    """
+    bel = "LUT4c_frame_config_dffesr.v"
+    tile_dir = cli.projectDir / "Tile" / "CustomTile"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(cli.projectDir / "Tile" / "LUT4AB" / bel, tile_dir / bel)
+
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+
+    normalize_and_check_for_errors(caplog.text)
+    assert (tile_dir / "CustomTile.csv").is_file()
+    generated_lists = list(tile_dir.glob("*switch_matrix*.list"))
+    assert generated_lists, "expected a generated switch matrix list file"
+    prims = (cli.projectDir / "user_design" / "custom_prims.v").read_text()
+    assert "LUT4c_frame_config_dffesr" in prims
