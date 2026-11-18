@@ -41,6 +41,9 @@ reference_projects: Header for all reference projects
     test_mode: Test mode "diff"  or "run"
     description: A brief description of the project.
     expected_outputs: (Optional) Check of the following list of files exists after run
+    upgrade: (Optional) Run `FABulous update-project-version` on the copied project
+      before any other step, as a user upgrading an older project would.
+      Default: false
     include_patterns: (Optional) Only for "diff" mode.
       A list of glob patterns, which files to diff:
       Default include_patterns: ["*.v", "*.sv", "*.vhd", "*.vhdl", "*.csv", "*.list", "*txt", "*.bin"]

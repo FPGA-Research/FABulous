@@ -12,6 +12,8 @@ import pytest
 import yaml
 from loguru import logger
 
+from fabulous.fabulous_repl.helper import update_project_version
+from fabulous.fabulous_settings import init_context
 from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
@@ -27,6 +29,7 @@ class ReferenceProject(NamedTuple):
     path: Path
     language: Literal["verilog", "vhdl"]
     test_mode: Literal["run", "diff"]
+    upgrade: bool = False
     description: str = ""
     expected_outputs: list[str] | None = None
     include_patterns: list[str] | None = None
@@ -58,6 +61,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
                 path=path.resolve(),
                 language=project_data["language"],
                 test_mode=project_data["test_mode"],
+                upgrade=project_data.get("upgrade", False),
                 description=project_data.get("description", ""),
                 expected_outputs=project_data.get("expected_outputs"),
                 include_patterns=project_data.get("include_patterns"),
@@ -129,6 +133,14 @@ def test_reference_project_execution(
         )
 
     try:
+        if ref_project.upgrade:
+            monkeypatch.setenv("FAB_PROJ_DIR", str(test_project_path))
+            monkeypatch.setenv("FAB_PROJ_LANG", ref_project.language.upper())
+            init_context(test_project_path)
+            assert update_project_version(test_project_path), (
+                f"update-project-version failed for {ref_project.name}"
+            )
+
         # Run optional pre-fab shell commands
         if ref_project.pre_fab_commands:
             pre_failures = run_shell_commands(
