@@ -142,14 +142,20 @@ def test_emit_rejects_a_bel_without_arcs(
     untimed = (lut_fabric.superTileDic["ST"] if on_super_tile else tile).bels[0]
     untimed.arcs = None
 
-    with pytest.raises(ValueError, match=rf"{untimed.prefix}{untimed.name} at X0Y0"):
+    with pytest.raises(
+        ValueError, match=rf"BEL {untimed.prefix}{untimed.name} has no timing arcs"
+    ):
         emit_nextpnr_model(lut_fabric)
 
 
-@pytest.mark.parametrize("pip_delays", [None, {}], ids=["unset", "missing-pip"])
+@pytest.mark.parametrize(
+    ("pip_delays", "error"),
+    [(None, "has no pip delays"), ({}, "No delay for")],
+    ids=["unset", "missing-pip"],
+)
 @pytest.mark.parametrize("on_super_tile", [False, True])
 def test_emit_rejects_a_switch_pip_without_delay(
-    lut_fabric: Fabric, *, on_super_tile: bool, pip_delays: dict | None
+    lut_fabric: Fabric, *, on_super_tile: bool, pip_delays: dict | None, error: str
 ) -> None:
     """A placed tile or supertile switch pip with no delay is an error."""
     tile = tile_at(lut_fabric)
@@ -170,9 +176,7 @@ def test_emit_rejects_a_switch_pip_without_delay(
         )
     else:
         tile.switch_matrix = replace(tile.switch_matrix, pip_delays=pip_delays)
-    owner = "supertile 'ST'" if on_super_tile else "tile 'LUT4AB'"
-
-    with pytest.raises(ValueError, match=rf"{owner} at X0Y0"):
+    with pytest.raises(ValueError, match=error):
         emit_nextpnr_model(lut_fabric)
 
 
@@ -183,7 +187,7 @@ def test_emit_rejects_a_wire_without_delay(lut_fabric: Fabric) -> None:
     set_placeholder_timing(lut_fabric)
     tile.wireList = [replace(wire, delay=None) for wire in tile.wireList]
 
-    with pytest.raises(ValueError, match=r"Wire A0-X0Y0>B0 of the tile at X0Y0"):
+    with pytest.raises(ValueError, match=r"Wire A0-X0Y0>B0 .* has no delay"):
         emit_nextpnr_model(lut_fabric)
 
 

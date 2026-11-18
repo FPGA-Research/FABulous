@@ -1,7 +1,7 @@
 """Timing data types of the fabric model: delays, pips and BEL timing arcs.
 
 Pure data in fabric terms: switch-matrix and tile wire names, BEL ports and BEL
-config features. The nextpnr spelling of names and conditions lives only in
+config features. The nextpnr spelling of conditions lives only in
 `fabulous.fabric_cad.gen_nextpnr_model`.
 """
 
@@ -207,3 +207,15 @@ class BelArcs:
     delays: tuple[DelayArc, ...] = ()
     checks: tuple[SetupHoldArc, ...] = ()
     clock_to_outs: tuple[ClockToOutArc, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Check that no two clock ports share a pin name.
+
+        Raises
+        ------
+        ValueError
+            If two clock ports share a pin name.
+        """
+        names = [arc.clock.pin_name for arc in self.clocks]
+        if len(set(names)) != len(names):
+            raise ValueError(f"Clock ports share a pin name: {names}")

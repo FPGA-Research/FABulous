@@ -226,3 +226,20 @@ class Bel:
             BelRole.FABRIC_OUTPUT,
             BelRole.FABRIC_INOUT,
         )
+
+    def get_arcs(self) -> BelArcs:
+        """Return the timing arcs of the BEL.
+
+        Returns
+        -------
+        BelArcs
+            The arcs.
+
+        Raises
+        ------
+        ValueError
+            If no timing is set on the BEL.
+        """
+        if self.arcs is None:
+            raise ValueError(f"BEL {self.prefix}{self.name} has no timing arcs.")
+        return self.arcs

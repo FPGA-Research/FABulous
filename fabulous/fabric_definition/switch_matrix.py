@@ -109,6 +109,30 @@ class SwitchMatrix:
             for src in sources:
                 yield SwitchPip(src=src, dst=dst)
 
+    def get_pip_delay(self, pip: SwitchPip) -> Ns:
+        """Return the delay of `pip`.
+
+        Parameters
+        ----------
+        pip : SwitchPip
+            One of the pips of the switch matrix.
+
+        Returns
+        -------
+        Ns
+            The pip delay.
+
+        Raises
+        ------
+        ValueError
+            If the switch matrix has no pip delays, or none for `pip`.
+        """
+        if self.pip_delays is None:
+            raise ValueError(f"Switch matrix {self.matrix_file} has no pip delays.")
+        if pip not in self.pip_delays:
+            raise ValueError(f"No delay for {pip} in switch matrix {self.matrix_file}.")
+        return self.pip_delays[pip]
+
     @property
     def no_config_bits(self) -> int:
         """Number of configuration bits required by this switch matrix.

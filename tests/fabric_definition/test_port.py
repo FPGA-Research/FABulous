@@ -173,6 +173,20 @@ class TestBelPort:
         port = BelPort(name="sig", io_direction=IO.INPUT, width=1, prefix="lut_")
         assert port.name == "lut_sig"
 
+    @pytest.mark.parametrize(
+        ("name", "pin_name"), [("I0", "I0"), ("UserCLK", "CLK")], ids=["data", "clock"]
+    )
+    def test_pin_name_drops_prefix(self, name: str, pin_name: str) -> None:
+        """The pin name drops the prefix, and `UserCLK` is called `CLK`."""
+        port = BelPort(name=name, io_direction=IO.INPUT, width=1, prefix="LA_")
+        assert port.pin_name == pin_name
+
+    def test_free_port_belongs_to_no_bel(self) -> None:
+        """A free port has no prefix, one bit, and is a clock only for `UserCLK`."""
+        data, clock = BelPort.free("O", IO.OUTPUT), BelPort.free("UserCLK", IO.INPUT)
+        assert (data.name, data.width, data.is_clock) == ("O", 1, False)
+        assert (clock.name, clock.width, clock.is_clock) == ("UserCLK", 1, True)
+
     def test_external_and_control_flags(self) -> None:
         """External and control flags are exposed verbatim."""
         port = BelPort(
