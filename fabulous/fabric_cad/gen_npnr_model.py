@@ -441,20 +441,25 @@ def genNextpnrModel(
 def generate_nextpnr_model(
     fabric: Fabric,
     delay_model: FABulousTimingModelInterface | None = None,
+    target: TimingModelTarget = TimingModelTarget.BOTH,
 ) -> dict[str, str | bytes]:
     """Build the nextpnr model as a mapping of file name to file content.
 
     This is the `PnRModelProvider.generate` entry point for the nextpnr
-    backend. Pip delays come from `delay_model` when one is supplied and from
-    `DUMMY_PIP_DELAY` otherwise; every other artifact is identical either way.
+    backend. With a `delay_model`, the delays `target` selects are
+    characterized: pip delays land in `pips.txt` and BEL timing arcs in
+    `bel.v3.txt`. Anything not selected keeps its untimed default.
 
     Parameters
     ----------
     fabric : Fabric
         Fabric object containing tile information.
     delay_model : FABulousTimingModelInterface | None
-        Timing model interface providing real pip delays. Defaults to None,
+        Timing model interface providing real delays. Defaults to None,
         which generates an untimed model.
+    target : TimingModelTarget
+        Which delays to take from `delay_model`: pips, BELs, or both.
+        Defaults to both. Ignored without a delay model.
 
     Returns
     -------
@@ -463,7 +468,7 @@ def generate_nextpnr_model(
         their content.
     """
     pip_str, bel_str, bel_v2_str, bel_v3_str, constrain_str = genNextpnrModel(
-        fabric, delay_model
+        fabric, delay_model, target=target
     )
     return {
         "pips.txt": pip_str,

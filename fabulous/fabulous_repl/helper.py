@@ -29,8 +29,8 @@ from pick import pick
 from fabulous.custom_exception import (
     EnvironmentNotSet,
     PipelineCommandError,
-    ProjectUpgradeError,
     PluginError,
+    ProjectUpgradeError,
 )
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library

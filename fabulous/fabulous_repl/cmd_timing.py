@@ -10,18 +10,17 @@ from cmd2 import with_annotated
 from cmd2.annotated import Option
 from loguru import logger
 
-from fabulous.custom_exception import CommandError
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
+    TimingModelTarget,
     TimingModelTileSourceFiles,
 )
+from fabulous.fabric_definition.define import PnRTool
 from fabulous.fabulous_repl.command_set_base import (
     CMD_TIMING_MODEL,
-    META_DATA_DIR,
     ReplCommandSet,
 )
-from fabulous.fabulous_repl.helper import write_pnr_model
 from fabulous.fabulous_settings import get_context
 
 
@@ -40,37 +39,39 @@ class TimingCommandSet(ReplCommandSet):
                 help_text="Timing model generation mode (physical or structural).",
             ),
         ] = "physical",
-        outdir: Annotated[
-            Path | None,
+        target: Annotated[
+            Literal["pips", "bels", "both"],
             Option(
-                "--outdir",
-                help_text=(
-                    "Output directory for the generated timed place-and-route model."
-                ),
+                "--target",
+                help_text="Timing data to generate: pips, bels, or both.",
             ),
-        ] = None,
+        ] = "both",
         outfile: Annotated[
             Path | None,
             Option(
                 "--outfile",
-                help_text="Output file for the config template. Only meaningful "
-                "with --emit-config-template; use --outdir to place the model.",
+                help_text=(
+                    "Output file for the generated timing model or config template."
+                ),
             ),
         ] = None,
-        backend: Annotated[
-            str | None,
+        bel_outfile: Annotated[
+            Path | None,
             Option(
-                "--backend",
-                help_text="Place-and-route backend to generate the timed model for. "
-                "Defaults to the project's 'pnr_backend' setting.",
+                "--bel-outfile",
+                help_text=(
+                    "Output file for BEL timing; defaults to bel.v3.txt beside "
+                    "the pip output."
+                ),
             ),
         ] = None,
         emit_config_template: Annotated[
             bool,
             Option(
                 "--emit-config-template",
-                help_text="Write a JSON config template (to --outfile) instead of "
-                "generating the timing model.",
+                help_text=(
+                    "Output file for the generated timing model config template."
+                ),
             ),
         ] = False,
         with_config_file: Annotated[
@@ -87,28 +88,29 @@ class TimingCommandSet(ReplCommandSet):
         """Generate a timing model for the fabric.
 
         Timing information is extracted from the GDS layout and used to create a timing
-        model for timing-aware place and route. This command regenerates the selected
-        backend's place-and-route model with real delays, based on the specified mode
-        (physical or structural), and writes it to `--outdir` (`.FABulous` by
-        default), replacing the untimed model already there. Without a config file
-        the automated flow must have run first, since the delays come from its
-        post-layout files. A config file replaces the command arguments and allows
-        more complex configurations such as a different PDK. With
-        `--emit-config-template` a config template is written and no timing model is
-        generated.
+        model compatible with nextpnr for timing-aware place and route. This command
+        generates a timing model for the FPGA fabric based on the specified mode
+        (physical or structural). By default both `pips.txt` and `bel.v3.txt` are
+        generated in the `.FABulous` directory. If no config file is provided, the
+        automated flow must be run first to generate post-layout files. If a config file
+        is provided, it will be used for timing model generation instead of command
+        arguments. This allows for more complex configurations like different PDK
+        support. If `emit-config-template` is specified, a config template will be
+        output and no timing model will be generated. Relative paths are taken
+        from the project directory.
         """
         repl = self._cmd
         manual_config: TimingModelConfig | None = None
-        resolved_outdir: Path = outdir or get_context().proj_dir / META_DATA_DIR
 
-        # --outfile names only the config template. Ignoring it here would
-        # write the model somewhere the caller did not ask for.
-        if outfile is not None and not emit_config_template:
-            raise CommandError(
-                "--outfile only names the config template emitted by "
-                "--emit-config-template. Pass --outdir to choose where the "
-                "timed place-and-route model is written."
-            )
+        # Like the other REPL commands, relative paths are read from the project
+        # directory, not from wherever FABulous was launched.
+        proj_dir = get_context().proj_dir
+        if outfile is not None and not outfile.is_absolute():
+            outfile = proj_dir / outfile
+        if bel_outfile is not None and not bel_outfile.is_absolute():
+            bel_outfile = proj_dir / bel_outfile
+        if with_config_file is not None and not with_config_file.is_absolute():
+            with_config_file = proj_dir / with_config_file
 
         # If a config file is provided, use it to generate the timing model
         # instead of command arguments This allows for more complex configurations
@@ -146,27 +148,60 @@ class TimingCommandSet(ReplCommandSet):
                 ),
             )
 
-            template_outfile = outfile or (
-                get_context().proj_dir
-                / META_DATA_DIR
-                / "timing_model_config_template.json"
+            template_outfile = (
+                outfile
+                if outfile is not None
+                else (
+                    get_context().proj_dir
+                    / ".FABulous"
+                    / "timing_model_config_template.json"
+                )
             )
             template_outfile.write_text(cfg_template.model_dump_json(indent=4))
             logger.info(f"Timing model config template generated at {template_outfile}")
             return
 
-        logger.info(f"Output timing model directory: {resolved_outdir}")
+        resolved_target = TimingModelTarget(target)
+        resolved_outfile = outfile or (
+            get_context().proj_dir / ".FABulous" / "pips.txt"
+        )
+        resolved_bel_outfile = bel_outfile or resolved_outfile.with_name("bel.v3.txt")
+
+        if (
+            resolved_target == TimingModelTarget.BOTH
+            and resolved_outfile == resolved_bel_outfile
+        ):
+            raise ValueError("Pip and BEL timing output paths must be different.")
+
+        # Output path mapped to the nextpnr artifact written there.
+        selected_outputs: dict[Path, str] = {}
+        if resolved_target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
+            selected_outputs[resolved_outfile] = "pips.txt"
+        if resolved_target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
+            selected_outputs[resolved_bel_outfile] = "bel.v3.txt"
+
+        for output_path in selected_outputs:
+            if output_path.exists():
+                backup_path = output_path.with_suffix(".backup.txt")
+                logger.info(f"Backing up {output_path.name} to {backup_path}")
+                output_path.rename(backup_path)
+
+        logger.info(f"Timing model target: {resolved_target}")
+        for output_path in selected_outputs:
+            logger.info(f"Output timing model file: {output_path}")
 
         tm_config_resolved, artifacts = repl.fabulousAPI.timing_model_interface(
             mode=mode,
             debug=repl.debug,
             manual_config=manual_config,
-            tool=backend,
+            tool=PnRTool.NEXTPNR,
+            target=resolved_target,
         )
-        write_pnr_model(artifacts, resolved_outdir)
+        for output_path, artifact_name in selected_outputs.items():
+            output_path.write_text(artifacts[artifact_name], encoding="utf-8")
 
         resolved_path: Path = (
-            get_context().proj_dir / META_DATA_DIR / "timing_model_config_resolved.json"
+            get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"
         )
         resolved_path.write_text(tm_config_resolved.model_dump_json(indent=4))
         logger.info(f"Timing model config resolved at {resolved_path}")

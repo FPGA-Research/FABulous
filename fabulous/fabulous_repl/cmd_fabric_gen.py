@@ -338,7 +338,7 @@ class FabricGenCommandSet(ReplCommandSet):
             .add_step("gen_fabric", "Fabric generation failed")
             .add_step("gen_bitStream_spec", "Bitstream specification generation failed")
             .add_step("gen_top_wrapper", "Top wrapper generation failed")
-            .add_step("gen_pnr_model", "Place and route model generation failed")
+            .add_step("gen_routing_model", "Routing model generation failed")
             .add_step("gen_geometry", "Geometry generation failed")
             .execute()
         )
@@ -361,7 +361,7 @@ class FabricGenCommandSet(ReplCommandSet):
 
     @with_category(CMD_FABRIC_FLOW)
     @with_annotated
-    def do_gen_pnr_model(
+    def do_gen_routing_model(
         self,
         backend: Annotated[
             str | None,
@@ -372,7 +372,7 @@ class FabricGenCommandSet(ReplCommandSet):
             ),
         ] = None,
     ) -> None:
-        """Generate the place-and-route model of the fabric.
+        """Generate the place-and-route routing model of the fabric.
 
         The selected backend decides which files it emits; every one of them is
         written to the directory specified by `metaDataDir` within `projectDir`.
@@ -382,23 +382,21 @@ class FabricGenCommandSet(ReplCommandSet):
         Logs output file directories.
         """
         repl = self._cmd
-        logger.info("Generating place and route model")
+        logger.info("Generating routing model")
         artifacts = repl.fabulousAPI.gen_pnr_model(tool=backend)
         write_pnr_model(artifacts, repl.projectDir / META_DATA_DIR)
-        logger.info("Generated place and route model")
+        logger.info("Generated routing model")
 
     def do_gen_model_npnr(self, *_ignored: str) -> None:
-        """Generate the nextpnr model of the fabric.
-
-        deprecated: Use `gen_pnr_model` instead.
-        """
+        """Run `gen_routing_model`; this name is deprecated."""
         repl = self._cmd
         logger.warning(
-            "The 'gen_model_npnr' command is deprecated. Use 'gen_pnr_model' instead."
+            "The 'gen_model_npnr' command is deprecated. "
+            "Use 'gen_routing_model' instead."
         )
-        repl.onecmd_plus_hooks("gen_pnr_model")
+        repl.onecmd_plus_hooks("gen_routing_model")
         if repl.exit_code != 0:
-            raise CommandError("Place and route model generation failed")
+            raise CommandError("gen_routing_model failed")
 
     @with_annotated
     def do_gen_io_tiles(

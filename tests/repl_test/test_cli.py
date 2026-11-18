@@ -351,12 +351,12 @@ def test_run_FABulous_fabric_deprecated(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_pnr_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating the place and route model."""
-    run_cmd(cli, "gen_pnr_model")
+def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
+    """Test generating the routing model."""
+    run_cmd(cli, "gen_routing_model")
     log = normalize_and_check_for_errors(caplog.text)
-    assert "Generating place and route model" in log[0]
-    assert "Generated place and route model" in log[-1]
+    assert "Generating routing model" in log[0]
+    assert "Generated routing model" in log[-1]
 
     meta_data_dir = cli.projectDir / META_DATA_DIR
     for name in (
@@ -370,46 +370,22 @@ def test_gen_pnr_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> N
         assert (meta_data_dir / name).exists()
 
 
-def test_timing_model_writes_artifacts(
-    cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
+def test_gen_model_npnr_is_deprecated_alias(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The timed model replaces the untimed one in the output directory.
-
-    Only the timing interface itself is stubbed; extracting real delays needs a
-    post-layout GDS flow, but the CLI must still write whatever artifacts the
-    backend hands back.
-    """
-    (tmp_path / "pips.txt").write_text("untimed")
-    resolved_config = mocker.Mock()
-    resolved_config.model_dump_json.return_value = "{}"
-    mocker.patch.object(
-        cli.fabulousAPI,
-        "timing_model_interface",
-        return_value=(resolved_config, {"pips.txt": "timed", "bel.txt": "bels"}),
-    )
-
-    run_cmd(cli, f"timing_model --outdir {tmp_path}")
+    """The deprecated `gen_model_npnr` name still runs `gen_routing_model`."""
+    run_cmd(cli, "gen_model_npnr")
 
     assert cli.exit_code == 0
-    assert (tmp_path / "pips.txt").read_text() == "timed"
-    assert (tmp_path / "bel.txt").read_text() == "bels"
+    assert "'gen_model_npnr' command is deprecated" in caplog.text
+    assert (cli.projectDir / META_DATA_DIR / "pips.txt").exists()
 
 
-def test_timing_model_rejects_outfile_without_template(
-    cli: FABulousREPL, tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """`--outfile` names the config template, so the model path must be `--outdir`."""
-    run_cmd(cli, f"timing_model --outfile {tmp_path / 'pips.txt'}")
-
-    assert cli.exit_code != 0
-    assert "--outfile only names the config template" in caplog.text
-
-
-def test_gen_pnr_model_unknown_backend(
+def test_gen_routing_model_unknown_backend(
     cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An unregistered backend fails loudly and names what is available."""
-    run_cmd(cli, "gen_pnr_model --backend does_not_exist")
+    run_cmd(cli, "gen_routing_model --backend does_not_exist")
     assert cli.exit_code != 0
     assert "No place-and-route model registered for 'does_not_exist'" in caplog.text
     assert "nextpnr" in caplog.text

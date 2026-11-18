@@ -126,7 +126,7 @@ class FABulousSettings(BaseSettings):
     proj_lang: HDLType = HDLType.VERILOG
     pnr_backend: str = Field(
         default=PnRTool.NEXTPNR,
-        description="Place-and-route model backend used by `gen_pnr_model` "
+        description="Place-and-route model backend used by `gen_routing_model` "
         "(a built-in `PnRTool` value, or a tool name registered by a plugin).",
     )
     plugin_dir: Path = Field(

@@ -66,8 +66,8 @@ from fabulous.plugins.types import PnRModelProvider
 FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
 
-def generate_my_model(fabric, delay_model=None) -> dict[str, str | bytes]:
-    return {"arch.xml": build_arch_xml(fabric, delay_model)}
+def generate_my_model(fabric, delay_model=None, target=None) -> dict[str, str | bytes]:
+    return {"arch.xml": build_arch_xml(fabric, delay_model, target)}
 
 
 @hookimpl
@@ -86,10 +86,11 @@ Set `supports_timing` to `False` if `generate` cannot use a delay model.
 FABulous then refuses a timed generation for your backend rather than silently
 producing an untimed model. Nothing outside your backend knows how the delays
 are embedded, so a backend may put them inline, in a sidecar file or in a binary
-database.
+database. With a delay model, `target` (a `TimingModelTarget`) says whether pip
+delays, BEL delays, or both should be characterized.
 
 Select a backend with the `pnr_backend` setting, or for one run with
-`gen_pnr_model --backend my_router`. Built-in tool names live in the `PnRTool`
+`gen_routing_model --backend my_router`. Built-in tool names live in the `PnRTool`
 enum; a plugin may register any name that is not already taken.
 
 ## Typed settings
