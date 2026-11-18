@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from dotenv import set_key
+from loguru import logger
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import EnvironmentNotSet, ProjectUpgradeError
@@ -15,6 +16,7 @@ from fabulous.fabulous_repl.helper import (
     create_project,
     register_tile_in_fabric_csv,
     run_task,
+    setup_logger,
     update_project_version,
 )
 from tests.conftest import normalize_and_check_for_errors, run_cmd
@@ -456,3 +458,33 @@ def test_clone_tile_no_register_skips_fabric_csv(
     csv_after = cli.csvFile.read_text(encoding="utf-8")
     assert csv_after == csv_before
     assert "MY_TILE" not in csv_after
+
+
+@pytest.mark.parametrize("testing_format", [True, False])
+@pytest.mark.parametrize("verbosity", [0, 1])
+@pytest.mark.parametrize(
+    "message",
+    [
+        "expected ${YOSYS} -p synth_fabulous",
+        "positional {0} and {} fields",
+        "unbalanced } and { braces",
+        "markup-like <red>tag</red> and <module>",
+    ],
+)
+def test_setup_logger_prints_message_verbatim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    message: str,
+    verbosity: int,
+    testing_format: bool,
+) -> None:
+    if not testing_format:
+        monkeypatch.delenv("FABULOUS_TESTING")
+    log_file = tmp_path / "fabulous.log"
+    setup_logger(verbosity=verbosity, debug=False, log_file=log_file)
+
+    logger.error(message)
+
+    record_line = log_file.read_text().rstrip("\n")
+    assert record_line.startswith("ERROR")
+    assert record_line.endswith(message)
