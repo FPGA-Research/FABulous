@@ -1,0 +1,82 @@
+"""The top-level `FABulous plugins` group shares the management operations."""
+
+from importlib.metadata import version
+from pathlib import Path
+
+import pytest
+from dotenv import set_key
+from typer.testing import CliRunner
+
+from fabulous import fabulous as entry
+
+runner = CliRunner()
+
+
+def test_plugins_group_skips_project_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `plugins` group runs without a scaffolded FABulous project.
+
+    Outside a project there is no `.FABulous` to validate against, so the
+    context is built in `api_mode` and the group still lists its built-ins.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(entry.app, ["plugins", "list"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert "fabulous.fabric_generator.parser.plugin" in result.stdout
+
+
+def test_plugins_group_honours_explicit_project_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--project-dir` must reach discovery, not be silently dropped.
+
+    The project holds a directory plugin, which only appears in the listing
+    if discovery ran against the passed directory rather than the cwd.
+    """
+    (tmp_path / ".FABulous").mkdir()
+    env_file = tmp_path / ".FABulous" / ".env"
+    env_file.touch()
+    set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
+    plugin_dir = tmp_path / "plugins" / "demo_plug"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+    )
+    monkeypatch.chdir(tmp_path.parent)
+
+    result = runner.invoke(
+        entry.app,
+        ["--project-dir", str(tmp_path), "plugins", "list"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert "demo_plug" in result.stdout
+
+
+def test_plugins_group_reads_plugin_dir_from_env_outside_a_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`FAB_PLUGIN_DIR` reaches discovery even when no project is present.
+
+    Outside a project the context is built without the settings sources, so
+    the discovery settings have to be read from the environment explicitly.
+    """
+    plugin_dir = tmp_path / "elsewhere" / "env_plug"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "__init__.py").write_text(
+        "from fabulous.plugins import PLUGIN_API_VERSION\n"
+        "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n"
+    )
+    (tmp_path / "cwd").mkdir()
+    monkeypatch.chdir(tmp_path / "cwd")
+    monkeypatch.setenv("FAB_PLUGIN_DIR", str(plugin_dir.parent))
+
+    result = runner.invoke(entry.app, ["plugins", "list"], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert "env_plug" in result.stdout

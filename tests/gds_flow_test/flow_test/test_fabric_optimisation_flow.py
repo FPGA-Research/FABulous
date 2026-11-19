@@ -584,7 +584,9 @@ class TestFullFabricAutomationConfig:
         self, mocker: MockerFixture, mock_pdk_root: dict[str, Any], tmp_path: Path
     ) -> None:
         """The config the API hands the flow serialises when `start` dumps it."""
-        api: FABulous_API = FABulous_API(mocker.MagicMock())
+        api: FABulous_API = FABulous_API(
+            mocker.MagicMock(), plugin_manager=mocker.MagicMock()
+        )
         api.fabric = _fabric_with_real_ports()
 
         dumped: list[str] = []

@@ -29,6 +29,7 @@ from pick import pick
 from fabulous.custom_exception import (
     EnvironmentNotSet,
     PipelineCommandError,
+    PluginError,
     ProjectUpgradeError,
 )
 from fabulous.fabric_definition.define import HDLType
@@ -414,6 +415,48 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
             result.extend(new_entries)
         result.append(line)
     csv_path.write_text("".join(result), encoding="utf-8")
+
+
+def write_pnr_model(artifacts: dict[str, str | bytes], out_dir: Path) -> None:
+    """Write a place-and-route model's files into `out_dir`.
+
+    The backend owns the file names and the file contents, so this only
+    decides where they land and logs each one. A name may contain directories,
+    which are created under `out_dir`.
+
+    Parameters
+    ----------
+    artifacts : dict[str, str | bytes]
+        File names, relative to `out_dir`, mapped to their content.
+    out_dir : Path
+        Directory the files are written to. Created if it does not exist.
+
+    Raises
+    ------
+    PluginError
+        If an artifact name resolves outside `out_dir`.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    root = out_dir.resolve()
+    paths: dict[str, Path] = {}
+    for name in artifacts:
+        path = (root / name).resolve()
+        if Path(name).is_absolute() or not path.is_relative_to(root):
+            raise PluginError(
+                f"Place-and-route backend returned the artifact name '{name}', "
+                f"which resolves outside the output directory '{out_dir}'. "
+                "Artifact names must be relative paths within it."
+            )
+        paths[name] = path
+
+    for name, content in artifacts.items():
+        path = paths[name]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info(f"output file: {path}")
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
 
 
 def make_hex(binfile: Path, outfile: Path) -> None:
