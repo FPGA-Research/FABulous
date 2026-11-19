@@ -62,12 +62,12 @@ runs:
           # Fallback to a fixed version if API call fails
           if [ "$VERSION" = "unknown" ] || [ "$VERSION" = "null" ] || [ -z "$VERSION" ]; then
             echo "Warning: Failed to get OSS CAD Suite version from API, using fallback"
-            VERSION="2026-06-29"  # Yosys master broke FABulous; last known-good release
+            VERSION="2026-11-18"
           fi
 
         else
           echo "Get latest known working OSS CAD Suite version."
-          VERSION="2026-06-29"  # Yosys master broke FABulous; last known-good release
+          VERSION="2026-11-18"
         fi
 
         echo "Using OSS CAD Suite version: $VERSION"
