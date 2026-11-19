@@ -1,14 +1,13 @@
 """Nextpnr model generation for FABulous FPGA fabrics.
 
 Emit the files nextpnr reads (pips, BELs, pin constraints, placement estimate)
-as a pure function of a timed fabric. This module owns every nextpnr rule: cell
-types, pin renames and the placeholder timing that reproduces nextpnr's
-historical hardcoded constants. The file formats are the templates in
+as a pure function of a timed fabric, and set the placeholder timing that
+reproduces nextpnr's historical hardcoded constants. The placeholder BEL arcs
+are `Bel.placeholder_arcs`. The file formats are the templates in
 `fabulous/template/nextpnr`.
 """
 
 import string
-from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -17,33 +16,11 @@ from jinja2 import Environment, PackageLoader, StrictUndefined
 from loguru import logger
 
 from fabulous.custom_exception import InvalidState
-from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.bel import Bel, BelArcs
 from fabulous.fabric_definition.define import IO, BelRole
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
-from fabulous.fabric_definition.timing import (
-    AnyConnected,
-    BelArcs,
-    ClockArc,
-    ClockToOutArc,
-    DelayArc,
-    FeatureIs,
-    Ns,
-    SetupHoldArc,
-    ns,
-)
-
-# Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
-# constants (fabulous.cc, seed_default_estimates).
-LUT_DELAY = ns(3.0)
-CARRY_CICO_DELAY = ns(0.2)
-CARRY_I_DELAY = ns(1.0)
-FF_SETUP = ns(2.5)
-FF_HOLD = ns(0.1)
-FF_CLK_TO_Q = ns(1.0)
-IO_SETUP = ns(2.5)
-IO_HOLD = ns(0.1)
-IO_CLK_TO_OUT = ns(2.5)
+from fabulous.fabric_definition.timing import Ns, ns
 
 # Clock arrival time at a flop, written per BEL in bel.v3.txt. Identical
 # everywhere until characterisation exists, so zero skew: only differences
@@ -110,146 +87,10 @@ def render_arcs(arcs: BelArcs, *, logic_cell: bool) -> list[str]:
     return str(template.module.lines(arcs, logic_cell)).splitlines()
 
 
-def placeholder_bel_arcs(
-    *,
-    role: BelRole,
-    inputs: Sequence[BelPort],
-    outputs: Sequence[BelPort],
-    clock: BelPort | None = None,
-) -> BelArcs:
-    """Return the hardcoded arcs nextpnr historically used for a BEL role.
-
-    nextpnr times a logic cell on the pins of its own `FABULOUS_LC` cell
-    (`CLK`, `Ci`, `Co`, `I1`, `I2`, `O`), whether or not the fabric BEL has them.
-    An arc uses the BEL's port when it has one of that name, and a port that
-    belongs to no BEL otherwise.
-
-    Parameters
-    ----------
-    role : BelRole
-        The BEL's role.
-    inputs : Sequence[BelPort]
-        Input ports of the BEL.
-    outputs : Sequence[BelPort]
-        Output ports of the BEL.
-    clock : BelPort | None
-        The BEL's `UserCLK` port, if it has one.
-
-    Returns
-    -------
-    BelArcs
-        Logic-cell, input-pass or output-pass arcs; no arcs for other BELs.
-    """
-    clk = clock or BelPort.free("UserCLK", IO.INPUT)
-    own = {port.pin_name: port for port in (*inputs, *outputs)}
-
-    def port(name: str, io: IO) -> BelPort:
-        """Return the BEL's port `name`, or a free one.
-
-        Parameters
-        ----------
-        name : str
-            The nextpnr pin name.
-        io : IO
-            The pin direction.
-
-        Returns
-        -------
-        BelPort
-            The port.
-        """
-        return own.get(name) or BelPort.free(name, io)
-
-    def numbered(ports: Sequence[BelPort], letter: str) -> list[BelPort]:
-        """Return the ports named `letter` followed by a number.
-
-        Parameters
-        ----------
-        ports : Sequence[BelPort]
-            Ports of the BEL.
-        letter : str
-            `I` or `O`.
-
-        Returns
-        -------
-        list[BelPort]
-            The matching ports, in order.
-        """
-        return [
-            p
-            for p in ports
-            if p.pin_name.startswith(letter) and p.pin_name[1:].isdigit()
-        ]
-
-    match role:
-        case BelRole.LOGIC_CELL:
-            lut_inputs = numbered(inputs, "I")
-            ci, co = port("Ci", IO.INPUT), port("Co", IO.OUTPUT)
-            out = port("O", IO.OUTPUT)
-            ff_on, ff_off = FeatureIs("FF", True), FeatureIs("FF", False)
-            i0mux = FeatureIs("I0MUX", True)
-            carry = AnyConnected((ci, co))
-            return BelArcs(
-                clocks=(ClockArc(clk, when=(ff_on,)),),
-                delays=(
-                    # Combinational (LUT) mode: active when the FF is disabled.
-                    *(DelayArc(p, out, LUT_DELAY, when=(ff_off,)) for p in lut_inputs),
-                    DelayArc(ci, out, LUT_DELAY, when=(ff_off, i0mux)),
-                    DelayArc(ci, co, CARRY_CICO_DELAY, when=carry),
-                    DelayArc(port("I1", IO.INPUT), co, CARRY_I_DELAY, when=carry),
-                    DelayArc(port("I2", IO.INPUT), co, CARRY_I_DELAY, when=carry),
-                ),
-                checks=(
-                    *(
-                        SetupHoldArc(p, clk, FF_SETUP, FF_HOLD, when=(ff_on,))
-                        for p in lut_inputs
-                    ),
-                    SetupHoldArc(ci, clk, FF_SETUP, FF_HOLD, when=(ff_on, i0mux)),
-                ),
-                clock_to_outs=(ClockToOutArc(out, clk, FF_CLK_TO_Q, when=(ff_on,)),),
-            )
-        case BelRole.OUT_PASS:
-            return BelArcs(
-                checks=tuple(
-                    SetupHoldArc(p, clk, IO_SETUP, IO_HOLD)
-                    for p in numbered(inputs, "I")
-                )
-            )
-        case BelRole.IN_PASS:
-            return BelArcs(
-                clock_to_outs=tuple(
-                    ClockToOutArc(p, clk, IO_CLK_TO_OUT) for p in numbered(outputs, "O")
-                )
-            )
-        case BelRole.OTHER:
-            return BelArcs()
-
-
-def _placeholder_arcs_of(bel: Bel) -> BelArcs:
-    """Return `placeholder_bel_arcs` for a fabric BEL.
-
-    Parameters
-    ----------
-    bel : Bel
-        The BEL.
-
-    Returns
-    -------
-    BelArcs
-        The placeholder arcs of the BEL's role.
-    """
-    return placeholder_bel_arcs(
-        role=bel.role,
-        inputs=bel.input_ports,
-        outputs=bel.output_ports,
-        clock=bel.user_clk_port,
-    )
-
-
 def set_placeholder_timing(fabric: Fabric) -> None:
     """Set the timing nextpnr historically assumed on `fabric`.
 
-    Every BEL gets its `placeholder_bel_arcs`, every pip `DUMMY_PIP_DELAY` and
+    Every BEL gets its `Bel.placeholder_arcs`, every pip `DUMMY_PIP_DELAY` and
     the fabric `CLOCK_DELAY` as clock arrival.
 
     Parameters
@@ -259,7 +100,7 @@ def set_placeholder_timing(fabric: Fabric) -> None:
     """
     fabric.set_timing(
         tile_arcs={
-            name: [_placeholder_arcs_of(bel) for bel in tile.bels]
+            name: [bel.placeholder_arcs() for bel in tile.bels]
             for name, tile in fabric.tileDic.items()
         },
         tile_pip_delays={
@@ -267,7 +108,7 @@ def set_placeholder_timing(fabric: Fabric) -> None:
             for name, pips in fabric.pips_by_tile_type().items()
         },
         super_tile_arcs={
-            name: [_placeholder_arcs_of(bel) for bel in super_tile.bels]
+            name: [bel.placeholder_arcs() for bel in super_tile.bels]
             for name, super_tile in fabric.superTileDic.items()
         },
         super_tile_pip_delays={
@@ -311,9 +152,9 @@ def placement_estimate() -> str:
     """
     inputs = [BelPort.free(f"I{i}", IO.INPUT) for i in range(_IO_PORTS)]
     outputs = [BelPort.free(f"O{i}", IO.OUTPUT) for i in range(_IO_PORTS)]
-    logic = placeholder_bel_arcs(role=BelRole.LOGIC_CELL, inputs=inputs, outputs=[])
-    out_pass = placeholder_bel_arcs(role=BelRole.OUT_PASS, inputs=inputs, outputs=[])
-    in_pass = placeholder_bel_arcs(role=BelRole.IN_PASS, inputs=[], outputs=outputs)
+    logic = BelArcs.placeholder(role=BelRole.LOGIC_CELL, inputs=inputs, outputs=[])
+    out_pass = BelArcs.placeholder(role=BelRole.OUT_PASS, inputs=inputs, outputs=[])
+    in_pass = BelArcs.placeholder(role=BelRole.IN_PASS, inputs=[], outputs=outputs)
     return (
         _template_env()
         .get_template("nextpnr/placement_estimate.txt.j2")
@@ -343,8 +184,6 @@ class NextpnrModel:
     ----------
     pips : str
         `pips.txt`.
-    bel_v1 : str
-        `bel.txt`.
     bel_v2 : str
         `bel.v2.txt`.
     bel_v3 : str
@@ -356,7 +195,6 @@ class NextpnrModel:
     """
 
     pips: str
-    bel_v1: str
     bel_v2: str
     bel_v3: str
     pcf: str
@@ -364,66 +202,43 @@ class NextpnrModel:
 
 
 @dataclass(frozen=True, slots=True)
-class _PlacedBel:
-    """A BEL at its place in the fabric.
-
-    Attributes
-    ----------
-    x : int
-        Tile X coordinate.
-    y : int
-        Tile Y coordinate.
-    letter : str
-        The BEL's Z position in the tile, as a letter.
-    bel : Bel
-        The BEL.
-    arcs : BelArcs
-        Its timing arcs.
-    """
-
-    x: int
-    y: int
-    letter: str
-    bel: Bel
-    arcs: BelArcs
-
-    @property
-    def logic_cell(self) -> bool:
-        """Whether the BEL is a logic cell.
-
-        Returns
-        -------
-        bool
-            True for a logic cell.
-        """
-        return self.bel.role is BelRole.LOGIC_CELL
-
-    @property
-    def cell_type(self) -> str:
-        """The nextpnr cell type.
-
-        Returns
-        -------
-        str
-            `FABULOUS_LC` for a logic cell, else the BEL name.
-        """
-        return "FABULOUS_LC" if self.logic_cell else self.bel.name
-
-
-@dataclass(frozen=True, slots=True)
 class _BelGroup:
-    """The BELs of one placed tile or supertile.
+    """The BELs of one tile or supertile at its place in the fabric.
 
     Attributes
     ----------
     title : str
         The comment line above the group.
-    bels : list[_PlacedBel]
-        The BELs in Z order.
+    x : int
+        Tile X coordinate.
+    y : int
+        Tile Y coordinate.
+    first_z : int
+        Z position of the first BEL in the tile.
+    bels : list[Bel]
+        The BELs of the tile or supertile type, in Z order.
     """
 
     title: str
-    bels: list[_PlacedBel]
+    x: int
+    y: int
+    first_z: int
+    bels: list[Bel]
+
+    def letter(self, index: int) -> str:
+        """Return the Z position of `bels[index]` as a letter.
+
+        Parameters
+        ----------
+        index : int
+            Index into `bels`.
+
+        Returns
+        -------
+        str
+            `A` for Z 0, `B` for Z 1, and so on.
+        """
+        return string.ascii_uppercase[self.first_z + index]
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,33 +286,6 @@ class _PipSection:
 
     title: str | None
     pips: list[_PipLine]
-
-
-def _place_bels(
-    bels: list[Bel], *, first_letter: int, x: int, y: int
-) -> list[_PlacedBel]:
-    """Return `bels` placed at tile `(x, y)`.
-
-    Parameters
-    ----------
-    bels : list[Bel]
-        BELs in Z order.
-    first_letter : int
-        Z index of the first BEL.
-    x : int
-        Tile X coordinate.
-    y : int
-        Tile Y coordinate.
-
-    Returns
-    -------
-    list[_PlacedBel]
-        The placed BELs.
-    """
-    return [
-        _PlacedBel(x, y, string.ascii_uppercase[first_letter + i], bel, bel.get_arcs())
-        for i, bel in enumerate(bels)
-    ]
 
 
 def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
@@ -569,11 +357,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
                 )
             )
         pip_sections.append(external)
-        bel_groups.append(
-            _BelGroup(
-                f"#Tile_X{x}Y{y}", _place_bels(tile.bels, first_letter=0, x=x, y=y)
-            )
-        )
+        bel_groups.append(_BelGroup(f"#Tile_X{x}Y{y}", x, y, 0, tile.bels))
 
     # SJUMP pips live in tile.wireList (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
@@ -587,12 +371,10 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
         bel_groups.append(
             _BelGroup(
                 f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}",
-                _place_bels(
-                    super_tile.bels,
-                    first_letter=len(fabric.tile[fty][ftx].bels),
-                    x=ftx,
-                    y=fty,
-                ),
+                ftx,
+                fty,
+                len(fabric.tile[fty][ftx].bels),
+                super_tile.bels,
             )
         )
         if super_tile.switch_matrix is not None:
@@ -614,9 +396,7 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
                 )
             )
 
-    clocked = any(
-        placed.bel.withUserCLK for group in bel_groups for placed in group.bels
-    )
+    clocked = any(bel.withUserCLK for group in bel_groups for bel in group.bels)
     header = (
         "# BEL descriptions: top left corner Tile_X0Y0, "
         f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
@@ -628,7 +408,6 @@ def emit_nextpnr_model(fabric: Fabric) -> NextpnrModel:
     }
     return NextpnrModel(
         pips=_render("pips.txt.j2", sections=pip_sections),
-        bel_v1=_render("bel.txt.j2", **bels),
         bel_v2=_render("bel_blocks.j2", timed=False, **bels),
         bel_v3=_render("bel_blocks.j2", timed=True, **bels),
         pcf=_render("template.pcf.j2", groups=bel_groups),
@@ -656,7 +435,7 @@ def _render(template: str, **context: object) -> str:
 
 
 def write_nextpnr_model(model: NextpnrModel, directory: Path) -> None:
-    """Write all six nextpnr files into `directory`.
+    """Write all five nextpnr files into `directory`.
 
     Parameters
     ----------
@@ -667,7 +446,6 @@ def write_nextpnr_model(model: NextpnrModel, directory: Path) -> None:
     """
     for name, text in (
         ("pips.txt", model.pips),
-        ("bel.txt", model.bel_v1),
         ("bel.v2.txt", model.bel_v2),
         ("bel.v3.txt", model.bel_v3),
         ("template.pcf", model.pcf),

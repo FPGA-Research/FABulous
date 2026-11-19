@@ -4,7 +4,23 @@ import re
 from dataclasses import dataclass, field
 
 from fabulous.fabric_definition.define import Direction
-from fabulous.fabric_definition.timing import Ns, WirePip
+from fabulous.fabric_definition.timing import Ns
+
+
+@dataclass(frozen=True, slots=True)
+class WirePip:
+    """A tile wire from `src` in this tile to `dst` in the tile at its offset.
+
+    Attributes
+    ----------
+    src : str
+        Wire source in this tile.
+    dst : str
+        Wire destination in the tile at the wire offset.
+    """
+
+    src: str
+    dst: str
 
 
 @dataclass(frozen=True, eq=True)

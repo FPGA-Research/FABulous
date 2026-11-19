@@ -362,7 +362,7 @@ class FabricGenCommandSet(ReplCommandSet):
     def do_gen_routing_model(self, *_ignored: str) -> None:
         """Generate nextpnr routing model of fabric.
 
-        Write the files nextpnr reads for place and route: `pips.txt`, `bel.txt`,
+        Write the files nextpnr reads for place and route: `pips.txt`,
         `bel.v2.txt`, `bel.v3.txt`, `template.pcf` and `placement_estimate.txt`.
         They go to the directory specified by `metaDataDir` within `projectDir`.
         The timing is the placeholder timing, unless `timing_model` characterised

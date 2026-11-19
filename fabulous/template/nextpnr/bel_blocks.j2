@@ -3,21 +3,21 @@
 {{ header }}
 {% for group in groups %}
 {{ group.title }}
-{% for placed in group.bels %}
-BelBegin,X{{ placed.x }}Y{{ placed.y }},{{ placed.letter }},{{ placed.cell_type }},{{ placed.bel.prefix }}
-{% for port in placed.bel.input_ports %}
-I,{{ port.pin_name }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
+{% for bel in group.bels %}
+BelBegin,X{{ group.x }}Y{{ group.y }},{{ group.letter(loop.index0) }},{{ bel.cell_type }},{{ bel.prefix }}
+{% for port in bel.input_ports %}
+I,{{ port.pin_name }},X{{ group.x }}Y{{ group.y }}.{{ port.name }}
 {% endfor %}
-{% for port in placed.bel.output_ports %}
-O,{{ port.pin_name }},X{{ placed.x }}Y{{ placed.y }}.{{ port.name }}
+{% for port in bel.output_ports %}
+O,{{ port.pin_name }},X{{ group.x }}Y{{ group.y }}.{{ port.name }}
 {% endfor %}
-{% for feature in placed.bel.belFeatureMap | sort(case_sensitive=true) %}
+{% for feature in bel.belFeatureMap | sort(case_sensitive=true) %}
 CFG,{{ feature }}
 {% endfor %}
 {% if timed %}
-{{ timing.lines(placed.arcs, placed.logic_cell) -}}
+{{ timing.lines(bel.get_arcs(), bel.is_logic_cell) -}}
 {% endif %}
-{% if placed.bel.withUserCLK %}
+{% if bel.withUserCLK %}
 {# Without an arrival time nextpnr uses its default. #}
 GlobalClk{{ "," ~ clock_arrival if timed else "" }}
 {% endif %}

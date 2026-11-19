@@ -9,7 +9,7 @@ from collections.abc import Generator, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.bel import Bel, BelArcs
 from fabulous.fabric_definition.define import (
     DEFAULT_CONFIG_BIT_MODE,
     DEFAULT_DISABLE_USER_CLK,
@@ -38,9 +38,12 @@ from fabulous.fabric_definition.define import (
 )
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchPip
 from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_definition.timing import BelArcs, Ns, Pip, SwitchPip
-from fabulous.fabric_definition.wire import Wire
+from fabulous.fabric_definition.timing import Ns
+from fabulous.fabric_definition.wire import Wire, WirePip
+
+type Pip = SwitchPip | WirePip
 
 
 def resolve_wire_pair(

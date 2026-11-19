@@ -11,28 +11,20 @@ from fabulous.fabric_cad.gen_nextpnr_model import (
     DUMMY_PIP_DELAY,
     NextpnrModel,
     emit_nextpnr_model,
-    placeholder_bel_arcs,
     placement_estimate,
     render_arcs,
     set_placeholder_timing,
     write_nextpnr_model,
     write_timing_files,
 )
-from fabulous.fabric_definition.bel import Bel, bel_role
+from fabulous.fabric_definition.bel import Bel, BelArcs, DelayArc, FeatureIs, bel_role
 from fabulous.fabric_definition.define import IO, BelRole, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.timing import (
-    BelArcs,
-    DelayArc,
-    FeatureIs,
-    SwitchPip,
-    WirePip,
-    ns,
-)
-from fabulous.fabric_definition.wire import Wire
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix, SwitchPip
+from fabulous.fabric_definition.timing import ns
+from fabulous.fabric_definition.wire import Wire, WirePip
 from fabulous.fabulous_api import FABulous_API
 from tests.conftest import make_fabric_from_grid
 
@@ -182,7 +174,7 @@ def test_emit_rejects_a_clocked_fabric_without_clock_arrival(
 def test_unknown_bel_type_has_no_placeholder_arcs() -> None:
     """BEL types that nextpnr does not time produce no timing arcs in bel.v3."""
     role = bel_role("IO_1_bidirectional_frame_config_pass")
-    arcs = placeholder_bel_arcs(
+    arcs = BelArcs.placeholder(
         role=role,
         inputs=[BelPort("I", IO.INPUT, 1), BelPort("T", IO.INPUT, 1)],
         outputs=[BelPort("O", IO.OUTPUT, 1), BelPort("Q", IO.OUTPUT, 1)],
@@ -335,11 +327,6 @@ PLACEHOLDER_PIPS = """\
 X0Y0,J_BEG,X0Y0,LA_O,8,J_BEG.LA_O
 #Tile-external pips on tile X0Y0:"""
 
-PLACEHOLDER_BEL_V1 = """\
-# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X1Y1
-#Tile_X0Y0
-X0Y0,X0,Y0,A,FABULOUS_LC,LA_I0,LA_I1,LA_I2,LA_I3,LA_Ci,LA_SR,LA_EN,LA_O,LA_Co"""
-
 PLACEHOLDER_BEL_V2 = """\
 # BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X1Y1
 #Tile_X0Y0
@@ -395,7 +382,6 @@ def test_placeholder_model_text(lut_fabric: Fabric) -> None:
     model = emit_nextpnr_model(lut_fabric)
 
     assert model.pips == PLACEHOLDER_PIPS
-    assert model.bel_v1 == PLACEHOLDER_BEL_V1
     assert model.bel_v2 == PLACEHOLDER_BEL_V2
     assert model.bel_v3 == PLACEHOLDER_BEL_V3
     # The LUT tile has no pinned IO BEL.
@@ -404,7 +390,6 @@ def test_placeholder_model_text(lut_fabric: Fabric) -> None:
 
 MODEL = NextpnrModel(
     pips="pips",
-    bel_v1="bel v1",
     bel_v2="bel v2",
     bel_v3="bel v3",
     pcf="pcf",
@@ -418,12 +403,11 @@ def read_files(directory: Path) -> dict[str, str]:
 
 
 def test_write_nextpnr_model_writes_each_text_to_its_file(out: Path) -> None:
-    """All six files are written, each under the name nextpnr reads it by."""
+    """All five files are written, each under the name nextpnr reads it by."""
     write_nextpnr_model(MODEL, out)
 
     assert read_files(out) == {
         "pips.txt": "pips",
-        "bel.txt": "bel v1",
         "bel.v2.txt": "bel v2",
         "bel.v3.txt": "bel v3",
         "template.pcf": "pcf",
