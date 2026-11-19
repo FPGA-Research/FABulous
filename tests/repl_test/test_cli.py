@@ -6,6 +6,7 @@ generation, bitstream creation, simulation execution, and GUI commands.
 
 import os
 import shutil
+import subprocess
 import sys
 import tkinter as tk
 from collections.abc import Callable
@@ -1502,3 +1503,50 @@ def test_generate_supertile_rtl(
         sub = tile_dir / f"DSPblk_sub{i}"
         assert (sub / f"DSPblk_sub{i}.{ext}").is_file()
         assert (sub / f"DSPblk_sub{i}_switch_matrix.{ext}").is_file()
+
+
+@pytest.mark.slow
+def test_generated_supertile_elaborates(
+    dsp_cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The generated supertile RTL stack elaborates in a simulator.
+
+    Generates the supertile, then compiles the whole stack (supertile wrapper +
+    switch matrix + ConfigMem, all subtiles, the MULADD BEL and the fabric model
+    primitives) with iverilog or GHDL. A clean elaboration proves the generated
+    modules link with no undeclared modules, port mismatches or width errors.
+    """
+    cli, ext = dsp_cli, dsp_cli.extension
+    tool = shutil.which("iverilog" if ext == "v" else "ghdl")
+    if tool is None:
+        pytest.skip(f"no simulator for .{ext} on PATH")
+    tile_dir = cli.projectDir / "Tile" / "DSPblk"
+
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+    normalize_and_check_for_errors(caplog.text)
+
+    sources = [
+        cli.projectDir / "Fabric" / f"models_pack.{ext}",
+        tile_dir / f"MULADD.{ext}",
+        tile_dir / f"DSPblk_ConfigMem.{ext}",
+        tile_dir / f"DSPblk_switch_matrix.{ext}",
+        *sorted(tile_dir.glob(f"DSPblk_sub*/*.{ext}")),
+        tile_dir / f"DSPblk.{ext}",
+    ]
+    srcs = [str(s) for s in sources]
+    if ext == "v":
+        out = str(tile_dir / "dspblk.out")
+        steps = [[tool, "-g2012", "-s", "DSPblk", "-o", out, *srcs]]
+    else:
+        work = ["--std=08", f"--workdir={tile_dir}"]
+        # --elab-run fully elaborates also on GHDL's mcode backend, where -e
+        # does not, and --warn-error fails on unbound components.
+        elab = [tool, "--elab-run", *work, "--warn-error", "DSPblk", "--no-run"]
+        steps = [[tool, "-a", *work, *srcs], elab]
+    for cmd in steps:
+        result = subprocess.run(
+            cmd, check=False, capture_output=True, text=True, cwd=tile_dir
+        )
+        assert result.returncode == 0, f"{cmd[1]} failed:\n{result.stderr}"
