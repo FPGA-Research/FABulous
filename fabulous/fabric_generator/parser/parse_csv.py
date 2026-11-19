@@ -45,6 +45,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
     generateCustomTileConfig,
     generateSwitchmatrixList,
+    is_supertile_csv,
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
@@ -1060,7 +1061,16 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
                 # we generate the tile right before we parse everything
-                i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
+                tile_csv = generateCustomTileConfig(
+                    filePath.joinpath(i[1]), allow_supertile=False
+                )
+                if is_supertile_csv(tile_csv):
+                    raise InvalidFabricDefinition(
+                        f"{tile_csv} is a supertile, which a GENERATE tile entry "
+                        f"cannot load. Remove the entry `{','.join(i).strip(',')}`; "
+                        "generate_custom_tile_config registers the supertile."
+                    )
+                i[1] = str(tile_csv)
 
             new_tiles, new_common_wire_pair = parseTilesCSV(
                 filePath.joinpath(i[1]), preserveListOrder

@@ -18,6 +18,7 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
+    is_supertile_csv,
 )
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_tile_config_mem,
@@ -31,6 +32,8 @@ from fabulous.fabulous_repl.command_set_base import (
 )
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
+    register_tile_in_fabric_csv,
+    unregister_tile_in_fabric_csv,
     write_pnr_model,
 )
 
@@ -530,7 +533,31 @@ class FabricGenCommandSet(ReplCommandSet):
             logger.error(f"{tile_path} is not a directory or does not exist")
             return
 
-        tile_csv = generateCustomTileConfig(tile_path)
+        existing = set(tile_path.absolute().glob("*.csv"))
+        # A supertile always gets its switch matrices, so it needs that enabled.
+        tile_csv = generateCustomTileConfig(tile_path, allow_supertile=switch_matrix)
+        # An existing config is returned untouched and keeps its registration.
+        generated = tile_csv not in existing
+        supertile = is_supertile_csv(tile_csv)
+        registered = False
+        if generated:
+            # A regenerated tile may have fewer subtiles, or none, than before,
+            # or have become a supertile.
+            registered = unregister_tile_in_fabric_csv(
+                self._cmd.csvFile, tile_path, drop_generate=supertile
+            )
+
+        if generated and (supertile or registered):
+            register_tile_in_fabric_csv(self._cmd.csvFile, tile_path)
+            kind = "supertile" if supertile else "tile"
+            logger.info(
+                f"Registered {kind} {tile_path.stem} in fabric.csv. "
+                "Run load_fabric then run_fab to build it."
+            )
+        # A wide BEL turns into a supertile: it wrote all subtile/supertile switch
+        # matrices inline, so it must not go through the single-tile parseTilesCSV.
+        if supertile:
+            return
 
         if switch_matrix:
             parseTilesCSV(tile_csv)
