@@ -82,25 +82,23 @@ def test_plugin_version_unknown_when_unresolvable(
     assert "version: unknown" in info
 
 
-def test_install_invokes_uv(mocker: MockerFixture) -> None:
-    mocker.patch.object(manager_module, "find_uv_bin", return_value="/usr/bin/uv")
+@pytest.mark.parametrize("operation", ["install", "uninstall"])
+def test_uv_targets_the_running_interpreter(
+    operation: str, mocker: MockerFixture
+) -> None:
+    mocker.patch.object(manager_module, "find_uv_bin", return_value="uv")
     run = mocker.patch.object(manager_module.subprocess, "run")
-    PluginManager.install("some-package")
-    args = run.call_args.args[0]
-    assert args[0] == "/usr/bin/uv"
-    assert args[1:4] == ["pip", "install", "--python"]
-    assert args[-1] == "some-package"
 
+    getattr(PluginManager, operation)("some-pkg")
 
-def test_uninstall_invokes_uv(mocker: MockerFixture) -> None:
-    mocker.patch.object(manager_module, "find_uv_bin", return_value="/usr/bin/uv")
-    run = mocker.patch.object(manager_module.subprocess, "run")
-    PluginManager.uninstall("some-package")
-    args = run.call_args.args[0]
-    assert args[0] == "/usr/bin/uv"
-    assert args[1:4] == ["pip", "uninstall", "--python"]
-    assert args[4] == sys.executable
-    assert args[-1] == "some-package"
+    assert run.call_args.args[0] == [
+        "uv",
+        "pip",
+        operation,
+        "--python",
+        sys.executable,
+        "some-pkg",
+    ]
 
 
 def test_install_reports_registered_plugin(mocker: MockerFixture) -> None:

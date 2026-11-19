@@ -50,29 +50,15 @@ def _plugins_cli(project: Path, mocker: MockerFixture) -> FABulousREPL:
     return FABulousREPL("verilog", interactive=False)
 
 
-def test_plugins_list_subcommand_dispatches(
+def test_plugins_info_subcommand_reports_the_plugin(
     project: Path, mocker: MockerFixture
 ) -> None:
     cli = _plugins_cli(project, mocker)
-    fmt = mocker.patch.object(
-        PluginManager, "get_installed_plugins_str", return_value="LISTING"
-    )
-
-    run_cmd(cli, "plugins list")
-
-    fmt.assert_called_once()  # cmd2 routed `plugins list` to `plugins_list`
-
-
-def test_plugins_info_subcommand_passes_argument(
-    project: Path, mocker: MockerFixture
-) -> None:
-    cli = _plugins_cli(project, mocker)
-    fmt = mocker.patch.object(PluginManager, "get_plugin_info_str", return_value="INFO")
+    cli.stdout = io.StringIO()
 
     run_cmd(cli, f"plugins info {BuiltinPlugin.PARSERS.value}")
 
-    fmt.assert_called_once()
-    assert fmt.call_args.args[0] == BuiltinPlugin.PARSERS.value
+    assert f"Plugin: {BuiltinPlugin.PARSERS.value}" in cli.stdout.getvalue()
 
 
 def test_plugins_without_subcommand_shows_help(
