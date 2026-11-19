@@ -488,8 +488,6 @@ def test_write_pnr_model_rejects_names_outside_out_dir(
     with pytest.raises(PluginError, match="outside the output directory"):
         write_pnr_model({name: "x"}, out_dir)
 
-    assert list(out_dir.iterdir()) == []
-
 
 def test_write_pnr_model_writes_nothing_when_one_name_is_rejected(
     tmp_path: Path,

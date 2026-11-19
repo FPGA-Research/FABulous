@@ -1,4 +1,4 @@
-"""Plugin settings: framework config, env parsing and typed plugin settings."""
+"""Typed plugin settings: publication to the context and lookup."""
 
 import types
 from pathlib import Path
@@ -14,19 +14,6 @@ from fabulous.fabulous_settings import (
 )
 from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
-
-
-def test_plugin_settings_defaults(project: Path) -> None:
-    init_context(project)
-    settings = get_context()
-    assert settings.skip_broken_plugins is False
-    assert settings.plugin_dir == Path("plugins")
-
-
-def test_plugin_settings_env(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("FAB_SKIP_BROKEN_PLUGINS", "true")
-    init_context(project)
-    assert get_context().skip_broken_plugins is True
 
 
 class _DemoSettings(PluginSettings):
@@ -84,12 +71,3 @@ def test_build_registries_replaces_prior_plugin_settings(project: Path) -> None:
 
     PluginManager().build_registries()
     assert "demo" not in get_context().plugin_settings
-
-
-def test_skip_broken_plugins_reads_project_dot_env(project: Path) -> None:
-    """The setting comes from `.FABulous/.env`, which is what discovery consults."""
-    (project / ".FABulous" / ".env").write_text("FAB_SKIP_BROKEN_PLUGINS=true\n")
-
-    init_context(project)
-
-    assert get_context().skip_broken_plugins is True

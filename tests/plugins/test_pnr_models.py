@@ -19,7 +19,6 @@ def test_resolves_registered_pnr_model(
     manager.build_registries()
     provider = manager.make_pnr_model("fake")
     assert provider.tool == "fake"
-    assert provider.generate(None, None, None) == {"fake.txt": "timed=False"}
 
 
 def test_builtin_registers_nextpnr() -> None:

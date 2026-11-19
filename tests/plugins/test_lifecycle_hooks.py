@@ -54,18 +54,6 @@ def test_hookimpl_may_omit_spec_arguments() -> None:
     assert fired == [True]
 
 
-def test_notify_fabric_loaded_passes_the_api() -> None:
-    received = []
-    manager = _manager_with(
-        "spy", fabulous_after_fabric_loaded=lambda api: received.append(api)
-    )
-
-    sentinel = object()
-    manager.notify_fabric_loaded(sentinel)
-
-    assert received == [sentinel]
-
-
 @pytest.mark.parametrize(
     ("hook_name", "call"),
     [

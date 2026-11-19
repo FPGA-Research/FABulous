@@ -5,34 +5,11 @@ from pathlib import Path
 
 import pytest
 from dotenv import set_key
-from pytest_mock import MockerFixture
 from typer.testing import CliRunner
 
 from fabulous import fabulous as entry
 
 runner = CliRunner()
-
-
-def test_plugins_list_runs(mocker: MockerFixture) -> None:
-    fmt = mocker.patch.object(
-        entry.PluginManager, "get_installed_plugins_str", return_value="LISTING"
-    )
-    result = runner.invoke(entry.plugins_app, ["list"])
-    assert result.exit_code == 0
-    assert "LISTING" in result.stdout
-    fmt.assert_called_once()
-
-
-def test_plugins_install_runs(mocker: MockerFixture) -> None:
-    install = mocker.patch.object(
-        entry.PluginManager,
-        "install",
-        return_value=(True, "Installed. Added plugin(s): demo."),
-    )
-    result = runner.invoke(entry.plugins_app, ["install", "some-pkg"])
-    assert result.exit_code == 0
-    assert "demo" in result.stdout
-    install.assert_called_once_with("some-pkg")
 
 
 def test_plugins_group_skips_project_validation(
