@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import tkinter as tk
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -18,7 +19,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
 from fabulous.fabric_definition.configmem import empty_config_mem
-from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_definition.define import ConfigBitMode, HDLType
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
@@ -33,6 +34,7 @@ from tests.conftest import (
     run_cmd,
     use_core_only_plugins,
 )
+from tests.fabric_gen_test.test_fabric_automation import MULADD_SRC, MULADD_VHDL_SRC
 from tests.repl_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 
 SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
@@ -1430,3 +1432,73 @@ def test_generate_custom_tile_config_roundtrip(
     assert generated_lists, "expected a generated switch matrix list file"
     prims = (cli.projectDir / "user_design" / "custom_prims.v").read_text()
     assert "LUT4c_frame_config_dffesr" in prims
+
+
+@pytest.fixture(params=[HDLType.VERILOG, HDLType.VHDL], ids=["verilog", "vhdl"])
+def dsp_cli(
+    request: pytest.FixtureRequest,
+    project_factory: Callable[..., Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> FABulousREPL:
+    """A REPL on a project in each HDL, with the wide MULADD BEL in Tile/DSPblk."""
+    lang: HDLType = request.param
+    # Loading a VHDL fabric already needs GHDL to parse the BELs.
+    if lang is HDLType.VHDL and shutil.which("ghdl") is None:
+        pytest.skip("ghdl not on PATH")
+    project = project_factory(lang=lang)
+    init_context(project)
+    use_core_only_plugins(monkeypatch)
+    cli = FABulousREPL(lang, force=False, interactive=False, verbose=False, debug=True)
+    run_cmd(cli, "load_fabric")
+    bel = MULADD_VHDL_SRC if lang is HDLType.VHDL else MULADD_SRC
+    tile_dir = project / "Tile" / "DSPblk"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(bel, tile_dir / bel.name)
+    return cli
+
+
+def test_generate_supertile_rtl(
+    dsp_cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A BEL over the tile budget generates a supertile whose RTL builds.
+
+    Drives the full path: `generate_custom_tile_config` on a wide BEL emits a
+    supertile and registers it in fabric.csv, then `load_fabric` + `gen_tile`
+    generate every subtile and supertile RTL artefact without logging errors.
+    `gen_tile` (not `gen_fabric`) is used because the supertile is registered
+    as a tile definition but not placed in the fabric grid.
+    """
+    cli, ext = dsp_cli, dsp_cli.extension
+    tile_dir = cli.projectDir / "Tile" / "DSPblk"
+    # A GENERATE entry cannot load a supertile, and neither can an entry from
+    # when the tile was a single tile, so registration replaces both.
+    text = cli.csvFile.read_text()
+    entries = "Tile,./Tile/DSPblk,GENERATE\nTile,./Tile/DSPblk/DSPblk.csv\n"
+    cli.csvFile.write_text(text.replace("ParametersEnd", f"{entries}ParametersEnd", 1))
+
+    # Running twice must not register the supertile in fabric.csv twice.
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    fabric_csv = cli.csvFile.read_text().splitlines()
+    assert "Tile,./Tile/DSPblk,GENERATE" not in fabric_csv
+    assert "Tile,./Tile/DSPblk/DSPblk.csv" not in fabric_csv
+    assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
+    assert sum("DSPblk_sub0.csv" in ln for ln in fabric_csv) == 1
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+    # Regenerating from scratch after gen_tile replaces the earlier output.
+    (tile_dir / "DSPblk.csv").unlink()
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    fabric_csv = cli.csvFile.read_text().splitlines()
+    assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+
+    normalize_and_check_for_errors(caplog.text)
+    # Supertile + all three subtiles produced RTL.
+    assert (tile_dir / f"DSPblk.{ext}").is_file()
+    assert (tile_dir / f"DSPblk_switch_matrix.{ext}").is_file()
+    for i in range(3):
+        sub = tile_dir / f"DSPblk_sub{i}"
+        assert (sub / f"DSPblk_sub{i}.{ext}").is_file()
+        assert (sub / f"DSPblk_sub{i}_switch_matrix.{ext}").is_file()

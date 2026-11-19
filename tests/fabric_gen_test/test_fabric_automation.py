@@ -43,6 +43,11 @@ MULADD_SRC = (
     / "fabulous/fabric_files/FABulous_project_template_verilog"
     / "Tile/DSP/DSP_bot/MULADD.v"
 )
+MULADD_VHDL_SRC = (
+    Path(__file__).parents[2]
+    / "fabulous/fabric_files/FABulous_project_template_vhdl"
+    / "Tile/DSP/DSP_bot/MULADD.vhdl"
+)
 PARSE = "fabulous.fabric_generator.gen_fabric.fabric_automation.parseBelFile"
 
 
