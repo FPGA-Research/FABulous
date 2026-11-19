@@ -434,8 +434,6 @@ def write_pnr_model(artifacts: dict[str, str | bytes], out_dir: Path) -> None:
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     root = out_dir.resolve()
-    # Backend names are plugin-supplied, so all are validated before any file
-    # is written. A rejected name then leaves no partial output.
     paths: dict[str, Path] = {}
     for name in artifacts:
         path = (root / name).resolve()

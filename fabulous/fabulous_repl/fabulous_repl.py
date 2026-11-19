@@ -280,9 +280,7 @@ class FABulousREPL(Cmd):
 
         self.tcl = tk.Tcl()
         # get_all_commands() includes commands provided by CommandSets, which are
-        # bound to the instance (not the class), so iterating the class would miss
-        # them. Plugin sets are registered above, so their commands reach Tcl too,
-        # and this has to precede disable_category, which unbinds what it disables.
+        # bound to the instance (not the class), so iterating the class would miss them.
         for command in self.get_all_commands():
             func = getattr(self, f"do_{command}")
             self.tcl.createcommand(command, wrap_with_except_handling(func))
