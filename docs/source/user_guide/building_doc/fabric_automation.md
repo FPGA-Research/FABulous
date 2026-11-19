@@ -37,7 +37,11 @@ one or more custom BELs with the desired functionality.
 Currently, the tile generation is based on the default FABulous fabric
 and supports only up to 32 input and 8 output internal ports per tile, cumulated
 over all provided BELs. External ports are not counted, since they don't
-connect to the switch matrix.
+connect to the switch matrix. Neither are `CARRY`, `SHARED_RESET` and
+`SHARED_ENABLE` ports, which get their own dedicated wiring.
+
+A tile with a single BEL over that budget is generated as a supertile instead,
+see [Wide BELs: automatic supertile generation](#wide-bel-supertiles).
 :::
 
 ```verilog
@@ -843,6 +847,10 @@ We can add 8 of our `LUT4_test` BELs to the custom tile, since we have
 prefixes `LT_A_` to `LT_H_` to the BEL entries. This is needed that the BELs
 can be identified as individual BELs.
 
+Going over that budget with multiple BELs is an error — the automatic supertile
+split described in [Wide BELs](#wide-bel-supertiles) only applies to a tile
+folder with a single wide BEL.
+
 Afterward, we can generate our custom tile with the `generate_custom_tile_config` command
 again. This will generate our generate the switch matrix and the custom prims
 file. We can now use the custom tile like any other tile in the `fabric.csv`.
@@ -856,6 +864,120 @@ techmap scripts for Yosys!
 
 Alternatively, you can use [absolute placement constraints] (<https://github.com/YosysHQ/nextpnr/blob/master/docs/constraints.md#absolute-placement-constraints>)
 to exactly specify which BELs should be instantiated.
+:::
+
+(wide-bel-supertiles)=
+
+### Wide BELs: automatic supertile generation
+
+A single tile switch matrix can only route 32 inputs and 8 outputs. If your BEL
+exceeds that budget — a DSP block or a wide multiplier easily does —
+`generate_custom_tile_config` does not fail: it automatically generates a
+[supertile](#supertiles) instead of a tile, splitting the BEL ports across a
+vertical stack of subtiles.
+
+As an example, take the `MULADD` DSP BEL, which has 37 internal inputs and 20
+internal outputs. Drop it into a tile folder and generate as usual:
+
+```console
+FABulous> generate_custom_tile_config Tile/DSPblk
+```
+
+```console
+INFO | Generating custom tile config Tile/DSPblk
+INFO | Found BEL file Tile/DSPblk/MULADD.v for custom tile DSPblk
+INFO | BEL MULADD has 37 inputs / 20 outputs, exceeding the single-tile budget; generating supertile DSPblk with 3 subtiles
+```
+
+The number of subtiles is the smallest `N` that keeps every subtile within the
+32-input / 8-output budget, i.e. `N = max(ceil(inputs / 32), ceil(outputs / 8))`.
+The ports are distributed as evenly as possible over the `N` subtiles.
+This gives the following folder layout:
+
+```console
+demo/Tile/DSPblk
+├── DSPblk.csv
+├── DSPblk_switch_matrix.list
+├── DSPblk_sub0
+│   ├── DSPblk_sub0.csv
+│   └── DSPblk_sub0_switch_matrix.list
+├── DSPblk_sub1
+│   └── ...
+├── DSPblk_sub2
+│   └── ...
+├── MULADD.json
+└── MULADD.v
+```
+
+The supertile csv `DSPblk.csv` places the subtiles in a 1-wide, `N`-tall stack
+and holds the BEL itself:
+
+```console
+SuperTILE,DSPblk
+DSPblk_sub0
+DSPblk_sub1
+DSPblk_sub2
+BEL,./MULADD.v
+MATRIX,./DSPblk_switch_matrix.list
+EndSuperTILE
+```
+
+Each subtile is an ordinary generated tile. Instead of the BEL ports, it exposes
+its slice of the BEL ports as `SJUMP` ports (`SI` for the BEL inputs, `SO` for
+the BEL outputs), which the switch matrix generator wires into the fabric just
+like normal BEL ports:
+
+```console
+TILE,DSPblk_sub0
+INCLUDE,../../include/Base.csv
+SJUMP,SI,0,0,NULL,13,
+SJUMP,NULL,0,0,SO,7,
+MATRIX,./DSPblk_sub0_switch_matrix.list
+EndTILE
+```
+
+The supertile switch matrix `DSPblk_switch_matrix.list` is a plain 1:1
+concatenation that stitches the subtile slices back onto the flat BEL buses.
+It contains no multiplexers and therefore no configuration bits — all
+configuration belongs to the BEL itself:
+
+```console
+A0,DSPblk_sub0_SI0
+A1,DSPblk_sub0_SI1
+...
+DSPblk_sub0_SO0,Q0
+```
+
+Since the supertile occupies `N` fabric rows, place it in `fabric.csv` as
+described in the [supertile](#supertiles) section.
+
+While `<name>.csv` exists, running the command again changes nothing. To
+regenerate (for example after changing the BEL), delete `<name>.csv`. The
+command then removes the `<name>_sub<N>` folders it generated earlier (their
+switch matrix list starts with `# Subtile of generated supertile <name>`), the
+supertile RTL that `gen_tile` wrote, and their entries in `fabric.csv`, and
+refreshes the BEL's stub in `custom_prims.v` before generating again. A
+hand-written definition in `custom_prims.v` is kept. Hand edits inside the
+subtile folders are lost.
+
+A few things stop supertile generation before anything is written:
+
+- The BEL file has the tile's name (e.g. `Tile/MULADD/MULADD.v`). `gen_tile`
+  writes the supertile RTL to `<name>.v`, so rename the BEL file.
+- A `<name>_sub<N>` folder or `<name>_switch_matrix.list` exists that the
+  command did not generate.
+- `--no-switch-matrix` is given. A supertile always needs its generated
+  switch matrices.
+- The tile is listed as `Tile,<path>,GENERATE` in `fabric.csv`. That entry only
+  creates single tiles; run `generate_custom_tile_config` instead, which
+  replaces the entry with the supertile's.
+
+:::{warning}
+`CARRY`, `SHARED_RESET` and `SHARED_ENABLE` ports of a wide BEL are not yet
+distributed across the subtiles. They do not count towards the 32/8 budget, but
+a BEL that needs a supertile and has them is rejected with a
+`NotImplementedError`. Build such a supertile by hand as described in the
+[supertile](#supertiles) section.
 :::
 
 (gen-io)=
