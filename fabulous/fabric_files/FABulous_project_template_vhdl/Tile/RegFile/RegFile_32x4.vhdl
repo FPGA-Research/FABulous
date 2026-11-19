@@ -43,6 +43,8 @@ entity RegFile_32x4 is
   attribute EXTERNAL of UserCLK      : signal is "TRUE";
   attribute SHARED_PORT of UserCLK   : signal is "TRUE";
   attribute GLOBAL of ConfigBits     : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of RegFile_32x4 : entity is "OTHER";
 end entity RegFile_32x4;
 
 architecture Behavioral of RegFile_32x4 is

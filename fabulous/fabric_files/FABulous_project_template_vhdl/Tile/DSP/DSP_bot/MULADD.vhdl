@@ -44,6 +44,8 @@ entity MULADD is
   attribute EXTERNAL of UserCLK     : signal is "TRUE";
   attribute SHARED_PORT of UserCLK  : signal is "TRUE";
   attribute GLOBAL of ConfigBits    : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of MULADD : entity is "OTHER";
 end entity MULADD;
 
 architecture Behavioral of MULADD is

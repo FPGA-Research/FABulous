@@ -1,6 +1,6 @@
 `default_nettype none
 
-(* FABulous, BelMap,
+(* FABulous, BelMap, ROLE="OTHER",
     C_bit0=0,
     C_bit1=1,
     C_bit2=2,

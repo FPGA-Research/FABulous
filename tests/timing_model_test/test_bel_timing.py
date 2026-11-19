@@ -24,7 +24,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelMode,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, BelRole
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -96,6 +96,8 @@ def make_bel(
         ports_vectors={"internal": internal, "external": external, "shared": shared},
         carry={},
         localShared={},
+        role=BelRole.OTHER,
+        pinned_io=False,
     )
 
 

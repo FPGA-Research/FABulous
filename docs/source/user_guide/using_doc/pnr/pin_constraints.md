@@ -109,9 +109,10 @@ Only tiles that contain an I/O BEL can be targeted. After the fabric flow has
 run, two files in `<project-dir>/.FABulous/` list them:
 
 - `bel.txt` — every BEL in the fabric, one CSV row per BEL. I/O BELs are the ones
-  whose primitive name is `IO_1_bidirectional_frame_config_pass`,
-  `InPass4_frame_config`, `OutPass4_frame_config`, or their `_mux` variants. Each
-  row gives the tile coordinate and BEL letter you need, for example:
+  whose HDL carries the `PINNED_IO` attribute (see [](#bel-role-attribute)); in
+  the shipped fabric that is `IO_1_bidirectional_frame_config_pass`,
+  `InPass4_frame_config_mux` and `OutPass4_frame_config_mux`. Each row gives
+  the tile coordinate and BEL letter you need, for example:
 
   ```text
   X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q

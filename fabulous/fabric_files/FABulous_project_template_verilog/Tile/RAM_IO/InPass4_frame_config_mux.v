@@ -15,7 +15,7 @@
 
 `default_nettype none
 
-(* FABulous, BelMap,
+(* FABulous, BelMap, ROLE="IN_PASS", PINNED_IO,
     I0_reg=0,
     I1_reg=1,
     I2_reg=2,

@@ -6,7 +6,7 @@ including I/O types, directions, sides, and configuration modes.
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from enum import Enum, StrEnum
+from enum import Enum, StrEnum, auto
 from functools import total_ordering
 from typing import NamedTuple, Self
 
@@ -177,6 +177,22 @@ class PnRTool(StrEnum):
     NEXTPNR = "nextpnr"
 
 
+class BelRole(Enum):
+    """How place and route treats a BEL type.
+
+    This enumeration includes the following values:
+    - LOGIC_CELL: a LUT with an optional flip-flop and carry chain
+    - OUT_PASS: registered outputs of the fabric towards a hard block
+    - IN_PASS: registered inputs of the fabric from a hard block
+    - OTHER: any other BEL
+    """
+
+    LOGIC_CELL = auto()
+    OUT_PASS = auto()
+    IN_PASS = auto()
+    OTHER = auto()
+
+
 class FABulousAttribute(StrEnum):
     """Enumeration for FABulous attributes in the HDL.
 
@@ -186,6 +202,8 @@ class FABulousAttribute(StrEnum):
     - GLOBAL: Global attribute
     - USER_CLK: User clock attribute
     - CONFIG_BIT: Configuration bit attribute
+    - ROLE: Place-and-route role of a BEL module, a `BelRole` name
+    - PINNED_IO: A BEL module that a design's I/O can be constrained to
     """
 
     EXTERNAL = "EXTERNAL"
@@ -193,6 +211,8 @@ class FABulousAttribute(StrEnum):
     GLOBAL = "GLOBAL"
     USER_CLK = "USER_CLK"
     CONFIG_BIT = "CONFIG_BIT"
+    ROLE = "ROLE"
+    PINNED_IO = "PINNED_IO"
 
 
 class PinSortMode(StrEnum):

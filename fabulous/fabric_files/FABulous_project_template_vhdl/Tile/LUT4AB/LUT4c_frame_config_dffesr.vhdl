@@ -80,6 +80,8 @@ entity LUT4c_frame_config_dffesr is
   attribute EXTERNAL of UserCLK                      : signal is "TRUE";
   attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
   attribute GLOBAL of ConfigBits                     : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of LUT4c_frame_config_dffesr : entity is "LOGIC_CELL";
 end entity LUT4c_frame_config_dffesr;
 
 architecture Behavioral of LUT4c_frame_config_dffesr is

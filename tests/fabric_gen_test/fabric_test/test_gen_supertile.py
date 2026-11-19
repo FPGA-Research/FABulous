@@ -37,6 +37,7 @@ from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
+    BelRole,
     ConfigBitMode,
     Direction,
     Side,
@@ -515,6 +516,8 @@ class TestBelExternalPorts:
             ports_vectors={},
             carry={},
             localShared={},
+            role=BelRole.OTHER,
+            pinned_io=False,
         )
         tile = Tile(
             name="BelTile",

@@ -6,7 +6,7 @@ from typing import ClassVar
 
 from loguru import logger
 
-from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.define import IO, BelRole, HDLType
 
 
 class CodeGenerator(abc.ABC):
@@ -835,4 +835,24 @@ class CodeGenerator(abc.ABC):
             ```
                 -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
             ```
+        """
+
+    @abc.abstractmethod
+    def addBelRoleAttribute(
+        self, name: str, role: BelRole, indentLevel: int = 0
+    ) -> None:
+        """Add the `ROLE` attribute of the BEL module `name`.
+
+        Verilog writes it as a module attribute, so call it before `addHeader`.
+        VHDL writes it as an entity attribute, so call it between `addPortEnd`
+        and `addHeaderEnd`.
+
+        Parameters
+        ----------
+        name : str
+            The BEL module name.
+        role : BelRole
+            The place-and-route role of the BEL.
+        indentLevel : int
+            The indentation Level. Defaults to 0.
         """
