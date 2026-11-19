@@ -82,8 +82,6 @@ def test_build_registries_replaces_prior_plugin_settings(project: Path) -> None:
     mgr_a.build_registries()
     assert "demo" in get_context().plugin_settings
 
-    # A second manager that contributes no settings becomes the authority and
-    # clears the prior manager's published settings, so none can leak through.
     PluginManager().build_registries()
     assert "demo" not in get_context().plugin_settings
 

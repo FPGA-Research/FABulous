@@ -98,8 +98,6 @@ def test_uninstall_invokes_uv(mocker: MockerFixture) -> None:
     PluginManager.uninstall("some-package")
     args = run.call_args.args[0]
     assert args[0] == "/usr/bin/uv"
-    # uninstall must pin the same interpreter as install, else it targets the
-    # wrong environment (e.g. VIRTUAL_ENV) and removes nothing.
     assert args[1:4] == ["pip", "uninstall", "--python"]
     assert args[4] == sys.executable
     assert args[-1] == "some-package"
@@ -108,7 +106,6 @@ def test_uninstall_invokes_uv(mocker: MockerFixture) -> None:
 def test_install_reports_registered_plugin(mocker: MockerFixture) -> None:
     mocker.patch.object(manager_module, "find_uv_bin", return_value="/usr/bin/uv")
     mocker.patch.object(manager_module.subprocess, "run")
-    # uv adds a new entry point between the before/after snapshots.
     mocker.patch.object(
         PluginManager, "installed_plugins", side_effect=[set(), {"newplug"}]
     )

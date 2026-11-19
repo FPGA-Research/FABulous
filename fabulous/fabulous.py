@@ -316,10 +316,8 @@ def common_options(
         return
 
     resolved_dir = project_dir or Path.cwd()
-    # `plugins` has to work outside a project too, e.g. to install one before
-    # any project exists. Inside a project it falls through, so the project's
-    # .env decides plugin_dir and skip_broken_plugins.
-    if subcommand == "plugins" and not (resolved_dir / ".FABulous").is_dir():
+    in_project = (resolved_dir / ".FABulous").is_dir()
+    if subcommand == "plugins" and not in_project:
         init_context(project_dir=resolved_dir, api_mode=True)
         return
 

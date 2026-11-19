@@ -91,8 +91,6 @@ class PluginManager:
         self._code_generators = {}
         self._parsers = {}
         self._pnr_models = {}
-        # Resolved once by `create` so the post-discovery hooks fired through
-        # this manager honour the same policy discovery ran under.
         self.skip_broken = skip_broken
         self._top_level_distributions = None
 
@@ -190,9 +188,6 @@ class PluginManager:
             f"  version: {self._plugin_version(name)}",
         ]
 
-        # Read the settings hookimpl out of pluggy's registry rather than off
-        # the module, so a hookimpl registered under a different function name
-        # through `@hookimpl(specname=...)` is still found.
         model = next(
             (
                 impl.function()
@@ -240,7 +235,6 @@ class PluginManager:
             is a hook wrapper, which this call path cannot drive.
         """
         results = []
-        # pluggy runs the implementations last-registered first.
         for impl in reversed(hook_caller.get_hookimpls()):
             if impl.hookwrapper or impl.wrapper:
                 raise PluginError(
@@ -249,8 +243,6 @@ class PluginManager:
                     "does not support."
                 )
             try:
-                # pluggy lets an implementation declare a subset of the spec's
-                # arguments, so pass only the ones it names.
                 result = impl.function(*(kwargs[arg] for arg in impl.argnames))
             except Exception as exc:  # noqa: BLE001 - policy decides re-raise
                 if not self.skip_broken:
@@ -541,8 +533,6 @@ class PluginManager:
             [find_uv_bin(), "pip", "install", "--python", sys.executable, spec],
             check=True,
         )
-        # The subprocess wrote new metadata that this interpreter's import
-        # caches predate.
         importlib.invalidate_caches()
         added = sorted(cls.installed_plugins() - before)
         if added:
@@ -625,10 +615,6 @@ class PluginManager:
         if spec is None or spec.loader is None:
             raise PluginError(f"'{init}' is not an importable Python module")
         module = importlib.util.module_from_spec(spec)
-        # A package plugin's own `from .sub import x` resolves its parent
-        # through sys.modules, so the entry has to exist before execution.
-        # Prefixing keeps that entry out of the top-level namespace, so the
-        # entry deleted below is always one this loader put there.
         sys.modules[module_name] = module
         try:
             spec.loader.exec_module(module)
@@ -694,9 +680,6 @@ class PluginManager:
                 f"{PLUGIN_API_VERSION} once the plugin supports it"
             )
         self.pm.register(module, name=name)
-        # A hookimpl whose name matches no hookspec is inert otherwise, so a
-        # misspelled hook leaves the plugin looking installed and doing nothing.
-        # Only this plugin can have added pending impls, so the blame is exact.
         try:
             self.pm.check_pending()
         except pluggy.PluginValidationError as exc:
@@ -764,8 +747,6 @@ class PluginManager:
                     name, partial(manager._load_path_module, name, init)
                 )
 
-        # Sorted so a registration clash is reported against the same pair of
-        # plugins on every run.
         eps = sorted(
             importlib_metadata.entry_points(group=PLUGIN_ENTRY_POINT_GROUP),
             key=lambda ep: ep.name,

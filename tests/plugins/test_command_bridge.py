@@ -38,8 +38,6 @@ def test_plugin_command_registered(project: Path, mocker: MockerFixture) -> None
 
     cli = FABulousREPL("verilog", interactive=False)
     assert "demo_ping" in cli.get_all_commands()
-    # Tcl scripts see the same command table, so the bridge has to be built
-    # after every CommandSet is registered.
     assert cli.tcl.eval("info commands demo_ping") == "demo_ping"
     assert cli.tcl.eval("info commands plugins") == "plugins"
 
@@ -85,5 +83,4 @@ def test_plugins_without_subcommand_shows_help(
 
     run_cmd(cli, "plugins")
 
-    # the no-subcommand branch falls back to help, which lists the subcommands
     assert "list" in cli.stdout.getvalue()

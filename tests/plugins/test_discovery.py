@@ -26,7 +26,6 @@ def fabulous_register_parsers():
     return [ParserProvider(suffix="{suffix}", parse=lambda path: path, name="{name}")]
 """
 
-# Every way a plugin can be broken, paired with the id its failure names.
 BROKEN_PLUGIN_SRCS = [
     pytest.param("raise ImportError('boom')\n", id="raises-on-import"),
     pytest.param("FABULOUS_PLUGIN_API = -1\n", id="incompatible-api"),
@@ -115,7 +114,6 @@ def test_entrypoint_discovery(tmp_path: Path, mocker: MockerFixture) -> None:
         "entry_points",
         return_value=[fake_ep],
     )
-    # An absent plugin directory discovers nothing.
     _patch_context(mocker, tmp_path / "plugins")
     manager = PluginManager.create()
     assert manager.make_parser(Path("fabric.ep")) is not None
@@ -244,8 +242,6 @@ def test_path_plugin_never_occupies_a_top_level_module_name(
     _write_dir_plugin(tmp_path, name, source)
     _patch_context(mocker, tmp_path, skip_broken=skip_broken)
 
-    # Strict mode for the loading case, so a plugin that stops loading fails
-    # here rather than leaving the assertion true for the wrong reason.
     PluginManager.create()
 
     assert name not in sys.modules

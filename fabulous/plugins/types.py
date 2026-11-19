@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.fabric import Fabric
     from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
-# PEP 695 aliases are evaluated lazily, so they may name the deferred imports.
 type CodeGeneratorFactory = Callable[[], CodeGenerator]
 type FabricParser = Callable[[Path], Fabric]
 type PnRModelGenerator = Callable[

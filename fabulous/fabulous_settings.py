@@ -139,8 +139,6 @@ class FABulousSettings(BaseSettings):
         description="Warn and unregister a plugin that fails to load or raises "
         "in a hook instead of aborting.",
     )
-    # Populated by the plugin manager after discovery, never by the settings
-    # sources, so it is a private attribute rather than a `FAB_*` field.
     _plugin_settings: dict[str, PluginSettings] = PrivateAttr(default_factory=dict)
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False

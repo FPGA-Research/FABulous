@@ -173,21 +173,20 @@ class TimingCommandSet(ReplCommandSet):
         ):
             raise ValueError("Pip and BEL timing output paths must be different.")
 
-        # Output path mapped to the nextpnr artifact written there.
-        selected_outputs: dict[Path, str] = {}
+        artifact_name_by_output: dict[Path, str] = {}
         if resolved_target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
-            selected_outputs[resolved_outfile] = "pips.txt"
+            artifact_name_by_output[resolved_outfile] = "pips.txt"
         if resolved_target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
-            selected_outputs[resolved_bel_outfile] = "bel.v3.txt"
+            artifact_name_by_output[resolved_bel_outfile] = "bel.v3.txt"
 
-        for output_path in selected_outputs:
+        for output_path in artifact_name_by_output:
             if output_path.exists():
                 backup_path = output_path.with_suffix(".backup.txt")
                 logger.info(f"Backing up {output_path.name} to {backup_path}")
                 output_path.rename(backup_path)
 
         logger.info(f"Timing model target: {resolved_target}")
-        for output_path in selected_outputs:
+        for output_path in artifact_name_by_output:
             logger.info(f"Output timing model file: {output_path}")
 
         tm_config_resolved, artifacts = repl.fabulousAPI.timing_model_interface(
@@ -197,7 +196,7 @@ class TimingCommandSet(ReplCommandSet):
             tool=PnRTool.NEXTPNR,
             target=resolved_target,
         )
-        for output_path, artifact_name in selected_outputs.items():
+        for output_path, artifact_name in artifact_name_by_output.items():
             output_path.write_text(artifacts[artifact_name], encoding="utf-8")
 
         resolved_path: Path = (
