@@ -960,6 +960,47 @@ UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT
 New BEL files should use native VHDL attribute assignments instead.
 :::
 
+(bel-role-attribute)=
+
+#### ROLE and PINNED_IO attributes
+
+Two module attributes tell place and route how to treat a BEL:
+
+- `ROLE` names the BEL's role: `LOGIC_CELL` (a LUT with an optional flip-flop
+  and carry chain, packed by nextpnr as `FABULOUS_LC`), `IN_PASS` or
+  `OUT_PASS` (registered inputs or outputs between the fabric and a hard
+  block), or `OTHER` for any other BEL. The role selects the placeholder
+  timing nextpnr gets for the BEL.
+- `PINNED_IO` marks a BEL that a design's I/O can be constrained to. These BELs
+  are listed in `template.pcf`.
+
+:::{deprecated}
+For a BEL without `ROLE`, FABulous guesses both attributes from the BEL name
+(`LUT4c_frame_config*` is a logic cell, `InPass4_frame_config*` and
+`OutPass4_frame_config*` are pass BELs, and those and
+`IO_1_bidirectional_frame_config_pass` are pinned) and logs a warning. Add the
+attributes to your BEL files; the guess will be removed.
+:::
+
+In Verilog, put them on the module, next to `BelMap` if it has one:
+
+```verilog
+(* FABulous, BelMap, ROLE="IN_PASS", PINNED_IO,
+I0_reg=0, I1_reg=1, I2_reg=2, I3_reg=3
+*)
+module InPass4_frame_config_mux #(parameter NoConfigBits = 4) (...);
+```
+
+In VHDL, declare and set them as entity attributes:
+
+```VHDL
+  attribute ROLE : string;
+  attribute ROLE of InPass4_frame_config_mux : entity is "IN_PASS";
+  attribute PINNED_IO : string;
+  attribute PINNED_IO of InPass4_frame_config_mux : entity is "TRUE";
+end entity InPass4_frame_config_mux;
+```
+
 (belmap-primitives)=
 
 #### BelMap Attribute

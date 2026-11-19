@@ -15,7 +15,7 @@
 
 `default_nettype none
 
-(* FABulous, BelMap,
+(* FABulous, BelMap, ROLE="LOGIC_CELL",
     INIT=0,
     INIT_1=1,
     INIT_2=2,

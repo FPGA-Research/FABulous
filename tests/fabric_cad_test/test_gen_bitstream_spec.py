@@ -28,7 +28,7 @@ from fabulous.fabric_definition.configmem import (
     ConfigMem,
     empty_config_mem,
 )
-from fabulous.fabric_definition.define import ConfigBitMode, Direction
+from fabulous.fabric_definition.define import BelRole, ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -360,6 +360,8 @@ def _build_fabric(
         ports_vectors={},
         carry={},
         localShared={},
+        role=BelRole.OTHER,
+        pinned_io=False,
     )
 
     tile = Tile(
