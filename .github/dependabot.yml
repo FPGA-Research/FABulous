@@ -5,6 +5,7 @@ multi-ecosystem-groups:
     schedule:
       interval: "weekly"
       day: "monday"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
     commit-message:
@@ -19,9 +20,6 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    # Two groups across two directories need up to four slots, plus one for an
-    # ungrouped pre-release bump. A lower limit starves the major group.
-    open-pull-requests-limit: 5
     labels:
       - "dependencies"
     # Our pyproject.toml constraints are deliberately loose lower bounds. Only
