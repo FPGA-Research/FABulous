@@ -233,7 +233,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         compInsName="eFPGA_Config_inst",
         portsPairs=[
             ("CLK", "CLK"),
-            ("resetn", "resetn"),
+            ("reset_n", "resetn"),
             ("Rx", "Rx"),
             ("ComActive", "ComActive"),
             ("ReceiveLED", "ReceiveLED"),
