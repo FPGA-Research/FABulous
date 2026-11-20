@@ -4,6 +4,7 @@ import pytest
 
 from fabulous.fabric_definition.define import (
     IO,
+    Direction,
     FeatureType,
     FeatureValue,
     Side,
@@ -331,3 +332,18 @@ class TestTilePort:
             name="n", io_direction=IO.OUTPUT, width=1, side_of_tile=Side.NORTH
         )
         assert port.tile is None
+
+    def test_expand_top_rejects_jump_port(self) -> None:
+        """A JUMP port stays in its tile, so it has no top slice to expand."""
+        port = TilePort(
+            name="J_BEG",
+            io_direction=IO.OUTPUT,
+            width=4,
+            side_of_tile=Side.NORTH,
+            wire_direction=Direction.JUMP,
+            source_name="J_BEG",
+            destination_name="J_END",
+            wire_count=4,
+        )
+        with pytest.raises(ValueError, match="JUMP port 'J_BEG' has no top slice"):
+            port.expand_port_info_by_name_top(indexed=True)
