@@ -11,7 +11,7 @@ from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType, InvalidPortType, SpecMissMatch
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, HDLType, MultiplexerStyle
+from fabulous.fabric_definition.define import IO, BelRole, HDLType, MultiplexerStyle
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -664,6 +664,8 @@ def genIOBel(
 
     if configBits > 0:
         writer.addBelMapAttribute(belMap)
+    if language == "verilog":
+        writer.addBelRoleAttribute(bel_name, BelRole.OTHER)
 
     writer.addHeader(f"{bel_name}")
     writer.addParameterStart(indentLevel=1)
@@ -751,6 +753,8 @@ def genIOBel(
             )
 
     writer.addPortEnd(indentLevel=1)
+    if language == "vhdl":
+        writer.addBelRoleAttribute(bel_name, BelRole.OTHER, indentLevel=1)
     writer.addHeaderEnd(f"{bel_name}")
     writer.addNewLine()
     # declare architecture

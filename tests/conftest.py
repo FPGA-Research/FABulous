@@ -19,6 +19,7 @@ from fabulous.fabric_definition.define import (
     FRAME_BITS_PER_ROW,
     IO,
     MAX_FRAMES_PER_COL,
+    BelRole,
     Direction,
     HDLType,
     Side,
@@ -264,6 +265,8 @@ def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -
         ports_vectors={},
         carry={},
         localShared={},
+        role=BelRole.OTHER,
+        pinned_io=False,
     )
 
 

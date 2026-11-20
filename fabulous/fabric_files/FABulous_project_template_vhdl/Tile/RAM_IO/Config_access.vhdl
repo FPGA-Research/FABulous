@@ -35,6 +35,8 @@ entity Config_access is
   attribute C_bit3 of Config_access   : entity is 3;
   attribute EXTERNAL of C             : signal is "TRUE";
   attribute GLOBAL of ConfigBits      : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of Config_access : entity is "OTHER";
 end entity Config_access;
 
 architecture Behavioral of Config_access is

@@ -1,0 +1,150 @@
+"""Tests for the BEL module attributes read by `parseBelFile`."""
+
+from pathlib import Path
+
+import pytest
+from pytest_mock import MockerFixture
+
+from fabulous.custom_exception import InvalidBelDefinition
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import BelRole
+from fabulous.fabric_definition.yosys_obj import YosysModule
+from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
+
+
+def parse_with_attributes(
+    mocker: MockerFixture,
+    attributes: dict[str, str | int],
+    *,
+    config_bits: int = 0,
+    name: str = "pass_bel",
+) -> Bel:
+    """Parse a BEL whose Yosys module has the module `attributes`.
+
+    The module has one input `I`, one output `O` and `config_bits` config bits,
+    so no HDL tool runs.
+
+    Parameters
+    ----------
+    mocker : MockerFixture
+        Patches the Yosys front end.
+    attributes : dict[str, str | int]
+        The module attributes.
+    config_bits : int
+        Width of the `ConfigBits` port; no port when 0.
+    name : str
+        The BEL type name, the stem of its file.
+
+    Returns
+    -------
+    Bel
+        The parsed BEL.
+    """
+    ports = {
+        "I": {"direction": "input", "bits": [2]},
+        "O": {"direction": "output", "bits": [3]},
+    }
+    netnames = {
+        "I": {"hide_name": 0, "bits": [2], "attributes": {}},
+        "O": {"hide_name": 0, "bits": [3], "attributes": {}},
+    }
+    if config_bits:
+        bits = list(range(4, 4 + config_bits))
+        ports["ConfigBits"] = {"direction": "input", "bits": bits}
+        netnames["ConfigBits"] = {"hide_name": 0, "bits": bits, "attributes": {}}
+    module = YosysModule(
+        attributes={"top": 1, **attributes},
+        parameter_default_values={},
+        ports=ports,
+        cells={},
+        memories={},
+        netnames=netnames,
+    )
+    yosys_json = mocker.Mock(modules={name: module})
+    yosys_json.getTopModule.return_value = (name, module)
+    mocker.patch(
+        "fabulous.fabric_generator.parser.parse_hdl.YosysJson",
+        return_value=yosys_json,
+    )
+    return parseBelFile(Path(f"{name}.v"), "A_")
+
+
+@pytest.mark.parametrize(
+    ("attributes", "role", "pinned_io"),
+    [
+        ({"FABulous": 1, "ROLE": "LOGIC_CELL"}, BelRole.LOGIC_CELL, False),
+        ({"FABulous": 1, "ROLE": "IN_PASS", "PINNED_IO": 1}, BelRole.IN_PASS, True),
+        ({"FABulous": 1, "ROLE": "OTHER", "PINNED_IO": "TRUE"}, BelRole.OTHER, True),
+        # GHDL lowercases the attribute names of some VHDL BELs.
+        (
+            {"fabulous": 1, "role": "out_pass", "pinned_io": "TRUE"},
+            BelRole.OUT_PASS,
+            True,
+        ),
+    ],
+)
+def test_role_and_pin_flag_come_from_the_module_attributes(
+    mocker: MockerFixture,
+    attributes: dict[str, str | int],
+    role: BelRole,
+    pinned_io: bool,
+) -> None:
+    """`ROLE` names the BEL's role and `PINNED_IO` makes it pinnable."""
+    bel = parse_with_attributes(mocker, attributes)
+
+    assert bel.role is role
+    assert bel.pinned_io is pinned_io
+
+
+def test_role_and_pin_flag_are_not_belmap_features(mocker: MockerFixture) -> None:
+    """Next to `BelMap`, only the numbered attributes are config features."""
+    bel = parse_with_attributes(
+        mocker,
+        {"FABulous": 1, "BelMap": 1, "ROLE": "IN_PASS", "PINNED_IO": 1, "I0_reg": 0},
+        config_bits=1,
+    )
+
+    assert list(bel.belFeatureMap) == ["I0_reg"]
+    assert bel.role is BelRole.IN_PASS
+
+
+@pytest.mark.parametrize(
+    ("name", "role", "pinned_io"),
+    [
+        ("LUT4c_frame_config_dffesr", BelRole.LOGIC_CELL, False),
+        ("InPass4_frame_config_mux", BelRole.IN_PASS, True),
+        ("OutPass4_frame_config", BelRole.OUT_PASS, True),
+        ("IO_1_bidirectional_frame_config_pass", BelRole.OTHER, True),
+        ("MULADD", BelRole.OTHER, False),
+    ],
+)
+def test_missing_role_is_guessed_from_the_name_with_a_warning(
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    name: str,
+    role: BelRole,
+    pinned_io: bool,
+) -> None:
+    """A BEL without `ROLE` keeps the role nextpnr assumed for its name."""
+    bel = parse_with_attributes(mocker, {"FABulous": 1}, name=name)
+
+    assert bel.role is role
+    assert bel.pinned_io is pinned_io
+    assert f"{name}.v has no ROLE attribute" in caplog.text
+
+
+def test_role_attribute_overrides_the_name(mocker: MockerFixture) -> None:
+    """With `ROLE`, the name no longer matters, nor does it pin the BEL."""
+    bel = parse_with_attributes(
+        mocker, {"FABulous": 1, "ROLE": "OTHER"}, name="InPass4_frame_config"
+    )
+
+    assert bel.role is BelRole.OTHER
+    assert not bel.pinned_io
+
+
+@pytest.mark.parametrize("value", ["LUT", 1])
+def test_unknown_role_is_rejected(mocker: MockerFixture, value: str | int) -> None:
+    """A `ROLE` that names no `BelRole` stops the parse."""
+    with pytest.raises(InvalidBelDefinition, match="is not one of"):
+        parse_with_attributes(mocker, {"FABulous": 1, "ROLE": value})

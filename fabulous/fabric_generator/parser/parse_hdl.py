@@ -3,12 +3,14 @@
 import re
 from pathlib import Path
 
+from loguru import logger
+
 from fabulous.custom_exception import (
     FabricParsingError,
     InvalidBelDefinition,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, FABulousAttribute
+from fabulous.fabric_definition.define import IO, BelRole, FABulousAttribute
 from fabulous.fabric_definition.yosys_obj import YosysJson, YosysModule
 
 
@@ -47,6 +49,8 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     exclude_attributes = {
         "BelMap",
         "FABulous",
+        FABulousAttribute.ROLE,
+        FABulousAttribute.PINNED_IO,
         "dynports",
         "cells_not_processed",
         "src",
@@ -96,6 +100,113 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     return belMapDic
 
 
+def _module_attribute(module_info: YosysModule, name: str) -> str | int | None:
+    """Return the module attribute `name`, matched ignoring case.
+
+    GHDL lowercases the attribute names of some VHDL BELs.
+
+    Parameters
+    ----------
+    module_info : YosysModule
+        The BEL module.
+    name : str
+        The attribute name.
+
+    Returns
+    -------
+    str | int | None
+        The attribute value, or None if the module has no such attribute.
+    """
+    for key, value in module_info.attributes.items():
+        if key.casefold() == name.casefold():
+            return value
+    return None
+
+
+# Deprecated: roles and pin flags of BELs without a ROLE attribute, from the
+# BEL names nextpnr hardcodes. Remove once BELs must carry ROLE.
+_LEGACY_LOGIC_CELLS = frozenset(
+    {"FABULOUS_LC", "LUT4c_frame_config", "LUT4c_frame_config_dffesr"}
+)
+_LEGACY_OUT_PASS_PREFIX = "OutPass4_frame_config"
+_LEGACY_IN_PASS_PREFIX = "InPass4_frame_config"
+_LEGACY_PINNED_IO = frozenset(
+    {
+        "IO_1_bidirectional_frame_config_pass",
+        "InPass4_frame_config",
+        "OutPass4_frame_config",
+        "InPass4_frame_config_mux",
+        "OutPass4_frame_config_mux",
+    }
+)
+
+
+def _legacy_bel_role(name: str) -> BelRole:
+    """Return the role nextpnr historically assumed for the BEL type `name`.
+
+    Parameters
+    ----------
+    name : str
+        The BEL type name.
+
+    Returns
+    -------
+    BelRole
+        The role of the BEL type.
+    """
+    if name in _LEGACY_LOGIC_CELLS:
+        return BelRole.LOGIC_CELL
+    if name.startswith(_LEGACY_OUT_PASS_PREFIX):
+        return BelRole.OUT_PASS
+    if name.startswith(_LEGACY_IN_PASS_PREFIX):
+        return BelRole.IN_PASS
+    return BelRole.OTHER
+
+
+def _parse_bel_role(module_info: YosysModule, filename: Path) -> tuple[BelRole, bool]:
+    """Return the BEL role and pin flag from the module's attributes.
+
+    `ROLE` names the role and `PINNED_IO` sets the pin flag. A BEL without
+    `ROLE` predates the attributes: both come from its name, with a deprecation
+    warning.
+
+    Parameters
+    ----------
+    module_info : YosysModule
+        The BEL module.
+    filename : Path
+        The BEL file; its stem is the BEL type name.
+
+    Returns
+    -------
+    tuple[BelRole, bool]
+        The role and whether a design's I/O can be pinned to the BEL.
+
+    Raises
+    ------
+    InvalidBelDefinition
+        If the `ROLE` attribute does not name a `BelRole`.
+    """
+    value = _module_attribute(module_info, FABulousAttribute.ROLE)
+    if value is None:
+        role = _legacy_bel_role(filename.stem)
+        pinned_io = filename.stem in _LEGACY_PINNED_IO
+        logger.warning(
+            f"BEL {filename} has no ROLE attribute, so its role is guessed from its "
+            f'name as ROLE="{role.name}"{", PINNED_IO" if pinned_io else ""}. '
+            "Add the attributes to the BEL module; the guess is deprecated and "
+            "will be removed."
+        )
+        return role, pinned_io
+    roles = [role.name for role in BelRole]
+    if not isinstance(value, str) or value.upper() not in roles:
+        raise InvalidBelDefinition(
+            f"ROLE attribute {value!r} of BEL {filename} is not one of {roles}."
+        )
+    pinned_io = _module_attribute(module_info, FABulousAttribute.PINNED_IO) is not None
+    return BelRole[value.upper()], pinned_io
+
+
 def parseBelFile(
     filename: Path,
     belPrefix: str = "",
@@ -116,6 +227,8 @@ def parseBelFile(
     * **CONFIG_PORT**
     * **SHARED_ENABLE**
     * **SHARED_RESET**
+    * **ROLE**
+    * **PINNED_IO**
 
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
@@ -150,12 +263,20 @@ def parseBelFile(
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
 
+    **ROLE** goes on the module next to **BelMap** and names the `BelRole`
+    that place and route gives the BEL: ``ROLE="LOGIC_CELL"``, ``"IN_PASS"``,
+    ``"OUT_PASS"`` or ``"OTHER"``. For a BEL without it, the role and the pin
+    flag are guessed from the BEL name, with a deprecation warning.
+
+    **PINNED_IO** goes on the module and marks a BEL that a design's I/O can be
+    constrained to in a PCF file.
+
     Example
     -------
     Verilog
     ::
 
-        (* FABulous, BelMap,
+        (* FABulous, BelMap, ROLE="OTHER",
         single_bit_feature=0, //single bit feature, single_bit_feature=0
         multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
         multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
@@ -319,6 +440,7 @@ def parseBelFile(
             "config bits"
         )
 
+    role, pinned_io = _parse_bel_role(module_info, filename)
     return Bel(
         src=filename,
         prefix=belPrefix,
@@ -333,4 +455,6 @@ def parseBelFile(
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,
+        role=role,
+        pinned_io=pinned_io,
     )
