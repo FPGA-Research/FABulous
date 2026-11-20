@@ -717,6 +717,32 @@ class BelPort(Port):
         """The port name including its prefix."""
         return f"{self.prefix}{self._name}"
 
+    @property
+    def pin_name(self) -> str:
+        """The name a user design connects: the port name without its prefix.
+
+        The `UserCLK` port is called `CLK`.
+        """
+        return "CLK" if self._name == "UserCLK" else self._name
+
+    @classmethod
+    def free(cls, name: str, io_direction: IO) -> BelPort:
+        """Return a one-bit port without a prefix that belongs to no BEL.
+
+        Parameters
+        ----------
+        name : str
+            The port name.
+        io_direction : IO
+            The port direction.
+
+        Returns
+        -------
+        BelPort
+            The port; a clock when `name` is `UserCLK`.
+        """
+        return cls(name, io_direction, 1, is_clock=name == "UserCLK")
+
     def expand(self) -> list[str]:
         """Expand the port name into a list of strings based on the width.
 

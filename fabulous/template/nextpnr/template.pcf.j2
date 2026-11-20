@@ -1,0 +1,8 @@
+{% for group in groups %}
+{% for bel in group.bels %}
+{% if bel.pinned_io %}
+{% set letter = group.letter(loop.index0) %}
+set_io Tile_X{{ group.x }}Y{{ group.y }}_{{ letter }} Tile_X{{ group.x }}Y{{ group.y }}.{{ letter }}
+{% endif %}
+{% endfor %}
+{% endfor %}

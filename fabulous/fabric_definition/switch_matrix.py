@@ -10,7 +10,7 @@ lives in `fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -19,10 +19,28 @@ from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefini
 from fabulous.fabric_definition.define import Direction
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping
     from pathlib import Path
 
     from fabulous.fabric_definition.bel import Bel
     from fabulous.fabric_definition.port import Port
+    from fabulous.fabric_definition.timing import Ns
+
+
+@dataclass(frozen=True, slots=True)
+class SwitchPip:
+    """A switch-matrix pip, mux input to mux output.
+
+    Attributes
+    ----------
+    src : str
+        Mux input wire.
+    dst : str
+        Mux output wire.
+    """
+
+    src: str
+    dst: str
 
 
 def switch_matrix_signal_order(
@@ -88,12 +106,53 @@ class SwitchMatrix:
     hdl_config_bits : int | None
         Config-bit count declared by a hand-written HDL matrix. None for parsed
         matrices, whose `no_config_bits` is derived from `connections` instead.
+    pip_delays : Mapping[SwitchPip, Ns] | None
+        Delay of each pip, set by the placeholder timing or by characterisation
+        through `dataclasses.replace`. None until one of them ran. Not part of
+        equality.
     """
 
     matrix_file: Path
     connections: dict[str, list[str]]
     preserve_list_order: bool = False
     hdl_config_bits: int | None = None
+    pip_delays: Mapping[SwitchPip, Ns] | None = field(default=None, compare=False)
+
+    def pips(self) -> Iterator[SwitchPip]:
+        """Yield the pips of the switch matrix in `connections` order.
+
+        Yields
+        ------
+        SwitchPip
+            One pip per mux input, from that input to the mux output.
+        """
+        for dst, sources in self.connections.items():
+            for src in sources:
+                yield SwitchPip(src=src, dst=dst)
+
+    def get_pip_delay(self, pip: SwitchPip) -> Ns:
+        """Return the delay of `pip`.
+
+        Parameters
+        ----------
+        pip : SwitchPip
+            One of the pips of the switch matrix.
+
+        Returns
+        -------
+        Ns
+            The pip delay.
+
+        Raises
+        ------
+        ValueError
+            If the switch matrix has no pip delays, or none for `pip`.
+        """
+        if self.pip_delays is None:
+            raise ValueError(f"Switch matrix {self.matrix_file} has no pip delays.")
+        if pip not in self.pip_delays:
+            raise ValueError(f"No delay for {pip} in switch matrix {self.matrix_file}.")
+        return self.pip_delays[pip]
 
     @property
     def no_config_bits(self) -> int:
