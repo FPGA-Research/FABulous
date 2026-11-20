@@ -1,0 +1,8 @@
+{% for source in sources %}
+read_verilog -sv "{{ source }}"
+{% endfor %}
+hierarchy -check
+proc
+opt_clean
+write_rtlil "{{ rtlil }}"
+write_json "{{ netlist }}"
