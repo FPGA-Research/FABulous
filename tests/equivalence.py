@@ -130,7 +130,9 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
     sources: list[Path] = []
     for path, netlist in netlists:
         defined = json.loads(netlist.read_text())["modules"]
-        is_techmap_rule = any(name.startswith("\\$") for name in defined)
+        is_techmap_rule = any(
+            name.removeprefix("\\").startswith("$") for name in defined
+        )
         if is_techmap_rule:
             continue
         for name, body in defined.items():
