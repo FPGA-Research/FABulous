@@ -71,7 +71,9 @@ class Design:
     project_modules: set[str]
 
 
-def run_yosys_script(script: Path, template: str, **context: object) -> None:
+def run_yosys_script(
+    script: Path, template: str, plugins: tuple[str, ...] = (), **context: object
+) -> None:
     """Render `template` from `tests/templates` into `script` and run it in yosys.
 
     The yosys log lands next to `script` with a `.log` suffix. A variable missing
@@ -79,7 +81,10 @@ def run_yosys_script(script: Path, template: str, **context: object) -> None:
     `RuntimeError`.
     """
     script.write_text(YOSYS_SCRIPT_TEMPLATES.get_template(template).render(**context))
-    YosysTool.run(args=["-q", "-l", str(script.with_suffix(".log")), str(script)])
+    plugin_args = [arg for plugin in plugins for arg in ("-m", plugin)]
+    YosysTool.run(
+        args=[*plugin_args, "-q", "-l", str(script.with_suffix(".log")), str(script)]
+    )
 
 
 def fabric_files(
