@@ -22,13 +22,39 @@ GENERATED_HASH_KEY = "fabulous_generated_sha256"
 
 @dataclass
 class PinOrderConfig:
-    """Container describing pin ordering constraints for a segment."""
+    """Container describing pin ordering constraints for a segment.
 
-    min_distance: int | None = None
-    max_distance: int | None = None
+    Attributes
+    ----------
+    min_track_stride : int | None
+        Fewest routing tracks from one pin centre to the next. 1 allows pins on
+        adjacent tracks and 2 leaves one empty track between them. `None` uses
+        the smallest stride that meets pin width plus layer spacing.
+    max_track_stride : int | None
+        Most routing tracks from one pin centre to the next. `None` leaves the
+        gap unbounded.
+    pins : list[str | int]
+        Pin name regexes, or integers reserving that many virtual pins.
+    sort_mode : PinSortMode
+        Ordering applied to the pins each regex matches.
+    reverse_result : bool
+        Reverse the final pin order of the segment.
+    min_distance : float | None
+        Deprecated centre distance in um, read only from pin files written
+        before `min_track_stride`. Rounded up to whole tracks and raised to the
+        pin width plus spacing floor. Never written by `to_dict`.
+    max_distance : float | None
+        Deprecated centre distance in um, rounded down to whole tracks. Never
+        written by `to_dict`.
+    """
+
+    min_track_stride: int | None = None
+    max_track_stride: int | None = None
     pins: list[str | int] = field(default_factory=list)
     sort_mode: PinSortMode = PinSortMode.BUS_MAJOR
     reverse_result: bool = False
+    min_distance: float | None = None
+    max_distance: float | None = None
 
     def __call__(self, pins: list[str | int]) -> Self:
         """Bind a concrete pin list to this configuration instance."""
@@ -39,8 +65,8 @@ class PinOrderConfig:
         """Return a serialisable dictionary representation."""
         pins = list(getattr(self, "pins", []) or [])
         return {
-            "min_distance": self.min_distance,
-            "max_distance": self.max_distance,
+            "min_track_stride": self.min_track_stride,
+            "max_track_stride": self.max_track_stride,
             "pins": pins,
             "sort_mode": str(self.sort_mode),
             "reverse_result": self.reverse_result,

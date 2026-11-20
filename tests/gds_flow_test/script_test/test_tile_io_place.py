@@ -19,7 +19,7 @@ from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
     equally_spaced_sequence,
-    filter_pin_tracks_by_stride_and_distance,
+    filter_pin_tracks_by_stride,
     grid_to_tracks,
 )
 
@@ -134,8 +134,8 @@ class TestSegmentInfo:
         segment_config = PinOrderConfig(
             pins=["pin.*"],
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
         )
 
@@ -163,8 +163,8 @@ class TestSegmentInfo:
         segment_config = PinOrderConfig(
             pins=["pin1", 3, "pin2"],
             sort_mode=PinSortMode.BIT_MINOR,
-            min_distance=1,
-            max_distance=5,
+            min_track_stride=1,
+            max_track_stride=5,
             reverse_result=True,
         )
 
@@ -196,21 +196,32 @@ class TestSegmentInfo:
         seg_info = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[mocker.Mock(), 2, mocker.Mock(), 3, mocker.Mock()],
         )
 
         assert seg_info.actual_pin_count == 3
 
+    @pytest.mark.parametrize("key", ["min_track_stride", "max_track_stride"])
+    @pytest.mark.parametrize("value", [0.336, 0, -1, True])
+    def test_from_config_rejects_non_positive_int_stride(
+        self, key: str, value: float
+    ) -> None:
+        """A stride that is not a positive integer track count raises."""
+        config = {"X0Y0": {"NORTH": [{"pins": [], key: value}]}}
+
+        with pytest.raises(ValueError, match=f"{key} on side N "):
+            PinPlacementPlan(config, [], "none")
+
     def test_invalid_sort_mode(self) -> None:
         """Test error on invalid sort mode."""
         segment_config = PinOrderConfig(
             pins=["pin.*"],
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
         )
 
@@ -219,8 +230,8 @@ class TestSegmentInfo:
         segment_config_dict = {
             "pins": ["pin.*"],
             "sort_mode": "invalid_mode",
-            "min_distance": None,
-            "max_distance": None,
+            "min_track_stride": None,
+            "max_track_stride": None,
             "reverse_result": False,
         }
 
@@ -232,15 +243,15 @@ class TestSegmentInfo:
         segment_config1 = PinOrderConfig(
             pins=["pin.*"],
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
         )
         segment_config2 = PinOrderConfig(
             pins=["pin_test"],
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
         )
 
@@ -288,8 +299,8 @@ class TestPinPlacementPlan:
                     {
                         "pins": ["clk", "rst"],
                         "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": None,
+                        "min_track_stride": None,
+                        "max_track_stride": None,
                         "reverse_result": False,
                     }
                 ]
@@ -418,25 +429,157 @@ class TestPinPlacementPlan:
 
         assert len(plan.track_coordinates[Side.NORTH]) == 2
 
-    def test_ensure_min_distances(self, mocker: MockerFixture) -> None:
-        """Test ensuring minimum distances for segments."""
+    @pytest.mark.parametrize(
+        ("min_track_stride", "floor", "step", "expected"),
+        [
+            # ihp Metal3 at width mult 1.04: 0.208 + 0.21 fits one 0.42 track.
+            (None, 0.418, 0.42, 1),
+            # ihp Metal3 at width mult 2: 0.40 + 0.21 needs two tracks.
+            (None, 0.61, 0.42, 2),
+            (2, 0.61, 0.42, 2),
+            (3, 0.418, 0.42, 3),
+        ],
+    )
+    def test_resolve_min_track_strides(
+        self,
+        mocker: MockerFixture,
+        min_track_stride: int | None,
+        floor: float,
+        step: float,
+        expected: int,
+    ) -> None:
+        """Unset strides take the floor stride and valid strides are kept."""
         config = {
             "X0Y0": {
                 "NORTH": [
-                    {"pins": ["pin0"], "sort_mode": "bus_major", "min_distance": 0.5}
+                    {
+                        "pins": ["pin0"],
+                        "sort_mode": "bus_major",
+                        "min_track_stride": min_track_stride,
+                    }
                 ]
             }
         }
-
         mock_pin = mocker.Mock()
         mock_pin.getName.return_value = "pin0"
-
         plan = PinPlacementPlan(config, [mock_pin], "none")
 
-        min_by_side = {side: 1.0 for side in Side}
-        plan.ensure_min_distances(min_by_side)
+        # io_place supplies only the four die sides, never Side.ANY.
+        die_sides = [Side.NORTH, Side.SOUTH, Side.EAST, Side.WEST]
+        plan.resolve_min_track_strides(
+            {side: floor for side in die_sides},
+            {side: step for side in die_sides},
+            micron_in_units=1.0,
+        )
 
-        assert plan.segments_by_side[Side.NORTH][0].min_distance == 1.0
+        assert plan.segments_by_side[Side.NORTH][0].min_track_stride == expected
+
+    @pytest.mark.parametrize(
+        ("min_track_stride", "max_track_stride", "floor", "match"),
+        [
+            (1, None, 0.61, "Set min_track_stride to 2 or more"),
+            (2, 1, 0.418, "max_track_stride=1 on side N is below"),
+        ],
+    )
+    def test_resolve_min_track_strides_rejects(
+        self,
+        mocker: MockerFixture,
+        min_track_stride: int,
+        max_track_stride: int | None,
+        floor: float,
+        match: str,
+    ) -> None:
+        """Strides below the floor or a max below the min raise."""
+        config = {
+            "X0Y0": {
+                "NORTH": [
+                    {
+                        "pins": ["pin0"],
+                        "sort_mode": "bus_major",
+                        "min_track_stride": min_track_stride,
+                        "max_track_stride": max_track_stride,
+                    }
+                ]
+            }
+        }
+        mock_pin = mocker.Mock()
+        mock_pin.getName.return_value = "pin0"
+        plan = PinPlacementPlan(config, [mock_pin], "none")
+        die_sides = [Side.NORTH, Side.SOUTH, Side.EAST, Side.WEST]
+
+        with pytest.raises(ValueError, match=match):
+            plan.resolve_min_track_strides(
+                {side: floor for side in die_sides},
+                {side: 0.42 for side in die_sides},
+                micron_in_units=1.0,
+            )
+
+    @pytest.mark.parametrize(
+        ("legacy", "floor", "expected_min", "expected_max"),
+        [
+            # ihp Metal3, 420 DBU tracks, 1000 DBU per um.
+            ({"min_distance": None, "max_distance": None}, 418, 1, None),
+            # Below the floor: raised to the floor, as before the rename.
+            ({"min_distance": 0.336}, 418, 1, None),
+            ({"min_distance": 0.336}, 610, 2, None),
+            # Rounded up to whole tracks.
+            ({"min_distance": 0.43}, 418, 2, None),
+            # Rounded down to whole tracks, never below one.
+            ({"max_distance": 5.0}, 418, 1, 11),
+            ({"max_distance": 0.3}, 418, 1, 1),
+        ],
+    )
+    def test_resolve_legacy_distances(
+        self,
+        mocker: MockerFixture,
+        legacy: dict[str, float | None],
+        floor: int,
+        expected_min: int,
+        expected_max: int | None,
+    ) -> None:
+        """Deprecated um distances convert to the strides they produced before."""
+        warn = mocker.patch(
+            "fabulous.fabric_generator.gds_generator.script.tile_io_place.warn"
+        )
+        config = {
+            "X0Y0": {
+                "NORTH": [
+                    {"pins": ["pin0"], "sort_mode": "bus_major", **legacy},
+                    {"pins": ["pin1"], "sort_mode": "bus_major", **legacy},
+                ]
+            }
+        }
+        pins = []
+        for name in ("pin0", "pin1"):
+            pin = mocker.Mock()
+            pin.getName.return_value = name
+            pins.append(pin)
+        plan = PinPlacementPlan(config, pins, "none")
+        die_sides = [Side.NORTH, Side.SOUTH, Side.EAST, Side.WEST]
+
+        plan.resolve_min_track_strides(
+            {side: floor for side in die_sides},
+            {side: 420 for side in die_sides},
+            micron_in_units=1000,
+        )
+
+        warn.assert_called_once()
+        for segment in plan.segments_by_side[Side.NORTH]:
+            assert segment.min_track_stride == expected_min
+            assert segment.max_track_stride == expected_max
+
+    @pytest.mark.parametrize(
+        ("old_key", "new_key"),
+        [("min_distance", "min_track_stride"), ("max_distance", "max_track_stride")],
+    )
+    def test_legacy_and_new_key_together_raise(
+        self, old_key: str, new_key: str
+    ) -> None:
+        """A segment may not set both the deprecated and the new key."""
+        config = {"X0Y0": {"NORTH": [{"pins": [], old_key: 1.0, new_key: 2}]}}
+
+        with pytest.raises(ValueError, match=f"Remove {old_key}"):
+            PinPlacementPlan(config, [], "none")
 
     def test_assign_unmatched_pins(self, mocker: MockerFixture) -> None:
         """Test assigning unmatched pins to segments."""
@@ -585,8 +728,8 @@ class TestPinPlacementPlanPrivateMethods:
         seg1 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[mocker.Mock()],
             tile_index=0,
@@ -596,8 +739,8 @@ class TestPinPlacementPlanPrivateMethods:
         seg2 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[mocker.Mock()],
             tile_index=1,
@@ -643,16 +786,16 @@ class TestPinPlacementPlanPrivateMethods:
         seg1 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[mocker.Mock(), mocker.Mock()],
         )
         seg2 = SegmentInfo(
             side=Side.NORTH,
             sort_mode=PinSortMode.BUS_MAJOR,
-            min_distance=None,
-            max_distance=None,
+            min_track_stride=None,
+            max_track_stride=None,
             reverse_result=False,
             pin_entries=[mocker.Mock()],
         )
@@ -672,91 +815,18 @@ class TestPinPlacementPlanPrivateMethods:
 class TestIntegration:
     """Integration tests for complete pin placement workflow."""
 
-    def test_track_allocation_respects_min_distance(
+    def test_track_allocation_respects_max_track_stride(
         self, mocker: MockerFixture
     ) -> None:
-        """Test that min_distance filtering works correctly.
-
-        The allocate_tracks() method generates raw tracks based on the track grid. The
-        min_distance constraint is then enforced by filtering these tracks with a
-        stride, as done in the io_place() function.
-        """
+        """Test that allocated tracks respect max_track_stride constraints."""
         config = {
             "X0Y0": {
                 "NORTH": [
                     {
                         "pins": ["pin0", "pin1", "pin2"],
                         "sort_mode": "bus_major",
-                        "min_distance": 2.5,  # Minimum 2.5 units between pins
-                        "max_distance": None,
-                        "reverse_result": False,
-                    }
-                ]
-            }
-        }
-
-        mock_pins = [mocker.Mock(getName=lambda i=i: f"pin{i}") for i in range(3)]
-        for pin in mock_pins:
-            pin.getName.return_value = pin.getName()
-
-        plan = PinPlacementPlan(config, mock_pins, "none")
-
-        # Ensure min_distance is set
-        plan.ensure_min_distances({Side.NORTH: 2.5})
-
-        # Allocate tracks with specific parameters
-        specs = {
-            Side.NORTH: (
-                10,
-                1.0,
-                0.0,
-                10.0,
-            ),  # 10 tracks, step=1.0, origin=0, length=10
-        }
-        plan.allocate_tracks(specs, offset=0)
-
-        # Verify tracks were allocated
-        assert len(plan.track_coordinates[Side.NORTH]) == 1
-        raw_tracks = plan.track_coordinates[Side.NORTH][0]
-
-        # Apply min_distance filtering (as done in io_place())
-        segment = plan.segments_by_side[Side.NORTH][0]
-        step = 1.0
-        assert segment.min_distance is not None
-        min_distance = segment.min_distance * 1.0  # Assume dbunits=1 for simplicity
-
-        # Calculate stride based on min_distance
-        import math
-
-        stride = max(1, math.ceil(min_distance / step))
-        filtered_tracks = [raw_tracks[i] for i in range(0, len(raw_tracks), stride)]
-
-        # Verify filtering: with min_distance=2.5 and step=1.0, stride=3
-        # So we get tracks at indices 0, 3, 6, 9
-        assert stride == 3, f"Expected stride=3, got {stride}"
-        assert len(filtered_tracks) == 4, (
-            f"Expected 4 filtered tracks, got {len(filtered_tracks)}"
-        )
-
-        # Verify actual distances between consecutive filtered tracks
-        for i in range(len(filtered_tracks) - 1):
-            distance = abs(filtered_tracks[i + 1] - filtered_tracks[i])
-            assert distance >= min_distance, (
-                f"Distance {distance} < min_distance {min_distance}"
-            )
-
-    def test_track_allocation_respects_max_distance(
-        self, mocker: MockerFixture
-    ) -> None:
-        """Test that allocated tracks respect max_distance constraints."""
-        config = {
-            "X0Y0": {
-                "NORTH": [
-                    {
-                        "pins": ["pin0", "pin1", "pin2"],
-                        "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": 5.0,  # Maximum 5.0 units between consecutive pins
+                        "min_track_stride": None,
+                        "max_track_stride": 5,
                         "reverse_result": False,
                     }
                 ]
@@ -781,7 +851,7 @@ class TestIntegration:
         # Verify max distance is respected
         for i in range(len(tracks) - 1):
             distance = abs(tracks[i + 1] - tracks[i])
-            assert distance <= 5.0, f"Distance {distance} > max_distance 5.0"
+            assert distance <= 5.0, f"Distance {distance} > 5 tracks of step 1.0"
 
     @pytest.mark.parametrize(
         ("sort_mode", "expected_order"),
@@ -829,8 +899,8 @@ class TestIntegration:
                     {
                         "pins": [".*\\[.*\\]"],  # Single regex matching both buses
                         "sort_mode": sort_mode,
-                        "min_distance": None,
-                        "max_distance": None,
+                        "min_track_stride": None,
+                        "max_track_stride": None,
                         "reverse_result": False,
                     }
                 ]
@@ -864,8 +934,8 @@ class TestIntegration:
                     {
                         "pins": ["pin0", "pin1", "pin2"],
                         "sort_mode": "bus_major",
-                        "min_distance": None,
-                        "max_distance": None,
+                        "min_track_stride": None,
+                        "max_track_stride": None,
                         "reverse_result": True,
                     }
                 ]
@@ -1430,8 +1500,6 @@ class TestNormalTileSupertilePinAlignment:
         origin_f = float(origin)
         step_f = float(step)
         tile_h = float(tile_height)
-        min_distance = stride * step_f
-        micron_in_units = 1.0
         normal_count = m.floor((tile_h - origin_f) / step_f) + 1
         super_count = m.floor((2 * tile_h - origin_f) / step_f) + 1
 
@@ -1442,7 +1510,7 @@ class TestNormalTileSupertilePinAlignment:
                     {
                         "pins": ["n0", "n1"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": stride,
                     }
                 ]
             },
@@ -1455,7 +1523,6 @@ class TestNormalTileSupertilePinAlignment:
         plan_normal.allocate_tracks(
             {Side.EAST: (normal_count, step_f, origin_f, tile_h)}
         )
-        plan_normal.ensure_min_distances({Side.EAST: min_distance})
 
         # Super tile
         super_config = {
@@ -1464,7 +1531,7 @@ class TestNormalTileSupertilePinAlignment:
                     {
                         "pins": ["s0", "s1"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": stride,
                     }
                 ]
             },
@@ -1473,7 +1540,7 @@ class TestNormalTileSupertilePinAlignment:
                     {
                         "pins": ["s2", "s3"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": stride,
                     }
                 ]
             },
@@ -1486,16 +1553,15 @@ class TestNormalTileSupertilePinAlignment:
         plan_super.allocate_tracks(
             {Side.WEST: (super_count, step_f, origin_f, 2 * tile_h)}
         )
-        plan_super.ensure_min_distances({Side.WEST: min_distance})
 
         step_by_side = {side: step_f for side in Side}
         origin_by_side = {side: origin_f for side in Side}
 
-        normal_pin_tracks, normal_errors = filter_pin_tracks_by_stride_and_distance(
-            plan_normal, step_by_side, origin_by_side, micron_in_units
+        normal_pin_tracks, normal_errors = filter_pin_tracks_by_stride(
+            plan_normal, step_by_side, origin_by_side
         )
-        super_pin_tracks, super_errors = filter_pin_tracks_by_stride_and_distance(
-            plan_super, step_by_side, origin_by_side, micron_in_units
+        super_pin_tracks, super_errors = filter_pin_tracks_by_stride(
+            plan_super, step_by_side, origin_by_side
         )
 
         assert normal_errors == [], f"[{label}] normal filter errors: {normal_errors}"
@@ -1522,7 +1588,7 @@ class TestNormalTileSupertilePinAlignment:
 
         Real tiles split one side across multiple YAML segments (e.g.
         ``N_term_single`` SOUTH allocates pins to ``N1END``, ``N2MID``,
-        ``N2END``).  The stride filter that enforces ``min_distance`` should
+        ``N2END``).  The stride filter that enforces ``min_track_stride`` should
         treat the whole side of a physical tile as one stride cadence.
         When the cadence restarts at every segment boundary the last
         filtered pin of segment A and the first filtered pin of segment B
@@ -1532,11 +1598,9 @@ class TestNormalTileSupertilePinAlignment:
         Reproduction observed on ``N_term_single`` SOUTH at W=120.96 um.
         """
         # SG13G2 Metal2 routing parameters: origin on-grid, step is the
-        # native pitch, min_distance = 2 pitches → stride = 2.
+        # native pitch, stride = 2.
         origin, step, tile_width = 0.0, 0.48, 60.0
-        min_distance = 2 * step
-        expected_spacing = min_distance
-        micron_in_units = 1.0
+        expected_spacing = 2 * step
 
         # Three segments on SOUTH with odd-sized pin sets so the buggy
         # per-segment cadence reset puts the boundaries off-parity.
@@ -1546,17 +1610,17 @@ class TestNormalTileSupertilePinAlignment:
                     {
                         "pins": ["a0", "a1", "a2", "a3", "a4"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": 2,
                     },
                     {
                         "pins": ["b0", "b1", "b2", "b3", "b4"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": 2,
                     },
                     {
                         "pins": ["c0", "c1", "c2", "c3", "c4"],
                         "sort_mode": "bus_major",
-                        "min_distance": min_distance,
+                        "min_track_stride": 2,
                     },
                 ],
             },
@@ -1566,12 +1630,11 @@ class TestNormalTileSupertilePinAlignment:
 
         track_count = int((tile_width - origin) / step) + 1
         plan.allocate_tracks({Side.SOUTH: (track_count, step, origin, tile_width)})
-        plan.ensure_min_distances({Side.SOUTH: min_distance})
 
         assert len(plan.segments_by_side[Side.SOUTH]) == 3
         assert len(plan.track_coordinates[Side.SOUTH]) == 3
 
-        pin_tracks, track_errors = filter_pin_tracks_by_stride_and_distance(
+        pin_tracks, track_errors = filter_pin_tracks_by_stride(
             plan,
             step_by_side={
                 Side.NORTH: step,
@@ -1585,7 +1648,6 @@ class TestNormalTileSupertilePinAlignment:
                 Side.EAST: origin,
                 Side.WEST: origin,
             },
-            micron_in_units=micron_in_units,
         )
 
         assert track_errors == [], (
