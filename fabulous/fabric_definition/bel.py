@@ -56,8 +56,10 @@ class Bel:
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
     keep_vector_ports : bool
-        Whether the BEL's vector ports stay vectors in the Yosys primitive and the
-        nextpnr model. Defaults to False.
+        Whether the BEL's vector ports stay vectors in the Yosys primitive, the
+        nextpnr model and, for external ports, the tile and fabric ports. When
+        set, the external ports are taken from `ports_vectors["external"]`.
+        Defaults to False.
 
     Attributes
     ----------
@@ -101,14 +103,18 @@ class Bel:
         The internal output ports of the BEL. Each port's `name` includes `prefix`.
     external_input_ports : list[BelPort]
         The external input ports of the BEL. Each port's `name` includes `prefix`.
+        One port per bit, unless `keep_vector_ports` is set: then a vector port is
+        a single port of its full `width`.
     external_output_ports : list[BelPort]
-        The external output ports of the BEL. Each port's `name` includes `prefix`.
+        The external output ports of the BEL, in the same form as
+        `external_input_ports`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
     keep_vector_ports : bool
         Whether the BEL's vector ports stay vectors in the Yosys primitive and the
         nextpnr model, so a user design instantiates the BEL with `.D(d)` instead
-        of `.D0(d[0]), .D1(d[1])`.
+        of `.D0(d[0]), .D1(d[1])`. Its external vector ports are also exported
+        from the tile and the fabric as vectors.
 
     Raises
     ------
@@ -184,16 +190,18 @@ class Bel:
                 self.input_ports.append(bel_port)
             elif io == IO.OUTPUT:
                 self.output_ports.append(bel_port)
-        self.external_input_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
-            for p, io in external
-            if io == IO.INPUT
-        ]
-        self.external_output_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
-            for p, io in external
-            if io == IO.OUTPUT
-        ]
+        if keep_vector_ports:
+            external_ports = [
+                BelPort(port, io, width, prefix=prefix, external=True)
+                for port, (io, width) in ports_vectors["external"].items()
+            ]
+        else:
+            external_ports = [
+                BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
+                for p, io in external
+            ]
+        self.external_input_ports = [p for p in external_ports if p.is_input]
+        self.external_output_ports = [p for p in external_ports if p.is_output]
         self.user_clk_port = (
             BelPort("UserCLK", IO.INPUT, 1, is_clock=True, net="UserCLK")
             if userCLK

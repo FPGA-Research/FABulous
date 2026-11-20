@@ -921,7 +921,8 @@ FABulous defines the following coding rules for BELs:
     attribute VECTOR_PORTS of my_ram : entity is "TRUE";
     ```
 
-    The directive changes two generated files, which have to match each other:
+    For the user design, the directive changes two generated files, which have
+    to match each other:
 
     - the Yosys primitive in `user_design/custom_prims.v`, which declares the
       ports as vectors;
@@ -932,9 +933,25 @@ FABulous defines the following coding rules for BELs:
     is already in `custom_prims.v` is not updated automatically: run
     [`add_as_custom_prim`](#add-as-custom-prim) with `--overwrite` to replace it.
 
-    The fabric itself does not change. Inside the tile each bit is still its
-    own switch matrix wire (`D0`, `D1`, ...), and `EXTERNAL` vector ports are
-    still exported one bit at a time.
+    In the fabric, an `EXTERNAL` vector port is exported from the tile and from
+    the fabric module as a vector. For a BEL with the prefix `A_` and the port
+    `(* FABulous, EXTERNAL *) output [9:0] AD_SRAM` in the tile at X1Y1, the
+    fabric module has:
+
+    ```verilog
+    output [9:0] Tile_X1Y1_A_AD_SRAM, //EXTERNAL
+    ```
+
+    Without the directive it has one port per bit, `Tile_X1Y1_A_AD_SRAM0` to
+    `Tile_X1Y1_A_AD_SRAM9`. The top wrapper `eFPGA_top` does not change: it
+    groups the external ports of all tiles into one vector per port name, with
+    or without the directive, and connects a fabric vector port to a slice of
+    that vector.
+
+    Ports that connect to the switch matrix are not affected. Inside the tile
+    their bits stay individual switch matrix wires named `D0`, `D1`, .... An
+    `EXTERNAL` output that is exported as a vector can not be named in the
+    switch matrix file, because it has no per-bit wire.
 
     :::{note}
     The LUT BELs `LUT4c_frame_config` and `LUT4c_frame_config_dffesr` cannot

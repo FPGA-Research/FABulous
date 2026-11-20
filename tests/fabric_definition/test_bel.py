@@ -6,6 +6,7 @@ import pytest
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
+from tests.conftest import make_pad_bel
 
 
 def make_bel(
@@ -158,3 +159,31 @@ def test_bel_port_pin_names_follow_keep_vector_ports(
     assert [p.pin_name for p in bel.output_ports] == output_pins
     assert [p.name for p in bel.input_ports] == ["LA_D0", "LA_D1", "LA_EN"]
     assert [p.name for p in bel.output_ports] == ["LA_Q0", "LA_Q1"]
+
+
+@pytest.mark.parametrize(
+    ("keep_vector_ports", "inputs", "outputs"),
+    [
+        pytest.param(
+            False,
+            [("A_DI0", 1), ("A_DI1", 1), ("A_DI2", 1), ("A_DI3", 1), ("A_EN", 1)],
+            [("A_DO0", 1), ("A_DO1", 1), ("A_DO2", 1), ("A_DO3", 1)],
+            id="split",
+        ),
+        pytest.param(
+            True, [("A_DI", 4), ("A_EN", 1)], [("A_DO", 4)], id="vector_ports"
+        ),
+    ],
+)
+def test_external_vector_ports_follow_keep_vector_ports(
+    keep_vector_ports: bool,
+    inputs: list[tuple[str, int]],
+    outputs: list[tuple[str, int]],
+) -> None:
+    """An external vector port is one wide port only when the BEL opts in."""
+    bel = make_pad_bel(keep_vector_ports)
+
+    assert [(p.name, p.width) for p in bel.external_input_ports] == inputs
+    assert [(p.name, p.width) for p in bel.external_output_ports] == outputs
+    external_ports = bel.external_input_ports + bel.external_output_ports
+    assert all(p.external and p.prefix == "A_" for p in external_ports)

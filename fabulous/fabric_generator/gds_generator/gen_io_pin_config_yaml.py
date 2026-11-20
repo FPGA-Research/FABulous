@@ -11,6 +11,7 @@ from loguru import logger
 from fabulous.custom_exception import StaleIOPinConfigError
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
@@ -45,6 +46,27 @@ class PinOrderConfig:
             "sort_mode": str(self.sort_mode),
             "reverse_result": self.reverse_result,
         }
+
+
+def _external_port_regex(port: BelPort, prefix: str = "") -> str:
+    """Return the regex matching the tile pins of an external BEL port.
+
+    Parameters
+    ----------
+    port : BelPort
+        The external BEL port.
+    prefix : str
+        A prefix to prepend to the port name. Defaults to "".
+
+    Returns
+    -------
+    str
+        The pin name for a one-bit port, or a regex matching every `name[i]`
+        pin of a vector port.
+    """
+    if port.width > 1:
+        return rf"{prefix}{port.name}\[\d+\]"
+    return f"{prefix}{port.name}"
 
 
 def _serialize_tile_ports(
@@ -113,7 +135,7 @@ def _serialize_tile_ports(
     # Place BEL external ports on the specified side
     for bel in tile.bels:
         pin_regexes = [
-            f"{prefix}{p.name}"
+            _external_port_regex(p, prefix)
             for p in bel.external_input_ports + bel.external_output_ports
         ]
         if pin_regexes:
@@ -212,7 +234,7 @@ def _serialize_supertile_ports(
         if tile.bels:
             for bel in tile.bels:
                 pin_regexes = [
-                    f"{prefix}{p.name}"
+                    _external_port_regex(p, prefix)
                     for p in bel.external_input_ports + bel.external_output_ports
                 ]
                 if pin_regexes:
@@ -236,7 +258,7 @@ def _serialize_supertile_ports(
     # NOTE: not verified end-to-end against the GDS flow.
     if super_tile.bels:
         st_pin_regexes = [
-            p.name
+            _external_port_regex(p)
             for bel in super_tile.bels
             for p in bel.external_input_ports + bel.external_output_ports
         ]
