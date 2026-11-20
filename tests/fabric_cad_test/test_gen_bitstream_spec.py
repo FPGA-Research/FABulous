@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import (
+    bit_positions,
     border_rows_have_config_bits,
     generate_bitstream_spec,
 )
@@ -139,17 +140,58 @@ def test_the_memory_the_tile_carries_is_the_one_generated_and_specified(
     assert remapped_spec["TileSpecs"][location] != default_spec["TileSpecs"][location]
 
 
-def test_a_chain_fabric_is_specified_without_a_frame_map() -> None:
-    """A chain fabric's specification has a tile map and no frame map."""
-    fabric = _fabric_from_bits([[4, 4]])
+@pytest.mark.parametrize(
+    ("grid", "locations"),
+    [
+        ([[4, 4]], {"X0Y0", "X1Y0"}),
+        ([[4, None]], {"X0Y0"}),
+        ([[0, 4]], {"X0Y0", "X1Y0"}),
+    ],
+)
+def test_a_chain_fabric_specifies_every_tile_without_a_frame_map(
+    grid: list[list[int | None]], locations: set[str]
+) -> None:
+    """A chain fabric's specification has every tile's entry and no frame map."""
+    fabric = _fabric_from_bits(grid)
     fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
     for tile in fabric.tileDic.values():
-        tile.config_mem = None
+        tile.config_mem = empty_config_mem(tile.config_mem.source)
 
     spec = generate_bitstream_spec(fabric)
 
-    assert spec["TileMap"] == {"X0Y0": "T0_0", "X1Y0": "T0_1"}
+    assert set(spec["TileSpecs"]) == locations
+    assert set(spec["TileSpecs_No_Mask"]) == locations
     assert spec["FrameMap"] == {}
+
+
+def test_a_chain_fabric_places_each_bit_at_its_config_bits_index(
+    generated_fabric: Fabric,
+) -> None:
+    """A chain spec has the frame spec's features, each bit at its ConfigBits index."""
+    fabric = generated_fabric
+    frame_spec = generate_bitstream_spec(fabric)
+    fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+
+    chain_spec = generate_bitstream_spec(fabric)
+
+    assert chain_spec["TileSpecs"].keys() == frame_spec["TileSpecs"].keys()
+    for location, chain_features in chain_spec["TileSpecs"].items():
+        tile_name = chain_spec["TileMap"][location]
+        frame_position = bit_positions(fabric.tileDic[tile_name].config_mem, fabric)
+        assert {
+            feature: {frame_position[bit]: value for bit, value in bits.items()}
+            for feature, bits in chain_features.items()
+        } == frame_spec["TileSpecs"][location]
+
+
+def test_a_chain_tile_past_the_bit_gen_positions_is_refused() -> None:
+    """A chain tile with more bits than `bit_gen` keeps per tile raises."""
+    fabric = _fabric_from_bits([[40]])
+    fabric.configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+    fabric.maxFramesPerCol = 1
+
+    with pytest.raises(ValueError, match="chain positions 0 to 39"):
+        generate_bitstream_spec(fabric)
 
 
 def test_a_tile_with_no_configuration_bits_needs_no_mapping() -> None:
