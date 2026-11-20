@@ -22,7 +22,6 @@ from tests.reference_test.reference_projects_test import (
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Parametrise over the active projects that set `rtl_equivalence`."""
-    # Imported here: conftest sets the config path in `pytest_configure`.
     from tests.reference_test.conftest import _session_config
 
     assert _session_config.projects_conf is not None
@@ -96,8 +95,8 @@ def _check_rtl_equivalence(
 
     proved: list[str] = []
     for module in sorted(gold.project_modules & gate.project_modules):
-        if "blackbox" in gold.modules[module]["attributes"]:
-            # Hard-macro stub: the interface is all there is to compare.
+        is_hard_macro_stub = "blackbox" in gold.modules[module]["attributes"]
+        if is_hard_macro_stub:
             if gold.modules[module]["ports"] != gate.modules[module]["ports"]:
                 failures.append(
                     EquivalenceFailure(
