@@ -19,12 +19,6 @@ from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_repl.command_set_base import CMD_HELPER, ReplCommandSet
 
 
-def _safe_pformat(obj: object) -> str:
-    """Pretty-print `obj` for logging through loguru's colorized sink."""
-    text = pprint.pformat(obj, width=200)
-    return text.replace("{", "{{").replace("}", "}}").replace("<", r"\<")
-
-
 class HelperCommandSet(ReplCommandSet):
     """Commands for inspecting fabric objects from the REPL."""
 
@@ -50,7 +44,7 @@ class HelperCommandSet(ReplCommandSet):
 
         for bel_obj in repl.fabulousAPI.getBels():
             if bel_obj.name == bel:
-                logger.info(f"\n{_safe_pformat(bel_obj)}")
+                logger.info(f"\n{pprint.pformat(bel_obj, width=200)}")
                 return
         raise CommandError(f"Bel {bel} not found in fabric")
 
@@ -75,7 +69,7 @@ class HelperCommandSet(ReplCommandSet):
         if (tile_obj := repl.fabulousAPI.getTile(tile)) or (
             tile_obj := repl.fabulousAPI.getSuperTile(tile)
         ):
-            logger.info(f"\n{_safe_pformat(tile_obj)}")
+            logger.info(f"\n{pprint.pformat(tile_obj, width=200)}")
         else:
             raise CommandError(f"Tile {tile} not found in fabric")
 

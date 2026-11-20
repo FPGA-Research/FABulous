@@ -89,29 +89,25 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
         Returns
         -------
         str
-            Formatted log message string
+            Loguru format template that references record fields by key, so
+            braces and markup tags inside the message are printed verbatim.
         """
-        # Construct the standard part of the log message based on verbosity
-        level = f"<level>{record['level'].name}</level> | "
-        time = f"<cyan>[{record['time']:DD-MM-YYYY HH:mm:ss}]</cyan> | "
-        name = f"<green>[{record['name']}</green>"
-        func = f"<green>{record['function']}</green>"
-        line = f"<green>{record['line']}</green>"
-        msg = f"<level>{record['message']}</level>"
+        if os.getenv("FABULOUS_TESTING", None):
+            return "{level}: {message}\n"
+
+        level = "<level>{level}</level> | "
+        time = "<cyan>[{time:DD-MM-YYYY HH:mm:ss}]</cyan> | "
+        location = (
+            "<green>[{name}</green>:<green>{function}</green>:<green>{line}</green>"
+        )
+        msg = "<level>{message}</level>"
         exc = ""
         if record["exception"] and record["exception"].type:
-            exc = (
-                f"<bg red><white>{record['exception'].type.__name__}</white>"
-                f"</bg red> | "
-            )
+            exc = "<bg red><white>{exception.type.__name__}</white></bg red> | "
 
-        final_log = f"{level}{exc}{msg}\n"
         if verbosity >= 1:
-            final_log = f"{level}{time}{name}:{func}:{line} - {exc}{msg}\n"
-
-        if os.getenv("FABULOUS_TESTING", None):
-            final_log = f"{record['level'].name}: {record['message']}\n"
-        return final_log
+            return f"{level}{time}{location} - {exc}{msg}\n"
+        return f"{level}{exc}{msg}\n"
 
     # Determine the log level for the sink
     log_level_to_set = "DEBUG" if debug else "INFO"
