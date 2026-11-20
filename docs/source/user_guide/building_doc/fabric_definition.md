@@ -706,11 +706,6 @@ to BRAMs and the Verilog multiply operator directly to our DSP blocks.
 
 The BEL statements in the previous example instantiate a LUT4 in VHDL:
 
-:::{note}
-This VHDL example uses the legacy inline comment style for port attributes.
-New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
-:::
-
 ```VHDL
 entity LUT4 is
  Generic ( NoConfigBits : integer := 18 );   -- has to be adjusted manually
@@ -722,11 +717,17 @@ entity LUT4 is
  O   : out   STD_LOGIC; -- LUT output (combinatorial or FF)
  Ci  : in    STD_LOGIC; -- carry chain input
  Co  : out   STD_LOGIC; -- carry chain output
- UserCLK : in    STD_LOGIC; -- EXTERNAL -- SHARED_PORT
- -- the # EXTERNAL keyword will send this signal all the way to top and
- -- #SHARED allows multiple BELs using same port (exports 1 clock to top)
+ UserCLK : in    STD_LOGIC;
  ConfigBits : in      STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )
  );
+ attribute EXTERNAL : string;
+ attribute SHARED_PORT : string;
+ attribute GLOBAL : string;
+ -- EXTERNAL sends this signal all the way to the top and
+ -- SHARED_PORT allows multiple BELs using same port (exports 1 clock to top)
+ attribute EXTERNAL of UserCLK : signal is "TRUE";
+ attribute SHARED_PORT of UserCLK : signal is "TRUE";
+ attribute GLOBAL of ConfigBits : signal is "TRUE";
 end entity LUT4;
 ```
 
@@ -759,7 +760,7 @@ FABulous defines the following coding rules for BELs:
 
 - The port declarations have to be formatted to provide one declaration per line.
 
-- We use directives (provided as comments) to control the code generation semantics. The supported directives include:
+- We use directives (provided as HDL attributes) to control the code generation semantics. The supported directives include:
 
   - `EXTERNAL`: Ports flagged with this directive are not connected to the
     switch matrix but are exported through the tile entity to the top-level
@@ -778,19 +779,17 @@ FABulous defines the following coding rules for BELs:
     BEL,              tristate_pin.vhdl,       B_
     ```
 
-    :::{note}
-    This VHDL example uses the legacy inline comment style for port attributes.
-    New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
-    :::
-
     ```VHDL
     entity Out_Pad is
       Generic ( NoConfigBits : integer := 0 ); -- has to be adjusted manually
       Port (      -- IMPORTANT: this has to be in a dedicated line
         I     : in    STD_LOGIC; -- input from fabric
-        O_pin : out   STD_LOGIC; -- EXTERNAL
-          UserCLK   : in    STD_LOGIC --EXTERNAL SHARED_PORT
-        );
+        O_pin : out   STD_LOGIC;
+        UserCLK   : in    STD_LOGIC
+      );
+      attribute EXTERNAL of O_pin : signal is "TRUE";
+      attribute EXTERNAL of UserCLK : signal is "TRUE";
+      attribute SHARED_PORT of UserCLK : signal is "TRUE";
     end entity Out_Pad;
     ```
 
@@ -890,6 +889,58 @@ FABulous defines the following coding rules for BELs:
     attribute SHARED_RESET of SR : signal is "TRUE";
     ```
 
+  - `VECTOR_PORTS`: By default, FABulous splits every vector port of a BEL into
+    one pin per bit, so a user design that instantiates the BEL has to connect
+    each bit on its own (`.D0(data[0]), .D1(data[1]), ...`). With this directive
+    the BEL keeps its vector ports, and the user design connects them as vectors:
+
+    ```verilog
+    my_ram i_ram (
+        .D   (data),      // [3:0]
+        .ADR (address),   // [4:0]
+        .Q   (q)          // [3:0]
+    );
+    ```
+
+    Unlike the directives above, `VECTOR_PORTS` is set on the module and applies
+    to all of its ports. In Verilog, add it to the attribute in front of the
+    module, next to the `BelMap` if there is one:
+
+    ```verilog
+    (* FABulous, BelMap, VECTOR_PORTS, Q_reg=0 *)
+    module my_ram (
+        input [3:0] D,
+        input [4:0] ADR,
+        output [3:0] Q,
+        ...
+    ```
+
+    In VHDL, use an entity-level attribute:
+
+    ```VHDL
+    attribute VECTOR_PORTS of my_ram : entity is "TRUE";
+    ```
+
+    The directive changes two generated files, which have to match each other:
+
+    - the Yosys primitive in `user_design/custom_prims.v`, which declares the
+      ports as vectors;
+    - the nextpnr model, where the pins are named `D[0]`, `D[1]`, ... instead
+      of `D0`, `D1`, ...
+
+    Regenerate both after adding or removing the directive. A primitive that
+    is already in `custom_prims.v` is not updated automatically: run
+    [`add_as_custom_prim`](#add-as-custom-prim) with `--overwrite` to replace it.
+
+    The fabric itself does not change. Inside the tile each bit is still its
+    own switch matrix wire (`D0`, `D1`, ...), and `EXTERNAL` vector ports are
+    still exported one bit at a time.
+
+    :::{note}
+    The LUT BELs `LUT4c_frame_config` and `LUT4c_frame_config_dffesr` cannot
+    use this directive, because nextpnr packs LUTs through the pins `I0`, `I1`, ...
+    :::
+
 (vhdl-attributes)=
 
 #### VHDL attribute syntax
@@ -901,8 +952,8 @@ declarations and assignments. The BEL file needs:
 2. **Entity-level attributes** for `FABulous`, `BelMap`, and each BelMap feature.
 3. **Signal-level attributes** for port directives (`EXTERNAL`, `SHARED_PORT`, `GLOBAL`, etc.).
 
-Comment-based annotations on port declarations (e.g., `-- (* FABulous, EXTERNAL *)`)
-are also supported but are not required when native VHDL attributes are present.
+FABulous reads only these native attributes. Comments such as
+`-- (* FABulous, EXTERNAL *)` or `-- EXTERNAL` are ignored.
 
 The following example shows the attribute structure for a LUT4 BEL:
 
@@ -947,18 +998,6 @@ entity LUT4c_frame_config_dffesr is
   attribute GLOBAL of ConfigBits                     : signal is "TRUE";
 end entity LUT4c_frame_config_dffesr;
 ```
-
-:::{deprecated}
-The older plain comment style for port attributes is deprecated and should
-not be used in new BEL files:
-
-```VHDL
--- Deprecated plain comment style:
-UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT
-```
-
-New BEL files should use native VHDL attribute assignments instead.
-:::
 
 (belmap-primitives)=
 
@@ -1020,12 +1059,6 @@ entity LUT4c_frame_config_dffesr is
 end entity LUT4c_frame_config_dffesr;
 ```
 
-:::{note}
-Older VHDL templates may include a BelMap comment before the entity declaration
-(e.g., `-- (* FABulous, BelMap, INIT=0, ... *)`). This is legacy support and
-is no longer required in new BEL files.
-:::
-
 Multi-bit features use underscore-suffixed index notation (e.g., `INIT_1`,
 `INIT_2`). FABulous automatically converts this to bracket notation (`INIT[1]`,
 `INIT[2]`) during parsing.
@@ -1044,9 +1077,6 @@ BELs, but in VHDL it becomes `FAB_ATTR_FF` to prevent potential conflicts:
 ```VHDL
 -- In the attribute package:
 attribute FAB_ATTR_FF : integer;
-
--- In the BelMap comment:
--- (* FABulous, BelMap, ..., FAB_ATTR_FF=16, ... *)
 
 -- As an entity attribute:
 attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;

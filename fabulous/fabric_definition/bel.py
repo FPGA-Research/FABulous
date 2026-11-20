@@ -55,6 +55,9 @@ class Bel:
         Carry chains by name.
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
+    keep_vector_ports : bool
+        Whether the BEL's vector ports stay vectors in the Yosys primitive and the
+        nextpnr model. Defaults to False.
 
     Attributes
     ----------
@@ -102,6 +105,10 @@ class Bel:
         The external output ports of the BEL. Each port's `name` includes `prefix`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
+    keep_vector_ports : bool
+        Whether the BEL's vector ports stay vectors in the Yosys primitive and the
+        nextpnr model, so a user design instantiates the BEL with `.D(d)` instead
+        of `.D0(d[0]), .D1(d[1])`.
 
     Raises
     ------
@@ -130,6 +137,7 @@ class Bel:
     external_input_ports: list[BelPort] = field(default_factory=list, compare=False)
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
+    keep_vector_ports: bool = False
 
     def __init__(
         self,
@@ -146,6 +154,7 @@ class Bel:
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
+        keep_vector_ports: bool = False,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -156,16 +165,25 @@ class Bel:
                 raise ValueError(
                     f"Port {port} of BEL {src} does not start with prefix {prefix}"
                 )
-        self.input_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
-            for p, io in internal
-            if io == IO.INPUT
-        ]
-        self.output_ports = [
-            BelPort(p.removeprefix(prefix), io, 1, prefix=prefix)
-            for p, io in internal
-            if io == IO.OUTPUT
-        ]
+        # One bit of a kept vector port is routed on the wire `D0` but is the
+        # pin `D[0]`, the name Yosys and nextpnr give the bit of a vector port.
+        pin_names: dict[str, str] = {}
+        if keep_vector_ports:
+            for port, (io, width) in ports_vectors["internal"].items():
+                if width > 1:
+                    pins = BelPort(port, io, width).expand()
+                    pin_names |= {f"{port}{i}": pin for i, pin in enumerate(pins)}
+        self.input_ports = []
+        self.output_ports = []
+        for port, io in internal:
+            name = port.removeprefix(prefix)
+            bel_port = BelPort(
+                name, io, 1, prefix=prefix, pin_name=pin_names.get(name, name)
+            )
+            if io == IO.INPUT:
+                self.input_ports.append(bel_port)
+            elif io == IO.OUTPUT:
+                self.output_ports.append(bel_port)
         self.external_input_ports = [
             BelPort(p.removeprefix(prefix), io, 1, prefix=prefix, external=True)
             for p, io in external
@@ -197,3 +215,4 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.keep_vector_ports = keep_vector_ports

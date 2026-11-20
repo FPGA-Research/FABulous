@@ -21,6 +21,8 @@ package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
   attribute FAB_ATTR_FF : integer;
   attribute I0mux       : integer;
   attribute SET_NORESET : integer;
+  attribute SHARED_RESET  : string;
+  attribute SHARED_ENABLE : string;
   attribute EXTERNAL    : string;
   attribute SHARED_PORT : string;
   attribute GLOBAL      : string;
@@ -32,11 +34,6 @@ library IEEE;
   use IEEE.NUMERIC_STD.all;
   use work.attr_pack_LUT4AB_LUT4c_frame_config_dffesr.all;
 
--- (* FABulous, BelMap,
--- INIT=0, INIT_1=1, INIT_2=2, INIT_3=3, INIT_4=4, INIT_5=5, INIT_6=6, INIT_7=7, INIT_8=8,
--- INIT_9=9, INIT_10=10, INIT_11=11,INIT_12=12, INIT_13=13, INIT_14=14, INIT_15=15,
--- FAB_ATTR_FF=16, I0mux=17, SET_NORESET=18 *)
-
 entity LUT4c_frame_config_dffesr is
   generic (
     NoConfigBits : integer := 19 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
@@ -46,12 +43,12 @@ entity LUT4c_frame_config_dffesr is
     O  : out   std_logic;                    -- LUT output (combinatorial or FF)
     Ci : in    std_logic;                    -- carry chain input
     Co : out   std_logic;                    -- carry chain output
-    SR : in    std_logic;                    -- (* FABulous, SHARED_RESET *)
-    EN : in    std_logic;                    -- (* FABulous, SHARED_ENABLE *)
+    SR : in    std_logic;
+    EN : in    std_logic;
     -- ## the EXTERNAL keyword will send this sisgnal all the way to top and the
     -- SHARED Allows multiple BELs using the same port
     -- (e.g. for exporting a clock to the top)
-    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic;
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
@@ -77,6 +74,8 @@ entity LUT4c_frame_config_dffesr is
   attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
   attribute I0mux of LUT4c_frame_config_dffesr       : entity is 17;
   attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
+  attribute SHARED_RESET of SR                     : signal is "TRUE";
+  attribute SHARED_ENABLE of EN                    : signal is "TRUE";
   attribute EXTERNAL of UserCLK                      : signal is "TRUE";
   attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
   attribute GLOBAL of ConfigBits                     : signal is "TRUE";

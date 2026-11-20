@@ -1111,8 +1111,13 @@ class FABulousTileTimingModel:
                 if direction not in {IO.INPUT, IO.OUTPUT}:
                     continue
                 for index in range(width):
-                    name = port if width == 1 else f"{port}{index}"
                     module_pin = port if width == 1 else f"{port}[{index}]"
+                    # The arcs name nextpnr pins, which are the module pins for
+                    # a BEL that keeps its vector ports.
+                    if width == 1 or bel.keep_vector_ports:
+                        name = module_pin
+                    else:
+                        name = f"{port}{index}"
                     pins = timing_model.resolve_hier_pin(
                         f"{instance_path}/{module_pin}"
                     )
