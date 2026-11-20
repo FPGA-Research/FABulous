@@ -431,6 +431,12 @@ class TilePort(Port):
         list[str]
             List of individual wire names for top-level connections.
         """
+        if self.wire_direction == Direction.JUMP:
+            # A JUMP wire stays in its tile, so it has no top slice to select.
+            raise ValueError(
+                f"JUMP port '{self.name}' has no top slice; "
+                "expand_port_info_by_name_top only applies to wires that leave the tile"
+            )
         if self.wire_direction == Direction.SJUMP:
             startIndex = 0
             total_wires = self.wire_count
