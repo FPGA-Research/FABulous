@@ -2,8 +2,9 @@
 
 Covers the Yosys synthesis and OpenSTA SDF templates directly (exact rendered
 text), the `analyze` wrapper that normalizes its inputs and feeds the rendered
-script to the tool, and the GHDL version gate that keeps a too-old GHDL from
-silently stripping the VHDL attributes a BEL definition is carried in.
+script to the tool, the GHDL version gate that keeps a too-old GHDL from
+silently stripping the VHDL attributes a BEL definition is carried in, and the
+parse of the GHDL library listing.
 """
 
 import subprocess
@@ -194,6 +195,33 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
     with pytest.raises(RuntimeError, match="No content in SDF file"):
         OpenStaTool.analyze(tmp_path / "n.v", tmp_path / "x.lib", "EMPTY")
     assert not sdf.exists()
+
+
+@pytest.mark.parametrize(
+    ("lines", "expected"),
+    [
+        pytest.param(["entity my_buf"], {"my_buf"}, id="entity"),
+        pytest.param(
+            ["entity my_buf", "architecture from_verilog of my_buf"],
+            {"my_buf"},
+            id="architecture",
+        ),
+        pytest.param(["package attr_pack"], set(), id="package"),
+    ],
+)
+def test_ghdl_analyze_lists_entities(
+    lines: list[str], expected: set[str], mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """`GhdlTool.analyze` returns the entities `ghdl --dir` lists."""
+    run = mocker.patch.object(GhdlTool, "run")
+    run.return_value.stdout = "\n".join(
+        ["# Library work", f"# Directory: {tmp_path}/", *lines]
+    )
+
+    assert (
+        GhdlTool.analyze(files=[tmp_path / "a.vhdl"], workdir=tmp_path / "lib")
+        == expected
+    )
 
 
 @pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])
