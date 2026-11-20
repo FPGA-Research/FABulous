@@ -29,10 +29,8 @@ from fabulous.tools.yosys import YosysTool
 VERILOG_SUFFIXES = (".v", ".sv")
 VHDL_SUFFIXES = (".vhd", ".vhdl")
 GHDL_ANALYSIS_FLAGS = ("--std=08", "-fsynopsys")
-# --latches: the config latches and the template FSMs infer latches.
 GHDL_FLAGS = (*GHDL_ANALYSIS_FLAGS, "--latches")
-# Generated fabric RTL lives here; Test/ and user_design/ hold user inputs.
-RTL_DIRS = ("Tile", "Fabric")
+GENERATED_RTL_DIRS = ("Tile", "Fabric")
 
 
 @dataclass(frozen=True)
@@ -70,7 +68,7 @@ def fabric_files(
     """Return the fabric RTL files of `project` with `suffixes`, pack excluded."""
     return [
         path
-        for directory in RTL_DIRS
+        for directory in GENERATED_RTL_DIRS
         for path in sorted((project / directory).rglob("*"))
         if path.suffix in suffixes and path != models_pack
     ]
@@ -122,9 +120,8 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
         defined = json.loads((work_dir / f"source_{index:03d}.json").read_text())[
             "modules"
         ]
-        # An escaped `\$...` module name targets a yosys cell type, so such a file
-        # is a techmap rule for synthesis (e.g. a PDK latch map), not fabric RTL.
-        if any(name.startswith("\\$") for name in defined):
+        is_techmap_rule = any(name.startswith("\\$") for name in defined)
+        if is_techmap_rule:
             continue
         for name, body in defined.items():
             if name in definitions and definitions[name][1] != body:
@@ -215,22 +212,16 @@ def parse_project(
                 if not module["attributes"].get("src", "").startswith(pack_src)
             }
         case HDLType.VHDL:
-            # GHDL numbers anonymous nets `n<number>` and `<instance>_n<number>`
-            # across the whole design, so once the two sides differ the same name
-            # denotes unrelated nets and `equiv_make` would pair them. Hiding them
-            # removes only a matching hint, so the worst case is a false failure.
             hide: list[str] = []
             for module, body in modules.items():
-                nets = [
+                ghdl_anonymous_nets = [
                     net
                     for net in body["netnames"]
                     if (last := net.rsplit("_", 1)[-1])[0] == "n" and last[1:].isdigit()
                 ]
-                # One command per module; one per net costs a full design walk each.
-                if nets:
-                    hide.append(
-                        f"rename -hide {' '.join(f'{module}/w:{n}' for n in nets)}"
-                    )
+                if ghdl_anonymous_nets:
+                    hidden = " ".join(f"{module}/w:{n}" for n in ghdl_anonymous_nets)
+                    hide.append(f"rename -hide {hidden}")
             hide_script = work_dir / f"{tag}_hide.ys"
             hide_script.write_text(
                 "\n".join(
@@ -278,13 +269,10 @@ def _check_module(
                 f"setattr -mod -set keep_hierarchy 1 {' '.join(children)}",
                 f"flatten {module}",
                 f"blackbox * {module} %d",
-                # The GHDL plugin gives internal cells public names; cut only
-                # instances.
                 f"expose -evert {module}/c:* {module}/t:$* %d",
             ]
         else:
             commands.append("flatten")
-        # async2sync: `sat` cannot model the config latches as `$dlatch`.
         commands += [
             "memory",
             "async2sync",
@@ -324,8 +312,7 @@ def prove_modules(
     failures: list[EquivalenceFailure] = []
     jobs: list[tuple[str, list[str]]] = []
     for module in modules:
-        # Project-module instance name to its type and parameters.
-        gold_instances, gate_instances = (
+        gold_project_instances, gate_project_instances = (
             {
                 name: (cell["type"], tuple(sorted(cell.get("parameters", {}).items())))
                 for name, cell in design.modules[module]["cells"].items()
@@ -333,11 +320,12 @@ def prove_modules(
             }
             for design in (gold, gate)
         )
-        if gold_instances != gate_instances:
+        if gold_project_instances != gate_project_instances:
             differing = sorted(
                 name
-                for name in gold_instances.keys() | gate_instances.keys()
-                if gold_instances.get(name) != gate_instances.get(name)
+                for name in gold_project_instances.keys()
+                | gate_project_instances.keys()
+                if gold_project_instances.get(name) != gate_project_instances.get(name)
             )
             failures.append(
                 EquivalenceFailure(
@@ -346,7 +334,9 @@ def prove_modules(
                     detail=", ".join(differing),
                 )
             )
-        jobs.append((module, sorted({kind for kind, _ in gold_instances.values()})))
+        jobs.append(
+            (module, sorted({kind for kind, _ in gold_project_instances.values()}))
+        )
 
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
         results = pool.map(
