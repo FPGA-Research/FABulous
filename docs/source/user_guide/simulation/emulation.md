@@ -4,14 +4,14 @@
 :::{note}
 This page describes *hardwired-bitstream* emulation. For running the fabric on a
 board with its configuration port intact and reprogramming it over UART at
-runtime, see [Emulating a fabric on a commercial FPGA](#emulation-on-fpga).
+runtime, see {ref}`Emulating a fabric on a commercial FPGA <emulation-on-fpga>`.
 :::
 
 :::{note}
 The emulation functionality is implemented but needs more testing.
 :::
 
-The script `bit_gen.py` in [bitstream generation](#bitstream-generation)
+The script `bit_gen.py` in {ref}`bitstream generation <bitstream-generation>`
 not only generates the binary bitstream for simulation, but also the bitstream files for Verilog and VHDL emulation.
 
 :::{note}
