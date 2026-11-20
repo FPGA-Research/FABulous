@@ -1,0 +1,7 @@
+read_rtlil "{{ rtlil }}"
+{% for module, nets in anonymous_nets.items() %}
+rename -hide {{ module }}/w:{{ nets | join(" " ~ module ~ "/w:") }}
+{% endfor %}
+opt_clean
+write_rtlil "{{ rtlil }}"
+write_json "{{ netlist }}"
