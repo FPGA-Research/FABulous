@@ -4,7 +4,10 @@ module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer desync_flag = 20
+    parameter integer desync_flag = 20,
+    parameter integer bitbang_enable = 1,
+    parameter integer uart_enable = 1,
+    parameter integer parallel_enable = 1
 ) (
     input wire CLK,
     input wire resetn,
@@ -41,27 +44,46 @@ module eFPGA_Config #(
 
     wire fsm_reset;
 
-    config_UART INST_config_UART (
-        .CLK(CLK),
-        .reset_n(resetn),
-        .Rx(Rx),
-        .WriteData(UART_WriteData),
-        .ComActive(UART_ComActive),
-        .WriteStrobe(UART_WriteStrobe),
-        .Command(Command),
-        .ReceiveLED(UART_LED)
-    );
+    // UART
+    generate
+        if (uart_enable == 1) begin : gen_uart
+            config_UART INST_config_UART (
+                .CLK(CLK),
+                .reset_n(resetn),
+                .Rx(Rx),
+                .WriteData(UART_WriteData),
+                .ComActive(UART_ComActive),
+                .WriteStrobe(UART_WriteStrobe),
+                .Command(Command),
+                .ReceiveLED(UART_LED)
+            );
+        end else begin : gen_no_uart
+            assign UART_WriteData = 32'b0;
+            assign UART_ComActive = 1'b0;
+            assign UART_WriteStrobe = 1'b0;
+            assign Command = 8'b0;
+            assign UART_LED = 1'b0;
+        end
+    endgenerate
 
-    // BitBang
-    bitbang inst_bit_bang (
-        .s_clk(s_clk),
-        .s_data(s_data),
-        .strobe(BitBangWriteStrobe),
-        .data(BitBangWriteData),
-        .active(BitBangActive),
-        .clk(CLK),
-        .reset_n(resetn)
-    );
+    // Bitbang
+    generate
+        if (bitbang_enable == 1) begin : gen_bitbang
+            bitbang inst_bit_bang (
+                .s_clk(s_clk),
+                .s_data(s_data),
+                .strobe(BitBangWriteStrobe),
+                .data(BitBangWriteData),
+                .active(BitBangActive),
+                .clk(CLK),
+                .reset_n(resetn)
+            );
+        end else begin : gen_no_bitbang
+            assign BitBangWriteData = 32'b0;
+            assign BitBangWriteStrobe = 1'b0;
+            assign BitBangActive = 1'b0;
+        end
+    endgenerate
 
     // Configuration port priority (highest to lowest): UART > BitBang > Parallel
 
