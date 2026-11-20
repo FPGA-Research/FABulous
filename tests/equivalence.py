@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+
 from fabulous.fabric_definition.define import HDLType
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.yosys import YosysTool
@@ -31,6 +33,13 @@ VHDL_SUFFIXES = (".vhd", ".vhdl")
 GHDL_ANALYSIS_FLAGS = ("--std=08", "-fsynopsys")
 GHDL_FLAGS = (*GHDL_ANALYSIS_FLAGS, "--latches")
 GENERATED_RTL_DIRS = ("Tile", "Fabric")
+YOSYS_SCRIPT_TEMPLATES = Environment(
+    loader=FileSystemLoader(Path(__file__).parent / "templates"),
+    undefined=StrictUndefined,
+    trim_blocks=True,
+    lstrip_blocks=True,
+    keep_trailing_newline=True,
+)
 
 
 @dataclass(frozen=True)
@@ -60,6 +69,17 @@ class Design:
     rtlil: Path
     modules: dict[str, Any]
     project_modules: set[str]
+
+
+def run_yosys_script(script: Path, template: str, **context: object) -> None:
+    """Render `template` from `tests/templates` into `script` and run it in yosys.
+
+    The yosys log lands next to `script` with a `.log` suffix. A variable missing
+    from `context` raises `jinja2.UndefinedError`, and a failing yosys run raises
+    `RuntimeError`.
+    """
+    script.write_text(YOSYS_SCRIPT_TEMPLATES.get_template(template).render(**context))
+    YosysTool.run(args=["-q", "-l", str(script.with_suffix(".log")), str(script)])
 
 
 def fabric_files(
@@ -100,26 +120,16 @@ def unique_sources(files: list[Path], work_dir: Path) -> list[Path]:
         If a file redefines a module differently.
     """
     work_dir.mkdir(parents=True, exist_ok=True)
-    script = work_dir / "sources.ys"
-    commands: list[str] = []
-    for index, path in enumerate(files):
-        commands += [
-            "design -reset",
-            f'read_verilog -sv "{path}"',
-            "proc",
-            "setattr -unset src",
-            "setattr -mod -unset src",
-            f'write_json "{work_dir / f"source_{index:03d}.json"}"',
-        ]
-    script.write_text("\n".join(commands))
-    YosysTool.run(args=["-q", "-l", str(script.with_suffix(".log")), str(script)])
+    netlists = [
+        (path, work_dir / f"source_{index:03d}.json")
+        for index, path in enumerate(files)
+    ]
+    run_yosys_script(work_dir / "sources.ys", "unique_sources.ys.j2", sources=netlists)
 
     definitions: dict[str, tuple[Path, Any]] = {}
     sources: list[Path] = []
-    for index, path in enumerate(files):
-        defined = json.loads((work_dir / f"source_{index:03d}.json").read_text())[
-            "modules"
-        ]
+    for path, netlist in netlists:
+        defined = json.loads(netlist.read_text())["modules"]
         is_techmap_rule = any(name.startswith("\\$") for name in defined)
         if is_techmap_rule:
             continue
@@ -164,7 +174,6 @@ def parse_project(
     """
     rtlil = work_dir / f"{tag}.il"
     netlist = work_dir / f"{tag}.json"
-    script = work_dir / f"{tag}_parse.ys"
     source_dir = work_dir / f"{tag}_sources"
     source_dir.mkdir()
     match language:
@@ -173,7 +182,6 @@ def parse_project(
                 [models_pack, *fabric_files(project, models_pack, VERILOG_SUFFIXES)],
                 source_dir,
             )
-            reads = [f'read_verilog -sv "{path}"' for path in sources]
         case HDLType.VHDL:
             pack_prefixes = vhdl_pack_prefixes(models_pack, source_dir / "pack")
             fabric_library = source_dir / "fabric"
@@ -188,20 +196,14 @@ def parse_project(
                     entity=top, workdir=fabric_library, flags=GHDL_FLAGS
                 )
             )
-            reads = [f'read_verilog -sv "{fabric}"']
-    script.write_text(
-        "\n".join(
-            [
-                *reads,
-                "hierarchy -check",
-                "proc",
-                "opt_clean",
-                f'write_rtlil "{rtlil}"',
-                f'write_json "{netlist}"',
-            ]
-        )
+            sources = [fabric]
+    run_yosys_script(
+        work_dir / f"{tag}_parse.ys",
+        "parse_project.ys.j2",
+        sources=sources,
+        rtlil=rtlil,
+        netlist=netlist,
     )
-    YosysTool.run(args=["-q", "-l", str(work_dir / f"{tag}_parse.log"), str(script)])
     modules: dict[str, Any] = json.loads(netlist.read_text())["modules"]
     match language:
         case HDLType.VERILOG | HDLType.SYSTEM_VERILOG:
@@ -212,35 +214,21 @@ def parse_project(
                 if not module["attributes"].get("src", "").startswith(pack_src)
             }
         case HDLType.VHDL:
-            hide: list[str] = []
+            ghdl_anonymous_nets: dict[str, list[str]] = {}
             for module, body in modules.items():
-                ghdl_anonymous_nets = [
+                nets = [
                     net
                     for net in body["netnames"]
                     if (last := net.rsplit("_", 1)[-1])[0] == "n" and last[1:].isdigit()
                 ]
-                if ghdl_anonymous_nets:
-                    hidden = " ".join(f"{module}/w:{n}" for n in ghdl_anonymous_nets)
-                    hide.append(f"rename -hide {hidden}")
-            hide_script = work_dir / f"{tag}_hide.ys"
-            hide_script.write_text(
-                "\n".join(
-                    [
-                        f'read_rtlil "{rtlil}"',
-                        *hide,
-                        "opt_clean",
-                        f'write_rtlil "{rtlil}"',
-                        f'write_json "{netlist}"',
-                    ]
-                )
-            )
-            YosysTool.run(
-                args=[
-                    "-q",
-                    "-l",
-                    str(hide_script.with_suffix(".log")),
-                    str(hide_script),
-                ]
+                if nets:
+                    ghdl_anonymous_nets[module] = nets
+            run_yosys_script(
+                work_dir / f"{tag}_hide.ys",
+                "hide_ghdl_nets.ys.j2",
+                anonymous_nets=ghdl_anonymous_nets,
+                rtlil=rtlil,
+                netlist=netlist,
             )
             modules = json.loads(netlist.read_text())["modules"]
             project_modules = {
@@ -261,43 +249,16 @@ def _check_module(
     Returns `None` when the proof holds, otherwise a failure carrying the last
     yosys error line.
     """
-    commands: list[str] = []
-    for design, tag in ((reference, "gold"), (regenerated, "gate")):
-        commands += [f'read_rtlil "{design.rtlil}"', f"hierarchy -top {module}"]
-        if children:
-            commands += [
-                f"setattr -mod -set keep_hierarchy 1 {' '.join(children)}",
-                f"flatten {module}",
-                f"blackbox * {module} %d",
-                f"expose -evert {module}/c:* {module}/t:$* %d",
-            ]
-        else:
-            commands.append("flatten")
-        commands += [
-            "memory",
-            "async2sync",
-            "opt_clean",
-            f"rename {module} {tag}",
-            f"design -stash {tag}",
-        ]
-    log = script.with_suffix(".log")
-    script.write_text(
-        "\n".join(
-            [
-                *commands,
-                "design -copy-from gold -as gold gold",
-                "design -copy-from gate -as gate gate",
-                "equiv_make gold gate equiv",
-                "hierarchy -top equiv",
-                "equiv_simple",
-                "equiv_induct",
-                "equiv_status -assert",
-            ]
-        )
-    )
     try:
-        YosysTool.run(args=["-q", "-l", str(log), str(script)])
+        run_yosys_script(
+            script,
+            "prove_module.ys.j2",
+            module=module,
+            children=children,
+            sides=[("gold", reference.rtlil), ("gate", regenerated.rtlil)],
+        )
     except RuntimeError:
+        log = script.with_suffix(".log")
         errors = [line for line in log.read_text().splitlines() if "ERROR:" in line]
         return EquivalenceFailure(
             module=module, reason="not equivalent", detail=f"{errors[-1]} (log: {log})"

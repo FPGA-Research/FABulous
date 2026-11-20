@@ -1,0 +1,8 @@
+{% for source, netlist in sources %}
+design -reset
+read_verilog -sv "{{ source }}"
+proc
+setattr -unset src
+setattr -mod -unset src
+write_json "{{ netlist }}"
+{% endfor %}
