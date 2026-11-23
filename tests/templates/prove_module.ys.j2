@@ -10,7 +10,7 @@ expose -evert {{ module }}/c:* {{ module }}/t:$* %d
 flatten
 {% endif %}
 memory
-async2sync
+clk2fflogic
 opt_clean
 rename {{ module }} {{ tag }}
 design -stash {{ tag }}
