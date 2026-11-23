@@ -18,7 +18,6 @@ from pathlib import Path
 
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import Side
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -40,7 +39,6 @@ class TestSuperTileLayout:
             tileDir=Path(),
             tiles=[t00, t11],
             tileMap=[[t00, None], [None, t11]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         assert list(st) == [((0, 0), t00), ((1, 1), t11)]
 
@@ -52,7 +50,6 @@ class TestSuperTileLayout:
             tileDir=Path(),
             tiles=[t],
             tileMap=[[t, t, t], [t, None]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         assert st.max_width == 3
 
@@ -63,7 +60,6 @@ class TestSuperTileLayout:
             tileDir=Path(),
             tiles=[t],
             tileMap=[[t], [t], [t]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         assert st.max_height == 3
 
@@ -92,7 +88,6 @@ class TestSuperTilePortQueries:
             tileDir=Path(),
             tiles=[tile],
             tileMap=[[tile]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
 
         ports = st.get_ports_around_tile()
@@ -127,7 +122,6 @@ class TestSuperTilePortQueries:
             tileDir=Path(),
             tiles=[left, right],
             tileMap=[[left, right]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
 
         ports = st.get_ports_around_tile()
@@ -170,7 +164,6 @@ class TestSuperTileMinDieArea:
             tileDir=Path(),
             tiles=[a, b],
             tileMap=[[a, b]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
 
         # pitch=1, thickness_mult=1, edge_offset=2.
@@ -197,7 +190,6 @@ class TestSuperTileMinDieArea:
             tileDir=Path(),
             tiles=[a],
             tileMap=[[a]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         # width = (2 * 3 + 2) * 0.5 = 4.0 ; height = (1 * 2 + 2) * 0.25 = 1.0
         w, h = st.get_min_die_area(

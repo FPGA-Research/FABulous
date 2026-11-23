@@ -308,6 +308,11 @@ class TestFieldValidators:
         assert config_dir.exists()
         assert config_dir.is_dir()
 
+    def test_ensure_user_config_dir_handles_none(self) -> None:
+        """Test ensure_user_config_dir validator correctly handles None values."""
+        result = FABulousSettings.ensure_user_config_dir(None)
+        assert result is None
+
     def test_is_valid_project_dir_with_fabulous_directory(self, tmp_path: Path) -> None:
         """Test is_valid_project_dir validator with valid FABulous project."""
         project_dir = tmp_path / "valid_project"
@@ -327,6 +332,11 @@ class TestFieldValidators:
 
         with pytest.raises(ValueError, match="is not a FABulous project"):
             FABulousSettings.is_valid_project_dir(project_dir)
+
+    def test_is_valid_project_dir_with_none(self) -> None:
+        """Test is_valid_project_dir validator with None value."""
+        with pytest.raises(ValueError, match="Project directory is not set"):
+            FABulousSettings.is_valid_project_dir(None)
 
 
 class TestToolPathResolution:
@@ -352,7 +362,7 @@ class TestToolPathResolution:
             "fabulous.fabulous_settings.which", return_value="/usr/bin/yosys"
         )
 
-        result = FABulousSettings.resolve_tool_paths("", mock_info)
+        result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
         assert result == Path("/usr/bin/yosys").resolve()
         mock_which.assert_called_once_with("yosys")
@@ -364,7 +374,7 @@ class TestToolPathResolution:
 
         mock_which = mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
-        result = FABulousSettings.resolve_tool_paths("", mock_info)
+        result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
         assert result == "yosys"
         mock_which.assert_called_once_with("yosys")

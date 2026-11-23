@@ -115,7 +115,7 @@ class CompleteStaTool(StaTool):
         return self._sta_rc_files
 
     @sta_rc_files.setter
-    def sta_rc_files(self, files: list[Path] | Path) -> None:
+    def sta_rc_files(self, files: list[Path] | Path | None) -> None:
         self._sta_rc_files = files
 
 

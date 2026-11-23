@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.fabric import Fabric, resolve_wire_pair
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -141,7 +140,6 @@ class TestGetSuperTileContaining:
             tileDir=Path(),
             tiles=tiles,
             tileMap=tile_map,
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
 
     def test_returns_supertile_for_member_tile(
@@ -230,13 +228,7 @@ class TestTileLookup:
     def _make_super_tile(name: str) -> SuperTile:
         tiles = [make_empty_tile("SUB_A")]
         tile_map: list[list[Tile | None]] = [list(tiles)]
-        return SuperTile(
-            name=name,
-            tileDir=Path(),
-            tiles=tiles,
-            tileMap=tile_map,
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
-        )
+        return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=tile_map)
 
     @pytest.mark.parametrize("dict_name", ["tileDic", "unusedTileDic"])
     def test_finds_tile_in_used_and_unused(

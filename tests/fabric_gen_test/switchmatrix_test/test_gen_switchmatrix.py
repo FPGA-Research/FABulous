@@ -12,7 +12,6 @@ from fabulous.custom_exception import (
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import IO, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -353,7 +352,6 @@ class TestSuperTileSwitchMatrixConstants:
             tileMap=[[bot]],
             bels=[bel],
             switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         writer = code_generator_factory(".v", "DSP_switch_matrix")
         gen_super_tile_switch_matrix(writer, supertile)

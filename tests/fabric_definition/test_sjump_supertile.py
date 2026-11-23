@@ -13,7 +13,7 @@ import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
-from fabulous.fabric_definition.configmem import ConfigMem, empty_config_mem
+from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
@@ -117,7 +117,6 @@ class TestSuperTileHelpers:
             "tileDir": Path(),
             "tiles": [top, bot],
             "tileMap": [[top], [bot]],
-            "config_mem": empty_config_mem(Path("ConfigMem.csv")),
         }
         defaults.update(overrides)
         return SuperTile(**defaults)
@@ -167,7 +166,6 @@ class TestSuperTileHelpers:
             tileDir=Path(),
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         coords = [(x, y, p.name) for x, y, p in st.get_all_sjump_ports()]
         # Only OUTPUT SJUMP ports, with their (local_x, local_y).
@@ -197,7 +195,6 @@ class TestFabricSJumpWirePass:
             tileDir=Path(),
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
@@ -255,7 +252,6 @@ class TestSJumpRequiresSupertile:
             tileDir=Path(),
             tiles=[bot],
             tileMap=[[bot]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         # Must not raise.
         make_fabric(tile=[[bot]], superTileDic={"DSP": supertile})
@@ -306,7 +302,6 @@ class TestGenNpnrModelSupertile:
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
@@ -354,7 +349,6 @@ class TestGenNpnrModelSupertile:
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             bels=[bel],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
@@ -419,7 +413,6 @@ class TestGenBitstreamSpecSupertileMux:
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True

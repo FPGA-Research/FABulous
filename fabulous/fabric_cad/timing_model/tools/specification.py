@@ -237,11 +237,12 @@ class StaTool(ABC):
 
     @sta_rc_files.setter
     @abstractmethod
-    def sta_rc_files(self, files: list[Path] | Path) -> None:
+    def sta_rc_files(self, files: list[Path] | Path | None) -> None:
         """Set the list of RC files used for STA analysis.
 
         Parameters
         ----------
-        files : list[Path] | Path
-            The list of RC files to be used for STA analysis.
+        files : list[Path] | Path | None
+            The list of RC files to be used for STA analysis, or
+            None to clear the RC files.
         """

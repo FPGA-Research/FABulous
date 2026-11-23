@@ -17,9 +17,7 @@ multi-row or multi-column supertile in the legacy flow:
 """
 
 from collections.abc import Callable
-from pathlib import Path
 
-from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -52,7 +50,6 @@ def test_supertile_bottom_child_usrclk_connects_to_global(
         tileDir=top.tileDir,
         tiles=[top, bot],
         tileMap=[[top], [bot]],
-        config_mem=empty_config_mem(Path("ConfigMem.csv")),
     )
     fabric = Fabric(
         fabric_dir=top.tileDir,

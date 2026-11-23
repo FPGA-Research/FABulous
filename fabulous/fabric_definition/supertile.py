@@ -19,33 +19,6 @@ from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 
 
-def super_tile_directory(name: str, tile_dir: Path, tiles: list[Tile]) -> Path:
-    """Return the directory a supertile's wrapper and its child tiles sit in.
-
-    A supertile declared inside `fabric.csv` has no CSV of its own, so its
-    directory is the parent of its first child's, where `generateSuperTile`
-    expects it. A free function because the parser needs it before the
-    `SuperTile` exists.
-
-    Parameters
-    ----------
-    name : str
-        The supertile's name.
-    tile_dir : Path
-        The CSV the supertile is defined in, which `SuperTile.tileDir` holds.
-    tiles : list[Tile]
-        The supertile's child tiles.
-
-    Returns
-    -------
-    Path
-        The supertile's directory.
-    """
-    if tile_dir.stem == name:
-        return tile_dir.parent
-    return tiles[0].directory.parent
-
-
 @dataclass
 class SuperTile:
     """Store the information about a super tile.
@@ -73,9 +46,9 @@ class SuperTile:
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
-    config_mem : ConfigMem
+    config_mem : ConfigMem | None
         The supertile's own bits, placed in the crosspoints its master tile
-        leaves free.
+        leaves free. The parser always sets it; None only on direct construction.
     """
 
     name: str
@@ -86,7 +59,7 @@ class SuperTile:
     withUserCLK: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
-    config_mem: ConfigMem = field(kw_only=True)
+    config_mem: ConfigMem | None = None
 
     def __post_init__(self) -> None:
         """Reject a `tileMap` with no tile, which has neither anchor nor master.
@@ -339,12 +312,18 @@ class SuperTile:
     def directory(self) -> Path:
         """The directory the supertile's wrapper and its child tiles sit in.
 
+        A supertile declared inside `fabric.csv` has no CSV of its own, so its
+        directory is the parent of its first child's, where `generateSuperTile`
+        expects it.
+
         Returns
         -------
         Path
-            What `super_tile_directory` returns for this supertile.
+            The supertile's directory.
         """
-        return super_tile_directory(self.name, self.tileDir, self.tiles)
+        if self.tileDir.stem == self.name:
+            return self.tileDir.parent
+        return self.tiles[0].directory.parent
 
     @property
     def total_config_bits(self) -> int:

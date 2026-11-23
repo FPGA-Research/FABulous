@@ -213,6 +213,11 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
         st_frame_map: dict[int, str] = {}
         if st_config_bits > 0:
             st_memory = super_tile.config_mem
+            if st_memory is None:
+                raise ValueError(
+                    f"Supertile {super_tile.name} was built without a "
+                    "configuration memory."
+                )
             if st_memory.config_bits != st_config_bits:
                 raise ValueError(
                     f"Supertile {super_tile.name} has {st_config_bits} config bits "

@@ -191,13 +191,7 @@ def supertile_netlist(
         user_clk_side: Side = Side.SOUTH,
     ) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
-        st = SuperTile(
-            name="ST",
-            tileDir=Path(),
-            tiles=tiles,
-            tileMap=tileMap,
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
-        )
+        st = SuperTile(name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap)
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
@@ -623,11 +617,7 @@ class TestInterTileRouting:
         top = _tile_from_rows("Top", _ROWS)
         bottom = _tile_from_rows("Bot", _ROWS[:2])
         st = SuperTile(
-            name="ST",
-            tileDir=Path(),
-            tiles=[top, bottom],
-            tileMap=[[top], [bottom]],
-            config_mem=empty_config_mem(Path("ConfigMem.csv")),
+            name="ST", tileDir=Path(), tiles=[top, bottom], tileMap=[[top], [bottom]]
         )
         writer = VerilogCodeGenerator()
         writer.outFileName = tmp_path / "ST.v"

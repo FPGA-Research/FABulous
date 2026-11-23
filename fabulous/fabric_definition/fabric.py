@@ -689,7 +689,9 @@ class Fabric:
 
         return grid_tile.bels
 
-    def find_tile_positions(self, tile: Tile | SuperTile) -> list[tuple[int, int]]:
+    def find_tile_positions(
+        self, tile: Tile | SuperTile
+    ) -> list[tuple[int, int]] | None:
         """Find all positions where a tile or supertile appears in the fabric grid.
 
         Parameters
@@ -699,9 +701,9 @@ class Fabric:
 
         Returns
         -------
-        list[tuple[int, int]]
-            List of (x, y) positions where the tile/supertile appears, empty if
-            not found
+        list[tuple[int, int]] | None
+            List of (x, y) positions where the tile/supertile appears,
+            or None if not found
         """
         positions = []
         if isinstance(tile, SuperTile):
@@ -725,7 +727,7 @@ class Fabric:
                     if fabric_tile and fabric_tile.name == tile.name:
                         positions.append((x, y))
 
-        return positions
+        return positions or None
 
     def determine_border_side(self, x: int, y: int) -> Side | None:
         """Determine which border side a tile position is on, if any.

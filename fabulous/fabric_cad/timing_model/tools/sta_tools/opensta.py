@@ -235,12 +235,12 @@ class OpenStaTool(StaTool):
         return self.spef_files
 
     @sta_rc_files.setter
-    def sta_rc_files(self, files: list[Path] | Path) -> None:
+    def sta_rc_files(self, files: list[Path] | Path | None) -> None:
         """Set the list of RC files used for STA analysis.
 
         Parameters
         ----------
-        files : list[Path] | Path
+        files : list[Path] | Path | None
             The list of RC files used for STA analysis.
         """
         self.spef_files = files
