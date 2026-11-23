@@ -158,8 +158,9 @@ well.
 Declare the plugin's settings as a subclass of `PluginSettings`, which is a
 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
 model, and return the class from the `fabulous_register_settings` hook. `group`
-is the name the settings are stored under, and `env_prefix` is the prefix of
-the environment variables that set them:
+is the name the settings are stored under. `env_prefix` must be `FAB_`, then
+the group in capitals, then two underscores; FABulous refuses to load settings
+with any other prefix, because `FAB_` alone belongs to FABulous's own settings:
 
 ```python
 from pydantic_settings import SettingsConfigDict
@@ -188,17 +189,21 @@ the greeting:
         self._cmd.poutput(f"{greeting} from my first plugin!")
 ```
 
-Each field is set by an environment variable named after the prefix and the
-field:
+Each field is set by a variable named after the prefix and the field. Like
+FABulous's own settings, it can go in the project's `.FABulous/.env` file:
 
 ```console
-$ FAB_HELLO__GREETING=Servus FABulous run hello
+$ echo "FAB_HELLO__GREETING=Servus" >> .FABulous/.env
+$ FABulous run hello
 Servus from my first plugin!
 ```
 
-Plugin settings are read from environment variables only. Unlike the `FAB_*`
-settings of FABulous itself, they are not read from the project's
-`.FABulous/.env` file.
+An environment variable of the same name overrides the `.env` file for one run:
+
+```console
+$ FAB_HELLO__GREETING=Hi FABulous run hello
+Hi from my first plugin!
+```
 
 `FABulous plugins info hello` now shows the settings group and its prefix.
 

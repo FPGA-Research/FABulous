@@ -71,9 +71,14 @@ class PluginSettings(BaseSettings):
     ----------
     group : ClassVar[str]
         Unique key identifying this plugin's settings on the singleton.
+    model_config : ClassVar[SettingsConfigDict]
+        A subclass sets `env_prefix` to `FAB_<GROUP>__`. Undeclared keys are
+        ignored, because the `.env` files are shared with FABulous and with
+        other plugins.
     """
 
     group: ClassVar[str]
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(extra="ignore")
 
     @classmethod
     def from_context(cls) -> Self:
@@ -140,6 +145,7 @@ class FABulousSettings(BaseSettings):
         "in a hook instead of aborting.",
     )
     _plugin_settings: dict[str, PluginSettings] = PrivateAttr(default_factory=dict)
+    _env_files: tuple[Path, ...] = PrivateAttr(default=())
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
@@ -198,6 +204,37 @@ class FABulousSettings(BaseSettings):
         `PluginSettings.from_context` on the owning subclass.
         """
         return self._plugin_settings
+
+    @property
+    def env_files(self) -> tuple[Path, ...]:
+        """The `.env` files this context was read from, lowest priority first.
+
+        Plugin settings are read from the same files, so a plugin's variables
+        can live in the project's `.FABulous/.env` like FABulous's own.
+        """
+        return self._env_files
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_plugin_keys(cls, data: object) -> object:
+        """Leave `FAB_<GROUP>__*` keys to the plugin settings that own them.
+
+        Plugins read their settings from the same `.env` files, so FABulous must
+        not reject their keys as unknown. No FABulous setting contains `__`.
+
+        Parameters
+        ----------
+        data : object
+            The raw input gathered from the settings sources.
+
+        Returns
+        -------
+        object
+            `data` without the plugin-owned keys.
+        """
+        if not isinstance(data, dict):
+            return data
+        return {key: value for key, value in data.items() if "__" not in key}
 
     @field_validator("oss_cad_suite", mode="before")
     @classmethod
@@ -717,6 +754,7 @@ def init_context(
         )
     else:
         _context_instance = FABulousSettings(_env_file=tuple(env_files))
+    _context_instance._env_files = tuple(env_files)  # noqa: SLF001 - set by its owner module
 
     return _context_instance
 

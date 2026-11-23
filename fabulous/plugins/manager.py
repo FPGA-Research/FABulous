@@ -344,7 +344,14 @@ class PluginManager:
                 raise PluginError(
                     f"Settings group '{model.group}' registered more than once"
                 )
-            new_settings[model.group] = model()
+            expected_prefix = f"FAB_{model.group.upper()}__"
+            prefix = model.model_config.get("env_prefix", "")
+            if prefix.upper() != expected_prefix:
+                raise PluginError(
+                    f"Settings group '{model.group}' uses the env prefix "
+                    f"'{prefix}', but plugin settings must use '{expected_prefix}'"
+                )
+            new_settings[model.group] = model(_env_file=get_context().env_files)
 
         if len(self.pm.get_plugins()) != plugin_count:
             self.build_registries()
