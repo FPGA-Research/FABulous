@@ -15,8 +15,6 @@ library IEEE;
   use IEEE.NUMERIC_STD.all;
   use work.attr_pack_RegFile_RegFile_32x4.all;
 
--- (* FABulous, BelMap, AD_reg=0, BD_reg=1 *)
-
 entity RegFile_32x4 is
   generic (
     NoConfigBits : integer := 2 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
@@ -31,9 +29,9 @@ entity RegFile_32x4 is
     BD    : out   std_logic_vector(3 downto 0); -- Register File read port B
     B_ADR : in    std_logic_vector(4 downto 0); -- Register File read address B
 
-    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic;
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
 
   attribute FABulous of RegFile_32x4 : entity is "TRUE";

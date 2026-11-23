@@ -14,6 +14,13 @@ class VHDLCodeGenerator(CodeGenerator):
     This is the template for generating VHDL code.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        # FABulous attributes as (name, target, target class, value), written
+        # into the entity declarative part by `addHeaderEnd`. A target of None
+        # stands for the entity itself.
+        self._entity_attributes: list[tuple[str, str | None, str, str]] = []
+
     def addComment(
         self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
     ) -> None:
@@ -71,7 +78,37 @@ class VHDLCodeGenerator(CodeGenerator):
         indentLevel : int
             The indentation level
         """
+        declared: dict[str, str] = {}
+        for attr_name, _, _, value in self._entity_attributes:
+            declared.setdefault(attr_name, "integer" if value.isdigit() else "string")
+        for attr_name, attr_type in declared.items():
+            self._add(f"attribute {attr_name} : {attr_type};", indentLevel + 1)
+        for attr_name, target, target_class, value in self._entity_attributes:
+            if not value.isdigit():
+                value = f'"{value}"'
+            self._add(
+                f"attribute {attr_name} of {target or name} : {target_class} "
+                f"is {value};",
+                indentLevel + 1,
+            )
+        self._entity_attributes = []
         self._add(f"end entity {name};", indentLevel)
+
+    def _add_signal_attributes(self, name: str, attribute: str) -> None:
+        """Record comma separated FABulous port attributes for `name`.
+
+        Parameters
+        ----------
+        name : str
+            Port name
+        attribute : str
+            Comma separated attribute names, e.g. `EXTERNAL, SHARED_PORT`
+        """
+        for attr_name in attribute.split(","):
+            if attr_name.strip():
+                self._entity_attributes.append(
+                    (attr_name.strip(), name, "signal", "TRUE")
+                )
 
     def addParameterStart(self, indentLevel: int = 0) -> None:
         """Start the generic parameter declaration section.
@@ -170,7 +207,7 @@ class VHDLCodeGenerator(CodeGenerator):
         _reg : bool
             Register flag (unused in VHDL)
         attribute : str
-            Additional attributes to add as a comment
+            Comma separated FABulous attributes of the port
         indentLevel : int
             The indentation level
         """
@@ -179,11 +216,8 @@ class VHDLCodeGenerator(CodeGenerator):
             ioVHDL = "in"
         elif io.value.lower() == "output":
             ioVHDL = "out"
-        if attribute:
-            attribute = f" -- {attribute}"
-        self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC;{attribute}", indentLevel=indentLevel
-        )
+        self._add_signal_attributes(name, attribute)
+        self._add(f"{name:<10} : {ioVHDL} STD_LOGIC;", indentLevel=indentLevel)
 
     def addPortVector(
         self,
@@ -207,7 +241,7 @@ class VHDLCodeGenerator(CodeGenerator):
         _reg : bool
             Register flag (unused in VHDL)
         attribute : str
-            Additional attributes to add as a comment
+            Comma separated FABulous attributes of the port
         indentLevel : int
             The indentation level
         """
@@ -216,11 +250,9 @@ class VHDLCodeGenerator(CodeGenerator):
             ioVHDL = "in"
         elif io.value.lower() == "output":
             ioVHDL = "out"
-        if attribute:
-            attribute = f" -- {attribute}"
+        self._add_signal_attributes(name, attribute)
         self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );"
-            f"{attribute}",
+            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );",
             indentLevel=indentLevel,
         )
 
@@ -668,27 +700,28 @@ end process;
         raise AssertionError("preprocessor not supported in VHDL")
 
     def addBelMapAttribute(
-        self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
+        self, configBitValues: list[tuple[str, int]], _indentLevel: int = 0
     ) -> None:
-        """Add the BEL mapping attribute as a VHDL comment.
+        """Add the BEL mapping as native VHDL entity attributes.
+
+        The attributes are written by `addHeaderEnd`. Multi-bit features use the
+        `<name>_<index>` form, which the BEL parser turns back into
+        `<name>[<index>]`.
 
         Parameters
         ----------
         configBitValues : list[tuple[str, int]]
             List of (name, count) pairs for configuration bits
-        indentLevel : int
-            The indentation level
+        _indentLevel : int
+            Indentation level (unused).
         """
-        template = "-- (* FABulous, BelMap"
+        self._entity_attributes.append(("FABulous", None, "entity", "TRUE"))
+        self._entity_attributes.append(("BelMap", None, "entity", "TRUE"))
         bit_count = 0
         for key, count in configBitValues:
             for i in range(count):
-                if i == 0:
-                    template += f", {key}={bit_count}"
-                else:
-                    template += f", {key}[{i}]={bit_count}"
-                bit_count = bit_count + 1
-
-        template += " *)\n"
-
-        self._add(template, indentLevel)
+                feature = key if i == 0 else f"{key}_{i}"
+                self._entity_attributes.append(
+                    (feature, None, "entity", str(bit_count))
+                )
+                bit_count += 1
