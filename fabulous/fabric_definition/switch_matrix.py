@@ -58,7 +58,9 @@ def switch_matrix_signal_order(
             dests += port_outputs
     for bel in bels:
         sources.extend(p.name for p in bel.input_ports)
-        dests.extend(p.name for p in bel.output_ports + bel.external_output_ports)
+        dests.extend(p.name for p in bel.output_ports)
+        # A vector port has no per-bit signal a mux input could name.
+        dests.extend(p.name for p in bel.external_output_ports if p.width == 1)
     for port in ports:
         if port.wire_direction == Direction.JUMP:
             port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")
