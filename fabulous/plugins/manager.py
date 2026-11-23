@@ -16,6 +16,7 @@ import sys
 from collections.abc import Callable, Iterable
 from enum import StrEnum
 from functools import partial
+from hashlib import sha256
 from pathlib import Path
 from typing import Protocol, Self, TypeVar
 
@@ -204,7 +205,12 @@ class PluginManager:
         return "\n".join(lines)
 
     def _call_hook_or_skip(
-        self, hook_caller: pluggy.HookCaller, **kwargs: object
+        self,
+        hook_caller: pluggy.HookCaller,
+        *,
+        prepare_result: Callable[..., object] | None = None,
+        refresh_registries: bool = False,
+        **kwargs: object,
     ) -> list:
         """Invoke an aggregating hook one implementation at a time.
 
@@ -218,6 +224,10 @@ class PluginManager:
         ----------
         hook_caller : pluggy.HookCaller
             The hook to drive, e.g. `self.pm.hook.fabulous_register_parsers`.
+        prepare_result : Callable[..., object] | None
+            Transform non-None results under the same failure policy as the hook.
+        refresh_registries : bool
+            Rebuild existing registries if a hook implementation is removed.
         **kwargs : object
             Arguments forwarded to each implementation.
 
@@ -235,6 +245,7 @@ class PluginManager:
             is a hook wrapper, which this call path cannot drive.
         """
         results = []
+        plugin_removed = False
         for impl in reversed(hook_caller.get_hookimpls()):
             if impl.hookwrapper or impl.wrapper:
                 raise PluginError(
@@ -244,6 +255,8 @@ class PluginManager:
                 )
             try:
                 result = impl.function(*(kwargs[arg] for arg in impl.argnames))
+                if result is not None and prepare_result is not None:
+                    result = prepare_result(result)
             except Exception as exc:  # noqa: BLE001 - policy decides re-raise
                 if not self.skip_broken:
                     raise PluginError(
@@ -256,9 +269,12 @@ class PluginManager:
                     f"failed in '{hook_caller.name}': {exc}"
                 )
                 self.pm.unregister(name=impl.plugin_name)
+                plugin_removed = True
                 continue
             if result is not None:
                 results.append(result)
+        if plugin_removed and refresh_registries:
+            self.build_registries()
         return results
 
     def _fold_registry(
@@ -339,19 +355,15 @@ class PluginManager:
         )
 
         new_settings: dict[str, PluginSettings] = {}
-        for model in self._call_hook_or_skip(self.pm.hook.fabulous_register_settings):
-            if model.group in new_settings:
+        for settings in self._call_hook_or_skip(
+            self.pm.hook.fabulous_register_settings,
+            prepare_result=self._build_plugin_settings,
+        ):
+            if settings.group in new_settings:
                 raise PluginError(
-                    f"Settings group '{model.group}' registered more than once"
+                    f"Settings group '{settings.group}' registered more than once"
                 )
-            expected_prefix = f"FAB_{model.group.upper()}__"
-            prefix = model.model_config.get("env_prefix", "")
-            if prefix.upper() != expected_prefix:
-                raise PluginError(
-                    f"Settings group '{model.group}' uses the env prefix "
-                    f"'{prefix}', but plugin settings must use '{expected_prefix}'"
-                )
-            new_settings[model.group] = model(_env_file=get_context().env_files)
+            new_settings[settings.group] = settings
 
         if len(self.pm.get_plugins()) != plugin_count:
             self.build_registries()
@@ -360,6 +372,34 @@ class PluginManager:
         store = get_context().plugin_settings
         store.clear()
         store.update(new_settings)
+
+    @staticmethod
+    def _build_plugin_settings(model: type[PluginSettings]) -> PluginSettings:
+        """Validate the plugin's settings namespace and load its settings.
+
+        Parameters
+        ----------
+        model : type[PluginSettings]
+            The settings class returned by the plugin.
+
+        Returns
+        -------
+        PluginSettings
+            Settings populated from the environment and project configuration.
+
+        Raises
+        ------
+        PluginError
+            If the settings prefix does not match the plugin's settings group.
+        """
+        expected_prefix = f"FAB_{model.group.upper()}__"
+        prefix = model.model_config.get("env_prefix")
+        if not prefix or prefix.upper() != expected_prefix:
+            raise PluginError(
+                f"Settings group '{model.group}' uses the env prefix "
+                f"{prefix!r}, but plugin settings must use '{expected_prefix}'"
+            )
+        return model(_env_file=get_context().env_files)
 
     def make_writer(self, hdl_type: HDLType) -> CodeGenerator:
         """Build a fresh code generator for `hdl_type`.
@@ -468,7 +508,7 @@ class PluginManager:
         not, so building a manager purely to inspect or install plugins never
         runs a plugin's startup side effects.
         """
-        self._call_hook_or_skip(self.pm.hook.fabulous_startup)
+        self._call_hook_or_skip(self.pm.hook.fabulous_startup, refresh_registries=True)
 
     def collect_command_sets(self) -> list[CommandSet]:
         """Gather the cmd2 command sets contributed by every plugin.
@@ -482,7 +522,9 @@ class PluginManager:
             Command sets to register on the shell, in hook-call order.
         """
         command_sets = []
-        for result in self._call_hook_or_skip(self.pm.hook.fabulous_register_commands):
+        for result in self._call_hook_or_skip(
+            self.pm.hook.fabulous_register_commands, refresh_registries=True
+        ):
             if isinstance(result, (list, tuple)):
                 command_sets.extend(result)
             else:
@@ -500,7 +542,9 @@ class PluginManager:
         api : FABulous_API
             The API whose fabric was just loaded.
         """
-        self._call_hook_or_skip(self.pm.hook.fabulous_after_fabric_loaded, api=api)
+        self._call_hook_or_skip(
+            self.pm.hook.fabulous_after_fabric_loaded, refresh_registries=True, api=api
+        )
 
     @staticmethod
     def installed_plugins() -> set[str]:
@@ -592,8 +636,8 @@ class PluginManager:
         Parameters
         ----------
         name : str
-            The plugin's registration name. The module is entered into
-            `sys.modules` under this name prefixed with `_PATH_PLUGIN_PREFIX`.
+            The plugin's registration name, used with a path digest to form
+            a private module name.
         init : Path
             Path to the `__init__.py` or module file to load.
 
@@ -617,7 +661,8 @@ class PluginManager:
                     f"No '__init__.py' found in plugin directory '{init.parent}'"
                 )
             raise PluginError(f"No plugin module found at '{init}'")
-        module_name = f"{_PATH_PLUGIN_PREFIX}{name}"
+        path_digest = sha256(bytes(init.resolve())).hexdigest()
+        module_name = f"{_PATH_PLUGIN_PREFIX}{name}_{path_digest}"
         spec = importlib.util.spec_from_file_location(module_name, init)
         if spec is None or spec.loader is None:
             raise PluginError(f"'{init}' is not an importable Python module")

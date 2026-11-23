@@ -217,6 +217,28 @@ def test_package_plugin_resolves_relative_import(
     assert manager.make_parser(Path("fabric.m")) is not None
 
 
+def test_same_named_package_plugins_use_their_own_submodules(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Relative imports stay within the plugin package for each project."""
+    for project_name, suffix in (("first", ".first"), ("second", ".second")):
+        project_dir = tmp_path / project_name
+        pkg = _write_dir_plugin(
+            project_dir,
+            "hello",
+            "from fabulous.plugins import PLUGIN_API_VERSION\n"
+            "from .provider import fabulous_register_parsers\n"
+            "FABULOUS_PLUGIN_API = PLUGIN_API_VERSION\n",
+        )
+        (pkg / "provider.py").write_text(
+            PARSER_PLUGIN_SRC.format(suffix=suffix, name=project_name)
+        )
+        _patch_context(mocker, project_dir)
+        manager = PluginManager.create()
+
+        assert callable(manager.make_parser(Path(f"fabric{suffix}")))
+
+
 @pytest.mark.parametrize(
     ("name", "source", "skip_broken"),
     [

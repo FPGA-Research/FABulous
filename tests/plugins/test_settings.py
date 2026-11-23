@@ -14,6 +14,7 @@ from fabulous.fabulous_settings import (
 )
 from fabulous.plugins import hookspecs
 from fabulous.plugins.manager import PluginManager
+from tests.plugins.conftest import make_parser_module
 
 
 class _DemoSettings(PluginSettings):
@@ -89,7 +90,10 @@ def test_build_registries_replaces_prior_plugin_settings(project: Path) -> None:
     assert "demo" not in get_context().plugin_settings
 
 
-def test_plugin_settings_outside_their_namespace_are_rejected(project: Path) -> None:
+@pytest.mark.parametrize("skip_broken", [False, True])
+def test_plugin_settings_outside_their_namespace_are_rejected(
+    project: Path, skip_broken: bool
+) -> None:
     """A prefix other than `FAB_<GROUP>__` would collide with FABulous's own keys."""
     init_context(project)
 
@@ -97,15 +101,55 @@ def test_plugin_settings_outside_their_namespace_are_rejected(project: Path) -> 
         group = "clash"
         model_config = SettingsConfigDict(env_prefix="FAB_")
 
-    module = types.ModuleType("clashing_settings_plugin")
+    module = make_parser_module(".clash", "clashing")
 
     @hookspecs.hookimpl
     def fabulous_register_settings() -> type[PluginSettings]:
         return _Clashing
 
     module.fabulous_register_settings = fabulous_register_settings
-    manager = PluginManager()
+    manager = PluginManager(skip_broken=skip_broken)
     manager.pm.register(module, name="clashing")
+    manager.pm.register(make_parser_module(".healthy", "healthy"), name="healthy")
 
-    with pytest.raises(PluginError, match="FAB_CLASH__"):
-        manager.build_registries()
+    if not skip_broken:
+        with pytest.raises(PluginError, match="FAB_CLASH__"):
+            manager.build_registries()
+        return
+
+    manager.build_registries()
+    assert manager.pm.get_plugin("clashing") is None
+    assert "clash" not in get_context().plugin_settings
+    with pytest.raises(PluginError, match="No parser"):
+        manager.make_parser(Path("fabric.clash"))
+    assert callable(manager.make_parser(Path("fabric.healthy")))
+
+
+def test_startup_failure_removes_registries_and_settings(project: Path) -> None:
+    """A plugin skipped at startup cannot supply a parser or settings later."""
+    init_context(project)
+    module = make_parser_module(".demo", "demo")
+
+    @hookspecs.hookimpl
+    def fabulous_register_settings() -> type[PluginSettings]:
+        return _DemoSettings
+
+    @hookspecs.hookimpl
+    def fabulous_startup() -> None:
+        assert _DemoSettings.from_context().jobs == 1
+        raise RuntimeError("broken startup")
+
+    module.fabulous_register_settings = fabulous_register_settings
+    module.fabulous_startup = fabulous_startup
+    manager = PluginManager(skip_broken=True)
+    manager.pm.register(module, name="demo")
+    manager.build_registries()
+    assert callable(manager.make_parser(Path("fabric.demo")))
+    assert "demo" in get_context().plugin_settings
+
+    manager.notify_startup()
+
+    assert manager.pm.get_plugin("demo") is None
+    assert "demo" not in get_context().plugin_settings
+    with pytest.raises(PluginError, match="No parser"):
+        manager.make_parser(Path("fabric.demo"))
