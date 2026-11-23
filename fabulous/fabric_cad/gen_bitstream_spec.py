@@ -63,6 +63,51 @@ def bit_positions(memory: ConfigMem, fabric: Fabric) -> list[int]:
     return positions
 
 
+def chain_bit_positions(
+    fabric: Fabric, *, owner: str, first: int, config_bits: int
+) -> list[int]:
+    """Give the bitstream position of each configuration bit on a daisy chain.
+
+    A FLIPFLOP_CHAIN fabric has no frame layout, so bit `i` of the holder sits at
+    position `first + i` of its tile's entry. A tile starts at 0. A supertile's
+    own bits start after its master tile's bits, because the supertile wrapper
+    puts the supertile's chain segment after its subtiles. Bits past
+    `config_bits` keep -1, which `bit_gen` reads as unmapped.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose per-tile position count bounds the positions.
+    owner : str
+        The tile or supertile the bits belong to, named in the error.
+    first : int
+        The position of the holder's bit 0.
+    config_bits : int
+        The number of configuration bits the holder has.
+
+    Returns
+    -------
+    list[int]
+        The position of every bit of the grid, indexed by configuration bit.
+
+    Raises
+    ------
+    ValueError
+        If the bits run past the `MaxFramesPerCol * FrameBitsPerRow` positions
+        `bit_gen` keeps for each tile.
+    """
+    capacity = fabric.maxFramesPerCol * fabric.frameBitsPerRow
+    if first + config_bits > capacity:
+        raise ValueError(
+            f"{owner} needs chain positions {first} to {first + config_bits - 1}, "
+            f"but bit_gen keeps {capacity} positions per tile "
+            "(MaxFramesPerCol x FrameBitsPerRow)."
+        )
+    positions = [-1] * capacity
+    positions[:config_bits] = range(first, first + config_bits)
+    return positions
+
+
 def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
     """Generate the fabric's bitstream specification.
 
@@ -70,8 +115,8 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
     bitstream
     The result file will be further parsed by `bit_gen.py`.
 
-    A FLIPFLOP_CHAIN fabric has no frames, so its specification carries only
-    the tile map and the architecture parameters.
+    A FLIPFLOP_CHAIN fabric has no frames, so its specification has no frame map
+    and places each bit as `chain_bit_positions` gives it.
 
     Parameters
     ----------
@@ -87,7 +132,8 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
     ------
     ValueError
         If a tile's or supertile's configuration memory holds a different number
-        of bits than it has, which is how an ungenerated mapping shows.
+        of bits than it has, which is how an ungenerated mapping shows, or if a
+        FLIPFLOP_CHAIN tile's bits run past the positions `bit_gen` keeps.
     """
     spec_data = {
         "TileMap": {},
@@ -116,18 +162,26 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
                 tile_map[f"X{x}Y{y}"] = "NULL"
 
     spec_data["TileMap"] = tile_map
-    if fabric.configBitMode is not ConfigBitMode.FRAME_BASED:
+    frame_based = fabric.configBitMode is ConfigBitMode.FRAME_BASED
+    if not frame_based:
         logger.warning(
-            f"{fabric.name} shifts its configuration through a daisy chain, "
-            "so its bitstream specification carries no frame map"
+            f"{fabric.name} shifts its configuration through a daisy chain, so its "
+            "bitstream specification places each bit at its ConfigBits index and "
+            "carries no frame map"
         )
-        return spec_data
 
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            if tile.globalConfigBits == 0:
+            if not frame_based:
+                positions = chain_bit_positions(
+                    fabric,
+                    owner=f"X{x}Y{y}_{tile.name}",
+                    first=0,
+                    config_bits=tile.globalConfigBits,
+                )
+            elif tile.globalConfigBits == 0:
                 # Every pip of such a tile is single-sink, so no position is read.
                 logger.info(f"No config memory for X{x}Y{y}_{tile.name}.")
                 spec_data["FrameMap"][tile.name] = {}
@@ -195,12 +249,10 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
             spec_data["TileSpecs"][f"X{x}Y{y}"] = tile_specs
             spec_data["TileSpecs_No_Mask"][f"X{x}Y{y}"] = tile_specs_no_mask
 
-    # Supertile bitstream features. A supertile's config bits physically live in
-    # its master tile's frame column (the master tile's own ConfigMem leaves those
-    # bits free). Within the supertile config space the bit order is
-    # [switch-matrix bits][BEL bits], matching genSuperTile()'s ST_ConfigBits
-    # slicing. The BEL and switch-matrix features are added to the master tile's
-    # TileSpecs entry alongside the master tile's own features.
+    # A supertile's features go in its master tile's TileSpecs entry, ordered
+    # [switch-matrix bits][BEL bits] as genSuperTile() slices ST_ConfigBits.
+    # Frame-based bits sit in crosspoints the master's ConfigMem leaves free;
+    # chain bits follow the master's own bits.
     st_bel_count: dict[tuple[int, int], int] = {}
     for super_tile in fabric.superTileDic.values():
         if not super_tile.bels and super_tile.supertile_matrix_dir is None:
@@ -210,7 +262,7 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
 
         st_positions = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
         st_frame_map: dict[int, str] = {}
-        if st_config_bits > 0:
+        if st_config_bits > 0 and frame_based:
             st_memory = super_tile.config_mem
             if st_memory is None:
                 raise ValueError(
@@ -240,12 +292,20 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
             fty = base_fy + ty_local
             master_tile = fabric.tile[fty][ftx]
 
-            frame_map = spec_data["FrameMap"].setdefault(master_tile.name, {})
-            for frame_idx, mask in st_frame_map.items():
-                existing = frame_map.get(frame_idx, "0" * fabric.frameBitsPerRow)
-                frame_map[frame_idx] = "".join(
-                    "1" if a == "1" or b == "1" else "0"
-                    for a, b in zip(existing, mask, strict=True)
+            if frame_based:
+                frame_map = spec_data["FrameMap"].setdefault(master_tile.name, {})
+                for frame_idx, mask in st_frame_map.items():
+                    existing = frame_map.get(frame_idx, "0" * fabric.frameBitsPerRow)
+                    frame_map[frame_idx] = "".join(
+                        "1" if a == "1" or b == "1" else "0"
+                        for a, b in zip(existing, mask, strict=True)
+                    )
+            else:
+                st_positions = chain_bit_positions(
+                    fabric,
+                    owner=f"X{ftx}Y{fty}_{super_tile.name}",
+                    first=master_tile.globalConfigBits,
+                    config_bits=st_config_bits,
                 )
 
             tile_specs = spec_data["TileSpecs"].setdefault(f"X{ftx}Y{fty}", {})
