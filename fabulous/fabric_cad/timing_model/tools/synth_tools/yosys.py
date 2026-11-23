@@ -32,7 +32,7 @@ class YosysTool(SynthTool):
     ----------
     synth_executable : Path | str
         The path to the Yosys executable.
-    top_name : str | None
+    top_name : str
         The name of the top-level module in the Verilog design.
     is_gate_level : bool
         Flag indicating whether the input Verilog files are already
@@ -45,13 +45,13 @@ class YosysTool(SynthTool):
     tielo_cell_and_port : str | None
         String specifying the tie-low cell and port for Yosys hilomap,
         or None if not using hilomap.
-    min_buf_cell_and_ports : str | None
+    min_buf_cell_and_ports : str
         String specifying the minimum buffer cell and ports for Yosys
-        insbuf, or None if not using insbuf.
-    verilog_files : list[Path] | Path | None
+        insbuf.
+    verilog_files : list[Path] | Path
         List of Verilog RTL files or a single Verilog RTL file to
         be synthesized.
-    liberty_files : list[Path] | Path | None
+    liberty_files : list[Path] | Path
         List of Liberty files or a single Liberty file for the
         target technology.
     debug : bool
@@ -65,25 +65,26 @@ class YosysTool(SynthTool):
     def __init__(
         self,
         synth_executable: Path | str,
-        top_name: str | None = None,
+        *,
+        top_name: str,
         is_gate_level: bool = False,
         techmap_files: list[Path] | None = None,
         tiehi_cell_and_port: str | None = None,
         tielo_cell_and_port: str | None = None,
-        min_buf_cell_and_ports: str | None = None,
-        verilog_files: list[Path] | Path | None = None,
-        liberty_files: list[Path] | Path | None = None,
+        min_buf_cell_and_ports: str,
+        verilog_files: list[Path] | Path,
+        liberty_files: list[Path] | Path,
         debug: bool = False,
         flat: bool = False,
     ) -> None:
-        self.verilog_files: list[Path] | Path | None = verilog_files
-        self.lib_files: list[Path] | Path | None = liberty_files
-        self.top_name: str | None = top_name
+        self.verilog_files: list[Path] | Path = verilog_files
+        self.lib_files: list[Path] | Path = liberty_files
+        self.top_name: str = top_name
         self.synth_executable: Path | str = synth_executable
         self.techmap_files: list[Path] | None = techmap_files
         self.tiehi_cell_and_port: str | None = tiehi_cell_and_port
         self.tielo_cell_and_port: str | None = tielo_cell_and_port
-        self.min_buf_cell_and_ports: str | None = min_buf_cell_and_ports
+        self.min_buf_cell_and_ports: str = min_buf_cell_and_ports
         self.is_gate_level: bool = is_gate_level
         self.debug: bool = debug
         self.flat: bool = flat
@@ -167,8 +168,7 @@ class YosysTool(SynthTool):
                 f"hilomap -hicell {self.tiehi_cell_and_port} "
                 f"-locell {self.tielo_cell_and_port}\n"
             )
-        if self.min_buf_cell_and_ports is not None:
-            synth_tcl_script += f"insbuf -buf {self.min_buf_cell_and_ports}\n"
+        synth_tcl_script += f"insbuf -buf {self.min_buf_cell_and_ports}\n"
 
         synth_tcl_script += "tribuf\n"
         synth_tcl_script += f"abc -liberty {
@@ -234,14 +234,7 @@ class YosysTool(SynthTool):
         -------
         str
             The name of the design being synthesized.
-
-        Raises
-        ------
-        RuntimeError
-            If no design name has been set.
         """
-        if self.top_name is None:
-            raise RuntimeError("No design name has been set on the synthesis tool.")
         return self.top_name
 
     @synth_design_name.setter
@@ -263,14 +256,7 @@ class YosysTool(SynthTool):
         -------
         list[Path] | Path
             The list of RTL Verilog files used for synthesis.
-
-        Raises
-        ------
-        RuntimeError
-            If no RTL files have been set.
         """
-        if self.verilog_files is None:
-            raise RuntimeError("No RTL files have been set on the synthesis tool.")
         return self.verilog_files
 
     @synth_rtl_files.setter
@@ -292,14 +278,7 @@ class YosysTool(SynthTool):
         -------
         list[Path] | Path
             The list of Liberty files used for synthesis.
-
-        Raises
-        ------
-        RuntimeError
-            If no Liberty files have been set.
         """
-        if self.lib_files is None:
-            raise RuntimeError("No Liberty files have been set on the synthesis tool.")
         return self.lib_files
 
     @synth_liberty_files.setter
@@ -489,8 +468,8 @@ class YosysTool(SynthTool):
             raise TypeError("tiehi_cell_and_port must be a string or None.")
         if not isinstance(self.tielo_cell_and_port, str | type(None)):
             raise TypeError("tielo_cell_and_port must be a string or None.")
-        if not isinstance(self.min_buf_cell_and_ports, str | type(None)):
-            raise TypeError("min_buf_cell_and_ports must be a string or None.")
+        if not isinstance(self.min_buf_cell_and_ports, str):
+            raise TypeError("min_buf_cell_and_ports must be a string.")
         if not isinstance(self.flat, bool):
             raise TypeError("flat must be a boolean value.")
 

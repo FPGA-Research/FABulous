@@ -322,8 +322,7 @@ def generate_super_tile_config_mem(
     Raises
     ------
     ValueError
-        If the supertile was built without a configuration memory, or if a
-        mapping already on disk holds no bits.
+        If a mapping already on disk holds no bits.
     """
     config_bits = super_tile.total_config_bits
     if config_bits <= 0:
@@ -331,8 +330,6 @@ def generate_super_tile_config_mem(
         return
 
     existing = super_tile.config_mem
-    if existing is None:
-        raise ValueError(f"{super_tile.name} was built without a configuration memory.")
     if existing.config_bits > 0:
         validate_super_tile_config_mem(existing, master, config_bits)
         config_mem = existing

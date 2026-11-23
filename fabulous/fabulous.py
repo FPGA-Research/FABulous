@@ -66,7 +66,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit
 
 
-def validate_project_directory(value: str) -> Path | None:
+def validate_project_directory(value: str) -> Path:
     """Validate the project directory."""
     if not (Path(value) / ".FABulous").exists():
         raise ValueError(f"{value} is not a valid FABulous project")

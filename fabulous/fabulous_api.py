@@ -704,7 +704,7 @@ class FABulous_API:
         pdk_root: Path,
         *,
         final_view: Path | None = None,
-        optimisation: OptMode | None = OptMode.BALANCE,
+        optimisation: OptMode = OptMode.BALANCE,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
@@ -724,7 +724,7 @@ class FABulous_API:
         flow = self.tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
-            OptMode(optimisation),
+            optimisation,
             pdk=pdk,
             pdk_root=pdk_root,
             base_config_path=base_config_path,
@@ -907,8 +907,6 @@ class FABulous_API:
         """
         pdk: str | None = get_context().pdk
         pdk_root: Path | None = get_context().pdk_root
-
-        iconfig: TimingModelConfig | None = None
 
         match pdk, pdk_root:
             case "ihp-sg13g2" as pdk_name, Path() as root:

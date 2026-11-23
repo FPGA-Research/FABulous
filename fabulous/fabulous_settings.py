@@ -156,11 +156,11 @@ class FABulousSettings(BaseSettings):
         deprecated=True,
         description="Deprecated, use proj_version instead",
     )
-    max_worker: int | None = Field(
+    max_worker: int = Field(
         default=2,
         ge=0,
         description="Maximum number of worker processes for parallel tasks. "
-        "0 or None means use the system default. (Multiple workers are only "
+        "0 means use the system default. (Multiple workers are only "
         "used for the full fabric flow for now)",
     )
 
@@ -413,20 +413,15 @@ class FABulousSettings(BaseSettings):
 
     @field_validator("user_config_dir", mode="after")
     @classmethod
-    def ensure_user_config_dir(cls, value: Path | None) -> Path | None:
+    def ensure_user_config_dir(cls, value: Path) -> Path:
         """Ensure user config directory exists, creating if necessary."""
-        if value is None:
-            return None
-        # Create the directory if it doesn't exist
         value.mkdir(parents=True, exist_ok=True)
         return value
 
     @field_validator("proj_dir", mode="after")
     @classmethod
-    def is_valid_project_dir(cls, value: Path | None) -> Path | None:
+    def is_valid_project_dir(cls, value: Path) -> Path:
         """Check if project_dir is a valid directory."""
-        if value is None:
-            raise ValueError("Project directory is not set.")
         if not (Path(value) / ".FABulous").exists():
             raise ValueError(f"{value} is not a FABulous project")
         return value.resolve()
@@ -474,9 +469,7 @@ class FABulousSettings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def resolve_tool_paths(
-        cls, value: Path | str | None, info: ValidationInfo
-    ) -> Path | str:
+    def resolve_tool_paths(cls, value: Path | str, info: ValidationInfo) -> Path | str:
         """Resolve tool paths by checking if tools are available in `PATH`.
 
         This method is used as a field validator to automatically resolve tool paths
@@ -486,8 +479,8 @@ class FABulousSettings(BaseSettings):
 
         Parameters
         ----------
-        value : Path | str | None
-            The explicitly provided tool path, if any.
+        value : Path | str
+            The tool path or command name. An empty string selects the usual name.
         info : ValidationInfo
             Validation context containing field information.
 

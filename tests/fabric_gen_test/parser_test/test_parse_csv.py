@@ -311,7 +311,6 @@ def test_a_supertile_declared_in_the_fabric_csv_maps_into_its_own_directory(
 
     (super_tile,) = parseSupertilesCSV(fabric_csv, fabric.tileDic)
 
-    assert super_tile.config_mem is not None
     assert super_tile.config_mem.source.parent == project / "Tile" / "DSP"
 
 

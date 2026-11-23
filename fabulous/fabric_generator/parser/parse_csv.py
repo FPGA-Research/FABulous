@@ -38,7 +38,7 @@ from fabulous.fabric_definition.define import (
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
-from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.supertile import SuperTile, super_tile_directory
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile, tile_directory
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
@@ -794,13 +794,20 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path, matching Tile.tileDir.
+        super_tile_csv = fileName.absolute()
         super_tile = SuperTile(
-            name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
+            name,
+            super_tile_csv,
+            tiles,
+            tileMap,
+            bels,
+            withUserCLK,
+            config_mem=empty_config_mem(
+                super_tile_directory(name, super_tile_csv, tiles)
+                / f"{name}_ConfigMem.csv"
+            ),
         )
         super_tile.master_tile_coords = master_coords
-        super_tile.config_mem = empty_config_mem(
-            super_tile.directory / f"{name}_ConfigMem.csv"
-        )
 
         # The supertile switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
@@ -924,10 +931,6 @@ def parse_tile_from_dir(
     supertiles = parseSupertilesCSV(tile_csv, tile_dic)
     for supertile in supertiles:
         if supertile.name == tile_name:
-            if supertile.config_mem is None:
-                raise InvalidSupertileDefinition(
-                    f"SuperTile {tile_name!r} has no configuration memory."
-                )
             supertile.config_mem = _read_config_mem(
                 supertile.config_mem,
                 config_bit_mode=config_bit_mode,

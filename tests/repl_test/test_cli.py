@@ -200,7 +200,6 @@ def chain_cli(cli: FABulousREPL) -> FABulousREPL:
     for tile in cli.fabulousAPI.fabric.tileDic.values():
         tile.config_mem = empty_config_mem(tile.config_mem.source)
     for super_tile in cli.fabulousAPI.fabric.superTileDic.values():
-        assert super_tile.config_mem is not None
         super_tile.config_mem = empty_config_mem(super_tile.config_mem.source)
     return cli
 
