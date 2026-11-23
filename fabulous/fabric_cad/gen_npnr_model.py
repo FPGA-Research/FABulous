@@ -415,7 +415,7 @@ def genNextpnrModel(
                 TimingModelTarget.BELS,
                 TimingModelTarget.BOTH,
             ):
-                timing = delay_model.bel_timing(fabric.tile[fty][ftx].name, bel)
+                timing = delay_model.bel_timing(master_tile.name, bel)
             v1_line, v2_lines, v3_lines, constrain_lines = belLines(
                 bel, letter, ftx, fty, timing
             )

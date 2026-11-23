@@ -6,8 +6,8 @@ It handles both direct connections to neighboring tiles and complex stair-like r
 for longer-distance connections.
 """
 
+from _csv import Writer
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from fabulous.custom_exception import InvalidPortType
 from fabulous.fabric_definition.bel import Bel
@@ -22,9 +22,6 @@ from fabulous.geometry_generator.wire_geometry import (
     WireConstraints,
     WireGeometry,
 )
-
-if TYPE_CHECKING:
-    from _csv import Writer
 
 
 @dataclass

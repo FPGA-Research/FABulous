@@ -5,14 +5,11 @@ including simple wires and complex stair-like wire structures for multi-tile rou
 supports CSV serialization for integration with geometry files.
 """
 
-from typing import TYPE_CHECKING
+from _csv import Writer
 
 from fabulous.custom_exception import InvalidPortType
 from fabulous.fabric_definition.fabric import Direction
 from fabulous.geometry_generator.geometry_obj import Location
-
-if TYPE_CHECKING:
-    from _csv import Writer
 
 
 class WireGeometry:

@@ -266,7 +266,7 @@ def test_flipflop_chain_conf_data_width_matches_tile_count(
     """
     t = mk_tile("T")
     # 2x3 grid with one NULL hole -> 5 instantiated tiles.
-    grid = [[t, t, None], [t, t, t]]
+    grid: list[list[Tile | None]] = [[t, t, None], [t, t, t]]
     fabric = Fabric(
         fabric_dir=t.tileDir,
         tile=grid,

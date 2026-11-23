@@ -28,7 +28,6 @@ skip cleanly when it is absent.
 from collections.abc import Callable
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -184,18 +183,28 @@ def supertile_netlist(
 ) -> Callable[..., GridConnectivity]:
     """Render a supertile (plus stub sub-tiles) and elaborate it with Yosys."""
 
-    def _build(tileMap: list[list[Tile | None]], **kwargs: object) -> GridConnectivity:
+    def _build(
+        tileMap: list[list[Tile | None]],
+        *,
+        disable_user_clk: bool = False,
+        config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+        user_clk_side: Side = Side.SOUTH,
+    ) -> GridConnectivity:
         tiles = [t for row in tileMap for t in row if t is not None]
         st = SuperTile(name="ST", tileDir=Path(), tiles=tiles, tileMap=tileMap)
         out = tmp_path / "ST.v"
         writer = VerilogCodeGenerator()
         writer.outFileName = out
-        gen_kwargs: dict[str, Any] = dict(kwargs)
-        generateSuperTile(writer, st, **gen_kwargs)
+        generateSuperTile(
+            writer,
+            st,
+            disable_user_clk=disable_user_clk,
+            config_bit_mode=config_bit_mode,
+            user_clk_side=user_clk_side,
+        )
         text = out.read_text()
-        mode = kwargs.get("config_bit_mode", ConfigBitMode.FRAME_BASED)
         for tile in {t.name: t for t in tiles}.values():
-            text += _tile_stub(tile, config_bit_mode=mode)
+            text += _tile_stub(tile, config_bit_mode=config_bit_mode)
         return supertile_grid(elaborate(text, name="ST"), tileMap)
 
     return _build

@@ -21,15 +21,12 @@ iverilog plus the PDK cell models (see the GL fixtures in this directory's
 
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 
 import fabulous.fabric_files as _fab_template_pkg
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
-
-if TYPE_CHECKING:
-    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 _DEMO_NAME = "sequential_16bit_en"
 _DEMO_DESIGN = (

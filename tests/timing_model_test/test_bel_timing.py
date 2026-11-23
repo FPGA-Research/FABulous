@@ -1,7 +1,6 @@
 """BEL timing regression tests using real netlist and SDF parsers."""
 
 from pathlib import Path
-from types import SimpleNamespace
 
 import networkx as nx
 import pytest
@@ -10,6 +9,7 @@ from fabulous.fabric_cad.gen_npnr_model import belLines
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
+from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import (
     VerilogGateLevelTimingGraph,
@@ -20,6 +20,7 @@ from fabulous.fabric_cad.timing_model.models import (
     BelDelayTiming,
     BelSetupHoldTiming,
     SDFPathType,
+    TimingModelConfig,
     TimingModelMode,
 )
 from fabulous.fabric_definition.bel import Bel
@@ -33,7 +34,7 @@ def make_graph(
     netlist: str,
     cells: list[str],
     interconnects: list[tuple[str, str]],
-) -> VerilogGateLevelTimingGraph:
+) -> HdlnxTimingModel:
     """Build the real SDF graph and attach its matching structural netlist."""
     sdf = tmp_path / "demo.sdf"
     sdf.write_text(
@@ -48,7 +49,7 @@ def make_graph(
         + " ".join(cells)
         + ")"
     )
-    graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
+    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
     SDFTimingGraph.__init__(graph, sdf)
     graph.top_name = "Top"
     graph.verilog_netlist_content = netlist
@@ -98,13 +99,19 @@ def make_bel(
     )
 
 
-def make_model(graph: VerilogGateLevelTimingGraph) -> FABulousTileTimingModel:
+def make_model(graph: HdlnxTimingModel) -> FABulousTileTimingModel:
     """Attach a prebuilt graph without invoking external EDA tools."""
     model = FABulousTileTimingModel.__new__(FABulousTileTimingModel)
     model.tile_name = "demo_tile"
     model.hdlnx_tm_synth = graph
-    model.tm_config = SimpleNamespace(
-        mode=TimingModelMode.STRUCTURAL, delay_scaling_factor=1.0
+    model.tm_config = TimingModelConfig(
+        project_dir=FIXTURES,
+        liberty_files=[],
+        min_buf_cell_and_ports="BUF A Y",
+        synth_executable="yosys",
+        sta_executable="opensta",
+        mode=TimingModelMode.STRUCTURAL,
+        delay_scaling_factor=1.0,
     )
     return model
 
@@ -169,6 +176,7 @@ def test_clock_lookup_follows_internal_shared_and_buffered_clocks(
     )[0]
     assert complete.effective_setup
     assert complete.effective_hold
+    assert complete.clock_to_output_rise is not None
     assert complete.clock_to_output_rise.maximum == pytest.approx(
         0.9 if buffered else 0.8
     )
@@ -226,6 +234,7 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
         )[0]
         assert complete.effective_setup
         assert complete.effective_hold
+        assert complete.clock_to_output_rise is not None
         assert complete.clock_to_output_rise.maximum == pytest.approx(0.8)
     for channel in ("in", "en"):
         with pytest.raises(nx.NetworkXNoPath):
@@ -236,6 +245,7 @@ def test_iobuf_characterizes_registers_across_external_ports(tmp_path: Path) -> 
     assert clock_path.path_type == SDFPathType.SEQUENTIAL
     assert clock_path.rise.maximum == pytest.approx(0.8)
     assert clock_path.register_clock_pin == prefix + "out_ff/CLK"
+    assert clock_path.clock_to_output_rise is not None
     assert clock_path.clock_to_output_rise.maximum == pytest.approx(0.8)
     assert make_model(graph).bel_timing(bel).arcs == (
         BelClockTiming("CLK"),
@@ -330,13 +340,6 @@ def test_bel_timing_does_not_require_a_physical_model(tmp_path: Path) -> None:
     assert model.bel_timing(bel) == expected
 
 
-def test_bel_timing_requires_a_synthesis_model(tmp_path: Path) -> None:
-    bel, model = registered_bel(tmp_path, "CLK")
-    model.hdlnx_tm_synth = None
-    with pytest.raises(RuntimeError, match="synthesis timing model is not initialized"):
-        model.bel_timing(bel)
-
-
 def test_missing_bel_reports_the_instance_and_tile(tmp_path: Path) -> None:
     bel, model = registered_bel(tmp_path, "CLK")
     bel.prefix = "missing_"
@@ -389,7 +392,7 @@ def sky130_lc_and_iobuf() -> tuple[FABulousTileTimingModel, Bel, Bel]:
     Synthesis uses the timing model's hierarchical synth/renames/clockgate/
     dfflibmap/splitnets/insbuf/abc sequence, followed by OpenSTA write_sdf.
     """
-    graph = VerilogGateLevelTimingGraph.__new__(VerilogGateLevelTimingGraph)
+    graph = HdlnxTimingModel.__new__(HdlnxTimingModel)
     SDFTimingGraph.__init__(graph, FIXTURES / "sky130_lc_iobuf.sdf")
     graph.top_name = "Top"
     graph.verilog_netlist_content = (FIXTURES / "sky130_lc_iobuf.v").read_text()

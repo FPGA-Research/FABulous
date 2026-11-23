@@ -200,6 +200,7 @@ def chain_cli(cli: FABulousREPL) -> FABulousREPL:
     for tile in cli.fabulousAPI.fabric.tileDic.values():
         tile.config_mem = empty_config_mem(tile.config_mem.source)
     for super_tile in cli.fabulousAPI.fabric.superTileDic.values():
+        assert super_tile.config_mem is not None
         super_tile.config_mem = empty_config_mem(super_tile.config_mem.source)
     return cli
 
@@ -921,7 +922,7 @@ class TestGenMacroFullForwarding:
 class TestGenMacroAllTile:
     """`gen_macro all_tile` fans out over the fabric's tiles."""
 
-    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
+    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MagicMock:
         mocker.patch(
             "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
@@ -1016,7 +1017,7 @@ class TestGenMacroResume:
 
     def _patch(
         self, cli: FABulousREPL, mocker: MockerFixture, api_method: str
-    ) -> MockerFixture:
+    ) -> MagicMock:
         mocker.patch(
             "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
@@ -1122,16 +1123,9 @@ class TestGenMacroResume:
 
 def test_gen_macro_tile_completer_offers_tile_names(cli: FABulousREPL) -> None:
     """The tile completer still reaches app state from inside the subparser."""
-    parser = cli.command_parsers.get(cli.do_gen_macro)
-    subparsers = next(a for a in parser._actions if a.dest == "subcommand")  # noqa: SLF001
-    tile_action = next(
-        a
-        for a in subparsers.choices["tile"]._actions  # noqa: SLF001
-        if a.dest == "tile"
-    )
-    cmd_set = cli.find_commandset_for_command("gen_macro")
+    line = "gen_macro tile "
 
-    names = list(tile_action.get_completer()(cmd_set))
+    names = cli.complete("", line, len(line), len(line)).to_strings()
 
     assert TILE in names
 

@@ -8,8 +8,8 @@ from typing import Any, Protocol
 # Cocotb test module - these functions are called by cocotb during simulation
 import cocotb
 import pytest
+from cocotb.handle import LogicArrayObject, LogicObject, PackedObject
 from cocotb.triggers import Timer
-from cocotb.types import LogicArray
 
 from fabulous.fabric_definition.configmem import ConfigMem, ConfigMemFrame
 from fabulous.fabric_definition.define import ConfigBitMode
@@ -55,23 +55,25 @@ def load_chain_mapping() -> list[int]:
 async def clock_chain(dut: ConfigMemChainDUT) -> None:
     """One rising-edge pulse on CONF_CLK"""
     dut.CONF_CLK.value = 1
-    await Timer(10, units="ps")
+    await Timer(10, unit="ps")
     dut.CONF_CLK.value = 0
-    await Timer(10, units="ps")
+    await Timer(10, unit="ps")
 
 
 async def initialize_configmem_chain(dut: ConfigMemChainDUT) -> None:
     """Initialize the flip-flop chain by clocking zeros through all stages."""
     dut.CONFin.value = 0
     dut.CONF_CLK.value = 0
-    await Timer(10, units="ps")
+    await Timer(10, unit="ps")
 
     n = len(dut.ConfigBits)
     for _ in range(n + 1):
         await clock_chain(dut)
 
 
-def _read_bit(handle: LogicArray, index: int) -> int:
+def _read_bit(
+    handle: LogicObject | LogicArrayObject | PackedObject[LogicObject], index: int
+) -> int:
     """Read a single bit from a cocotb signal handle.
 
     Works around two simulator quirks:
@@ -81,15 +83,12 @@ def _read_bit(handle: LogicArray, index: int) -> int:
         sub-handles, so handle[i] raises IndexError even though the vector
         itself has a .value you can index into.
     """
+    if isinstance(handle, LogicObject):
+        return int(handle.value)
     try:
         return int(handle[index].value)
-    except (TypeError, IndexError):
-        pass
-    try:
+    except IndexError:
         return int(handle.value[index])
-    except (TypeError, IndexError):
-        # Scalar 1-bit signal: ignore the index
-        return int(handle.value)
 
 
 @cocotb.test
@@ -118,7 +117,7 @@ async def cocotb_test_configmem_chain(dut: ConfigMemChainDUT) -> None:
 
     # --- 1. Edge sensitivity: no shift without a posedge ---
     dut.CONFin.value = 1
-    await Timer(10, units="ps")
+    await Timer(10, unit="ps")
     assert _read_bit(dut.ConfigBits, mapped_indices[0]) == 0, (
         "CONFin=1 without a clock edge should not shift the chain"
     )

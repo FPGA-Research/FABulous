@@ -10,8 +10,6 @@ in the FPGA fabric:
 - ConfigPort: A configuration port with features
 """
 
-from __future__ import annotations
-
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.define import (
@@ -221,7 +219,7 @@ class TilePort(Port):
 
     _side_of_tile: Side
     _term: bool
-    _tile: Tile | None
+    _tile: "Tile | None"
     # Backward compatibility fields for wire routing
     _wire_direction: Direction
     _source_name: str
@@ -237,7 +235,7 @@ class TilePort(Port):
         width: int,
         side_of_tile: Side,
         term: bool = False,
-        tile: Tile | None = None,
+        tile: "Tile | None" = None,
         # Backward compatibility parameters
         wire_direction: Direction | None = None,
         source_name: str = "",
@@ -271,7 +269,7 @@ class TilePort(Port):
         return self._term
 
     @property
-    def tile(self) -> Tile | None:
+    def tile(self) -> "Tile | None":
         """The tile this port belongs to, or None while the port is unattached."""
         return self._tile
 

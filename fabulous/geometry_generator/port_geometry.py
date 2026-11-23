@@ -1,13 +1,10 @@
 """Port geometry definitions."""
 
+from _csv import Writer
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.define import IO, Direction, Side
-
-if TYPE_CHECKING:
-    from _csv import Writer
 
 
 class PortType(Enum):

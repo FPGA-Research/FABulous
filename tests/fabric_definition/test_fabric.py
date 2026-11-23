@@ -237,13 +237,13 @@ class TestTileLookup:
         tile = make_empty_tile("LUT")
         fabric = make_fabric(**{dict_name: {"LUT": tile}})
 
-        assert fabric.get_tile_by_name("LUT") is tile
+        assert fabric.getTileByName("LUT") is tile
 
     def test_finds_supertile(self, make_fabric: Callable[..., Fabric]) -> None:
         super_tile = self._make_super_tile("SUPER_X")
         fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
 
-        assert fabric.get_tile_by_name("SUPER_X") is super_tile
+        assert fabric.getTileByName("SUPER_X") is super_tile
 
     def test_missing_name_reports_the_tile_not_the_supertile(
         self, make_fabric: Callable[..., Fabric]
@@ -252,4 +252,4 @@ class TestTileLookup:
         fabric = make_fabric(tileDic={"LUT": make_empty_tile("LUT")})
 
         with pytest.raises(KeyError, match="Tile NOPE not found in fabric"):
-            fabric.get_tile_by_name("NOPE")
+            fabric.getTileByName("NOPE")

@@ -10,7 +10,6 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from librelane.flows.flow import Flow
 from loguru import logger
 
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
@@ -42,6 +41,7 @@ from fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow impo
     FABulousFabricOptimisationFlow,
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileMacroFlow,
     FABulousTileVerilogMacroFlow,
     FABulousTileVHDLMacroFlow,
 )
@@ -78,7 +78,7 @@ class FABulous_API:
     geometries, models for nextpnr, as well as
     other fabric-related functions.
 
-    If 'fabric_csv' is provided, parses fabric data and initialises
+    If 'fabricCSV' is provided, parses fabric data and initialises
     'fabricGenerator' and 'geometryGenerator' with parsed data.
 
     If using VHDL, changes the extension from '.v' to'.vhdl'.
@@ -89,7 +89,7 @@ class FABulous_API:
         Object responsible for generating code from code_generator.py
     plugin_manager : PluginManager
         The plugin manager resolving parsers and firing lifecycle hooks.
-    fabric_csv : Path | None
+    fabricCSV : str | Path | None
         Path to a fabric file to load, by default None. Its suffix selects the
         parser.
 
@@ -108,12 +108,12 @@ class FABulous_API:
         self,
         writer: CodeGenerator,
         plugin_manager: "PluginManager",
-        fabric_csv: Path | None = None,
+        fabricCSV: str | Path | None = None,
     ) -> None:
         self.writer = writer
         self.plugin_manager = plugin_manager
-        if fabric_csv is not None:
-            self.loadFabric(fabric_csv)
+        if fabricCSV is not None:
+            self.loadFabric(Path(fabricCSV))
 
     def setWriterOutputFile(self, outputDir: Path) -> None:
         """Set the output file directory for the write object.
@@ -201,23 +201,23 @@ class FABulous_API:
         TypeError
             If `tile_name` refers to a supertile rather than a tile.
         """
-        found = self.fabric.get_tile_by_name(tile_name)
+        found = self.fabric.getTileByName(tile_name)
         if not isinstance(found, Tile):
             raise TypeError(f"{tile_name!r} is a supertile, not a tile.")
         return found
 
-    def genSwitchMatrix(self, tile_name: str) -> None:
+    def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix RTL for the specified tile.
 
         Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the tile for which the switch matrix will be generated.
 
         """
-        tile = self._require_tile(tile_name)
+        tile = self._require_tile(tileName)
         switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
         logger.info(
             f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
@@ -232,7 +232,7 @@ class FABulous_API:
 
     def genTile(
         self,
-        tile_name: str,
+        tileName: str,
         frame_bit_per_row: int | None = None,
         max_frame_per_col: int | None = None,
         disable_user_clk: bool | None = None,
@@ -244,7 +244,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the tile generated.
         frame_bit_per_row : int | None
             Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
@@ -260,7 +260,7 @@ class FABulous_API:
             from ``self.fabric`` is used.
 
         """
-        tile = self._require_tile(tile_name)
+        tile = self._require_tile(tileName)
         generateTile(
             self.writer,
             tile,
@@ -272,7 +272,7 @@ class FABulous_API:
 
     def genSuperTile(
         self,
-        tile_name: str,
+        tileName: str,
         frame_bit_per_row: int | None = None,
         max_frame_per_col: int | None = None,
         disable_user_clk: bool | None = None,
@@ -284,7 +284,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the super tile generated.
         frame_bit_per_row : int | None
             Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
@@ -304,7 +304,7 @@ class FABulous_API:
         ValueError
             If super tile is not found in fabric.
         """
-        if tile := self.fabric.getSuperTileByName(tile_name):
+        if tile := self.fabric.getSuperTileByName(tileName):
             generateSuperTile(
                 self.writer,
                 tile,
@@ -315,9 +315,9 @@ class FABulous_API:
                 user_clk_side=self.fabric.userCLKSide,
             )
         else:
-            raise ValueError(f"SuperTile {tile_name} not found")
+            raise ValueError(f"SuperTile {tileName} not found")
 
-    def gen_super_tile_switch_matrix(self, tile_name: str) -> None:
+    def gen_super_tile_switch_matrix(self, tileName: str) -> None:
         """Generate the switch matrix RTL for a supertile.
 
         Only has an effect when the supertile directory contains a
@@ -326,7 +326,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the super tile.
 
         Raises
@@ -334,7 +334,7 @@ class FABulous_API:
         ValueError
             If the super tile is not found in the fabric.
         """
-        if tile := self.fabric.getSuperTileByName(tile_name):
+        if tile := self.fabric.getSuperTileByName(tileName):
             gen_super_tile_switch_matrix(
                 self.writer,
                 tile,
@@ -342,9 +342,9 @@ class FABulous_API:
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
             )
         else:
-            raise ValueError(f"SuperTile {tile_name} not found")
+            raise ValueError(f"SuperTile {tileName} not found")
 
-    def gen_super_tile_config_mem(self, tile_name: str) -> None:
+    def gen_super_tile_config_mem(self, tileName: str) -> None:
         """Generate the ConfigMem RTL for a supertile.
 
         Uses the free slots in the master tile's frame space to place the
@@ -353,7 +353,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the super tile.
 
         Raises
@@ -362,24 +362,24 @@ class FABulous_API:
             If the super tile is not found in the fabric, if its master is not
             a tile, or if the master's mapping is not generated yet.
         """
-        if tile := self.fabric.getSuperTileByName(tile_name):
+        if tile := self.fabric.getSuperTileByName(tileName):
             if tile.total_config_bits <= 0:
-                logger.info(f"{tile_name} has no configuration bits of its own")
+                logger.info(f"{tileName} has no configuration bits of its own")
                 return
             mx, my = tile.get_master_tile_coords()
             master_tile = tile.tile_at(mx, my)
             # tileMap holds a copy; the memory lives on the tile type.
-            master_type = self.fabric.get_tile_by_name(master_tile.name)
+            master_type = self.fabric.getTileByName(master_tile.name)
             if not isinstance(master_type, Tile):
                 raise ValueError(
-                    f"{master_tile.name}, the master tile of {tile_name}, is a "
+                    f"{master_tile.name}, the master tile of {tileName}, is a "
                     "supertile; a supertile cannot be the master of another."
                 )
             master = master_type.config_mem
             if master.config_bits != master_type.globalConfigBits:
                 # An ungenerated master reads as all free crosspoints.
                 raise ValueError(
-                    f"{master_tile.name}, the master tile of {tile_name}, maps "
+                    f"{master_tile.name}, the master tile of {tileName}, maps "
                     f"{master.config_bits} of its {master_type.globalConfigBits} "
                     "configuration bits. Generate its mapping before the "
                     "supertile takes the crosspoints it leaves free."
@@ -391,7 +391,7 @@ class FABulous_API:
                 config_bit_mode=self.fabric.configBitMode,
             )
         else:
-            raise ValueError(f"SuperTile {tile_name} not found")
+            raise ValueError(f"SuperTile {tileName} not found")
 
     def genFabric(self) -> None:
         """Generate the entire fabric layout.
@@ -469,13 +469,13 @@ class FABulous_API:
         return self.fabric.getAllUniqueBels()
 
     def getTile(
-        self, tile_name: str, raises_on_miss: bool = False
+        self, tileName: str, raises_on_miss: bool = False
     ) -> Tile | SuperTile | None:
         """Return 'Tile' or 'SuperTile' object based on 'tile_name'.
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the Tile.
         raises_on_miss : bool
             Whether to raise an error if the tile is not found, by default 'False'.
@@ -492,7 +492,7 @@ class FABulous_API:
             is 'True'.
         """
         try:
-            return self.fabric.get_tile_by_name(tile_name)
+            return self.fabric.getTileByName(tileName)
         except KeyError as e:
             if raises_on_miss:
                 raise KeyError from e
@@ -509,13 +509,13 @@ class FABulous_API:
         return self.fabric.tileDic.values()
 
     def getSuperTile(
-        self, tile_name: str, raises_on_miss: bool = False
+        self, tileName: str, raises_on_miss: bool = False
     ) -> SuperTile | None:
         """Return 'SuperTile' object based on 'tile_name'.
 
         Parameters
         ----------
-        tile_name : str
+        tileName : str
             Name of the SuperTile.
         raises_on_miss : bool
             Whether to raise an error if the supertile is not found, by default 'False'.
@@ -532,7 +532,7 @@ class FABulous_API:
             is 'True'.
         """
         try:
-            return self.fabric.getSuperTileByName(tile_name)
+            return self.fabric.getSuperTileByName(tileName)
         except KeyError as e:
             if raises_on_miss:
                 raise KeyError from e
@@ -662,7 +662,7 @@ class FABulous_API:
         )
 
     @property
-    def tile_flow_cls(self) -> type[Flow]:
+    def tile_flow_cls(self) -> type[FABulousTileMacroFlow]:
         """The tile macro flow for the project's HDL language.
 
         Raises
@@ -679,7 +679,7 @@ class FABulous_API:
                 raise ValueError(f"No tile macro flow for {other.value}")
 
     @property
-    def fabric_flow_cls(self) -> type[Flow]:
+    def fabric_flow_cls(self) -> type[FABulousFabricMacroFlow]:
         """The fabric stitching flow for the project's HDL language.
 
         Raises
@@ -722,7 +722,7 @@ class FABulous_API:
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
         flow = self.tile_flow_cls(
-            self.fabric.get_tile_by_name(tile_dir.name),
+            self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             OptMode(optimisation),
             pdk=pdk,

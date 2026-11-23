@@ -7,22 +7,17 @@ into this dataclass in canonical port/BEL order. RTL generation
 lives in `fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 """
 
-from __future__ import annotations
-
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import Self
 
 from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefinition
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import Direction
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    from fabulous.fabric_definition.bel import Bel
-    from fabulous.fabric_definition.port import TilePort
+from fabulous.fabric_definition.port import TilePort
 
 
 def switch_matrix_signal_order(
@@ -120,7 +115,7 @@ class SwitchMatrix:
         ports: list[TilePort] | None = None,
         bels: list[Bel] | None = None,
         preserve_list_order: bool = False,
-    ) -> SwitchMatrix:
+    ) -> Self:
         """Construct a SwitchMatrix by parsing the given source file.
 
         The matrix is read once into its canonical form. A `.csv` is already
@@ -152,7 +147,7 @@ class SwitchMatrix:
 
         Returns
         -------
-        SwitchMatrix
+        Self
             Fully initialised switch matrix instance.
 
         Raises

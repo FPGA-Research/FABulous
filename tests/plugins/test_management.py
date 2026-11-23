@@ -32,9 +32,10 @@ def test_plugin_version_essential_uses_fabulous_version(
 
 
 def test_plugin_version_from_module_dunder(core_manager: PluginManager) -> None:
-    module = types.ModuleType("versioned_plugin")
-    module.__version__ = "1.2.3"
-    core_manager.pm.register(module, name="versioned_plugin")
+    class _VersionedPlugin:
+        __version__ = "1.2.3"
+
+    core_manager.pm.register(_VersionedPlugin(), name="versioned_plugin")
     assert "version: 1.2.3" in core_manager.get_plugin_info_str("versioned_plugin")
 
 

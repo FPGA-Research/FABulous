@@ -3,7 +3,6 @@
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -16,6 +15,7 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import ConfigMem, empty_config_mem
 from fabulous.fabric_definition.define import (
     DEFAULT_CONFIG_BIT_MODE,
@@ -48,9 +48,6 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.bel import Bel
 
 # fabric.csv `UserCLKDirection` value -> side the clock enters each tile.
 USER_CLK_DIRECTIONS: dict[str, Side] = {
@@ -288,13 +285,13 @@ def _read_config_mem(
 
 
 def parseTilesCSV(
-    file_name: Path, preserve_list_order: bool = False
+    fileName: Path, preserve_list_order: bool = False
 ) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parse a CSV tile configuration file and returns all tile objects.
 
     Parameters
     ----------
-    file_name : Path
+    fileName : Path
         The path to the CSV file.
     preserve_list_order : bool
         Passed to each tile's switch matrix so a `.list` keeps its file order
@@ -318,17 +315,17 @@ def parseTilesCSV(
     InvalidPortType
         If port type is invalid.
     """
-    logger.info(f"Reading tile configuration: {file_name}")
+    logger.info(f"Reading tile configuration: {fileName}")
 
-    if file_name.suffix != ".csv":
+    if fileName.suffix != ".csv":
         raise InvalidFileType("File must be a CSV file.")
 
-    if not file_name.exists():
-        raise FileExistsError(f"File {file_name} does not exist.")
+    if not fileName.exists():
+        raise FileExistsError(f"File {fileName} does not exist.")
 
-    filePathParent = file_name.parent
+    filePathParent = fileName.parent
 
-    with file_name.open() as f:
+    with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -345,7 +342,7 @@ def parseTilesCSV(
         if filePathParent.name != tileName:
             logger.warning(
                 f"Tile name '{tileName}' does not match folder name "
-                f"'{filePathParent.name}' in {file_name}."
+                f"'{filePathParent.name}' in {fileName}."
             )
         ports: list[TilePort] = []
         bels: list[Bel] = []
@@ -526,9 +523,9 @@ def parseTilesCSV(
                     genMatrixList = True
                     if len(temp) <= 2:
                         # only MATRIX, GENERATE in csv
-                        matrixDir = file_name.parent
+                        matrixDir = fileName.parent
                     else:
-                        matrixDir = file_name.parent.joinpath(temp[2])
+                        matrixDir = fileName.parent.joinpath(temp[2])
                     if matrixDir.is_file() and matrixDir.suffix == ".list":
                         logger.warning(
                             f"Matrix file {matrixDir} already exists and will be "
@@ -552,13 +549,13 @@ def parseTilesCSV(
                             logger.warning(f"Creating directory {matrixDir.parent}.")
 
                 else:
-                    matrixDir = file_name.parent.joinpath(temp[1]).absolute()
+                    matrixDir = fileName.parent.joinpath(temp[1]).absolute()
 
             elif temp[0] == "CONFIGMEM":
-                config_mem_csv = file_name.parent.joinpath(temp[1]).absolute()
+                config_mem_csv = fileName.parent.joinpath(temp[1]).absolute()
 
             elif temp[0] == "INCLUDE":
-                p = file_name.parent.joinpath(temp[1])
+                p = fileName.parent.joinpath(temp[1])
                 if not p.exists():
                     raise InvalidTileDefinition(
                         f"Cannot find {str(p)} in tile {tileName}"
@@ -605,7 +602,7 @@ def parseTilesCSV(
         )
         if config_mem_csv is None:
             config_mem_csv = (
-                tile_directory(tileName, file_name, switch_matrix.matrix_file)
+                tile_directory(tileName, fileName, switch_matrix.matrix_file)
                 / f"{tileName}_ConfigMem.csv"
             )
 
@@ -614,7 +611,7 @@ def parseTilesCSV(
                 name=tileName,
                 ports=ports,
                 bels=bels,
-                tileDir=file_name,
+                tileDir=fileName,
                 switch_matrix=switch_matrix,
                 config_mem=empty_config_mem(config_mem_csv),
                 gen_ios=gen_ios,
@@ -670,12 +667,12 @@ def validate_super_tile_matrix(
         )
 
 
-def parseSupertilesCSV(file_name: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
+def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
     """Parse a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
     ----------
-    file_name : Path
+    fileName : Path
         The path to the CSV file.
     tileDic : dict[str, Tile]
         Dict of tiles.
@@ -694,17 +691,17 @@ def parseSupertilesCSV(file_name: Path, tileDic: dict[str, Tile]) -> list[SuperT
     list[SuperTile]
         List of SuperTile objects.
     """
-    logger.info(f"Reading supertile configuration: {file_name}")
+    logger.info(f"Reading supertile configuration: {fileName}")
 
-    if not file_name.suffix == ".csv":
+    if not fileName.suffix == ".csv":
         raise InvalidFileType("File must be a csv file.")
 
-    if not file_name.exists():
-        raise FileNotFoundError(f"File {file_name} does not exist.")
+    if not fileName.exists():
+        raise FileNotFoundError(f"File {fileName} does not exist.")
 
-    filePath = file_name.parent
+    filePath = fileName.parent
 
-    with file_name.open() as f:
+    with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -798,7 +795,7 @@ def parseSupertilesCSV(file_name: Path, tileDic: dict[str, Tile]) -> list[SuperT
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path, matching Tile.tileDir.
         super_tile = SuperTile(
-            name, file_name.absolute(), tiles, tileMap, bels, withUserCLK
+            name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )
         super_tile.master_tile_coords = master_coords
         super_tile.config_mem = empty_config_mem(
@@ -927,6 +924,10 @@ def parse_tile_from_dir(
     supertiles = parseSupertilesCSV(tile_csv, tile_dic)
     for supertile in supertiles:
         if supertile.name == tile_name:
+            if supertile.config_mem is None:
+                raise InvalidSupertileDefinition(
+                    f"SuperTile {tile_name!r} has no configuration memory."
+                )
             supertile.config_mem = _read_config_mem(
                 supertile.config_mem,
                 config_bit_mode=config_bit_mode,
@@ -937,12 +938,12 @@ def parse_tile_from_dir(
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
 
-def parseFabricCSV(file_name: Path) -> Fabric:
+def parseFabricCSV(fileName: str | Path) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 
     Parameters
     ----------
-    file_name : Path
+    fileName : str | Path
         Path of the CSV file.
 
     Raises
@@ -961,7 +962,7 @@ def parseFabricCSV(file_name: Path) -> Fabric:
     Fabric
         The fabric object.
     """
-    csv_file = file_name.absolute()
+    csv_file = Path(fileName).absolute()
     if csv_file.suffix != ".csv":
         raise InvalidFileType("File must be a csv file")
 

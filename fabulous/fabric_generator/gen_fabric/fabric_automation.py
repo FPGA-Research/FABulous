@@ -5,7 +5,6 @@ import math
 import re
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -14,6 +13,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, HDLType, MultiplexerStyle
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -23,9 +23,6 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:

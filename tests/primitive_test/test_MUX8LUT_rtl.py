@@ -279,7 +279,7 @@ async def setup_dut(dut: MUX8LUTProtocol) -> None:
 
     # CocoTB timing: Allow combinational logic to stabilize
     # Use proper timing delays for signal propagation
-    await Timer(Decimal(50), units="ps")  # Initial stabilization
+    await Timer(Decimal(50), unit="ps")  # Initial stabilization
 
 
 @cocotb.test
@@ -295,7 +295,7 @@ async def cocotb_test_mux8lut_selection(dut: MUX8LUTProtocol) -> None:
     dut.H.value = 1
     dut.ConfigBits.value = 0  # c1=0, c0=0
     dut.S.value = 0  # Select input A
-    await Timer(Decimal(20), units="ps")  # Allow propagation
+    await Timer(Decimal(20), unit="ps")  # Allow propagation
     assert int(dut.M_AB.value) == 0, f"M_AB expected 0, got {int(dut.M_AB.value)}"
     assert int(dut.M_AD.value) == 0, f"M_AD expected 0, got {int(dut.M_AD.value)}"
     assert int(dut.M_AH.value) == 0, f"M_AH expected 0, got {int(dut.M_AH.value)}"
@@ -320,7 +320,7 @@ async def cocotb_test_mux8lut_selection(dut: MUX8LUTProtocol) -> None:
             dut.ConfigBits.value = model.ConfigBits = c
 
             # CocoTB timing: Allow signal propagation through combinational logic
-            await Timer(Decimal(20), units="ps")
+            await Timer(Decimal(20), unit="ps")
 
             # Check all MUX outputs
             assert int(dut.M_AB.value) == model.M_AB, (

@@ -683,21 +683,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:
@@ -931,22 +930,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
-            # find the instance in the current module
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:

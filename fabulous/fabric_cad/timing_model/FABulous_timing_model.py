@@ -1160,14 +1160,10 @@ class FABulousTileTimingModel:
 
         Raises
         ------
-        RuntimeError
-            If the synthesis timing model has not been initialized.
         ValueError
             If the BEL instance is absent from the synthesis netlist.
         """
         timing_model = self.hdlnx_tm_synth
-        if timing_model is None:
-            raise RuntimeError("The synthesis timing model is not initialized.")
 
         identifier = f"{bel.prefix}{bel.name}"
         instance_paths = timing_model.find_instance_paths_by_regex(

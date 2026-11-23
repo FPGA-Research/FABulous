@@ -8,12 +8,13 @@ control.
 
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import IO, ConfigBitMode
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
@@ -21,10 +22,6 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.supertile import SuperTile
-    from fabulous.fabric_definition.tile import Tile
 
 
 def generate_config_mem(
@@ -338,6 +335,7 @@ def generate_super_tile_config_mem(
         raise ValueError(f"{super_tile.name} was built without a configuration memory.")
     if existing.config_bits > 0:
         validate_super_tile_config_mem(existing, master, config_bits)
+        config_mem = existing
     elif existing.source.is_file():
         # An existing empty file is stale; refuse rather than overwrite it.
         raise ValueError(
@@ -346,15 +344,16 @@ def generate_super_tile_config_mem(
             "regenerate it."
         )
     else:
-        super_tile.config_mem = build_super_tile_config_mem(
+        config_mem = build_super_tile_config_mem(
             master, config_bits, source=existing.source
         )
-        super_tile.config_mem.to_csv()
+        config_mem.to_csv()
+        super_tile.config_mem = config_mem
 
     writer.outFileName = _module_path(writer, super_tile.name, super_tile.directory)
     generate_config_mem(
         writer,
         super_tile.name,
-        super_tile.config_mem,
+        config_mem,
         config_bit_mode=config_bit_mode,
     )

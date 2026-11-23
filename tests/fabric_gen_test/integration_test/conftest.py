@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, cast, overload
+from typing import Any, Literal, Protocol, cast, overload
 
 import ciel.common
 import cocotb
@@ -20,10 +20,8 @@ from loguru import logger
 import fabulous.fabric_files as _fab_template_pkg
 import fabulous.fabulous_settings
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import make_default_project, run_cmd
-
-if TYPE_CHECKING:
-    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 
 @pytest.fixture(autouse=True)

@@ -1,21 +1,19 @@
 """Place-and-route model registry folding and backend selection."""
 
-import types
-
 import pytest
 
 from fabulous.custom_exception import PluginError
 from fabulous.fabric_definition.define import PnRTool
 from fabulous.fabulous_settings import get_context
 from fabulous.plugins.manager import PluginManager
-from tests.plugins.conftest import make_pnr_model_module
+from tests.plugins.conftest import PnRModelPlugin, make_pnr_model_plugin
 
 
 def test_resolves_registered_pnr_model(
-    fake_pnr_model_module: types.ModuleType,
+    fake_pnr_model_plugin: PnRModelPlugin,
 ) -> None:
     manager = PluginManager()
-    manager.pm.register(fake_pnr_model_module, name="fake_pnr")
+    manager.pm.register(fake_pnr_model_plugin, name="fake_pnr")
     manager.build_registries()
     provider = manager.make_pnr_model("fake")
     assert provider.tool == "fake"
@@ -28,30 +26,30 @@ def test_builtin_registers_nextpnr() -> None:
 
 
 def test_no_tool_uses_pnr_backend_setting(
-    fake_pnr_model_module: types.ModuleType,
+    fake_pnr_model_plugin: PnRModelPlugin,
 ) -> None:
     get_context().pnr_backend = "fake"
     manager = PluginManager()
-    manager.pm.register(fake_pnr_model_module, name="fake_pnr")
+    manager.pm.register(fake_pnr_model_plugin, name="fake_pnr")
     manager.build_registries()
     assert manager.make_pnr_model().tool == "fake"
 
 
 def test_explicit_tool_overrides_pnr_backend_setting(
-    fake_pnr_model_module: types.ModuleType,
+    fake_pnr_model_plugin: PnRModelPlugin,
 ) -> None:
     get_context().pnr_backend = "fake"
     manager = PluginManager.core_only()
-    manager.pm.register(fake_pnr_model_module, name="fake_pnr")
+    manager.pm.register(fake_pnr_model_plugin, name="fake_pnr")
     manager.build_registries()
     assert manager.make_pnr_model(PnRTool.NEXTPNR).tool == PnRTool.NEXTPNR
 
 
 def test_missing_tool_lists_available(
-    fake_pnr_model_module: types.ModuleType,
+    fake_pnr_model_plugin: PnRModelPlugin,
 ) -> None:
     manager = PluginManager()
-    manager.pm.register(fake_pnr_model_module, name="fake_pnr")
+    manager.pm.register(fake_pnr_model_plugin, name="fake_pnr")
     manager.build_registries()
     with pytest.raises(PluginError) as exc:
         manager.make_pnr_model("nope")
@@ -62,7 +60,7 @@ def test_timing_request_on_untimed_backend_raises() -> None:
     """An untimed backend must reject a delay model, never ignore it."""
     manager = PluginManager()
     manager.pm.register(
-        make_pnr_model_module("untimed", supports_timing=False), name="untimed_pnr"
+        make_pnr_model_plugin("untimed", supports_timing=False), name="untimed_pnr"
     )
     manager.build_registries()
 

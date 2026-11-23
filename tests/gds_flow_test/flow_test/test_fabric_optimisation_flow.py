@@ -12,14 +12,12 @@ Tests focus on:
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from librelane.state.state import State
 from pytest_mock import MockerFixture
-
-if TYPE_CHECKING:
-    from librelane.state.state import State
 
 from fabulous.fabric_definition.define import IO, HDLType, Side
 from fabulous.fabric_definition.fabric import Fabric

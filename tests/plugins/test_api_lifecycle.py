@@ -1,6 +1,5 @@
 """FABulous_API resolves parsers via the manager and fires the lifecycle hook."""
 
-import types
 from pathlib import Path
 
 import pytest
@@ -29,15 +28,14 @@ def test_loadfabric_fires_after_fabric_loaded(
 ) -> None:
     manager = PluginManager.core_only()
 
-    spy_module = types.ModuleType("spy_lifecycle")
-    seen: list[object] = []
+    seen: list[FABulous_API] = []
 
-    @hookspecs.hookimpl
-    def fabulous_after_fabric_loaded(api: object) -> None:
-        seen.append(api)
+    class _Spy:
+        @hookspecs.hookimpl
+        def fabulous_after_fabric_loaded(self, api: FABulous_API) -> None:
+            seen.append(api)
 
-    spy_module.fabulous_after_fabric_loaded = fabulous_after_fabric_loaded
-    manager.pm.register(spy_module, name="spy")
+    manager.pm.register(_Spy(), name="spy")
 
     api = FABulous_API(VerilogCodeGenerator(), plugin_manager=manager)
     fabric_file = tmp_path / "fabric.csv"

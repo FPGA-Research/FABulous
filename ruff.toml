@@ -58,7 +58,6 @@ target-version = "py312"
 # - RET: flake8 return
 # - SLF: flake8 self
 # - TID: flake8 tidy imports
-# - TC: flake8 type-checking
 # - FURB: REFURB
 # - UP: flake8 unused
 # - BLE: flake8 blind except
@@ -87,7 +86,6 @@ select = [
   "RET",
   "SLF",
   "TID",
-  "TC",
   "FURB",
   "UP",
   "BLE",

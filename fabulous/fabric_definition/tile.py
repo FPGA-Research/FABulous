@@ -3,20 +3,20 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import ConfigMem
-from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    Direction,
+    PinOrderConfig,
+    PinSortMode,
+    Side,
+)
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.wire import Wire
-
-if TYPE_CHECKING:
-    from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-        PinOrderConfig,
-    )
 
 
 def tile_directory(name: str, tile_dir: Path, matrix_file: Path) -> Path:
@@ -122,7 +122,7 @@ class Tile:
         config_mem: ConfigMem,
         gen_ios: list[Gen_IO],
         userCLK: bool,
-        pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
+        pinOrderConfig: dict[Side, PinOrderConfig] | None = None,
     ) -> None:
         self.name = name
         self.portsInfo = ports
@@ -135,10 +135,6 @@ class Tile:
         self.config_mem = config_mem
 
         if pinOrderConfig is None:
-            from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-                PinOrderConfig,
-            )
-
             self.pinOrderConfig = {
                 Side.NORTH: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),
                 Side.EAST: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),

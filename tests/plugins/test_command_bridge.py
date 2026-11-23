@@ -1,7 +1,6 @@
 """A plugin-contributed CommandSet appears in the shell with its category."""
 
 import io
-import types
 from pathlib import Path
 from typing import ClassVar
 
@@ -22,18 +21,16 @@ class _DemoCommands(CommandSet):
         self._cmd.poutput("pong")
 
 
+class _DemoCommandsPlugin:
+    @hookspecs.hookimpl
+    def fabulous_register_commands(self) -> CommandSet:
+        return _DemoCommands()
+
+
 def test_plugin_command_registered(project: Path, mocker: MockerFixture) -> None:
     init_context(project)
     manager = PluginManager.core_only()
-
-    demo_module = types.ModuleType("demo_cmd_plugin")
-
-    @hookspecs.hookimpl
-    def fabulous_register_commands() -> CommandSet:
-        return _DemoCommands()
-
-    demo_module.fabulous_register_commands = fabulous_register_commands
-    manager.pm.register(demo_module, name="demo")
+    manager.pm.register(_DemoCommandsPlugin(), name="demo")
     mocker.patch.object(PluginManager, "create", return_value=manager)
 
     cli = FABulousREPL("verilog", interactive=False)

@@ -8,23 +8,20 @@ Tests focus on:
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
 from pytest_mock import MockerFixture
 
-if TYPE_CHECKING:
-    from unittest.mock import MagicMock
-
 from fabulous.custom_exception import StaleIOPinConfigError
-from fabulous.fabric_definition.define import IO, PinSortMode, Side
+from fabulous.fabric_definition.define import IO, PinOrderConfig, PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-    PinOrderConfig,
     _serialize_supertile_ports,
     _serialize_tile_ports,
     generate_IO_pin_order_config,

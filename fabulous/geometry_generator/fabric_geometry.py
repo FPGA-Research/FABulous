@@ -183,7 +183,7 @@ class FabricGeometry:
                 master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
 
         for tileName in self.tileNames:
-            named_tile = self.fabric.get_tile_by_name(tileName)
+            named_tile = self.fabric.getTileByName(tileName)
             if not isinstance(named_tile, Tile):
                 raise TypeError(f"{tileName!r} is a supertile, not a tile.")
             tileGeom = self.tileGeomMap[tileName]

@@ -190,6 +190,7 @@ exclude = [
   "fabulous/fabric_generator/gds_generator/script",
   "docs",
   "build_hooks.py",
+  "scripts/render_wavedrom.py",
 ]
 
 [tool.ty.rules]
@@ -198,6 +199,10 @@ exclude = [
 # them loses its type and subclassing one is `unsupported-base`. Nothing on
 # this side can restore it; the fix has to happen upstream.
 unsupported-base = "ignore"
+
+[[tool.ty.overrides]]
+include = ["fabulous/plugins/hookspecs.py"]
+rules = { empty-body = "ignore" }
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }

@@ -5,21 +5,17 @@ annotations naming the fabric model and the timing interface are deferred, so
 importing a descriptor does not import the generator stack behind them.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from pathlib import Path
 
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
+from fabulous.fabric_cad.timing_model.models import TimingModelTarget
 from fabulous.fabric_definition.define import HDLType
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-    from pathlib import Path
-
-    from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
-        FABulousTimingModelInterface,
-    )
-    from fabulous.fabric_cad.timing_model.models import TimingModelTarget
-    from fabulous.fabric_definition.fabric import Fabric
-    from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 type CodeGeneratorFactory = Callable[[], CodeGenerator]
 type FabricParser = Callable[[Path], Fabric]

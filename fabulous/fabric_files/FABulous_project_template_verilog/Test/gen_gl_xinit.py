@@ -32,8 +32,6 @@ Usage
         --out force_block.vh
 """
 
-from __future__ import annotations
-
 import argparse
 import re
 import sys

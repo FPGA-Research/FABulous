@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from librelane.flows.flow import Flow, FlowException
+from librelane.state import State
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
@@ -370,7 +371,7 @@ class TestFABulousTileRunAdapter:
             pdk_root=str(tmp_path / "pdk"),
         )
         with pytest.raises(FlowException, match="is not a file"):
-            flow.run(initial_state=None)
+            flow.run(initial_state=State())
 
     def test_run_raises_on_bad_tile_dir(
         self, mocker: MockerFixture, tmp_path: Path

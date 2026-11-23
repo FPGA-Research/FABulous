@@ -13,9 +13,9 @@ import importlib.metadata as importlib_metadata
 import importlib.util
 import subprocess
 import sys
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from enum import StrEnum
-from functools import partial
+from functools import cached_property, partial
 from hashlib import sha256
 from pathlib import Path
 from typing import Protocol, Self, TypeVar
@@ -69,7 +69,8 @@ class BuiltinPlugin(StrEnum):
 class _NamedProvider(Protocol):
     """Any provider descriptor; each carries a `name` for diagnostics."""
 
-    name: str
+    @property
+    def name(self) -> str: ...
 
 
 _KeyT = TypeVar("_KeyT")
@@ -84,7 +85,6 @@ class PluginManager:
     _parsers: dict[str, ParserProvider]
     _pnr_models: dict[str, PnRModelProvider]
     skip_broken: bool
-    _top_level_distributions: dict[str, list[str]] | None
 
     def __init__(self, skip_broken: bool = False) -> None:
         self.pm = pluggy.PluginManager("fabulous")
@@ -93,7 +93,17 @@ class PluginManager:
         self._parsers = {}
         self._pnr_models = {}
         self.skip_broken = skip_broken
-        self._top_level_distributions = None
+
+    @cached_property
+    def _top_level_distributions(self) -> Mapping[str, list[str]]:
+        """Map each importable top-level module to the distributions providing it.
+
+        Returns
+        -------
+        Mapping[str, list[str]]
+            Distribution names keyed by top-level module name.
+        """
+        return importlib_metadata.packages_distributions()
 
     def _plugin_version(self, name: str) -> str:
         """Best-effort resolve the version backing a registered plugin.
@@ -138,8 +148,6 @@ class PluginManager:
             pass
 
         top_level = name.partition(".")[0]
-        if self._top_level_distributions is None:
-            self._top_level_distributions = importlib_metadata.packages_distributions()
         for dist_name in self._top_level_distributions.get(top_level, ()):
             try:
                 return importlib_metadata.version(dist_name)
@@ -179,7 +187,8 @@ class PluginManager:
         Raises
         ------
         PluginError
-            If no plugin with the given name is registered.
+            If no plugin with the given name is registered, or if its settings
+            hook returns something other than a `PluginSettings` subclass.
         """
         if self.pm.get_plugin(name) is None:
             raise PluginError(f"No plugin named '{name}'")
@@ -199,6 +208,11 @@ class PluginManager:
         )
         if model is None:
             lines.append("  settings: (none)")
+        elif not (isinstance(model, type) and issubclass(model, PluginSettings)):
+            raise PluginError(
+                f"Plugin '{name}' registered settings {model!r}, "
+                "which is not a PluginSettings subclass"
+            )
         else:
             prefix = model.model_config.get("env_prefix", "")
             lines.append(f"  settings: {model.group} (env prefix {prefix})")

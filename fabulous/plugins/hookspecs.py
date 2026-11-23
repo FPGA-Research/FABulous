@@ -6,20 +6,16 @@ type named below is imported for type checking only. That keeps
 otherwise import the whole generator stack to get the marker.
 """
 
-from typing import TYPE_CHECKING
-
 import pluggy
+from cmd2 import CommandSet
 
-if TYPE_CHECKING:
-    from cmd2 import CommandSet
-
-    from fabulous.fabulous_api import FABulous_API
-    from fabulous.fabulous_settings import PluginSettings
-    from fabulous.plugins.types import (
-        CodeGeneratorProvider,
-        ParserProvider,
-        PnRModelProvider,
-    )
+from fabulous.fabulous_api import FABulous_API
+from fabulous.fabulous_settings import PluginSettings
+from fabulous.plugins.types import (
+    CodeGeneratorProvider,
+    ParserProvider,
+    PnRModelProvider,
+)
 
 hookspec = pluggy.HookspecMarker("fabulous")
 hookimpl = pluggy.HookimplMarker("fabulous")

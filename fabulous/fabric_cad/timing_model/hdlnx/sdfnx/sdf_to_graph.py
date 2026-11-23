@@ -476,12 +476,12 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         timing_checks: list[Component] = self._path_timing_checks(components)
         setup: tuple[SDFTimingTriplet, ...] = tuple(
-            self._timing_triplet(component.delay_paths["nominal"])
+            self._timing_check_triplet(component)
             for component in timing_checks
             if component.c_type == SDFCellType.SETUP
         )
         hold: tuple[SDFTimingTriplet, ...] = tuple(
-            self._timing_triplet(component.delay_paths["nominal"])
+            self._timing_check_triplet(component)
             for component in timing_checks
             if component.c_type == SDFCellType.HOLD
         )
@@ -611,6 +611,30 @@ class SDFTimingGraph(SDFTimingGraphBase):
             fall_values.append(fall_delay)
             high_impedance_values.append(high_impedance_delay)
         return rise_values, fall_values, high_impedance_values
+
+    def _timing_check_triplet(self, check: Component) -> SDFTimingTriplet:
+        """Return the nominal limit of an SDF setup or hold check.
+
+        Parameters
+        ----------
+        check : Component
+            A setup or hold component read from the SDF file.
+
+        Returns
+        -------
+        SDFTimingTriplet
+            The check's nominal limit.
+
+        Raises
+        ------
+        ValueError
+            If the check carries no delay values.
+        """
+        if check.delay_paths is None:
+            raise ValueError(
+                f"Timing check {check.connection_string} carries no delay values."
+            )
+        return self._timing_triplet(check.delay_paths["nominal"])
 
     def _path_timing_checks(self, components: list[Component]) -> list[Component]:
         """Find setup and hold checks associated with a structural path.

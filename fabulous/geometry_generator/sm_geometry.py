@@ -1,7 +1,7 @@
 """Switch matrix geometry definitions."""
 
+from _csv import Writer
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -11,9 +11,6 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.bel_geometry import BelGeometry
 from fabulous.geometry_generator.geometry_obj import Border, oppositeIO
 from fabulous.geometry_generator.port_geometry import PortGeometry, PortType
-
-if TYPE_CHECKING:
-    from _csv import Writer
 
 
 class SmGeometry:

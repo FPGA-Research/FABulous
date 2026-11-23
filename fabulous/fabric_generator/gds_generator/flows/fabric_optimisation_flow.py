@@ -11,14 +11,15 @@ This flow uses non-Linear Programming (NLP) to optimize tile dimensions:
 import json
 import shutil
 import traceback
+from concurrent.futures import Future
 from decimal import Decimal
 from itertools import product
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from librelane.common.misc import get_latest_file
 from librelane.common.types import Path as LibrelanePath
-from librelane.config.config import AnyConfigs
+from librelane.config.config import AnyConfigs, Config
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
@@ -55,11 +56,6 @@ from fabulous.fabric_generator.gds_generator.steps.fabric_area_opt import (
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
 from fabulous.processpool import DillProcessPoolExecutor
-
-if TYPE_CHECKING:
-    from concurrent.futures import Future
-
-    from librelane.config.config import Config
 
 configs = (
     Classic.config_vars

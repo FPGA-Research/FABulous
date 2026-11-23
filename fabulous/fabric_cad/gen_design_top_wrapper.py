@@ -209,7 +209,9 @@ def generateUserDesignTopWrapper(
                 "user design module name, as well as the ports!"
             )
             first = True
-            for port in user_design.inputs + user_design.outputs:
+            for port in [
+                p.name for p in user_design.input_ports + user_design.output_ports
+            ]:
                 if first:
                     first = False
                 else:

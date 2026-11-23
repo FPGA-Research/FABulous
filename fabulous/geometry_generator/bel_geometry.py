@@ -1,14 +1,11 @@
 """Class for generating and managing the geometry of BELs."""
 
+from _csv import Writer
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.geometry_generator.port_geometry import PortGeometry, PortType
-
-if TYPE_CHECKING:
-    from _csv import Writer
 
 
 class BelGeometry:

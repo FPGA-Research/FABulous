@@ -5,8 +5,6 @@ Downloads the pinned svlint archive into a user cache on first call, then execs
 svlint with the original arguments.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import platform
@@ -18,12 +16,9 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
 
 if platform.system() != "Windows":
     import fcntl

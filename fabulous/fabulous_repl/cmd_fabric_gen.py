@@ -75,7 +75,7 @@ class FabricGenCommandSet(ReplCommandSet):
         logger.info(f"Generating Config Memory for {' '.join(tiles)}")
         for i in tiles:
             logger.info(f"Generating configMem for {i}")
-            tile = fabric.get_tile_by_name(i)
+            tile = fabric.getTileByName(i)
             if not isinstance(tile, Tile):
                 repl.fabulousAPI.gen_super_tile_config_mem(i)
                 logger.info(f"Generated configMem for super tile {i}")
@@ -112,7 +112,7 @@ class FabricGenCommandSet(ReplCommandSet):
         logger.info(f"Generating switch matrix for {' '.join(tiles)}")
         for i in tiles:
             logger.info(f"Generating switch matrix for {i}")
-            directory = fabric.get_tile_by_name(i).directory
+            directory = fabric.getTileByName(i).directory
             repl.fabulousAPI.setWriterOutputFile(
                 directory / f"{i}_switch_matrix.{repl.extension}"
             )
@@ -148,7 +148,7 @@ class FabricGenCommandSet(ReplCommandSet):
         frame_based = fabric.configBitMode is ConfigBitMode.FRAME_BASED
         logger.info(f"Generating tile {' '.join(tiles)}")
         for t in tiles:
-            holder = fabric.get_tile_by_name(t)
+            holder = fabric.getTileByName(t)
             if isinstance(holder, SuperTile):
                 sub_tiles = [child.name for child in holder.tiles]
                 logger.info(
@@ -157,7 +157,7 @@ class FabricGenCommandSet(ReplCommandSet):
                 )
                 for st in sub_tiles:
                     # `holder.tiles` are copies; the memory lives on the tile type.
-                    sub_tile = fabric.get_tile_by_name(st)
+                    sub_tile = fabric.getTileByName(st)
                     if not isinstance(sub_tile, Tile):
                         raise TypeError(
                             f"{st} under {t} resolves to a supertile; a "

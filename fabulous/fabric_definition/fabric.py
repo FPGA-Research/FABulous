@@ -580,7 +580,7 @@ class Fabric:
             for x, tile in enumerate(row):
                 yield (x, y), tile
 
-    def get_tile_by_name(self, name: str) -> Tile | SuperTile:
+    def getTileByName(self, name: str) -> Tile | SuperTile:
         """Get a tile or supertile by its name from the fabric.
 
         Searches the used tiles, then the unused tiles, then the supertiles.
