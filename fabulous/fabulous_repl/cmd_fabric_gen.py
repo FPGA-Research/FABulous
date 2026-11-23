@@ -18,6 +18,7 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
+    is_generated_subtile,
     is_supertile_csv,
 )
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
@@ -527,37 +528,57 @@ class FabricGenCommandSet(ReplCommandSet):
         be generated.
 
         The provided path may contain bel files, which will be included in the generated
-        tile .csv file as well as the generated switch matrix .list file.
+        tile .csv file as well as the generated switch matrix .list file. An existing
+        tile `.csv` or switch matrix `.list` is kept; use generate_switch_matrix_list
+        to regenerate the list after editing the tile `.csv`.
         """
         if not tile_path.is_dir():
             logger.error(f"{tile_path} is not a directory or does not exist")
             return
 
         existing = set(tile_path.absolute().glob("*.csv"))
-        # A supertile always gets its switch matrices, so it needs that enabled.
-        tile_csv = generateCustomTileConfig(tile_path, allow_supertile=switch_matrix)
+        tile_csv = generateCustomTileConfig(tile_path, switch_matrix=switch_matrix)
         # An existing config is returned untouched and keeps its registration.
-        generated = tile_csv not in existing
+        if tile_csv in existing:
+            return
+        # A regenerated tile may have fewer subtiles, or none, than before, or
+        # have become a supertile.
+        registered = unregister_tile_in_fabric_csv(self._cmd.csvFile, tile_path)
         supertile = is_supertile_csv(tile_csv)
-        registered = False
-        if generated:
-            # A regenerated tile may have fewer subtiles, or none, than before,
-            # or have become a supertile.
-            registered = unregister_tile_in_fabric_csv(
-                self._cmd.csvFile, tile_path, drop_generate=supertile
-            )
-
-        if generated and (supertile or registered):
+        if supertile or registered:
             register_tile_in_fabric_csv(self._cmd.csvFile, tile_path)
             kind = "supertile" if supertile else "tile"
             logger.info(
                 f"Registered {kind} {tile_path.stem} in fabric.csv. "
                 "Run load_fabric then run_fab to build it."
             )
-        # A wide BEL turns into a supertile: it wrote all subtile/supertile switch
-        # matrices inline, so it must not go through the single-tile parseTilesCSV.
-        if supertile:
-            return
 
-        if switch_matrix:
-            parseTilesCSV(tile_csv)
+    @with_category(CMD_TOOLS)
+    @with_annotated
+    def do_generate_switch_matrix_list(
+        self,
+        tile_path: Annotated[
+            Path, Argument(help_text="Path to the tile directory or tile .csv")
+        ],
+    ) -> None:
+        """Generate the switch matrix `.list` file of a tile from its tile `.csv`.
+
+        Reads the BELs, carry chains and shared ports of the tile `.csv` and writes
+        the `.list` file its MATRIX line points to, overwriting it. Run it after
+        editing the tile `.csv`, for example to add BELs. FABulous never regenerates
+        a list file on its own.
+        """
+        tile_csv = (
+            tile_path / f"{tile_path.name}.csv" if tile_path.is_dir() else tile_path
+        )
+        if not tile_csv.is_file():
+            raise CommandError(f"Tile config {tile_csv} does not exist")
+        tile_dir = tile_csv.parent
+        if is_supertile_csv(tile_csv) or is_generated_subtile(
+            tile_dir, tile_dir.parent.name
+        ):
+            raise CommandError(
+                f"{tile_csv} belongs to a generated supertile. Regenerate it with "
+                "generate_custom_tile_config after deleting the supertile .csv."
+            )
+        parseTilesCSV(tile_csv, generate_matrix_list=True)

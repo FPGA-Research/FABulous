@@ -374,9 +374,7 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
     return tile_dir / arg
 
 
-def unregister_tile_in_fabric_csv(
-    csv_path: Path, tile_dir: Path, drop_generate: bool = False
-) -> bool:
+def unregister_tile_in_fabric_csv(csv_path: Path, tile_dir: Path) -> bool:
     """Drop the entries of the tile or supertile in `tile_dir` from `csv_path`.
 
     Removes the `Tile` or `Supertile` entry for `<tile_dir>/<name>.csv` and the
@@ -390,9 +388,6 @@ def unregister_tile_in_fabric_csv(
         Path to the fabric CSV file to update.
     tile_dir : Path
         Directory of the supertile.
-    drop_generate : bool
-        Also drop a `Tile,<tile_dir>,GENERATE` entry, which cannot load a
-        supertile. Default False.
 
     Returns
     -------
@@ -415,10 +410,7 @@ def unregister_tile_in_fabric_csv(
             return True
         if kind != "Tile":
             return False
-        fields = rest.split(",")
-        path = (project_dir / fields[0]).resolve()
-        if path == tile_dir:
-            return drop_generate and "GENERATE" in fields
+        path = (project_dir / rest.split(",")[0]).resolve()
         sub_dir = path.parent
         return (
             sub_dir.parent == tile_dir

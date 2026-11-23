@@ -28,7 +28,7 @@ from fabulous.fabulous_settings import get_context
 _SUBTILE_MARKER = "# Subtile of generated supertile {}"
 
 
-def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> Path:
+def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Path:
     """Generate a custom tile configuration.
 
     A tile .csv file and a switch matrix .list file will be generated based on
@@ -38,14 +38,22 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
     in the generated tile .csv file as well as the generated
     switch matrix .list file.
 
+    The tile CSV references the list file by path, so it is written only here,
+    or on request with `parseTilesCSV(..., generate_matrix_list=True)`. Loading
+    the fabric never regenerates it. A `.list` file in the tile folder, other
+    than `<name>_switch_matrix.list` or the `<name>_generated_switch_matrix.list`
+    that `MATRIX,GENERATE` used to write, is referenced instead of generating one.
+
     Parameters
     ----------
     tile_path : Path
         The path to the tile folder. If the path is a file, the parent
         directory will be used as the tile folder.
-    allow_supertile : bool
-        Whether a BEL over the single-tile budget may become a supertile.
-        Default True. Callers that can only handle a single tile pass False.
+    switch_matrix : bool
+        Whether to generate the switch matrix list. Default True. With False the
+        tile CSV still references `<name>_switch_matrix.list`, which the user
+        provides, and a BEL over the single-tile budget is rejected, since a
+        supertile always needs its generated switch matrices.
 
     Returns
     -------
@@ -56,7 +64,7 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
     ------
     ValueError
         If the tile path is not a valid tile path, if the tile folder does not
-        exist, or if the tile needs a supertile but `allow_supertile` is False.
+        exist, or if the tile needs a supertile but `switch_matrix` is False.
     NotImplementedError
         If the tile is over the single-tile budget but has more than one BEL, which
         is not yet supported for supertile generation.
@@ -93,9 +101,23 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
     # Removed only once the BELs are known to be valid, see _remove_paths calls.
     stale = _stale_supertile_output(tile_path)
 
+    generated_lists = (
+        f"{tile_name}_switch_matrix.list",
+        f"{tile_name}_generated_switch_matrix.list",
+    )
     for file in tile_files:
         if not file.is_file():
             logger.debug(f"Skipping file {file} since it is not a file.")
+            continue
+        # A list of another name is the user's switch matrix for this tile;
+        # lists in subfolders belong to other tiles.
+        if file.suffix.lower() == ".list":
+            if file.parent == tile_path and file.name not in generated_lists:
+                tile_switchmatrix = file
+                logger.warning(
+                    f"Found switch matrix list {file} for custom tile {tile_name}, "
+                    "no switch matrix list will be generated."
+                )
             continue
         if _is_generated_file(file) or any(file.is_relative_to(p) for p in stale):
             logger.debug(
@@ -113,12 +135,6 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
                 "nothing to do here."
             )
             return file
-        elif file.suffix.lower() == ".list":
-            tile_switchmatrix = file
-            logger.warning(
-                f"Found tile tile_switchmatrix list file {file} for custom tile "
-                f"{tile_name}, no switchmatrix list file will be generated."
-            )
         else:
             logger.warning(
                 f"File {file} in custom tile {tile_name} is not a valid config or "
@@ -150,13 +166,12 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
         total_inputs += len({p.name for p in b.input_ports} - dedicated)
         total_outputs += len({p.name for p in b.output_ports} - dedicated)
     if total_inputs > 32 or total_outputs > 8:
-        if not allow_supertile:
+        if not switch_matrix:
             raise ValueError(
                 f"The BELs of {tile_name} have {total_inputs} inputs / "
                 f"{total_outputs} outputs, more than a single tile can route, and "
-                "need a supertile. Run generate_custom_tile_config on the tile "
-                "with switch matrix generation enabled; it registers the "
-                "supertile in fabric.csv and drops a GENERATE entry for it."
+                "need a supertile, which always generates its switch matrices. "
+                "Run generate_custom_tile_config without --no-switch-matrix."
             )
         if len(parsed_bels) != 1:
             raise NotImplementedError(
@@ -184,15 +199,24 @@ def generateCustomTileConfig(tile_path: Path, allow_supertile: bool = True) -> P
         csv_out.append("JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE")
     for bel in tile_bels:
         csv_out.append(f"BEL,./{bel.relative_to(tile_path)}")
-    if tile_switchmatrix.exists():
-        csv_out.append(f"MATRIX,{tile_switchmatrix.relative_to(tile_path)}")
-    else:
-        csv_out.append("MATRIX,GENERATE")
+    csv_out.append(f"MATRIX,./{tile_switchmatrix.relative_to(tile_path).as_posix()}")
     csv_out.append("EndTILE")
 
     with tile_csv.open("w", encoding="utf-8") as file:
         file.write("\n".join(csv_out))
 
+    if tile_switchmatrix.exists():
+        return tile_csv
+    if not switch_matrix:
+        logger.info(
+            f"Write the switch matrix {tile_switchmatrix} for tile {tile_name}, or "
+            "generate it with generate_switch_matrix_list."
+        )
+        return tile_csv
+    # Imported here because parse_csv imports this module.
+    from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
+
+    parseTilesCSV(tile_csv, generate_matrix_list=True)
     return tile_csv
 
 
@@ -634,9 +658,8 @@ def _switch_matrix_lines(
     listfile = []
     listfile.append("# --------------WARNING-----------------")
     listfile.append("# This is a generated list file!")
-    listfile.append("# Your changes will be overwritten!")
-    listfile.append("# If you want to keep your changes,")
-    listfile.append("# please make a copy of this file and edit your tile csv.")
+    listfile.append("# FABulous does not regenerate it on its own, so you can edit it.")
+    listfile.append("# Running generate_switch_matrix_list overwrites your changes.")
     listfile.append("# --------------WARNING-----------------")
 
     for source, sinks in connections.items():

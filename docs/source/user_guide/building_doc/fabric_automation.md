@@ -186,6 +186,10 @@ optional arguments:
                         Do not generate a Tile Switch Matrix
 ```
 
+With `--no-switch-matrix`, the tile CSV still points at
+`<name>_switch_matrix.list`, which you then write yourself or generate later
+with `generate_switch_matrix_list`.
+
 We will now generate the tile config:
 
 ```console
@@ -200,8 +204,7 @@ INFO | Generating custom tile config Tile/CRC5
 INFO | Found BEL file Tile/CRC5/crc5.v for custom tile CRC5
 INFO | Creating tile config CSV file Tile/CRC5/CRC5.csv
 INFO | Reading tile configuration: Tile/CRC5/CRC5.csv
-INFO | Generating switch matrix list for tile CRC5
-INFO | Generating matrix file Tile/CRC5/CRC5_generated_switch_matrix.list
+INFO | Generating switch matrix list Tile/CRC5/CRC5_switch_matrix.list
 INFO | Creating prims file user_design/custom_prims.v
 INFO | Adding BELs crc5 to yosys primitives file user_design/custom_prims.v.
 ```
@@ -212,7 +215,7 @@ In the `Tile/CRC5` folder, we now have the following files:
 ```console
 demo/Tile/CRC5
 ├── CRC5.csv
-├── CRC5_generated_switch_matrix.list
+├── CRC5_switch_matrix.list
 ├── crc5.v
 └── crc5.json
 ```
@@ -228,7 +231,7 @@ Lets take a look into the `CRC5.csv`:
 TILE,CRC5
 INCLUDE,./../include/Base.csv
 BEL,./crc5.v
-MATRIX,GENERATE
+MATRIX,./CRC5_switch_matrix.list
 EndTILE
 ```
 
@@ -239,37 +242,51 @@ routing, you can do it there, like described in the [fabric definition](#fabric-
 
 #### Switch Matrix Generation
 
-The `MATRIX,GENERATE` line tells FABulous to generate a switch matrix for the tile.
+The `MATRIX` line points at the switch matrix list file that
+`generate_custom_tile_config` generated next to the tile CSV. FABulous only
+writes this file when you ask for it; loading or building the fabric never
+regenerates it, so you can edit it by hand.
 
-This means, after you have changed the tile .csv, you have to re-run the
-`generate_custom_tile_config` in order to update the switch matrix list file,
-for example to include additional BELs or routing.
+If the tile folder already contains a `.list` file of another name than
+`<name>_switch_matrix.list`, `generate_custom_tile_config` references it instead
+of generating one. A `<name>_generated_switch_matrix.list` left over from the
+removed `MATRIX,GENERATE` flow does not count. Running the command again while
+the tile CSV exists changes nothing.
 
-Alternatively, to generating a tile csv file, you can also provide an own tile csv file,
-by just placing it in the tile folder. The `generate_custom_tile_config` command
-will parse the provided csv file, when it contains a `MATRIX,GENERATE` line,
-a switch matrix list file will be generated.
+After you change the tile .csv, for example to add BELs or routing, regenerate
+the switch matrix list file with the `generate_switch_matrix_list` command:
+
+```console
+FABulous> generate_switch_matrix_list Tile/CRC5
+```
+
+It reads the BELs, carry chains and shared ports of the tile CSV and writes the
+`.list` file its `MATRIX` line points to. The same works for a tile CSV you wrote
+yourself.
 
 :::{warning}
-As long as the `MATRIX,GENERATE` command is in the tile CSV config,
-the switch matrix list file for the tile gets regenerated every time,
-the fabric is regenerated with `run_fab` or
-`generate_custom_tile_config` command is called.
-If you want to make manual changes in the list file directly,
-you should remove the `GENERATE` command from the tile CSV config
-and replace it with the path to the switch matrix list file.
-`MATRIX,./CRC5_generated_switch_matrix.list`
+`generate_switch_matrix_list` overwrites the list file, including any changes you
+made to it by hand.
 :::
 
-The generated switch matrix list file `CRC5_generated_switch_matrix.list` looks like following
+:::{note}
+Older FABulous versions regenerated the list on every load from a
+`MATRIX,GENERATE` tile CSV line, and generated whole tiles from a
+`Tile,<path>,GENERATE` entry in `fabric.csv`. Both keywords are no longer
+supported and stop `load_fabric` with an error. Replace `MATRIX,GENERATE` with
+the path to the list file and generate it with `generate_switch_matrix_list`.
+Replace a `Tile,<path>,GENERATE` entry with the tile CSV that
+`generate_custom_tile_config` generates.
+:::
+
+The generated switch matrix list file `CRC5_switch_matrix.list` looks like following
 (shortened for clarity):
 
 ```console
 # --------------WARNING-----------------
 # This is a generated list file!
-# Your changes will be overwritten!
-# If you want to keep your changes,
-# please make a copy of this file and edit your tile csv.
+# FABulous does not regenerate it on its own, so you can edit it.
+# Running generate_switch_matrix_list overwrites your changes.
 # --------------WARNING-----------------
 N2BEGb0,N2MID0
 N2BEGb1,N2MID1
@@ -787,7 +804,7 @@ This will generate a custom tile config file in the `Tile/LUT4_TEST` folder:
 ```console
 LUT_TEST
 ├── LUT4_TEST.csv
-├── LUT4_TEST_generated_switch_matrix.list
+├── LUT4_TEST_switch_matrix.list
 ├── LUT4_test.json
 └── LUT4_test.v
 ```
@@ -801,7 +818,7 @@ NORTH,Co0,0,-1,Ci0,1,CARRY="C0"
 JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET
 JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE
 BEL,./LUT4_test.v
-MATRIX,GENERATE
+MATRIX,./LUT4_TEST_switch_matrix.list
 EndTILE
 ```
 
@@ -836,7 +853,7 @@ BEL,./LUT4_test.v,LT_E_
 BEL,./LUT4_test.v,LT_F_
 BEL,./LUT4_test.v,LT_G_
 BEL,./LUT4_test.v,LT_H_
-MATRIX,GENERATE
+MATRIX,./LUT4_TEST_switch_matrix.list
 EndTILE
 ```
 
@@ -851,9 +868,15 @@ Going over that budget with multiple BELs is an error — the automatic supertil
 split described in [Wide BELs](#wide-bel-supertiles) only applies to a tile
 folder with a single wide BEL.
 
-Afterward, we can generate our custom tile with the `generate_custom_tile_config` command
-again. This will generate our generate the switch matrix and the custom prims
-file. We can now use the custom tile like any other tile in the `fabric.csv`.
+Afterward, we regenerate the switch matrix list for the edited tile CSV with the
+`generate_switch_matrix_list` command, which also adds the BELs to the custom prims
+file:
+
+```console
+FABulous> generate_switch_matrix_list Tile/LUT4_test
+```
+
+We can now use the custom tile like any other tile in the `fabric.csv`.
 
 :::{note}
 This example is shows how to work with multiple BELs in a custom tile, based on
@@ -958,7 +981,9 @@ switch matrix list starts with `# Subtile of generated supertile <name>`), the
 supertile RTL that `gen_tile` wrote, and their entries in `fabric.csv`, and
 refreshes the BEL's stub in `custom_prims.v` before generating again. A
 hand-written definition in `custom_prims.v` is kept. Hand edits inside the
-subtile folders are lost.
+subtile folders are lost. `generate_switch_matrix_list` refuses a generated
+supertile and its subtiles, since their lists come from this split rather than
+from the subtile CSVs.
 
 A few things stop supertile generation before anything is written:
 
@@ -968,9 +993,6 @@ A few things stop supertile generation before anything is written:
   command did not generate.
 - `--no-switch-matrix` is given. A supertile always needs its generated
   switch matrices.
-- The tile is listed as `Tile,<path>,GENERATE` in `fabric.csv`. That entry only
-  creates single tiles; run `generate_custom_tile_config` instead, which
-  replaces the entry with the supertile's.
 
 :::{warning}
 `CARRY`, `SHARED_RESET` and `SHARED_ENABLE` ports of a wide BEL are not yet

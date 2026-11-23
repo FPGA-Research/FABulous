@@ -1417,8 +1417,9 @@ def test_generate_custom_tile_config_roundtrip(
     """The REPL command builds a tile CSV and its generated switch matrix.
 
     Drives ``generate_custom_tile_config`` end-to-end: it must write the tile
-    CSV, trigger ``parseTilesCSV`` to emit the generated switch-matrix list, and
-    register the BEL as a yosys blackbox primitive — all without logging errors.
+    CSV, emit the generated switch-matrix list, and register the BEL as a yosys
+    blackbox primitive, all without logging errors. Rerunning it keeps the list;
+    ``generate_switch_matrix_list`` rebuilds it from the edited tile CSV.
     """
     bel = "LUT4c_frame_config_dffesr.v"
     tile_dir = cli.projectDir / "Tile" / "CustomTile"
@@ -1428,11 +1429,23 @@ def test_generate_custom_tile_config_roundtrip(
     run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
 
     normalize_and_check_for_errors(caplog.text)
-    assert (tile_dir / "CustomTile.csv").is_file()
-    generated_lists = list(tile_dir.glob("*switch_matrix*.list"))
-    assert generated_lists, "expected a generated switch matrix list file"
+    tile_csv = tile_dir / "CustomTile.csv"
+    matrix = tile_dir / "CustomTile_switch_matrix.list"
+    assert matrix.is_file()
     prims = (cli.projectDir / "user_design" / "custom_prims.v").read_text()
     assert "LUT4c_frame_config_dffesr" in prims
+
+    # A second, prefixed BEL only reaches the list on request.
+    tile_csv.write_text(
+        tile_csv.read_text().replace(
+            f"BEL,./{bel}", f"BEL,./{bel},A_\nBEL,./{bel},B_", 1
+        )
+    )
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    assert "B_I0" not in matrix.read_text()
+    run_cmd(cli, f"generate_switch_matrix_list {tile_dir}")
+    assert "B_I0" in matrix.read_text()
+    normalize_and_check_for_errors(caplog.text)
 
 
 @pytest.fixture(params=[HDLType.VERILOG, HDLType.VHDL], ids=["verilog", "vhdl"])
@@ -1471,17 +1484,16 @@ def test_generate_supertile_rtl(
     """
     cli, ext = dsp_cli, dsp_cli.extension
     tile_dir = cli.projectDir / "Tile" / "DSPblk"
-    # A GENERATE entry cannot load a supertile, and neither can an entry from
-    # when the tile was a single tile, so registration replaces both.
+    # An entry from when the tile was a single tile cannot load a supertile, so
+    # registration replaces it.
     text = cli.csvFile.read_text()
-    entries = "Tile,./Tile/DSPblk,GENERATE\nTile,./Tile/DSPblk/DSPblk.csv\n"
-    cli.csvFile.write_text(text.replace("ParametersEnd", f"{entries}ParametersEnd", 1))
+    entry = "Tile,./Tile/DSPblk/DSPblk.csv\n"
+    cli.csvFile.write_text(text.replace("ParametersEnd", f"{entry}ParametersEnd", 1))
 
     # Running twice must not register the supertile in fabric.csv twice.
     run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
     run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
     fabric_csv = cli.csvFile.read_text().splitlines()
-    assert "Tile,./Tile/DSPblk,GENERATE" not in fabric_csv
     assert "Tile,./Tile/DSPblk/DSPblk.csv" not in fabric_csv
     assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
     assert sum("DSPblk_sub0.csv" in ln for ln in fabric_csv) == 1
@@ -1503,6 +1515,13 @@ def test_generate_supertile_rtl(
         sub = tile_dir / f"DSPblk_sub{i}"
         assert (sub / f"DSPblk_sub{i}.{ext}").is_file()
         assert (sub / f"DSPblk_sub{i}_switch_matrix.{ext}").is_file()
+
+    # Subtile lists come from the supertile split, not from the subtile CSV.
+    sub_list = tile_dir / "DSPblk_sub0" / "DSPblk_sub0_switch_matrix.list"
+    before = sub_list.read_text()
+    run_cmd(cli, f"generate_switch_matrix_list {tile_dir / 'DSPblk_sub0'}")
+    assert cli.exit_code != 0
+    assert sub_list.read_text() == before
 
 
 @pytest.mark.slow

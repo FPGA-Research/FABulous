@@ -43,9 +43,7 @@ from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile, tile_directory
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
-    generateCustomTileConfig,
     generateSwitchmatrixList,
-    is_supertile_csv,
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
@@ -286,7 +284,10 @@ def _read_config_mem(
 
 
 def parseTilesCSV(
-    fileName: Path, preserve_list_order: bool = False
+    fileName: Path,
+    preserve_list_order: bool = False,
+    *,
+    generate_matrix_list: bool = False,
 ) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parse a CSV tile configuration file and returns all tile objects.
 
@@ -297,6 +298,10 @@ def parseTilesCSV(
     preserve_list_order : bool
         Passed to each tile's switch matrix so a `.list` keeps its file order
         (MSB-first) instead of the canonical dest-column order. Defaults to False.
+    generate_matrix_list : bool
+        (Over)write each tile's switch matrix `.list` file from its BELs before
+        reading it. Only the explicit generation commands pass True; loading a
+        fabric never regenerates a list file. Defaults to False.
 
     Returns
     -------
@@ -351,7 +356,6 @@ def parseTilesCSV(
         config_mem_csv: Path | None = None
         gen_ios: list[Gen_IO] = []
         withUserCLK = False
-        genMatrixList = False
         tileCarry: dict[str, dict[IO, str]] = {}
         localSharedPorts: dict[str, list[TilePort]] = {}
 
@@ -520,37 +524,13 @@ def parseTilesCSV(
                     )
             elif temp[0] == "MATRIX":
                 if "GENERATE" in temp:
-                    logger.info(f"Generating switch matrix list for tile {tileName}")
-                    genMatrixList = True
-                    if len(temp) <= 2:
-                        # only MATRIX, GENERATE in csv
-                        matrixDir = fileName.parent
-                    else:
-                        matrixDir = fileName.parent.joinpath(temp[2])
-                    if matrixDir.is_file() and matrixDir.suffix == ".list":
-                        logger.warning(
-                            f"Matrix file {matrixDir} already exists and will be "
-                            "overwritten."
-                        )
-                    elif matrixDir.parent == proj_dir.joinpath("Tile"):
-                        matrixDir = matrixDir.joinpath(
-                            f"{tileName}_generated_switch_matrix.list"
-                        )
-                        logger.info(f"Generating matrix file {matrixDir}")
-                    else:
-                        matrixDir = proj_dir.joinpath(
-                            f"./Tile/{tileName}/{tileName}_generated_switch_matrix.list"
-                        )
-                        logger.warning(
-                            "No destination directory for matrix file sepicified, "
-                            f"using default path {matrixDir}."
-                        )
-                        if not matrixDir.parent.exists():
-                            matrixDir.parent.mkdir(parents=True)
-                            logger.warning(f"Creating directory {matrixDir.parent}.")
-
-                else:
-                    matrixDir = fileName.parent.joinpath(temp[1]).absolute()
+                    raise InvalidTileDefinition(
+                        f"MATRIX,GENERATE in tile {tileName} is no longer supported. "
+                        "Point MATRIX at a switch matrix file, e.g. "
+                        f"MATRIX,./{tileName}_switch_matrix.list, and generate it "
+                        "with generate_switch_matrix_list."
+                    )
+                matrixDir = fileName.parent.joinpath(temp[1]).absolute()
 
             elif temp[0] == "CONFIGMEM":
                 config_mem_csv = fileName.parent.joinpath(temp[1]).absolute()
@@ -589,7 +569,13 @@ def parseTilesCSV(
                 "(.csv/.list) or hand-written HDL file is required."
             )
 
-        if genMatrixList:
+        if generate_matrix_list:
+            if matrixDir.suffix != ".list":
+                raise InvalidTileDefinition(
+                    f"Tile {tileName} has the switch matrix {matrixDir}; only a "
+                    ".list file can be generated."
+                )
+            logger.info(f"Generating switch matrix list {matrixDir}")
             generateSwitchmatrixList(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
@@ -1060,17 +1046,12 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
             continue
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
-                # we generate the tile right before we parse everything
-                tile_csv = generateCustomTileConfig(
-                    filePath.joinpath(i[1]), allow_supertile=False
+                raise InvalidFabricDefinition(
+                    f"The entry `{','.join(i)}` is no longer supported. Run "
+                    f"generate_custom_tile_config {i[1]} and reference the "
+                    "generated tile CSV instead (supertiles are registered "
+                    "automatically)."
                 )
-                if is_supertile_csv(tile_csv):
-                    raise InvalidFabricDefinition(
-                        f"{tile_csv} is a supertile, which a GENERATE tile entry "
-                        f"cannot load. Remove the entry `{','.join(i).strip(',')}`; "
-                        "generate_custom_tile_config registers the supertile."
-                    )
-                i[1] = str(tile_csv)
 
             new_tiles, new_common_wire_pair = parseTilesCSV(
                 filePath.joinpath(i[1]), preserveListOrder

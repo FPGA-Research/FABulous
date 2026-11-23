@@ -33,7 +33,10 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateSwitchmatrixList,
     is_supertile_csv,
 )
-from fabulous.fabric_generator.parser.parse_csv import parse_tile_from_dir
+from fabulous.fabric_generator.parser.parse_csv import (
+    parse_tile_from_dir,
+    parseTilesCSV,
+)
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_settings import get_context, init_context
 
@@ -295,21 +298,63 @@ def test_custom_tile_config_happy(ctx_project: Path) -> None:
     assert lines[0] == "TILE,CustomTile"
     assert "INCLUDE,./../include/Base.csv" in lines
     assert f"BEL,./{LUT4C}" in lines
-    assert "MATRIX,GENERATE" in lines
+    assert "MATRIX,./CustomTile_switch_matrix.list" in lines
     assert lines[-1] == "EndTILE"
+    matrix = (tile_dir / "CustomTile_switch_matrix.list").read_text()
+    assert "# This is a generated list file!" in matrix
 
 
 @pytest.mark.usefixtures("requires_yosys")
-def test_custom_tile_config_existing_list(ctx_project: Path) -> None:
-    """An existing (non-generated) list file is referenced instead of GENERATE."""
+def test_switch_matrix_list_regenerated_only_on_request(ctx_project: Path) -> None:
+    """Parsing keeps an edited list; only `generate_matrix_list=True` rewrites it."""
     tile_dir = _custom_tile_dir(ctx_project)
-    (tile_dir / "mymatrix.list").write_text("# hand-written\n")
+    csv_path = generateCustomTileConfig(tile_dir)
+    matrix = tile_dir / "CustomTile_switch_matrix.list"
+    edited = matrix.read_text() + "\n# my edit\n"
+    matrix.write_text(edited)
+
+    parseTilesCSV(csv_path)
+    assert matrix.read_text() == edited
+
+    parseTilesCSV(csv_path, generate_matrix_list=True)
+    assert "# my edit" not in matrix.read_text()
+
+
+@pytest.mark.usefixtures("requires_yosys")
+def test_custom_tile_config_without_switch_matrix(ctx_project: Path) -> None:
+    """`switch_matrix=False` references the default list but leaves it to the user."""
+    tile_dir = _custom_tile_dir(ctx_project)
+
+    csv_path = generateCustomTileConfig(tile_dir, switch_matrix=False)
+
+    assert "MATRIX,./CustomTile_switch_matrix.list" in csv_path.read_text()
+    assert not (tile_dir / "CustomTile_switch_matrix.list").exists()
+
+
+@pytest.mark.usefixtures("requires_yosys")
+@pytest.mark.parametrize("name", ["mymatrix.list", "custom_switch_matrix.list"])
+def test_custom_tile_config_existing_list(ctx_project: Path, name: str) -> None:
+    """An existing (non-generated) list file is referenced, not regenerated."""
+    tile_dir = _custom_tile_dir(ctx_project)
+    (tile_dir / name).write_text("# hand-written\n")
 
     csv_path = generateCustomTileConfig(tile_dir)
 
     lines = csv_path.read_text().splitlines()
-    assert "MATRIX,mymatrix.list" in lines
-    assert "MATRIX,GENERATE" not in lines
+    assert f"MATRIX,./{name}" in lines
+    assert (tile_dir / name).read_text() == "# hand-written\n"
+    assert not (tile_dir / "CustomTile_switch_matrix.list").exists()
+
+
+@pytest.mark.usefixtures("requires_yosys")
+def test_custom_tile_config_ignores_legacy_generated_list(ctx_project: Path) -> None:
+    """The list `MATRIX,GENERATE` used to write is not taken for the user's."""
+    tile_dir = _custom_tile_dir(ctx_project)
+    (tile_dir / "CustomTile_generated_switch_matrix.list").write_text("# old\n")
+
+    csv_path = generateCustomTileConfig(tile_dir)
+
+    assert "MATRIX,./CustomTile_switch_matrix.list" in csv_path.read_text()
 
 
 @pytest.mark.usefixtures("requires_yosys")
@@ -327,7 +372,8 @@ def test_custom_tile_config_generated_file_ignored(ctx_project: Path) -> None:
     lines = csv_path.read_text().splitlines()
     bel_lines = [line for line in lines if line.startswith("BEL,")]
     assert bel_lines == [f"BEL,./{LUT4C}"]
-    assert "MATRIX,CustomTile_switch_matrix.list" in lines
+    assert "MATRIX,./CustomTile_switch_matrix.list" in lines
+    assert (tile_dir / "CustomTile_switch_matrix.list").read_text() == "# stale\n"
 
 
 @pytest.mark.usefixtures("requires_yosys")
@@ -592,13 +638,13 @@ def test_supertile_include_follows_nested_tile_dir(ctx_project: Path) -> None:
 def test_custom_tile_config_rejects_supertile_when_not_allowed(
     ctx_project: Path, mocker: MockerFixture
 ) -> None:
-    """With `allow_supertile=False` a wide BEL fails before anything is written."""
+    """With `switch_matrix=False` a wide BEL fails before anything is written."""
     tile_dir = _supertile_dir(ctx_project)
     (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
     mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
 
     with pytest.raises(ValueError, match="need a supertile"):
-        generateCustomTileConfig(tile_dir, allow_supertile=False)
+        generateCustomTileConfig(tile_dir, switch_matrix=False)
 
     assert sorted(p.name for p in tile_dir.iterdir()) == ["WIDE.v"]
 
@@ -679,7 +725,8 @@ def test_custom_tile_config_ignores_dedicated_ports_for_budget(
     assert len(bel.output_ports) == 9
     mocker.patch(PARSE, return_value=bel)
 
-    csv_path = generateCustomTileConfig(tile_dir)
+    # The mocked BEL has no HDL behind it to build a switch matrix from.
+    csv_path = generateCustomTileConfig(tile_dir, switch_matrix=False)
 
     lines = csv_path.read_text().splitlines()
     assert lines[0] == "TILE,AtBudget"

@@ -336,8 +336,7 @@ def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
     assert "Supertile" not in csv_text
 
 
-@pytest.mark.parametrize("drop_generate", [False, True])
-def test_unregister_tile_in_fabric_csv(tmp_path: Path, drop_generate: bool) -> None:
+def test_unregister_tile_in_fabric_csv(tmp_path: Path) -> None:
     """Only the tile's own and its generated subtiles' entries are dropped."""
     csv_path = tmp_path / "fabric.csv"
     tile_dir = tmp_path / "Tile" / "DSP"
@@ -347,7 +346,6 @@ def test_unregister_tile_in_fabric_csv(tmp_path: Path, drop_generate: bool) -> N
         "# Subtile of generated supertile DSP\n"
     )
     (tile_dir / "DSP_sub5").mkdir()  # a user tile in a subtile-like folder
-    generate = "Tile,./Tile/DSP,GENERATE\n"
     keep = [
         "Tile,./Tile/LUT4AB/LUT4AB.csv,\n",
         "Tile,./Tile/DSP_sub/DSP_sub.csv,\n",  # other tile with a similar name
@@ -361,14 +359,13 @@ def test_unregister_tile_in_fabric_csv(tmp_path: Path, drop_generate: bool) -> N
         "Supertile,./Tile/DSP/DSP.csv,\n",
         "Tile,./Tile/DSP/DSP.csv,\n",  # registered while it was a single tile
     ]
-    csv_path.write_text("".join([generate, *keep, *stale]) + "ParametersEnd\n")
+    csv_path.write_text("".join(keep + stale) + "ParametersEnd\n")
 
-    assert unregister_tile_in_fabric_csv(csv_path, tile_dir, drop_generate)
+    assert unregister_tile_in_fabric_csv(csv_path, tile_dir)
 
-    kept = keep if drop_generate else [generate, *keep]
-    assert csv_path.read_text() == "".join(kept) + "ParametersEnd\n"
+    assert csv_path.read_text() == "".join(keep) + "ParametersEnd\n"
     # Nothing of the tile is left, so it no longer counts as registered.
-    assert not unregister_tile_in_fabric_csv(csv_path, tile_dir, drop_generate)
+    assert not unregister_tile_in_fabric_csv(csv_path, tile_dir)
 
 
 def test_register_tile_needs_parameters_end(tmp_path: Path) -> None:
