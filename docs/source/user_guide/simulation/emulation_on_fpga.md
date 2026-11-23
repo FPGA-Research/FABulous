@@ -18,7 +18,7 @@ covers.
 - **Hardwired-bitstream emulation.** The user-design bitstream is baked into the
   fabric RTL at synthesis time and the configuration port is removed. Swapping
   the mapped design means re-synthesizing the whole fabric. This is the mode
-  described in [Emulation setup](#emulation-setup).
+  described in {ref}`Emulation setup <emulation-setup>`.
 - **Runtime-reconfigurable emulation (this page).** The fabric is synthesized
   onto the host FPGA _once_, with its configuration loader left intact. Different
   user-design bitstreams are then streamed into the fabric over UART at runtime,
@@ -62,7 +62,7 @@ bitstreams over the serial link.
 ## Prerequisites
 
 - A working FABulous installation and CAD tools (see the
-  [Quick start](#quick-start)).
+  {ref}`Quick start <quick-start>`).
 - [AMD/Xilinx Vivado](https://www.amd.com/en/products/software/adaptive-socs-and-fpgas/vivado.html)
   for the host FPGA. The demo targets the Nexys Video (`xc7a200tsbg484-1`);
   install board support via
@@ -89,7 +89,7 @@ This produces:
   `demo/user_design/sequential_16bit_en.bin` (this is what you will stream over
   UART).
 
-See [FASM to Bitstream](#bitstream-generation) for how `compile_design` produces
+See {ref}`FASM to Bitstream <bitstream-generation>` for how `compile_design` produces
 the `.bin`, and for generating further bitstreams from other user designs. Every
 user design you want to try on the board just needs its own `.bin` from
 `compile_design` — the fabric RTL does not change.
@@ -207,8 +207,8 @@ reset the counter and the LEDs show its running output.
 
 ## See also
 
-- [Emulation setup](#emulation-setup) — the hardwired-bitstream alternative.
-- [Simulation](#simulation-setup) — verifying the fabric in RTL before taking it
+- {ref}`Emulation setup <emulation-setup>` — the hardwired-bitstream alternative.
+- {ref}`Simulation <simulation-setup>` — verifying the fabric in RTL before taking it
   to a board.
-- [FASM to Bitstream](#bitstream-generation) — producing the `.bin` files you
+- {ref}`FASM to Bitstream <bitstream-generation>` — producing the `.bin` files you
   upload.

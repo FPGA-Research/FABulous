@@ -1,7 +1,7 @@
 {
   "$defs": {
     "CellFunction": {
-      "description": "The logical role a standard cell fills during timing characterization.\n\nThe members are the keys of a library's ``cells`` mapping and the argument\nto :meth:`StdCellLibrary.get`; they are the extension point for new cell\ntypes.",
+      "description": "The logical role a standard cell fills during timing characterization.\n\nThe members are the keys of a library's `cells` mapping and the argument\nto {meth}`StdCellLibrary.get`; they are the extension point for new cell\ntypes.",
       "enum": [
         "buffer",
         "tie_high",
@@ -13,7 +13,7 @@
       "type": "string"
     },
     "CellSpec": {
-      "description": "A standard cell and the ports a cell-mapping tool needs to use it.\n\n``cell`` is the standard-cell name; ``input_ports`` and ``output_ports`` list\nits ports (a buffer has one of each, a tie cell only an output, and cells\nwith several inputs/outputs list them all). Add further fields -- drive\nstrength, area, ... -- as more cell metadata is needed.",
+      "description": "A standard cell and the ports a cell-mapping tool needs to use it.\n\n`cell` is the standard-cell name; `input_ports` and `output_ports` list\nits ports (a buffer has one of each, a tie cell only an output, and cells\nwith several inputs/outputs list them all). Add further fields -- drive\nstrength, area, ... -- as more cell metadata is needed.",
       "properties": {
         "cell": {
           "title": "Cell",
@@ -43,7 +43,7 @@
       "type": "object"
     },
     "StdCellLibrary": {
-      "description": "A PDK's standard-cell library for timing characterization.\n\nBundles the liberty timing files and Yosys techmap files with the cells the\nsynthesizer maps onto, grouped by function. A function may map to several\ncells (e.g. multiple buffers); use :meth:`get` to fetch them. Liberty and\ntechmap entries accept ``${VAR}`` placeholders and relative paths, resolved\nagainst the validation context supplied by :meth:`load`.",
+      "description": "A PDK's standard-cell library for timing characterization.\n\nBundles the liberty timing files and Yosys techmap files with the cells the\nsynthesizer maps onto, grouped by function. A function may map to several\ncells (e.g. multiple buffers); use {meth}`get` to fetch them. Liberty and\ntechmap entries accept `${VAR}` placeholders and relative paths, resolved\nagainst the validation context supplied by {meth}`load`.",
       "properties": {
         "liberty_files": {
           "default": [],
@@ -85,7 +85,7 @@
   "additionalProperties": {
     "$ref": "#/$defs/StdCellLibrary"
   },
-  "description": "The on-disk standard-cell library config: ``pdk::<variant>`` sections.\n\nMaps each ``pdk::<variant>`` section name to its :class:`StdCellLibrary`.\nUsed to emit the JSON schema for ``Fabric/std_cell_library.yaml``.",
+  "description": "The on-disk standard-cell library config: `pdk::<variant>` sections.\n\nMaps each `pdk::<variant>` section name to its {class}`StdCellLibrary`.\nUsed to emit the JSON schema for `Fabric/std_cell_library.yaml`.",
   "title": "StdCellLibraryFile",
   "type": "object"
 }

@@ -130,7 +130,7 @@ def fetch_json(url: str) -> dict[str, object]:
 
 
 def fetch_archive(url: str, dest_dir: Path) -> Path:
-    """Download ``url`` to a temp file under ``dest_dir``, retrying transient errors."""
+    """Download `url` to a temp file under `dest_dir`, retrying transient errors."""
     last_exc: Exception | None = None
     suffix = ".zip" if url.endswith(".zip") else ".tar.gz"
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
@@ -160,7 +160,7 @@ def fetch_archive(url: str, dest_dir: Path) -> Path:
 
 
 def extract_archive(archive: Path, dest: Path) -> None:
-    """Extract a release archive into ``dest``."""
+    """Extract a release archive into `dest`."""
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(dest)
@@ -170,7 +170,7 @@ def extract_archive(archive: Path, dest: Path) -> None:
 
 
 def download(dest: Path) -> None:
-    """Fetch the svlint release archive and extract it into ``dest`` atomically."""
+    """Fetch the svlint release archive and extract it into `dest` atomically."""
     release = fetch_json(RELEASE_API_URL)
     assets = release.get("assets")
     if not isinstance(assets, list):
