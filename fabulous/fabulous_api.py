@@ -8,12 +8,11 @@ various fabric-related operations.
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from librelane.flows.flow import Flow
 from loguru import logger
 
-import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
-import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -29,15 +28,12 @@ from fabulous.fabric_cad.timing_model.models import (
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import ConfigBitMode, Side
+from fabulous.fabric_definition.define import ConfigBitMode, HDLType, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     FABulousFabricVHDLMacroFlow,
@@ -71,6 +67,9 @@ from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
+if TYPE_CHECKING:
+    from fabulous.plugins.manager import PluginManager
+
 
 class FABulous_API:
     """Class for managing fabric and geometry generation.
@@ -88,8 +87,11 @@ class FABulous_API:
     ----------
     writer : CodeGenerator
         Object responsible for generating code from code_generator.py
+    plugin_manager : PluginManager
+        The plugin manager resolving parsers and firing lifecycle hooks.
     fabricCSV : str
-        Path to the CSV file containing fabric data, by default ""
+        Path to a fabric file to load, by default "". Its suffix selects the
+        parser.
 
     Attributes
     ----------
@@ -97,21 +99,21 @@ class FABulous_API:
         Object responsible for generating geometry-related outputs.
     fabric : Fabric
         Represents the parsed fabric data.
-    fileExtension : str
-        Default file extension for generated output files ('.v' or '.vhdl').
     """
 
     geometryGenerator: GeometryGenerator
     fabric: Fabric
-    fileExtension: str = ".v"
 
-    def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
+    def __init__(
+        self,
+        writer: CodeGenerator,
+        plugin_manager: "PluginManager",
+        fabricCSV: str = "",
+    ) -> None:
         self.writer = writer
+        self.plugin_manager = plugin_manager
         if fabricCSV != "":
-            self.fabric = fileParser.parseFabricCSV(fabricCSV)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        if isinstance(self.writer, VHDLCodeGenerator):
-            self.fileExtension = ".vhdl"
+            self.loadFabric(Path(fabricCSV))
 
     def setWriterOutputFile(self, outputDir: Path) -> None:
         """Set the output file directory for the write object.
@@ -125,24 +127,21 @@ class FABulous_API:
         self.writer.outFileName = outputDir
 
     def loadFabric(self, fabric_dir: Path) -> None:
-        """Load fabric data from 'fabric.csv'.
+        """Load fabric data from a file.
+
+        The file suffix selects a parser provider from the plugin manager, which
+        raises `PluginError` when no parser claims that suffix. After the fabric
+        is built, the `fabulous_after_fabric_loaded` hook fires.
 
         Parameters
         ----------
         fabric_dir : Path
-            Path to CSV file containing fabric data.
-
-        Raises
-        ------
-        ValueError
-            If 'fabric_dir' does not end with '.csv'
+            Path to the fabric file.
         """
-        if fabric_dir.suffix == ".csv":
-            self.fabric = fileParser.parseFabricCSV(fabric_dir)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        else:
-            logger.error("Only .csv files are supported for fabric loading")
-            raise ValueError
+        parse = self.plugin_manager.make_parser(fabric_dir)
+        self.fabric = parse(fabric_dir)
+        self.geometryGenerator = GeometryGenerator(self.fabric)
+        self.plugin_manager.notify_fabric_loaded(self)
 
     def add_list_to_matrix(
         self, listFile: Path, matrix: Path, preserve_list_order: bool = False
@@ -418,15 +417,35 @@ class FABulous_API:
         """
         return generate_bitstream_spec(self.fabric)
 
-    def gen_routing_model(self) -> tuple[str, str, str, str, str]:
-        """Generate model for Nextpnr based on fabric data.
+    def gen_routing_model(
+        self,
+        tool: str | None = None,
+        delay_model: FABulousTimingModelInterface | None = None,
+        target: TimingModelTarget = TimingModelTarget.BOTH,
+    ) -> dict[str, str | bytes]:
+        """Generate the place-and-route model for the loaded fabric.
+
+        Parameters
+        ----------
+        tool : str | None
+            The place-and-route backend to generate for. Defaults to None,
+            which selects the project's `pnr_backend` setting.
+        delay_model : FABulousTimingModelInterface | None
+            Timing model interface providing real delays. Defaults to None,
+            which generates an untimed model.
+        target : TimingModelTarget
+            Which delays to take from `delay_model`: pips, BELs, or both.
+            Defaults to both. Ignored without a delay model.
 
         Returns
         -------
-        tuple[str, str, str, str, str]
-            Model generated by 'model_gen_npnr.genNextpnrModel'.
+        dict[str, str | bytes]
+            The model's file names mapped to their content.
         """
-        return model_gen_npnr.genNextpnrModel(self.fabric)
+        provider = self.plugin_manager.make_pnr_model(
+            tool, timed=delay_model is not None
+        )
+        return provider.generate(self.fabric, delay_model, target)
 
     def getBels(self) -> list[Bel]:
         """Return all unique Bels within a fabric.
@@ -560,7 +579,7 @@ class FABulous_API:
             logger.error(f"Tile {tile_name} not found in fabric.")
             raise ValueError
 
-        suffix = "vhdl" if isinstance(self.writer, VHDLCodeGenerator) else "v"
+        suffix = self.writer.file_extension.removeprefix(".")
 
         gios = [gio for gio in tile.gen_ios if not gio.configAccess]
         gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
@@ -637,17 +656,37 @@ class FABulous_API:
 
     @property
     def tile_flow_cls(self) -> type[Flow]:
-        """The tile macro flow for the project's HDL language."""
-        if isinstance(self.writer, VHDLCodeGenerator):
-            return FABulousTileVHDLMacroFlow
-        return FABulousTileVerilogMacroFlow
+        """The tile macro flow for the project's HDL language.
+
+        Raises
+        ------
+        ValueError
+            If no tile macro flow exists for the writer's HDL.
+        """
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                return FABulousTileVerilogMacroFlow
+            case HDLType.VHDL:
+                return FABulousTileVHDLMacroFlow
+            case other:
+                raise ValueError(f"No tile macro flow for {other.value}")
 
     @property
     def fabric_flow_cls(self) -> type[Flow]:
-        """The fabric stitching flow for the project's HDL language."""
-        if isinstance(self.writer, VHDLCodeGenerator):
-            return FABulousFabricVHDLMacroFlow
-        return FABulousFabricMacroFlow
+        """The fabric stitching flow for the project's HDL language.
+
+        Raises
+        ------
+        ValueError
+            If no fabric stitching flow exists for the writer's HDL.
+        """
+        match self.writer.hdl_type:
+            case HDLType.VERILOG:
+                return FABulousFabricMacroFlow
+            case HDLType.VHDL:
+                return FABulousFabricVHDLMacroFlow
+            case other:
+                raise ValueError(f"No fabric macro flow for {other.value}")
 
     def genTileMacro(
         self,
@@ -822,21 +861,18 @@ class FABulous_API:
     def timing_model_interface(
         self,
         mode: str,
-        output_file: Path,
         debug: bool,
         manual_config: TimingModelConfig | None = None,
+        tool: str | None = None,
         *,
         target: TimingModelTarget = TimingModelTarget.BOTH,
-        bel_output_file: Path | None = None,
-    ) -> TimingModelConfig:
-        """Initialise the timing model and generate selected nextpnr timing files.
+    ) -> tuple[TimingModelConfig, dict[str, str | bytes]]:
+        """Initialise the timing model and generate a timed place-and-route model.
 
         Parameters
         ----------
         mode : str
             The mode in which to run the timing model interface.
-        output_file : Path
-            The path where the generated nextpnr pip file will be saved.
         debug : bool
             Whether to enable debug mode for the timing model interface,
             which may provide more verbose logging.
@@ -844,17 +880,17 @@ class FABulous_API:
             Optional manual configuration for the timing model interface.
             If provided, this configuration will be used instead of the default
             PDK-based configuration.
+        tool : str | None
+            The place-and-route backend to generate for. Defaults to None,
+            which selects the project's `pnr_backend` setting.
         target : TimingModelTarget
-            Select pip timing, BEL timing, or both, by default both.
-        bel_output_file : Path | None
-            BEL timing output path. By default, write `bel.v3.txt` beside
-            `output_file`.
+            Characterize pip timing, BEL timing, or both, by default both.
 
         Returns
         -------
-        TimingModelConfig
-            The configuration used for the timing model interface, which may be the
-            default PDK-based configuration or the provided manual configuration.
+        tuple[TimingModelConfig, dict[str, str | bytes]]
+            The configuration used for the timing model interface, and the
+            backend's model files mapped to their content.
 
         Raises
         ------
@@ -933,18 +969,8 @@ class FABulous_API:
                 debug=debug,
             )
 
-        target = TimingModelTarget(target)
-        if bel_output_file is None:
-            bel_output_file = output_file.with_name("bel.v3.txt")
-
         ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
 
-        model_gen_npnr.write_nextpnr_timing_files(
-            fabric=self.fabric,
-            pip_output_file=output_file,
-            bel_output_file=bel_output_file,
-            delay_model=ftmi,
-            target=target,
+        return iconfig, self.gen_routing_model(
+            tool=tool, delay_model=ftmi, target=target
         )
-
-        return iconfig

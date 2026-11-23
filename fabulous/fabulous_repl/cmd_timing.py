@@ -16,6 +16,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelTarget,
     TimingModelTileSourceFiles,
 )
+from fabulous.fabric_definition.define import PnRTool
 from fabulous.fabulous_repl.command_set_base import (
     CMD_TIMING_MODEL,
     ReplCommandSet,
@@ -172,30 +173,31 @@ class TimingCommandSet(ReplCommandSet):
         ):
             raise ValueError("Pip and BEL timing output paths must be different.")
 
-        selected_outputs = []
+        artifact_name_by_output: dict[Path, str] = {}
         if resolved_target in (TimingModelTarget.PIPS, TimingModelTarget.BOTH):
-            selected_outputs.append(resolved_outfile)
+            artifact_name_by_output[resolved_outfile] = "pips.txt"
         if resolved_target in (TimingModelTarget.BELS, TimingModelTarget.BOTH):
-            selected_outputs.append(resolved_bel_outfile)
+            artifact_name_by_output[resolved_bel_outfile] = "bel.v3.txt"
 
-        for output_path in selected_outputs:
+        for output_path in artifact_name_by_output:
             if output_path.exists():
                 backup_path = output_path.with_suffix(".backup.txt")
                 logger.info(f"Backing up {output_path.name} to {backup_path}")
                 output_path.rename(backup_path)
 
         logger.info(f"Timing model target: {resolved_target}")
-        for output_path in selected_outputs:
+        for output_path in artifact_name_by_output:
             logger.info(f"Output timing model file: {output_path}")
 
-        tm_config_resolved: TimingModelConfig = repl.fabulousAPI.timing_model_interface(
+        tm_config_resolved, artifacts = repl.fabulousAPI.timing_model_interface(
             mode=mode,
-            output_file=resolved_outfile,
             debug=repl.debug,
             manual_config=manual_config,
+            tool=PnRTool.NEXTPNR,
             target=resolved_target,
-            bel_output_file=resolved_bel_outfile,
         )
+        for output_path, artifact_name in artifact_name_by_output.items():
+            output_path.write_text(artifacts[artifact_name], encoding="utf-8")
 
         resolved_path: Path = (
             get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"

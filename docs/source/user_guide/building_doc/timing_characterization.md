@@ -53,7 +53,8 @@ The FABulous interactive CLI exposes the command `timing_model`. Key options:
 
 - `--mode [physical|structural]` — Select analysis mode. Default: `physical`.
 - `--outfile <path>` — Output path for the generated pip file (default:
-    `.FABulous/pips.txt`).
+    `.FABulous/pips.txt`), or for the config template with
+    `--emit-config-template`.
 - `--bel-outfile <path>` — Output path for the generated BEL timing file (default:
     `bel.v3.txt` beside the pip output).
 - `--target [pips|bels|both]` — Select which timing files and calculations to run.
@@ -64,7 +65,10 @@ The FABulous interactive CLI exposes the command `timing_model`. Key options:
 :::{note}
 The place and route tool (nextpnr) uses `.FABulous/pips.txt` and
 `.FABulous/bel.v3.txt` from the project directory. Keep that in mind when custom output
-paths are provided.
+paths are provided. An existing output file is backed up beside itself as
+`<name>.backup.txt` before it is replaced. The command always characterizes the
+nextpnr model; other place-and-route backends are reached through
+`FABulous_API.timing_model_interface(tool=...)`.
 :::
 
 ### Examples
@@ -233,21 +237,34 @@ If you prefer not to use the CLI, the same functionality is exposed by the
 FABulous API. Example (python):
 
 ```py
-from fabulous.fabulous_api import FABulous_API
-from fabulous.fabric_cad.timing_model.models import TimingModelConfig, TimingModelTarget
+from pathlib import Path
 
-# instantiate FABulous API (example, depends on how you normally set it up)
-fab_api = FABulous_API(my_writer)
+from fabulous.fabric_cad.timing_model.models import (
+    TimingModelConfig,
+    TimingModelTarget,
+)
+from fabulous.fabric_definition.define import HDLType, PnRTool
+from fabulous.fabulous_api import FABulous_API
+from fabulous.fabulous_repl.helper import write_pnr_model
+from fabulous.plugins.manager import PluginManager
+
+# The manager runs discovery and builds the code generator the API uses.
+manager = PluginManager.create()
+writer = manager.make_writer(HDLType.VERILOG)
+fab_api = FABulous_API(writer, plugin_manager=manager)
+fab_api.loadFabric(Path('fabric.csv'))
 
 # load or construct a TimingModelConfig (validate with Pydantic)
-# then call the interface
-config = TimingModelConfig.model_validate_json(open('my_config.json').read())
-fab_api.timing_model_interface(
+config = TimingModelConfig.model_validate_json(Path('my_config.json').read_text())
+resolved, artifacts = fab_api.timing_model_interface(
     mode='physical',
-    output_file=Path('.FABulous/pips.txt'),
     debug=True,
     manual_config=config,
+    tool=PnRTool.NEXTPNR,
     target=TimingModelTarget.BOTH,
-    bel_output_file=Path('.FABulous/bel.v3.txt'),
 )
+
+# The interface returns the backend's full artifact set; the caller chooses
+# which files to write and where.
+write_pnr_model(artifacts, Path('.FABulous'))
 ```

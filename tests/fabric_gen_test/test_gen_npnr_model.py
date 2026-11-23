@@ -8,8 +8,8 @@ from pytest_mock import MockerFixture
 from fabulous.fabric_cad.gen_npnr_model import (
     PLACEMENT_ESTIMATE_TEXT,
     belLines,
+    generate_nextpnr_model,
     genNextpnrModel,
-    write_nextpnr_timing_files,
 )
 from fabulous.fabric_cad.timing_model.models import (
     BelDelayTiming,
@@ -22,6 +22,15 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from tests.conftest import make_empty_tile, make_fabric_from_grid
+
+NEXTPNR_ARTIFACTS = (
+    "pips.txt",
+    "bel.txt",
+    "bel.v2.txt",
+    "bel.v3.txt",
+    "template.pcf",
+    "placement_estimate.txt",
+)
 
 
 @pytest.fixture
@@ -67,16 +76,33 @@ def lut_fabric() -> Fabric:
     return make_fabric_from_grid([[tile]])
 
 
-def test_gen_routing_model_returns_five_with_timing(lut_fabric: Fabric) -> None:
-    """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
+def test_generate_nextpnr_model_emits_the_full_artifact_set(lut_fabric: Fabric) -> None:
+    """The nextpnr backend emits its six model files with `genNextpnrModel`'s text.
+
+    The CLI writes these out verbatim, so a backend dropping or renaming a file
+    breaks downstream nextpnr invocations.
+    """
+    pips, bel, bel_v2, bel_v3, constraints = genNextpnrModel(lut_fabric)
+
+    assert generate_nextpnr_model(lut_fabric) == {
+        "pips.txt": pips,
+        "bel.txt": bel,
+        "bel.v2.txt": bel_v2,
+        "bel.v3.txt": bel_v3,
+        "template.pcf": constraints,
+        "placement_estimate.txt": PLACEMENT_ESTIMATE_TEXT,
+    }
+
+
+def test_generate_nextpnr_model_returns_bel_v3_with_timing(lut_fabric: Fabric) -> None:
+    """The nextpnr model emits a bel.v3 file with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
     carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
     """
-    model = genNextpnrModel(lut_fabric)
-    assert len(model) == 5
+    model = generate_nextpnr_model(lut_fabric)
 
-    belv2, belv3 = model[2], model[3]
+    belv2, belv3 = model["bel.v2.txt"], model["bel.v3.txt"]
 
     # The structural definition is shared between v2 and v3.
     assert "BelBegin,X0Y0,A,FABULOUS_LC,LA_" in belv2
@@ -305,35 +331,27 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
 
 
 @pytest.mark.parametrize(
-    ("target", "pip_exists", "bel_exists"),
+    ("target", "expect_pips", "expect_bels"),
     [
         pytest.param(TimingModelTarget.PIPS, True, False, id="pips"),
         pytest.param(TimingModelTarget.BELS, False, True, id="bels"),
         pytest.param(TimingModelTarget.BOTH, True, True, id="both"),
     ],
 )
-def test_write_nextpnr_timing_files_writes_only_selected_outputs(
+def test_generate_nextpnr_model_forwards_target(
     lut_fabric: Fabric,
     mocker: MockerFixture,
-    tmp_path: Path,
     target: TimingModelTarget,
-    pip_exists: bool,
-    bel_exists: bool,
+    expect_pips: bool,
+    expect_bels: bool,
 ) -> None:
-    """The timing writer leaves unselected output files untouched."""
+    """The backend entry point characterizes only the timing `target` selects."""
     fake_model = mocker.Mock()
     fake_model.pip_delay.return_value = 6.0
     fake_model.bel_timing.return_value = BelTiming()
-    pip_path = tmp_path / "pips.txt"
-    bel_path = tmp_path / "bel.v3.txt"
 
-    write_nextpnr_timing_files(
-        lut_fabric,
-        pip_output_file=pip_path,
-        bel_output_file=bel_path,
-        delay_model=fake_model,
-        target=target,
-    )
+    artifacts = generate_nextpnr_model(lut_fabric, fake_model, target)
 
-    assert pip_path.exists() is pip_exists
-    assert bel_path.exists() is bel_exists
+    assert tuple(artifacts) == NEXTPNR_ARTIFACTS
+    assert bool(fake_model.pip_delay.call_count) is expect_pips
+    assert bool(fake_model.bel_timing.call_count) is expect_bels
