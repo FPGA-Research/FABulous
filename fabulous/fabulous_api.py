@@ -8,7 +8,7 @@ various fabric-related operations.
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 
 from loguru import logger
 
@@ -468,6 +468,16 @@ class FABulous_API:
         """
         return self.fabric.getAllUniqueBels()
 
+    @overload
+    def getTile(
+        self, tileName: str, raises_on_miss: Literal[True]
+    ) -> Tile | SuperTile: ...
+
+    @overload
+    def getTile(
+        self, tileName: str, raises_on_miss: Literal[False] = False
+    ) -> Tile | SuperTile | None: ...
+
     def getTile(
         self, tileName: str, raises_on_miss: bool = False
     ) -> Tile | SuperTile | None:
@@ -507,6 +517,16 @@ class FABulous_API:
             Collection of all Tile objects in the fabric.
         """
         return self.fabric.tileDic.values()
+
+    @overload
+    def getSuperTile(
+        self, tileName: str, raises_on_miss: Literal[True]
+    ) -> SuperTile: ...
+
+    @overload
+    def getSuperTile(
+        self, tileName: str, raises_on_miss: Literal[False] = False
+    ) -> SuperTile | None: ...
 
     def getSuperTile(
         self, tileName: str, raises_on_miss: bool = False
