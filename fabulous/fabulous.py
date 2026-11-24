@@ -960,7 +960,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         help=(
             "Show detailed log information including function and line number. For -vv "
             "additionally output from FABulator is logged to the shell for the "
-            "start_FABulator command"
+            "start_fabulator command"
         ),
     )
 

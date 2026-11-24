@@ -325,6 +325,17 @@ def test_gen_geometry(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> No
     assert "can now be imported into fabulator" in log[-1].lower()
 
 
+@pytest.mark.parametrize("command", ["start_fabulator", "start_FABulator"])
+def test_gen_geometry_enables_gui_commands(cli: FABulousREPL, command: str) -> None:
+    """GUI commands become available in the session that runs gen_geometry."""
+    assert command in cli.disabled_commands
+
+    run_cmd(cli, "gen_geometry")
+
+    assert cli.exit_code == 0
+    assert command not in cli.disabled_commands
+
+
 def test_gen_top_wrapper(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating top wrapper."""
     run_cmd(cli, "gen_top_wrapper")
