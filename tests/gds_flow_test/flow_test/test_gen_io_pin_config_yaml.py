@@ -8,19 +8,20 @@ Tests focus on:
 """
 
 from pathlib import Path
+from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import StaleIOPinConfigError
-from fabulous.fabric_definition.define import IO, PinSortMode, Side
+from fabulous.fabric_definition.define import IO, PinOrderConfig, PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-    PinOrderConfig,
     _serialize_supertile_ports,
     _serialize_tile_ports,
     generate_IO_pin_order_config,
@@ -274,7 +275,8 @@ class TestSerializeTilePorts:
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
-        mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
+        north_ports = cast("MagicMock", mock_tile.getNorthSidePorts)
+        north_ports.return_value[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 

@@ -13,7 +13,7 @@ from fabulous.fabulous_settings import get_context
 def _init_worker() -> None:
     """Initialize worker process to use dill for pickling."""
     # Override ForkingPickler with dill
-    ForkingPickler.dumps = dill.dumps
+    ForkingPickler.dumps = dill.dumps  # ty: ignore[invalid-assignment]
     ForkingPickler.loads = dill.loads
 
 
@@ -31,7 +31,7 @@ class DillProcessPoolExecutor(ProcessPoolExecutor):
         initargs: tuple[Any, ...] = (),
         max_tasks_per_child: int | None = None,
     ) -> None:
-        ForkingPickler.dumps = dill.dumps
+        ForkingPickler.dumps = dill.dumps  # ty: ignore[invalid-assignment]
         ForkingPickler.loads = dill.loads
         workers = max_workers if max_workers is not None else get_context().max_worker
         super().__init__(

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 from packaging.version import Version
-from pytest_mock import MockerFixture
+from pytest_mock import MockerFixture, MockType
 
 from fabulous.custom_exception import UnsupportedToolVersion
 from fabulous.tools.ghdl import GhdlTool
@@ -23,7 +23,7 @@ from fabulous.tools.yosys import YosysTool
 
 def _reporting(
     mocker: MockerFixture, tool_cls: type[Tool], version_output: str
-) -> None:
+) -> MockType:
     """Make `tool_cls` report `version_output` as its version banner.
 
     Patches the subprocess call rather than `run`, so that `run` and the
@@ -37,15 +37,21 @@ def _reporting(
         The tool wrapper being faked.
     version_output : str
         The stdout the tool is pretended to write for its version arguments.
+
+    Returns
+    -------
+    MockType
+        The mock standing in for `subprocess.run`.
     """
     mocker.patch.object(tool_cls, "executable", return_value=Path("/tool"))
-    mocker.patch(
+    run = mocker.patch(
         "subprocess.run",
         return_value=subprocess.CompletedProcess(
             args=[], returncode=0, stdout=version_output, stderr=""
         ),
     )
     _check_version_once.cache_clear()
+    return run
 
 
 def test_yosys_template_minimal() -> None:
@@ -302,9 +308,9 @@ def test_run_checks_version_once(mocker: MockerFixture) -> None:
 
 def test_opensta_is_asked_with_the_flag_it_has(mocker: MockerFixture) -> None:
     """`--version` is not an OpenSTA flag: it prints usage and exits 1."""
-    _reporting(mocker, OpenStaTool, "2.7.0\n")
+    run = _reporting(mocker, OpenStaTool, "2.7.0\n")
     assert OpenStaTool.version() == Version("2.7.0")
-    assert subprocess.run.call_args.args[0] == ["/tool", "-version"]
+    assert run.call_args.args[0] == ["/tool", "-version"]
 
 
 def test_every_pin_names_a_wrapper() -> None:

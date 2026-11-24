@@ -15,7 +15,7 @@ from fabulous.fabric_definition.define import (
     Side,
 )
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
@@ -64,7 +64,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
     mat = tmp_path / "supertile_matrix.list"
     create_switchmatrix_list(mat, [("{2}SUPER_A0", "[DSP_bot_A0|DSP_bot_A1]")])
 
-    def mk(name: str, ports: list[Port]) -> Tile:
+    def mk(name: str, ports: list[TilePort]) -> Tile:
         """Build a minimal child tile rooted at `tmp_path`."""
         return make_empty_tile(
             name,
@@ -126,7 +126,7 @@ def _vhdl_supertile(tmp_path: Path) -> SuperTile:
     mat = tmp_path / "supertile_matrix.list"
     create_switchmatrix_list(mat, [("{2}SUPER_A0", "[DSP_bot_A0|DSP_bot_A1]")])
 
-    def mk(name: str, ports: list[Port]) -> Tile:
+    def mk(name: str, ports: list[TilePort]) -> Tile:
         """Build a minimal child tile rooted at `tmp_path`."""
         return make_empty_tile(
             name,
@@ -266,7 +266,7 @@ def test_flipflop_chain_conf_data_width_matches_tile_count(
     """
     t = mk_tile("T")
     # 2x3 grid with one NULL hole -> 5 instantiated tiles.
-    grid = [[t, t, None], [t, t, t]]
+    grid: list[list[Tile | None]] = [[t, t, None], [t, t, t]]
     fabric = Fabric(
         fabric_dir=t.tileDir,
         tile=grid,

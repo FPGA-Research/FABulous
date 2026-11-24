@@ -197,7 +197,11 @@ class TimingCommandSet(ReplCommandSet):
             target=resolved_target,
         )
         for output_path, artifact_name in artifact_name_by_output.items():
-            output_path.write_text(artifacts[artifact_name], encoding="utf-8")
+            match artifacts[artifact_name]:
+                case str() as text:
+                    output_path.write_text(text, encoding="utf-8")
+                case bytes() as data:
+                    output_path.write_bytes(data)
 
         resolved_path: Path = (
             get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"

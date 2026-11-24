@@ -58,7 +58,6 @@ target-version = "py312"
 # - RET: flake8 return
 # - SLF: flake8 self
 # - TID: flake8 tidy imports
-# - TC: flake8 type-checking
 # - FURB: REFURB
 # - UP: flake8 unused
 # - BLE: flake8 blind except
@@ -87,7 +86,6 @@ select = [
   "RET",
   "SLF",
   "TID",
-  "TC",
   "FURB",
   "UP",
   "BLE",
@@ -125,7 +123,10 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
-"tests/*" = ["D"]
+# ARG002: a test double has to accept every argument its real counterpart
+# declares, and usually ignores most of them. Renaming them to `_x` would break
+# the override.
+"tests/*" = ["D", "ARG002"]
 
 [lint.pydocstyle]
 convention = "numpy"

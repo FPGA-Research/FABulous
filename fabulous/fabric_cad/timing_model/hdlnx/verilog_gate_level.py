@@ -137,6 +137,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         self.delay_type_str: DelayType = delay_type_str
         self.debug: bool = debug
         self.sta_tool: StaTool = sta_tool
+        self.verilog_netlist_content: str = sta_tool.sta_netlist_file.read_text()
 
         self.sta_tool.sta_analyze()
         super().__init__(self.sta_tool.sta_sdf_file, self.delay_type_str)
@@ -682,21 +683,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:
@@ -930,22 +930,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     f"resolving {hier_inst_path!r}"
                 )
 
-            found = False
-            cell_type = None
-            pins_block = None
-
-            # find the instance in the current module
-            for m in inst_pattern.finditer(body):
-                if m.group("inst") == inst_name:
-                    cell_type = m.group("cell")
-                    pins_block = m.group("pins")
-                    found = True
-                    break
-
-            if not found:
+            inst_match = next(
+                (
+                    m
+                    for m in inst_pattern.finditer(body)
+                    if m.group("inst") == inst_name
+                ),
+                None,
+            )
+            if inst_match is None:
                 raise ValueError(
                     f"Instance {inst_name!r} not found inside module {current_module!r}"
                 )
+            cell_type = inst_match.group("cell")
+            pins_block = inst_match.group("pins")
 
             # If not yet at the leaf, descend into the instance's module type
             if depth < len(segments) - 1:

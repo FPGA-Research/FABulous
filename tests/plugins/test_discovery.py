@@ -13,6 +13,7 @@ from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
 from fabulous.plugins import PLUGIN_API_VERSION
 from fabulous.plugins import manager as manager_module
 from fabulous.plugins.manager import BuiltinPlugin, PluginManager
+from tests.plugins.conftest import ParserPlugin
 
 PARSER_PLUGIN_SRC = """
 from fabulous.plugins import PLUGIN_API_VERSION, hookimpl
@@ -98,17 +99,11 @@ def test_dir_scan_is_sorted(tmp_path: Path, mocker: MockerFixture) -> None:
 
 
 def test_entrypoint_discovery(tmp_path: Path, mocker: MockerFixture) -> None:
-    ep_module = types.ModuleType("ep_plugin")
-    from fabulous.plugins import hookimpl
-    from fabulous.plugins.types import ParserProvider
+    class _EntryPointPlugin(ParserPlugin):
+        FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
 
-    @hookimpl
-    def fabulous_register_parsers() -> list[ParserProvider]:
-        return [ParserProvider(suffix=".ep", parse=lambda path: path, name="ep")]
-
-    ep_module.fabulous_register_parsers = fabulous_register_parsers
-    ep_module.FABULOUS_PLUGIN_API = PLUGIN_API_VERSION
-    fake_ep = types.SimpleNamespace(name="ep", load=lambda: ep_module)
+    ep_plugin = _EntryPointPlugin(suffix=".ep", name="ep")
+    fake_ep = types.SimpleNamespace(name="ep", load=lambda: ep_plugin)
     mocker.patch.object(
         manager_module.importlib_metadata,
         "entry_points",

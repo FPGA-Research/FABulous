@@ -4,12 +4,12 @@ from importlib import resources
 
 from librelane.steps.common_variables import pdn_variables
 from librelane.steps.odb import OdbpyStep
-from librelane.steps.step import Step
 
 from fabulous.fabric_generator.gds_generator.helper import get_supply_nets
+from fabulous.fabric_generator.gds_generator.registry import register_step
 
 
-@Step.factory.register()
+@register_step
 class FABulousPDN(OdbpyStep):
     """Connect power rails for the tiles using a custom script."""
 

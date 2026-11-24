@@ -103,6 +103,8 @@ def test_generate_nextpnr_model_returns_bel_v3_with_timing(lut_fabric: Fabric) -
     model = generate_nextpnr_model(lut_fabric)
 
     belv2, belv3 = model["bel.v2.txt"], model["bel.v3.txt"]
+    assert isinstance(belv2, str)
+    assert isinstance(belv3, str)
 
     # The structural definition is shared between v2 and v3.
     assert "BelBegin,X0Y0,A,FABULOUS_LC,LA_" in belv2
@@ -226,9 +228,9 @@ def test_timing_model_result_replaces_hardcoded_bel_output(
 
     assert "Delay,I0,O,3.0,FF=0" in hardcoded_bel_v3
     assert "Delay,I0,O,3.0,FF=0" not in characterized_bel_v3
-    fake_model.bel_timing.assert_called_once_with(
-        "LUT4AB", lut_fabric.tile[0][0].bels[0]
-    )
+    tile = lut_fabric.tile[0][0]
+    assert tile is not None
+    fake_model.bel_timing.assert_called_once_with("LUT4AB", tile.bels[0])
     fake_model.pip_delay.assert_not_called()
 
 
@@ -294,7 +296,9 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
         carry={},
         localShared={},
     )
-    lut_fabric.tile[0][0].bels.append(custom_bel)
+    tile = lut_fabric.tile[0][0]
+    assert tile is not None
+    tile.bels.append(custom_bel)
     fake_model = mocker.Mock()
 
     def characterize(_tile_name: str, bel: Bel) -> BelTiming:

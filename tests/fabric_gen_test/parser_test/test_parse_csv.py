@@ -6,6 +6,7 @@ import pytest
 
 from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.parser.parse_csv import (
     parse_port_line,
     parse_tile_from_dir,
@@ -310,6 +311,7 @@ def test_a_supertile_declared_in_the_fabric_csv_maps_into_its_own_directory(
 
     (super_tile,) = parseSupertilesCSV(fabric_csv, fabric.tileDic)
 
+    assert super_tile.config_mem is not None
     assert super_tile.config_mem.source.parent == project / "Tile" / "DSP"
 
 
@@ -330,4 +332,5 @@ def test_a_chain_tile_parsed_from_its_directory_ignores_a_stale_mapping(
         max_frames_per_col=20,
     )
 
+    assert isinstance(tile, Tile)
     assert tile.config_mem.config_bits == 0

@@ -87,7 +87,8 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
     ------
     ValueError
         If a tile's or supertile's configuration memory holds a different number
-        of bits than it has, which is how an ungenerated mapping shows.
+        of bits than it has, which is how an ungenerated mapping shows, or if a
+        supertile is placed where the fabric grid holds no tile.
     """
     spec_data = {
         "TileMap": {},
@@ -239,6 +240,11 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
             ftx = base_fx + tx_local
             fty = base_fy + ty_local
             master_tile = fabric.tile[fty][ftx]
+            if master_tile is None:
+                raise ValueError(
+                    f"SuperTile {super_tile.name} is placed at X{ftx}Y{fty}, "
+                    "but the fabric grid holds no tile there."
+                )
 
             frame_map = spec_data["FrameMap"].setdefault(master_tile.name, {})
             for frame_idx, mask in st_frame_map.items():

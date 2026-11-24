@@ -9,7 +9,7 @@ import re
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
-from typing import ClassVar, Self, cast
+from typing import ClassVar, Self, TypedDict, cast
 
 import ciel
 import typer
@@ -496,6 +496,11 @@ class FABulousSettings(BaseSettings):
         Path | str
             The resolved path to the tool if found, tool name otherwise.
 
+        Raises
+        ------
+        ValueError
+            If the validator runs for a field with no known tool command.
+
         Notes
         -----
         This method logs a warning if the tool is not found, as some features may
@@ -513,6 +518,8 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
+        if info.field_name is None or info.field_name not in tool_map:
+            raise ValueError(f"No tool command is known for field {info.field_name!r}.")
         tool = value or tool_map[info.field_name]
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
@@ -645,7 +652,22 @@ class FABulousSettings(BaseSettings):
 _context_instance: FABulousSettings | None = None
 
 
-def _discovery_settings_from_env() -> dict[str, Path | bool]:
+class _DiscoverySettings(TypedDict, total=False):
+    """Plugin-discovery settings read from the environment.
+
+    Attributes
+    ----------
+    plugin_dir : Path
+        Directory of path plugins, from `FAB_PLUGIN_DIR`.
+    skip_broken_plugins : bool
+        Whether broken plugins are skipped, from `FAB_SKIP_BROKEN_PLUGINS`.
+    """
+
+    plugin_dir: Path
+    skip_broken_plugins: bool
+
+
+def _discovery_settings_from_env() -> _DiscoverySettings:
     """Read the plugin-discovery settings the environment sets.
 
     `model_construct` bypasses the settings sources, so without this the
@@ -655,11 +677,11 @@ def _discovery_settings_from_env() -> dict[str, Path | bool]:
 
     Returns
     -------
-    dict[str, Path | bool]
+    _DiscoverySettings
         Keyword arguments for `FABulousSettings.model_construct`, empty when
         neither variable is set.
     """
-    values: dict[str, Path | bool] = {}
+    values: _DiscoverySettings = {}
     if (plugin_dir := os.environ.get("FAB_PLUGIN_DIR")) is not None:
         values["plugin_dir"] = Path(plugin_dir)
     if (skip_broken := os.environ.get("FAB_SKIP_BROKEN_PLUGINS")) is not None:

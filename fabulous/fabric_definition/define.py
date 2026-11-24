@@ -4,10 +4,11 @@ This module defines various enumerations used throughout FABulous for fabric def
 including I/O types, directions, sides, and configuration modes.
 """
 
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum, StrEnum
 from functools import total_ordering
-from typing import NamedTuple
+from typing import NamedTuple, Self
 
 
 class IO(Enum):
@@ -53,7 +54,7 @@ class Direction(Enum):
         """Return `True` if `self` precedes `other` in definition order."""
         if not isinstance(other, Direction):
             return NotImplemented
-        members = list(type(self))
+        members = list(Direction)
         return members.index(self) < members.index(other)
 
 
@@ -200,6 +201,33 @@ class PinSortMode(StrEnum):
     BUS_MAJOR = "bus_major"
     BIT_MINOR = "bit_minor"
     CUSTOM = "custom"
+
+
+@dataclass
+class PinOrderConfig:
+    """Container describing pin ordering constraints for a segment."""
+
+    min_distance: int | None = None
+    max_distance: int | None = None
+    pins: list[str | int] = field(default_factory=list)
+    sort_mode: PinSortMode = PinSortMode.BUS_MAJOR
+    reverse_result: bool = False
+
+    def __call__(self, pins: list[str | int]) -> Self:
+        """Bind a concrete pin list to this configuration instance."""
+        self.pins = pins
+        return self
+
+    def to_dict(self) -> dict:
+        """Return a serialisable dictionary representation."""
+        pins = list(getattr(self, "pins", []) or [])
+        return {
+            "min_distance": self.min_distance,
+            "max_distance": self.max_distance,
+            "pins": pins,
+            "sort_mode": str(self.sort_mode),
+            "reverse_result": self.reverse_result,
+        }
 
 
 class FeatureType(StrEnum):

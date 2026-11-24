@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, cast
 
 import yaml
-from cmd2 import Choices, Statement, with_annotated
+from cmd2 import Choices, CompletionItem, Statement, with_annotated
 from cmd2.annotated import Argument, ArgumentBlock, Option
 from loguru import logger
 
@@ -273,9 +273,12 @@ class MacroFlowCommandSet(ReplCommandSet):
             str,
             Argument(
                 help_text="A tile",
-                completer=lambda self: [
-                    tile.name for tile in self._cmd.fabulousAPI.getTiles()
-                ],
+                choices_provider=lambda self: Choices(
+                    [
+                        CompletionItem(tile.name)
+                        for tile in self._cmd.fabulousAPI.getTiles()
+                    ]
+                ),
             ),
         ],
         options: TileHardeningOptions,

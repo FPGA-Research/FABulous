@@ -3,7 +3,6 @@
 import re
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -16,6 +15,7 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.configmem import ConfigMem, empty_config_mem
 from fabulous.fabric_definition.define import (
     DEFAULT_CONFIG_BIT_MODE,
@@ -48,9 +48,6 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.bel import Bel
 
 # fabric.csv `UserCLKDirection` value -> side the clock enters each tile.
 USER_CLK_DIRECTIONS: dict[str, Side] = {
@@ -927,6 +924,10 @@ def parse_tile_from_dir(
     supertiles = parseSupertilesCSV(tile_csv, tile_dic)
     for supertile in supertiles:
         if supertile.name == tile_name:
+            if supertile.config_mem is None:
+                raise InvalidSupertileDefinition(
+                    f"SuperTile {tile_name!r} has no configuration memory."
+                )
             supertile.config_mem = _read_config_mem(
                 supertile.config_mem,
                 config_bit_mode=config_bit_mode,
@@ -937,13 +938,13 @@ def parse_tile_from_dir(
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
 
-def parseFabricCSV(fileName: str) -> Fabric:
+def parseFabricCSV(fileName: str | Path) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 
     Parameters
     ----------
-    fileName : str
-        Directory of the CSV file.
+    fileName : str | Path
+        Path of the CSV file.
 
     Raises
     ------
@@ -961,16 +962,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
     Fabric
         The fabric object.
     """
-    fName = Path(fileName).absolute()
-    if fName.suffix != ".csv":
+    csv_file = Path(fileName).absolute()
+    if csv_file.suffix != ".csv":
         raise InvalidFileType("File must be a csv file")
 
-    if not fName.exists():
-        raise FileNotFoundError(f"File {fName} does not exist.")
+    if not csv_file.exists():
+        raise FileNotFoundError(f"File {csv_file} does not exist.")
 
-    filePath = fName.parent
+    filePath = csv_file.parent
 
-    with fName.open() as f:
+    with csv_file.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -1021,19 +1022,19 @@ def parseFabricCSV(fileName: str) -> Fabric:
             preserveListOrder = fields[1] == "TRUE"
 
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_common_wire_pair = parseTilesCSV(fName, preserveListOrder)
+    new_tiles, new_common_wire_pair = parseTilesCSV(csv_file, preserveListOrder)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     common_wire_pair += new_common_wire_pair
     tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
-    new_supertiles = parseSupertilesCSV(fName, tileDic)
+    new_supertiles = parseSupertilesCSV(csv_file, tileDic)
     for new_supertile in new_supertiles:
         superTileDic[new_supertile.name] = new_supertile
 
     if new_tiles or new_supertiles:
         logger.warning(
-            f"Deprecation warning: {fName} should not contain tile descriptions."
+            f"Deprecation warning: {csv_file} should not contain tile descriptions."
         )
 
     # parse the parameters
@@ -1178,7 +1179,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         )
 
     return Fabric(
-        fabric_dir=fName,
+        fabric_dir=csv_file,
         tile=fabricTiles,
         numberOfColumns=width,
         numberOfRows=height,

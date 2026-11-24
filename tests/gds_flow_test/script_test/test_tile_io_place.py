@@ -3,18 +3,17 @@
 
 import sys
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
 
 # Mock external dependencies BEFORE importing the module under test
-from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_definition.define import PinOrderConfig, PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     GENERATED_HASH_KEY,
-    PinOrderConfig,
 )
 from fabulous.fabric_generator.gds_generator.helper import round_die_dimension
+from fabulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
@@ -22,9 +21,6 @@ from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
     filter_pin_tracks_by_stride_and_distance,
     grid_to_tracks,
 )
-
-if TYPE_CHECKING:
-    from fabulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 
 
 @pytest.fixture(autouse=True)

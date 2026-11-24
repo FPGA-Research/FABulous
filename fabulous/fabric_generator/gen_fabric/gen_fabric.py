@@ -300,6 +300,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # if is a normal tile then the offset is (0, 0)
             for i, j in tileLocationOffset:
                 here = fabric.tile[base_y + j][base_x + i]
+                if here is None:
+                    continue
                 in_super = here.partOfSuperTile
 
                 local_prefix = f"Tile_X{i}Y{j}_" if in_super else ""
@@ -311,16 +313,17 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
                     local_ports = get_side_ports(here, IO.INPUT)
-                    if not (
-                        0 <= neighbor_y < len(fabric.tile)
+                    neighbor = (
+                        fabric.tile[neighbor_y][neighbor_x]
+                        if 0 <= neighbor_y < len(fabric.tile)
                         and 0 <= neighbor_x < len(fabric.tile[0])
-                        and fabric.tile[neighbor_y][neighbor_x] is not None
-                    ):
+                        else None
+                    )
+                    if neighbor is None:
                         portsPairs += [
                             (f"{local_prefix}{p.name}", "") for p in local_ports
                         ]
                         continue
-                    neighbor = fabric.tile[neighbor_y][neighbor_x]
                     # Match each input to the neighbour output of the same channel by
                     # name, as the routing model does; the tile CSVs may list the
                     # channels in a different order.
@@ -371,7 +374,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 indentLevel=0,
             )
             for i, j in tileLocationOffset:
-                for b in fabric.tile[base_y + j][base_x + i].bels:
+                offset_tile = fabric.tile[base_y + j][base_x + i]
+                if offset_tile is None:
+                    continue
+                for b in offset_tile.bels:
                     for p in b.external_input_ports + b.external_output_ports:
                         portsPairs.append(
                             (p.name, f"Tile_X{base_x + i}Y{base_y + j}_{p.name}")

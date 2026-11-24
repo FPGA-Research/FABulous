@@ -20,6 +20,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_dimension,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_step
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from fabulous.fabric_generator.gds_generator.steps.common_variables import (
     tile_logical_height_variable,
@@ -121,7 +122,7 @@ var = [
 ]
 
 
-@Step.factory.register()
+@register_step
 class TileAreaOptimisation(WhileStep):
     """Tile size optimisation step."""
 

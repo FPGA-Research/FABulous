@@ -111,7 +111,7 @@ class FABulousREPL(Cmd):
 
     Parameters
     ----------
-    writerType : str | None
+    writerType : str
         The writer type to use for generating fabric.
     force : bool
         If True, force operations without confirmation, by default False
@@ -180,7 +180,7 @@ class FABulousREPL(Cmd):
 
     def __init__(
         self,
-        writerType: str | None,
+        writerType: str,
         force: bool = False,
         interactive: bool = False,
         verbose: bool = False,

@@ -106,12 +106,12 @@ class FakeITerm:
 
     def __init__(self, mterm: FakeMTerm) -> None:
         self._mterm = mterm
-        self._net = None
+        self._net: FakeNet | None = None
 
     def getMTerm(self) -> FakeMTerm:
         return self._mterm
 
-    def connect(self, net: object) -> None:
+    def connect(self, net: "FakeNet") -> None:
         self._net = net
 
 
@@ -177,7 +177,7 @@ class FakeBTerm:
     def setSigType(self, sig_type: str | None) -> None:
         self._type = sig_type
 
-    def getSigType(self) -> str:
+    def getSigType(self) -> str | None:
         return self._type
 
     def setSpecial(self) -> None:

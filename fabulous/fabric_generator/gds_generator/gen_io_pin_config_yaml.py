@@ -1,15 +1,13 @@
 """Generate IO pin order configuration files for FABulous tiles and fabrics."""
 
 import hashlib
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self
 
 import yaml
 from loguru import logger
 
 from fabulous.custom_exception import StaleIOPinConfigError
-from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_definition.define import PinOrderConfig, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -18,33 +16,6 @@ from fabulous.fabric_definition.tile import Tile
 # apart from a fabric change (fresh body no longer matches). It is stored as the
 # first top-level key, which cannot clash with the `X<x>Y<y>` tile keys.
 GENERATED_HASH_KEY = "fabulous_generated_sha256"
-
-
-@dataclass
-class PinOrderConfig:
-    """Container describing pin ordering constraints for a segment."""
-
-    min_distance: int | None = None
-    max_distance: int | None = None
-    pins: list[str | int] = field(default_factory=list)
-    sort_mode: PinSortMode = PinSortMode.BUS_MAJOR
-    reverse_result: bool = False
-
-    def __call__(self, pins: list[str | int]) -> Self:
-        """Bind a concrete pin list to this configuration instance."""
-        self.pins = pins
-        return self
-
-    def to_dict(self) -> dict:
-        """Return a serialisable dictionary representation."""
-        pins = list(getattr(self, "pins", []) or [])
-        return {
-            "min_distance": self.min_distance,
-            "max_distance": self.max_distance,
-            "pins": pins,
-            "sort_mode": str(self.sort_mode),
-            "reverse_result": self.reverse_result,
-        }
 
 
 def _serialize_tile_ports(

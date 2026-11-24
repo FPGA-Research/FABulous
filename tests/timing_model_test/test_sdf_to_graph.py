@@ -1,3 +1,4 @@
+from dataclasses import astuple
 from pathlib import Path
 
 import networkx as nx
@@ -347,8 +348,12 @@ def test_query_timing_paths_orders_paths_by_edges_not_delay(
     sdf_graph: SDFTimingGraph,
 ) -> None:
     sdf_graph.graph.clear()
-    long_delay_paths = {"nominal": {"min": 4.0, "avg": 5.0, "max": 6.0}}
-    short_delay_paths = {"nominal": {"min": 0.1, "avg": 0.2, "max": 0.3}}
+    long_delay_paths: dict[str, dict[str, float | None]] = {
+        "nominal": {"min": 4.0, "avg": 5.0, "max": 6.0}
+    }
+    short_delay_paths: dict[str, dict[str, float | None]] = {
+        "nominal": {"min": 0.1, "avg": 0.2, "max": 0.3}
+    }
 
     for source, target in [("A", "B"), ("B", "Z")]:
         component = make_path_component(
@@ -395,11 +400,7 @@ def test_query_timing_paths_orders_paths_by_edges_not_delay(
         typical=10.0,
         maximum=12.0,
     )
-    assert path_timings[1].rise == SDFTimingTriplet(
-        minimum=pytest.approx(0.3),
-        typical=pytest.approx(0.6),
-        maximum=pytest.approx(0.9),
-    )
+    assert astuple(path_timings[1].rise) == pytest.approx((0.3, 0.6, 0.9))
 
 
 def test_query_timing_paths_returns_sequential_checks_and_conditions(
@@ -590,30 +591,16 @@ def test_query_timing_paths_calculates_effective_sequential_timing(
     )[0]
 
     assert path_timing.register_clock_pin == "U_FF/CLK"
-    assert path_timing.effective_setup == (
-        SDFTimingTriplet(
-            minimum=pytest.approx(0.6),
-            typical=pytest.approx(2.4),
-            maximum=pytest.approx(4.1),
-        ),
-    )
-    assert path_timing.effective_hold == (
-        SDFTimingTriplet(
-            minimum=pytest.approx(-3.79),
-            typical=pytest.approx(-1.63),
-            maximum=pytest.approx(-0.47),
-        ),
-    )
-    assert path_timing.clock_to_output_rise == SDFTimingTriplet(
-        minimum=pytest.approx(0.7),
-        typical=pytest.approx(1.0),
-        maximum=pytest.approx(1.3),
-    )
-    assert path_timing.clock_to_output_fall == SDFTimingTriplet(
-        minimum=pytest.approx(1.05),
-        typical=pytest.approx(1.35),
-        maximum=pytest.approx(1.7),
-    )
+    assert [astuple(setup) for setup in path_timing.effective_setup] == [
+        pytest.approx((0.6, 2.4, 4.1))
+    ]
+    assert [astuple(hold) for hold in path_timing.effective_hold] == [
+        pytest.approx((-3.79, -1.63, -0.47))
+    ]
+    assert path_timing.clock_to_output_rise is not None
+    assert astuple(path_timing.clock_to_output_rise) == pytest.approx((0.7, 1.0, 1.3))
+    assert path_timing.clock_to_output_fall is not None
+    assert astuple(path_timing.clock_to_output_fall) == pytest.approx((1.05, 1.35, 1.7))
 
 
 def test_query_timing_paths_uses_each_sequential_paths_clock_to_output_suffix(
@@ -721,10 +708,9 @@ def test_query_timing_paths_uses_each_sequential_paths_clock_to_output_suffix(
     for path_timing in path_timings:
         assert path_timing.register_clock_pin is not None
         expected_delay = expected_delays[path_timing.register_clock_pin]
-        assert path_timing.clock_to_output_rise == SDFTimingTriplet(
-            minimum=pytest.approx(expected_delay),
-            typical=pytest.approx(expected_delay),
-            maximum=pytest.approx(expected_delay),
+        assert path_timing.clock_to_output_rise is not None
+        assert astuple(path_timing.clock_to_output_rise) == pytest.approx(
+            (expected_delay, expected_delay, expected_delay)
         )
         assert path_timing.clock_to_output_fall == path_timing.clock_to_output_rise
 
@@ -896,7 +882,9 @@ def test_query_timing_paths_limits_default_to_ten(
     sdf_graph: SDFTimingGraph,
 ) -> None:
     sdf_graph.graph.clear()
-    delay_paths = {"nominal": {"min": 1.0, "avg": 2.0, "max": 3.0}}
+    delay_paths: dict[str, dict[str, float | None]] = {
+        "nominal": {"min": 1.0, "avg": 2.0, "max": 3.0}
+    }
     for index in range(11):
         middle = f"P{index}"
         for source, target in [("A", middle), (middle, "Z")]:
@@ -1264,6 +1252,7 @@ def test_path_to_nearest_target_sentinel_unweighted_forward(
         "A", ["D", "E"], weight=None
     )
 
+    assert path is not None
     assert path == ["A", "B", "D"]
     assert closest == "D"
     assert all("_sentinel_" not in node for node in path)

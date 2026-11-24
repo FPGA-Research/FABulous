@@ -6,7 +6,7 @@ It handles both direct connections to neighboring tiles and complex stair-like r
 for longer-distance connections.
 """
 
-from csv import writer as csvWriter
+from _csv import Writer
 from dataclasses import dataclass, field
 
 from fabulous.custom_exception import InvalidPortType
@@ -653,7 +653,7 @@ class TileGeometry:
 
         return totalWireLines
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: "Writer") -> None:
         """Save tile geometry data to CSV format.
 
         Writes the tile geometry information including dimensions and all
@@ -662,7 +662,7 @@ class TileGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer : Writer
             The CSV writer object to use for output
         """
         writer.writerows(

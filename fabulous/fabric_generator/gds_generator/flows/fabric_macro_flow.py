@@ -7,7 +7,7 @@ from typing import Self, Union, cast
 
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow, FlowException
+from librelane.flows.flow import FlowException
 from librelane.logging.logger import err, info
 from librelane.state.state import State
 from librelane.steps.common_variables import io_layer_variables
@@ -26,6 +26,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     merge_layered_substitutions,
     round_up_decimal,
 )
+from fabulous.fabric_generator.gds_generator.registry import register_flow
 from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
@@ -91,7 +92,7 @@ configs = (
 )
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricMacroFlow(Classic):
     """Flow for stitching together individual tile macros into a complete fabric.
 
@@ -114,13 +115,13 @@ class FABulousFabricMacroFlow(Classic):
 
     def __new__(
         cls,
-        *_args: tuple,
+        *_args: object,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         design_dir: Path | None = None,  # noqa: ARG004
         pdk_root: Path | None = None,  # noqa: ARG004
         pdk: str | None = None,  # noqa: ARG004
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> Self:
         """Apply layered `meta.substituting_steps` before construction.
 
@@ -137,7 +138,7 @@ class FABulousFabricMacroFlow(Classic):
             [base_config_path, config_override_path, custom_config_overrides]
         )
         target_cls = cls.Substitute(substitutions) if substitutions else cls
-        return super().__new__(target_cls)  # type: ignore[arg-type]
+        return cast("Self", super().__new__(target_cls))
 
     def __init__(
         self,
@@ -150,7 +151,7 @@ class FABulousFabricMacroFlow(Classic):
         design_dir: Path | None = None,
         pdk_root: Path | None = None,
         pdk: str | None = None,
-        **custom_config_overrides: dict,
+        **custom_config_overrides: object,
     ) -> None:
         self.fabric = fabric
         self.macros, self.tile_sizes = _build_macros(tile_macro_dirs)
@@ -229,7 +230,7 @@ class FABulousFabricMacroFlow(Classic):
         supertile_anchors: dict[str, str] = {}
         subtile_to_anchor: dict[str, str] = {}
         for supertile_name, supertile in fabric.superTileDic.items():
-            anchor = supertile.tileMap[-1][0]
+            anchor = supertile.tile_at(0, -1)
             supertile_anchors[anchor.name] = supertile_name
             # Create back-references from all subtiles to their anchor
             for tile in supertile.tiles:
@@ -622,7 +623,7 @@ class FABulousFabricMacroFlow(Classic):
                     subtiles = [tile.name for tile in supertile.tiles]
 
                     # Get the anchor of the supertile (bottom left)
-                    anchor = supertile.tileMap[-1][0]
+                    anchor = supertile.tile_at(0, -1)
 
                     if tile_name in subtiles:
                         if tile_name == anchor.name:
@@ -682,7 +683,7 @@ class FABulousFabricMacroFlow(Classic):
         return super().run(initial_state, **kwargs)
 
 
-@Flow.factory.register()
+@register_flow
 class FABulousFabricVHDLMacroFlow(FABulousFabricMacroFlow):
     """Fabric stitching flow for a VHDL project.
 
@@ -739,7 +740,7 @@ def _build_macros(
             pnl=cast(
                 "list", [str(p) for p in (tile_macro_path / "pnl").glob("*.pnl.v")]
             ),
-            spef=spef_dict,
+            spef=cast("dict", spef_dict),
         )
         tile_sizes[name] = (width, height)
 

@@ -16,6 +16,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from librelane.state.state import State
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import IO, HDLType, Side
@@ -484,7 +485,7 @@ class TestFinaliseFabric:
         final_state: MagicMock = mocker.MagicMock()
         final_state.get.return_value = "/runs/final/gds/myfab.gds"
         final_state.metrics = {"design__die__bbox": "0 0 100 200"}
-        tile_states = {
+        tile_states: dict[str, State] = {
             "LUT": self._tile_state(mocker, "0 0 30 40"),
             "DSP": self._tile_state(mocker, "0 0 50 60"),
         }

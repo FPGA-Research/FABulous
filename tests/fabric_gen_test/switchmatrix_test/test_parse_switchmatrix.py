@@ -1,6 +1,7 @@
 """Unit tests for switch-matrix and wire/port parser functions."""
 
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -116,7 +117,7 @@ def test_parse_matrix(
     tmp_path: Path,
     content: str,
     expected_result: dict | None,
-    expected_error: type | None,
+    expected_error: type[Exception] | None,
 ) -> None:
     """Test parseMatrix with preserve_list_order, honouring the cell encoding.
 
@@ -235,9 +236,9 @@ def test_parse_matrix_legacy_column_order(tmp_path: Path) -> None:
 def test_parse_list(
     tmp_path: Path,
     files: dict[str, str],
-    collect: str,
+    collect: Literal["pair", "source", "sink"],
     expected_result: list | dict | None,
-    expected_error: type | None,
+    expected_error: type[Exception] | None,
 ) -> None:
     """Test parseList for valid pair parsing and error conditions."""
     for name, content in files.items():

@@ -1,10 +1,19 @@
 """Shared fixtures for plugin-system tests."""
 
-import types
+from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
+from fabulous.fabric_cad.timing_model.models import TimingModelTarget
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
+    VerilogCodeGenerator,
+)
 from fabulous.plugins import hookspecs
 from fabulous.plugins.types import (
     CodeGeneratorProvider,
@@ -13,13 +22,80 @@ from fabulous.plugins.types import (
 )
 
 
-class _FakeWriter:
+class _FakeWriter(VerilogCodeGenerator):
     hdl_type = HDLType.SYSTEM_VERILOG
     file_extension = ".fake"
 
 
-def make_codegen_module(hdl_type: HDLType, name: str) -> types.ModuleType:
-    """Build a module registering one code generator for `hdl_type`.
+def parse_fake_fabric(path: Path) -> Fabric:
+    """Parse any file into an empty fabric rooted beside it."""
+    return Fabric(fabric_dir=path.parent)
+
+
+@dataclass(frozen=True, eq=False)
+class CodegenPlugin:
+    """A plugin registering one code generator for `hdl_type`."""
+
+    hdl_type: HDLType
+    name: str
+
+    @hookspecs.hookimpl
+    def fabulous_register_code_generators(self) -> list[CodeGeneratorProvider]:
+        """Register the fake writer under `hdl_type`."""
+        return [
+            CodeGeneratorProvider(
+                hdl_type=self.hdl_type, factory=_FakeWriter, name=self.name
+            )
+        ]
+
+
+@dataclass(frozen=True, eq=False)
+class ParserPlugin:
+    """A plugin registering `parse_fake_fabric` for `suffix`."""
+
+    suffix: str
+    name: str
+
+    @hookspecs.hookimpl
+    def fabulous_register_parsers(self) -> list[ParserProvider]:
+        """Register the fake parser under `suffix`."""
+        return [
+            ParserProvider(suffix=self.suffix, parse=parse_fake_fabric, name=self.name)
+        ]
+
+
+@dataclass(frozen=True, eq=False)
+class PnRModelPlugin:
+    """A plugin registering one place-and-route model for `tool`."""
+
+    tool: str
+    supports_timing: bool
+    name: str
+
+    def generate(
+        self,
+        _fabric: Fabric,
+        delay_model: FABulousTimingModelInterface | None,
+        _target: TimingModelTarget,
+    ) -> dict[str, str | bytes]:
+        """Report whether a delay model was passed."""
+        return {f"{self.tool}.txt": f"timed={delay_model is not None}"}
+
+    @hookspecs.hookimpl
+    def fabulous_register_pnr_models(self) -> list[PnRModelProvider]:
+        """Register `generate` under `tool`."""
+        return [
+            PnRModelProvider(
+                tool=self.tool,
+                generate=self.generate,
+                supports_timing=self.supports_timing,
+                name=self.name,
+            )
+        ]
+
+
+def make_codegen_plugin(hdl_type: HDLType, name: str) -> CodegenPlugin:
+    """Build a plugin registering one code generator for `hdl_type`.
 
     Parameters
     ----------
@@ -30,23 +106,14 @@ def make_codegen_module(hdl_type: HDLType, name: str) -> types.ModuleType:
 
     Returns
     -------
-    types.ModuleType
-        A module registering one `CodeGeneratorProvider`.
+    CodegenPlugin
+        A plugin registering one `CodeGeneratorProvider`.
     """
-    module = types.ModuleType(f"fake_codegen_plugin_{name}")
-
-    @hookspecs.hookimpl
-    def fabulous_register_code_generators() -> list[CodeGeneratorProvider]:
-        return [
-            CodeGeneratorProvider(hdl_type=hdl_type, factory=_FakeWriter, name=name)
-        ]
-
-    module.fabulous_register_code_generators = fabulous_register_code_generators
-    return module
+    return CodegenPlugin(hdl_type=hdl_type, name=name)
 
 
-def make_parser_module(suffix: str, name: str) -> types.ModuleType:
-    """Build a module registering one parser for `suffix`.
+def make_parser_plugin(suffix: str, name: str) -> ParserPlugin:
+    """Build a plugin registering one parser for `suffix`.
 
     Parameters
     ----------
@@ -57,23 +124,16 @@ def make_parser_module(suffix: str, name: str) -> types.ModuleType:
 
     Returns
     -------
-    types.ModuleType
-        A module registering one `ParserProvider`.
+    ParserPlugin
+        A plugin registering one `ParserProvider`.
     """
-    module = types.ModuleType(f"fake_parser_plugin_{name}")
-
-    @hookspecs.hookimpl
-    def fabulous_register_parsers() -> list[ParserProvider]:
-        return [ParserProvider(suffix=suffix, parse=lambda path: path, name=name)]
-
-    module.fabulous_register_parsers = fabulous_register_parsers
-    return module
+    return ParserPlugin(suffix=suffix, name=name)
 
 
-def make_pnr_model_module(
+def make_pnr_model_plugin(
     tool: str, supports_timing: bool = True, name: str | None = None
-) -> types.ModuleType:
-    """Build a module exposing a place-and-route model hookimpl for `tool`.
+) -> PnRModelPlugin:
+    """Build a plugin registering one place-and-route model for `tool`.
 
     Parameters
     ----------
@@ -87,44 +147,25 @@ def make_pnr_model_module(
 
     Returns
     -------
-    types.ModuleType
-        A module registering one `PnRModelProvider`.
+    PnRModelPlugin
+        A plugin registering one `PnRModelProvider`.
     """
-    module = types.ModuleType(f"fake_pnr_plugin_{tool}")
-
-    def generate(
-        _fabric: object, delay_model: object, _target: object
-    ) -> dict[str, str | bytes]:
-        return {f"{tool}.txt": f"timed={delay_model is not None}"}
-
-    @hookspecs.hookimpl
-    def fabulous_register_pnr_models() -> list[PnRModelProvider]:
-        return [
-            PnRModelProvider(
-                tool=tool,
-                generate=generate,
-                supports_timing=supports_timing,
-                name=name or tool,
-            )
-        ]
-
-    module.fabulous_register_pnr_models = fabulous_register_pnr_models
-    return module
+    return PnRModelPlugin(tool=tool, supports_timing=supports_timing, name=name or tool)
 
 
 @pytest.fixture
-def fake_codegen_module() -> types.ModuleType:
-    """A module exposing a code-generator hookimpl for one fake HDLType."""
-    return make_codegen_module(HDLType.SYSTEM_VERILOG, "fake")
+def fake_codegen_plugin() -> CodegenPlugin:
+    """A plugin exposing a code-generator hookimpl for one fake HDLType."""
+    return make_codegen_plugin(HDLType.SYSTEM_VERILOG, "fake")
 
 
 @pytest.fixture
-def fake_parser_module() -> types.ModuleType:
-    """A module exposing a parser hookimpl for the `.fake` suffix."""
-    return make_parser_module(".fake", "fake")
+def fake_parser_plugin() -> ParserPlugin:
+    """A plugin exposing a parser hookimpl for the `.fake` suffix."""
+    return make_parser_plugin(".fake", "fake")
 
 
 @pytest.fixture
-def fake_pnr_model_module() -> types.ModuleType:
-    """A module exposing a place-and-route model hookimpl for the `fake` tool."""
-    return make_pnr_model_module("fake")
+def fake_pnr_model_plugin() -> PnRModelPlugin:
+    """A plugin exposing a place-and-route model hookimpl for the `fake` tool."""
+    return make_pnr_model_plugin("fake")
