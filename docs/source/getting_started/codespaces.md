@@ -83,7 +83,7 @@ The GUI will appear in the VNC browser window.
 
 ### Performance
 
-- Codespaces provides 2-4 CPU cores and 8GB RAM by default
+- The FABulous image needs more than the 32GB disk of the 2- and 4-core machines, so the dev container requests 64GB of storage. This selects an 8-core (or larger) machine, which uses your Codespaces quota twice as fast as a 4-core one
 - For larger designs, you may want to upgrade to a more powerful machine type
 - Go to **Settings → Machine type** to change the configuration
 

@@ -53,6 +53,7 @@
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
     "remoteUser": "nixuser",
     "hostRequirements": {
-        "cpus": 4
+        "cpus": 4,
+        "storage": "64gb"
     }
 }
