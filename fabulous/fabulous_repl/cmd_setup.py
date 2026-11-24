@@ -13,7 +13,6 @@ from loguru import logger
 
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
-    CMD_GUI,
     CMD_HELPER,
     CMD_SETUP,
     CMD_USER_DESIGN_FLOW,
@@ -133,10 +132,6 @@ class SetupCommandSet(ReplCommandSet):
                 "defined in the fabric.csv"
             )
             raise ValueError
-
-        proj_dir = get_context().proj_dir
-        if (proj_dir / f"{repl.fabulousAPI.fabric.name}_geometry.csv").exists():
-            repl.enable_category(CMD_GUI)
 
         repl.enable_category(CMD_FABRIC_FLOW)
         repl.enable_category(CMD_USER_DESIGN_FLOW)

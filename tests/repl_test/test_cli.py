@@ -7,6 +7,7 @@ generation, bitstream creation, simulation execution, and GUI commands.
 import os
 import sys
 import tkinter as tk
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -325,15 +326,44 @@ def test_gen_geometry(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> No
     assert "can now be imported into fabulator" in log[-1].lower()
 
 
-@pytest.mark.parametrize("command", ["start_fabulator", "start_FABulator"])
-def test_gen_geometry_enables_gui_commands(cli: FABulousREPL, command: str) -> None:
-    """GUI commands become available in the session that runs gen_geometry."""
-    assert command in cli.disabled_commands
+def _unload_fabric(cli: FABulousREPL) -> None:
+    cli.fabric_loaded = False
 
+
+def _keep_state(_cli: FABulousREPL) -> None:
+    pass
+
+
+def _gen_geometry(cli: FABulousREPL) -> None:
     run_cmd(cli, "gen_geometry")
-
     assert cli.exit_code == 0
-    assert command not in cli.disabled_commands
+
+
+@pytest.mark.parametrize("command", ["start_fabulator", "start_FABulator"])
+@pytest.mark.parametrize(
+    ("prepare", "expected_error"),
+    [
+        pytest.param(_unload_fabric, "Need to load fabric first", id="no-fabric"),
+        pytest.param(_keep_state, "Run gen_geometry first", id="no-geometry"),
+        pytest.param(_gen_geometry, "mvn (Java Maven) not found", id="geometry"),
+    ],
+)
+def test_start_fabulator_requires_fabric_geometry(
+    cli: FABulousREPL,
+    caplog: pytest.LogCaptureFixture,
+    mocker: MockerFixture,
+    command: str,
+    prepare: Callable[[FABulousREPL], None],
+    expected_error: str,
+) -> None:
+    """start_fabulator names the first missing input: fabric, geometry, then mvn."""
+    mocker.patch("fabulous.fabulous_repl.cmd_gui.shutil.which", return_value=None)
+    prepare(cli)
+
+    run_cmd(cli, command)
+
+    assert cli.exit_code != 0
+    assert expected_error in caplog.text
 
 
 def test_gen_top_wrapper(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:

@@ -25,7 +25,6 @@ from fabulous.fabric_generator.gen_fabric.gen_configmem import (
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
-    CMD_GUI,
     CMD_TOOLS,
     META_DATA_DIR,
     ReplCommandSet,
@@ -292,7 +291,6 @@ class FabricGenCommandSet(ReplCommandSet):
         repl.fabulousAPI.setWriterOutputFile(geom_file)
 
         repl.fabulousAPI.genGeometry(padding)
-        repl.enable_category(CMD_GUI)
         logger.info("Geometry generation complete")
         logger.info(f"{geom_file} can now be imported into FABulator")
 

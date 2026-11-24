@@ -49,9 +49,19 @@ class GuiCommandSet(ReplCommandSet):
     def do_start_fabulator(self, *_ignored: str) -> None:
         """Start FABulator if an installation can be found.
 
-        If no installation can be found, a warning is produced.
+        Fails if no fabric is loaded or its geometry CSV does not exist. If no
+        installation can be found, a warning is produced.
         """
         repl = self._cmd
+        if not repl.fabric_loaded:
+            raise CommandError("Need to load fabric first")
+        geometry_file = repl.projectDir / f"{repl.fabulousAPI.fabric.name}_geometry.csv"
+        if not geometry_file.exists():
+            raise FileNotFoundError(
+                f"FABulator needs the fabric geometry, but {geometry_file} does not "
+                "exist. Run gen_geometry first."
+            )
+
         logger.info("Checking for FABulator installation")
         fabulator_root = get_context().fabulator_root
         if shutil.which("mvn") is None:
