@@ -264,6 +264,30 @@ def test_script_execution(
 
 
 @pytest.mark.parametrize(
+    ("script_name", "content"),
+    [("run.tcl", 'puts "Hello from TCL"\n'), ("run.fs", "help\n")],
+)
+def test_script_in_directory_with_space(
+    tmp_path: Path,
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    script_name: str,
+    content: str,
+) -> None:
+    script = tmp_path / "with space" / script_name
+    script.parent.mkdir()
+    script.write_text(content)
+    monkeypatch.setattr(
+        sys, "argv", ["FABulous", "-p", str(project), "script", str(script)]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+
+
+@pytest.mark.parametrize(
     ("argv_builder", "expected_code"),
     [
         pytest.param(

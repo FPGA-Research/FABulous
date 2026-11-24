@@ -14,6 +14,7 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.tools.specification import SynthTool
+from fabulous.tools.tool import tcl_quote
 
 
 class YosysTool(SynthTool):
@@ -129,15 +130,17 @@ class YosysTool(SynthTool):
         synth_tcl_script: str = ""
         synth_tcl_script += "yosys -import\n"
         if isinstance(lib_files, Path):
-            synth_tcl_script += f"read_liberty -lib {lib_files}\n"
+            synth_tcl_script += f"read_liberty -lib {tcl_quote(lib_files)}\n"
         else:
             for lib in lib_files:
-                synth_tcl_script += f"read_liberty -lib {lib}\n"
+                synth_tcl_script += f"read_liberty -lib {tcl_quote(lib)}\n"
         if isinstance(verilog_files, Path):
-            synth_tcl_script += f"read_verilog -overwrite -sv {verilog_files}\n"
+            synth_tcl_script += (
+                f"read_verilog -overwrite -sv {tcl_quote(verilog_files)}\n"
+            )
         else:
             for vf in verilog_files:
-                synth_tcl_script += f"read_verilog -overwrite -sv {vf}\n"
+                synth_tcl_script += f"read_verilog -overwrite -sv {tcl_quote(vf)}\n"
         if self.flat:
             synth_tcl_script += f"synth -flatten -top {self.top_name}\n"
         else:
@@ -147,15 +150,14 @@ class YosysTool(SynthTool):
 
         if self.techmap_files is not None:
             for tm in self.techmap_files:
-                synth_tcl_script += f"techmap -map {tm}\n"
+                synth_tcl_script += f"techmap -map {tcl_quote(tm)}\n"
             synth_tcl_script += "simplemap\n"
 
-        synth_tcl_script += f"clockgate -liberty  {
-            self.lib_files[0] if isinstance(self.lib_files, list) else self.lib_files
-        }\n"
-        synth_tcl_script += f"dfflibmap -liberty  {
-            self.lib_files[0] if isinstance(self.lib_files, list) else self.lib_files
-        }\n"
+        primary_lib = tcl_quote(
+            lib_files[0] if isinstance(lib_files, list) else lib_files
+        )
+        synth_tcl_script += f"clockgate -liberty  {primary_lib}\n"
+        synth_tcl_script += f"dfflibmap -liberty  {primary_lib}\n"
         synth_tcl_script += "setundef -zero\n"
         synth_tcl_script += "splitnets\n"
 
@@ -171,15 +173,11 @@ class YosysTool(SynthTool):
             synth_tcl_script += f"insbuf -buf {self.min_buf_cell_and_ports}\n"
 
         synth_tcl_script += "tribuf\n"
-        synth_tcl_script += f"abc -liberty {
-            self.lib_files[0] if isinstance(self.lib_files, list) else self.lib_files
-        }\n"
+        synth_tcl_script += f"abc -liberty {primary_lib}\n"
         synth_tcl_script += "opt -purge -full\n"
-        synth_tcl_script += "write_verilog -noattr -noexpr {}\n".format(
-            "{synth_output_file}"
-        )
 
         path: Path = Path.home() / ".fabulous" / "tmp" / f"synth_{self.top_name}_tmp.v"
+        synth_tcl_script += f"write_verilog -noattr -noexpr {tcl_quote(path)}\n"
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -187,7 +185,7 @@ class YosysTool(SynthTool):
 
         self._call_external(
             self.synth_executable,
-            stdin_data=synth_tcl_script.format(synth_output_file=path),
+            stdin_data=synth_tcl_script,
             debug=self.debug,
             args=["-C"],
         )

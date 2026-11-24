@@ -23,6 +23,7 @@ from fabulous.fabulous_repl.helper import (
     get_file_path,
 )
 from fabulous.fabulous_settings import get_context
+from fabulous.tools.tool import tcl_quote
 
 # klayout layer property file naming differs by PDK:
 # - the ihp-sg13 variant names keep the `ihp-` prefix but the file drops it, so
@@ -157,7 +158,7 @@ class GuiCommandSet(ReplCommandSet):
             mode="w", suffix=".tcl", delete=False
         ) as script_file:
             # script_file.name contains the full filesystem path to the temp file
-            script_file.write(f"read_db {db_file}\n")
+            script_file.write(f"read_db {tcl_quote(Path(db_file))}\n")
             file_name = script_file.name
         logger.info(f"Start OpenROAD GUI with odb: {db_file}")
         try:

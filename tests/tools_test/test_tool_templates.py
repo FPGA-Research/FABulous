@@ -17,7 +17,7 @@ from pytest_mock import MockerFixture, MockType
 from fabulous.custom_exception import UnsupportedToolVersion
 from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.opensta import OpenStaTool
-from fabulous.tools.tool import Tool, _check_version_once, _tool_versions
+from fabulous.tools.tool import Tool, _check_version_once, _tool_versions, tcl_quote
 from fabulous.tools.yosys import YosysTool
 
 
@@ -69,19 +69,19 @@ def test_yosys_template_minimal() -> None:
     )
     assert script == (
         "yosys -import\n"
-        "read_liberty -lib /a.lib\n"
-        "read_verilog -overwrite -sv /b.v\n"
+        "read_liberty -lib {/a.lib}\n"
+        "read_verilog -overwrite -sv {/b.v}\n"
         "synth -top TOP\n"
         "renames -top TOP\n"
         "renames -wire\n"
-        "clockgate -liberty /a.lib\n"
-        "dfflibmap -liberty /a.lib\n"
+        "clockgate -liberty {/a.lib}\n"
+        "dfflibmap -liberty {/a.lib}\n"
         "setundef -zero\n"
         "splitnets\n"
         "tribuf\n"
-        "abc -liberty /a.lib\n"
+        "abc -liberty {/a.lib}\n"
         "opt -purge -full\n"
-        "write_verilog -noattr -noexpr /n.v\n"
+        "write_verilog -noattr -noexpr {/n.v}\n"
     )
 
 
@@ -100,25 +100,25 @@ def test_yosys_template_full() -> None:
     )
     assert script == (
         "yosys -import\n"
-        "read_liberty -lib /a.lib\n"
-        "read_liberty -lib /a2.lib\n"
-        "read_verilog -overwrite -sv /b.v\n"
-        "read_verilog -overwrite -sv /b2.v\n"
+        "read_liberty -lib {/a.lib}\n"
+        "read_liberty -lib {/a2.lib}\n"
+        "read_verilog -overwrite -sv {/b.v}\n"
+        "read_verilog -overwrite -sv {/b2.v}\n"
         "synth -flatten -top TOP\n"
         "renames -top TOP\n"
         "renames -wire\n"
-        "techmap -map /tm.v\n"
+        "techmap -map {/tm.v}\n"
         "simplemap\n"
-        "clockgate -liberty /a.lib\n"
-        "dfflibmap -liberty /a.lib\n"
+        "clockgate -liberty {/a.lib}\n"
+        "dfflibmap -liberty {/a.lib}\n"
         "setundef -zero\n"
         "splitnets\n"
         "hilomap -hicell HI Y -locell LO Y\n"
         "insbuf -buf BUF A Y\n"
         "tribuf\n"
-        "abc -liberty /a.lib\n"
+        "abc -liberty {/a.lib}\n"
         "opt -purge -full\n"
-        "write_verilog -noattr -noexpr /n.v\n"
+        "write_verilog -noattr -noexpr {/n.v}\n"
     )
 
 
@@ -132,10 +132,10 @@ def test_opensta_template_minimal() -> None:
         sdf_path=Path("/o.sdf"),
     )
     assert script == (
-        "read_liberty /a.lib\n"
-        "read_verilog /net.v\n"
+        "read_liberty {/a.lib}\n"
+        "read_verilog {/net.v}\n"
         "link_design TOP\n"
-        "write_sdf /o.sdf\n"
+        "write_sdf {/o.sdf}\n"
         "exit\n"
     )
 
@@ -150,14 +150,43 @@ def test_opensta_template_with_spef() -> None:
         sdf_path=Path("/o.sdf"),
     )
     assert script == (
-        "read_liberty /a.lib\n"
-        "read_liberty /a2.lib\n"
-        "read_verilog /net.v\n"
+        "read_liberty {/a.lib}\n"
+        "read_liberty {/a2.lib}\n"
+        "read_verilog {/net.v}\n"
         "link_design TOP\n"
-        "read_spef /r.spef\n"
-        "write_sdf /o.sdf\n"
+        "read_spef {/r.spef}\n"
+        "write_sdf {/o.sdf}\n"
         "exit\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("path", "word"),
+    [
+        (Path("/p/a.lib"), "{/p/a.lib}"),
+        (Path("/with space/a.lib"), "{/with space/a.lib}"),
+        (Path("/$HOME/[x];y/a.lib"), "{/$HOME/[x];y/a.lib}"),
+    ],
+)
+def test_tcl_quote_makes_one_unsubstituted_word(path: Path, word: str) -> None:
+    assert tcl_quote(path) == word
+
+
+@pytest.mark.parametrize("path", [Path("/a{b"), Path("/a}b"), Path("/a\\b")])
+def test_tcl_quote_rejects_unbraceable_path(path: Path) -> None:
+    with pytest.raises(ValueError, match="brace or a backslash"):
+        tcl_quote(path)
+
+
+@pytest.mark.parametrize("project", [Path("/proj"), Path("/with space/proj")])
+def test_convert_to_json_quotes_paths(mocker: MockerFixture, project: Path) -> None:
+    run = mocker.patch.object(YosysTool, "run")
+
+    YosysTool.convert_to_json(project / "a.v", project / "a.json")
+
+    script = run.call_args.kwargs["args"][1]
+    assert f'read_verilog -sv "{project / "a.v"}";' in script
+    assert script.endswith(f'write_json -compat-int "{project / "a.json"}"')
 
 
 def test_analyze_normalizes_inputs(mocker: MockerFixture, tmp_path: Path) -> None:

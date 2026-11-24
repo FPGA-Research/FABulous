@@ -32,6 +32,34 @@ from pydantic import TypeAdapter
 from fabulous.custom_exception import UnsupportedToolVersion
 
 
+def tcl_quote(path: Path) -> str:
+    """Return `path` as one braced Tcl word, which Tcl passes on unsubstituted.
+
+    Parameters
+    ----------
+    path : Path
+        Path to place in a Tcl script.
+
+    Returns
+    -------
+    str
+        The path wrapped in braces.
+
+    Raises
+    ------
+    ValueError
+        If `path` contains a brace or a backslash, which a braced word cannot
+        carry verbatim.
+    """
+    text = str(path)
+    if any(char in text for char in "{}\\"):
+        raise ValueError(
+            f"Cannot quote {text} for Tcl: it contains a brace or a backslash. "
+            "Rename the path."
+        )
+    return f"{{{text}}}"
+
+
 @cache
 def _tool_versions() -> dict[str, SpecifierSet]:
     """Load the supported version range of every pinned tool.
@@ -63,13 +91,15 @@ def _template_env() -> Environment:
     Environment
         The cached Jinja environment.
     """
-    return Environment(
+    env = Environment(
         loader=PackageLoader("fabulous", "template"),
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
     )
+    env.filters["tcl"] = tcl_quote
+    return env
 
 
 @cache

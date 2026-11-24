@@ -10,6 +10,7 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.tools.specification import StaTool
+from fabulous.tools.tool import tcl_quote
 
 
 class OpenStaTool(StaTool):
@@ -74,22 +75,21 @@ class OpenStaTool(StaTool):
         lib_files = self.sta_liberty_files
         sta_tcl_script: str = ""
         if isinstance(lib_files, Path):
-            sta_tcl_script += f"read_liberty {lib_files}\n"
+            sta_tcl_script += f"read_liberty {tcl_quote(lib_files)}\n"
         else:
             for lib in lib_files:
-                sta_tcl_script += f"read_liberty {lib}\n"
-        sta_tcl_script += f"read_verilog {self.verilog_netlist}\n"
+                sta_tcl_script += f"read_liberty {tcl_quote(lib)}\n"
+        sta_tcl_script += f"read_verilog {tcl_quote(self.sta_netlist_file)}\n"
         sta_tcl_script += f"link_design {self.top_name}\n"
         if self.spef_files is not None:
             if isinstance(self.spef_files, Path):
-                sta_tcl_script += f"read_spef {self.spef_files}\n"
+                sta_tcl_script += f"read_spef {tcl_quote(self.spef_files)}\n"
             elif isinstance(self.spef_files, list):
                 for spef in self.spef_files:
-                    sta_tcl_script += f"read_spef {spef}\n"
-        sta_tcl_script += "write_sdf {}\n".format("{sdf_path}")
-        sta_tcl_script += "exit\n"
-
+                    sta_tcl_script += f"read_spef {tcl_quote(spef)}\n"
         path: Path = Path.home() / ".fabulous" / "tmp" / f"sta_{self.top_name}_tmp.sdf"
+        sta_tcl_script += f"write_sdf {tcl_quote(path)}\n"
+        sta_tcl_script += "exit\n"
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -97,7 +97,7 @@ class OpenStaTool(StaTool):
 
         self._call_external(
             self.sta_executable,
-            stdin_data=sta_tcl_script.format(sdf_path=path),
+            stdin_data=sta_tcl_script,
             debug=self.debug,
         )
 

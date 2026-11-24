@@ -58,58 +58,58 @@ tasks:
   run-fabulous-demo:
     desc: Run FABulous to generate the default fabric
     cmds:
-      - FABulous {{.FAB_PROJ_ROOT}} -fs {{.FAB_PROJ_ROOT}}/FABulous.tcl
+      - FABulous {{.FAB_PROJ_ROOT | q}} -fs {{.FAB_PROJ_ROOT | q}}/FABulous.tcl
       # FABulous removes build dirs during simulation; re-create afterwards.
-      - mkdir -p {{.BUILD_DIR}} {{.FABRIC_FILES_DIR}}
-      - mv -f {{.DESIGN}}.hex {{.BUILD_DIR}}/
-      - mv -f {{.DESIGN}}.fst {{.BUILD_DIR}}/
-      - cp -fu {{.USER_DESIGN_DIR}}/* {{.BUILD_DIR}}
+      - mkdir -p {{.BUILD_DIR | q}} {{.FABRIC_FILES_DIR | q}}
+      - mv -f {{.DESIGN}}.hex {{.BUILD_DIR | q}}/
+      - mv -f {{.DESIGN}}.fst {{.BUILD_DIR | q}}/
+      - cp -fu {{.USER_DESIGN_DIR | q}}/* {{.BUILD_DIR | q}}
 
   build-demo-fabric:
     desc: Build the default fabric only (no simulation)
     cmds:
       - task: mkdir-build
-      - FABulous {{.FAB_PROJ_ROOT}} -ts ./build_fabulous_fabric.tcl
+      - FABulous {{.FAB_PROJ_ROOT | q}} -ts ./build_fabulous_fabric.tcl
 
   run-yosys:
     desc: Run Yosys synthesis
     deps: [mkdir-build]
     vars:
       CUSTOM_PRIMS:
-        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib \\\"{{.USER_DESIGN_DIR}}/custom_prims.v\\\"" || true'
       # TODO(3.0): drop Yosys <= 0.66 support and pass the library options
       # unconditionally. Yosys before the synth_fabulous rework bundles its own
       # FABulous library, rejects these options and inserts pads only with -iopad.
       SYNTH_LIB_ARGS:
         sh: |
           yosys='{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
-          if ! help=$($yosys -p "help synth_fabulous"); then
+          if ! help=$("$yosys" -p "help synth_fabulous"); then
             echo "ERROR: $yosys -p \"help synth_fabulous\" failed" >&2
             exit 1
           fi
           if printf '%s\n' "$help" | grep -q -- -cells-map; then
-            lib={{.FAB_PROJ_ROOT}}/yosys
-            echo "-extra-plib $lib/primitives/prims.v" \
-              "-cells-map $lib/techmap/cells_map.v" \
-              "-arith-map $lib/techmap/arith_map.v" \
-              "-extra-map $lib/techmap/ff_map.v" \
-              "-extra-map $lib/techmap/latches_map.v" \
-              "-extra-map $lib/techmap/io_map.v" \
-              "-extra-mlibmap $lib/memlib/ram_regfile.txt" \
-              "-extra-map $lib/techmap/regfile_map.v" \
+            lib={{.FAB_PROJ_ROOT | q}}/yosys
+            echo "-extra-plib \\\"$lib/primitives/prims.v\\\"" \
+              "-cells-map \\\"$lib/techmap/cells_map.v\\\"" \
+              "-arith-map \\\"$lib/techmap/arith_map.v\\\"" \
+              "-extra-map \\\"$lib/techmap/ff_map.v\\\"" \
+              "-extra-map \\\"$lib/techmap/latches_map.v\\\"" \
+              "-extra-map \\\"$lib/techmap/io_map.v\\\"" \
+              "-extra-mlibmap \\\"$lib/memlib/ram_regfile.txt\\\"" \
+              "-extra-map \\\"$lib/techmap/regfile_map.v\\\"" \
               '-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn'
           else
             echo "WARNING: Yosys 0.66 and older is deprecated; support ends in FABulous 3.0." >&2
             echo "-iopad"
           fi
-      RESOLVED_DESIGN_FILES: '{{.DESIGN_FILES | default (printf "%s/%s.v" .USER_DESIGN_DIR .DESIGN)}}'
+      RESOLVED_DESIGN_FILES: '{{.DESIGN_FILES | default (printf "%s/%s.v" .USER_DESIGN_DIR .DESIGN | q)}}'
       RESOLVED_TOP_WRAPPER_FILE: '{{.TOP_WRAPPER_FILE | default (printf "%s/%s.v" .USER_DESIGN_DIR .TOP_WRAPPER)}}'
       RESOLVED_JSON_FILE: '{{.JSON_FILE | default (printf "%s/%s.json" .BUILD_DIR .DESIGN)}}'
     cmds:
       - task: compile:compile-yosys
         vars:
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
-          SYNTH_CMD: 'synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default ""}}'
+          SYNTH_CMD: 'synth_fabulous -top {{.TOP_WRAPPER}} -json \"{{.RESOLVED_JSON_FILE}}\" {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default ""}}'
           DESIGN_FILES: "{{.RESOLVED_DESIGN_FILES}}"
           TOP_WRAPPER_FILE: "{{.RESOLVED_TOP_WRAPPER_FILE}}"
 
@@ -140,16 +140,16 @@ tasks:
           BIN_FILE: "{{.RESOLVED_BIN_FILE}}"
       - >-
         python3 makehex.py
-        {{.RESOLVED_BIN_FILE}}
+        {{.RESOLVED_BIN_FILE | q}}
         {{.MAX_BITBYTES}}
-        {{.BUILD_DIR}}/{{.DESIGN}}.hex
+        {{.BUILD_DIR | q}}/{{.DESIGN}}.hex
 
   copy-files:
     desc: Copy Verilog fabric files to build directory
     deps: [mkdir-build]
     cmds:
-      - find {{.FAB_PROJ_ROOT}}/Tile/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR}}/ \;
-      - find {{.FAB_PROJ_ROOT}}/Fabric/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR}}/ \;
+      - find {{.FAB_PROJ_ROOT | q}}/Tile/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR | q}}/ \;
+      - find {{.FAB_PROJ_ROOT | q}}/Fabric/ -name '*.v' -type f -exec cp {} {{.FABRIC_FILES_DIR | q}}/ \;
 
   run-simulation:
     desc: Run simulation (SIMULATOR=iverilog, or xvlog for AMD Vivado xsim)
@@ -170,14 +170,14 @@ tasks:
         iverilog -g2012
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
-        -o {{.BUILD_DIR}}/{{.DESIGN}}.vvp
-        {{.FABRIC_FILES_DIR}}/*
-        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        -o {{.BUILD_DIR | q}}/{{.DESIGN}}.vvp
+        {{.FABRIC_FILES_DIR | q}}/*
+        {{.USER_DESIGN_DIR | q}}/{{.DESIGN}}.v
         {{.TESTBENCH}}.v
       - >-
-        vvp {{.BUILD_DIR}}/{{.DESIGN}}.vvp
-        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
-        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        vvp {{.BUILD_DIR | q}}/{{.DESIGN}}.vvp
+        +output_waveform={{.BUILD_DIR | q}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR | q}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 
   run-simulation-xsim:
@@ -187,17 +187,17 @@ tasks:
       # Drop the design units a previous run left in the work library.
       - rm -rf xsim.dir
       # Never add -sv here: analysing the fabric as Verilog-2005 is the point.
-      - xvlog --nolog {{.EXTRA_XVLOG_FLAGS}} {{.FABRIC_FILES_DIR}}/*.v {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+      - xvlog --nolog {{.EXTRA_XVLOG_FLAGS}} {{.FABRIC_FILES_DIR | q}}/*.v {{.USER_DESIGN_DIR | q}}/{{.DESIGN}}.v
       - xvlog --nolog -sv {{.EXTRA_XVLOG_FLAGS}} {{.TESTBENCH}}.v
       # xsim rejects a design where only some modules carry a `timescale.
       - xelab --nolog -timescale 1ps/1ps {{.EXTRA_XELAB_FLAGS}} -s {{.XSIM_SNAPSHOT}} {{.TESTBENCH}}
       - >-
-        xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log
-        -wdb {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.wdb
-        --testplusarg output_waveform={{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.vcd
-        --testplusarg bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR | q}}/{{.XSIM_SNAPSHOT}}.log
+        -wdb {{.BUILD_DIR | q}}/{{.XSIM_SNAPSHOT}}.wdb
+        --testplusarg output_waveform={{.BUILD_DIR | q}}/{{.XSIM_SNAPSHOT}}.vcd
+        --testplusarg bitstream_hex={{.BUILD_DIR | q}}/{{.DESIGN}}.hex
       # xsim exits 0 even after $fatal, so without this a mismatch reads as a pass.
-      - '! grep -q ''^Fatal:'' {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log'
+      - '! grep -q ''^Fatal:'' {{.BUILD_DIR | q}}/{{.XSIM_SNAPSHOT}}.log'
 
   gen-force-block:
     desc: Generate force_block.vh (gate-level X-init) from the hardened netlists
@@ -208,8 +208,8 @@ tasks:
       # hardened netlists to be present (run the GDS flow, or `mock-macros`).
       - >-
         python3 gen_gl_xinit.py
-        --efpga {{.FAB_PROJ_ROOT}}/Fabric/macro/final_views/nl/eFPGA.nl.v
-        --tile-dir {{.FAB_PROJ_ROOT}}/Tile
+        --efpga {{.FAB_PROJ_ROOT | q}}/Fabric/macro/final_views/nl/eFPGA.nl.v
+        --tile-dir {{.FAB_PROJ_ROOT | q}}/Tile
         --pdk {{.FAB_PDK}}
         --top-inst top_i.eFPGA_inst
         --trigger config_done
@@ -235,19 +235,19 @@ tasks:
       # have non-zero delays. `-DGL_SIM` compiles in the force_block.vh X-init.
       # The token timing token is only honoured inside an iverilog command file,
       # so it is written to gl_timescale.f and passed via `-f`.
-      - echo '+timescale+1ns/1ps' > {{.BUILD_DIR}}/gl_timescale.f
+      - echo '+timescale+1ns/1ps' > {{.BUILD_DIR | q}}/gl_timescale.f
       - >-
-        iverilog -g2012 -gspecify -DGL_SIM -f {{.BUILD_DIR}}/gl_timescale.f
+        iverilog -g2012 -gspecify -DGL_SIM -f {{.BUILD_DIR | q}}/gl_timescale.f
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
-        -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
+        -o {{.BUILD_DIR | q}}/{{.DESIGN}}_gl.vvp
         {{.GL_SOURCES}}
-        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.USER_DESIGN_DIR | q}}/{{.DESIGN}}.v
         {{.TESTBENCH}}.v
       - >-
-        vvp {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
-        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}_gl.{{.WAVEFORM_TYPE}}
-        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        vvp {{.BUILD_DIR | q}}/{{.DESIGN}}_gl.vvp
+        +output_waveform={{.BUILD_DIR | q}}/{{.DESIGN}}_gl.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR | q}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 
   run-emulation:
@@ -258,33 +258,33 @@ tasks:
         iverilog -g2012 -D EMULATION
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
-        -o {{.BUILD_DIR}}/{{.DESIGN}}.vvp
-        {{.BUILD_DIR}}/{{.DESIGN}}.vh
-        {{.FABRIC_FILES_DIR}}/*
-        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        -o {{.BUILD_DIR | q}}/{{.DESIGN}}.vvp
+        {{.BUILD_DIR | q}}/{{.DESIGN}}.vh
+        {{.FABRIC_FILES_DIR | q}}/*
+        {{.USER_DESIGN_DIR | q}}/{{.DESIGN}}.v
         {{.TESTBENCH}}.v
       - >-
-        vvp {{.BUILD_DIR}}/{{.DESIGN}}.vvp
-        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
-        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        vvp {{.BUILD_DIR | q}}/{{.DESIGN}}.vvp
+        +output_waveform={{.BUILD_DIR | q}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR | q}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 
   gtkwave:
     desc: Open waveform in GTKWave
     cmds:
-      - gtkwave {{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+      - gtkwave {{.BUILD_DIR | q}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
 
   mkdir-build:
     internal: true
     cmds:
-      - mkdir -p {{.BUILD_DIR}}
-      - mkdir -p {{.FABRIC_FILES_DIR}}
+      - mkdir -p {{.BUILD_DIR | q}}
+      - mkdir -p {{.FABRIC_FILES_DIR | q}}
     status:
-      - test -d {{.BUILD_DIR}}
-      - test -d {{.FABRIC_FILES_DIR}}
+      - test -d {{.BUILD_DIR | q}}
+      - test -d {{.FABRIC_FILES_DIR | q}}
 
   clean:
     desc: Remove build directory and xsim leftovers
     cmds:
       # xsim.dir and the .pb/.jou droppings are xsim's; --nolog does not cover them.
-      - rm -rf {{.BUILD_DIR}} xsim.dir xvlog.pb xelab.pb xsim.jou
+      - rm -rf {{.BUILD_DIR | q}} xsim.dir xvlog.pb xelab.pb xsim.jou

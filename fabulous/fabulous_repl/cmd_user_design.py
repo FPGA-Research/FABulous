@@ -11,6 +11,7 @@ their legacy arguments into a `compile_design` invocation, so they only make
 sense next to the command they forward to.
 """
 
+import shlex
 import subprocess as sp
 from pathlib import Path
 from typing import Annotated, Literal
@@ -641,7 +642,7 @@ class UserDesignCommandSet(ReplCommandSet):
             "FAB_PROJ_ROOT": str(repl.projectDir),
             "DESIGN": paths[0].stem,
             "TOP_WRAPPER": top,
-            "DESIGN_FILES": " ".join(str(p) for p in paths),
+            "DESIGN_FILES": shlex.join(str(p) for p in paths),
             "TOP_WRAPPER_FILE": str(repl.projectDir / "user_design" / "top_wrapper.v"),
             "JSON_FILE": str(json_file),
             "FASM_FILE": str(fasm_file),
@@ -813,7 +814,7 @@ class UserDesignCommandSet(ReplCommandSet):
                     "requires the Taskfile flow."
                 )
             gl_sources = collect_gl_sources(repl.projectDir, gl_sim_libs or [])
-            task_vars["GL_SOURCES"] = " ".join(str(p) for p in gl_sources)
+            task_vars["GL_SOURCES"] = shlex.join(str(p) for p in gl_sources)
             logger.info(f"Running gate-level simulation for {design_name} via Taskfile")
             run_task(
                 "run-gl-simulation",

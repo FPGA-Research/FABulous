@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from cmd2.string_utils import quote_if_needed
 from loguru import logger
 from packaging.version import Version
 from pydantic import ValidationError
@@ -650,7 +651,7 @@ def script_cmd(
 
     match script_type:
         case ScriptType.FABULOUS:
-            repl.onecmd_plus_hooks(f"run_script {script_file}")
+            repl.onecmd_plus_hooks(f"run_script {quote_if_needed(str(script_file))}")
             if repl.exit_code:
                 logger.error(
                     f"FABulous script {script_file} execution failed with "
@@ -659,7 +660,7 @@ def script_cmd(
                 raise typer.Exit(repl.exit_code)
             logger.info(f"FABulous script {script_file} executed successfully")
         case ScriptType.TCL:
-            repl.onecmd_plus_hooks(f"run_tcl {script_file}")
+            repl.onecmd_plus_hooks(f"run_tcl {quote_if_needed(str(script_file))}")
             if repl.exit_code:
                 logger.error(
                     f"TCL script {script_file} execution failed with "

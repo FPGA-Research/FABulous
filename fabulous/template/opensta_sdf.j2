@@ -1,12 +1,12 @@
 {% for lib in liberty_files %}
-read_liberty {{ lib }}
+read_liberty {{ lib | tcl }}
 {% endfor %}
-read_verilog {{ verilog_netlist }}
+read_verilog {{ verilog_netlist | tcl }}
 link_design {{ top_name }}
 {% if spef_files %}
 {% for spef in spef_files %}
-read_spef {{ spef }}
+read_spef {{ spef | tcl }}
 {% endfor %}
 {% endif %}
-write_sdf {{ sdf_path }}
+write_sdf {{ sdf_path | tcl }}
 exit
