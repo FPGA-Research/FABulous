@@ -279,7 +279,11 @@ def test_supported_version_accepted(
         (GhdlTool, "GHDL 5.1.1 (4.1.0.r775.g91725e47f)\n", ">=6.0.0"),
         # A pre-release keeps its ordering: it comes before the release the
         # floor asks for, so it cannot carry what that release added.
-        (GhdlTool, "GHDL 6.0.0-dev (6.0.0.r0)\n", ">=6.0.0"),
+        (
+            GhdlTool,
+            "GHDL 6.0.0-dev (6.0.0.r0)\n",
+            r">=6\.0\.0\. 6\.0\.0\.dev0 is a pre-release, which sorts before 6\.0\.0",
+        ),
     ],
 )
 def test_unsupported_version_rejected(
