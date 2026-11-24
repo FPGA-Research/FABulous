@@ -46,7 +46,7 @@ entity OutPass4_frame_config_mux is
   attribute SHARED_PORT of UserCLK                : signal is "TRUE";
   attribute GLOBAL of ConfigBits                  : signal is "TRUE";
   attribute ROLE : string;
-  attribute ROLE of OutPass4_frame_config_mux : entity is "OUT_PASS";
+  attribute ROLE of OutPass4_frame_config_mux : entity is "FABRIC_OUTPUT";
   attribute PINNED_IO : string;
   attribute PINNED_IO of OutPass4_frame_config_mux : entity is "TRUE";
 end entity OutPass4_frame_config_mux;

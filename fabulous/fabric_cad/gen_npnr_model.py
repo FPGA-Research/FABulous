@@ -231,11 +231,11 @@ def belLines(
             # Q is the cell's renamed FF output (pack.cc renames O -> Q when
             # used); clock-to-Q is BEL-internal, not derivable from pip delay.
             lines.append(f"ClkToOut,Q,CLK,{FF_CLK_TO_Q},FF=1")
-        elif timing and bel.role is BelRole.OUT_PASS:
+        elif timing and bel.role is BelRole.FABRIC_OUTPUT:
             for p in inputs:
                 if p.startswith("I") and p[1:].isdigit():
                     lines.append(f"SetupHold,{p},CLK,{IO_SETUP},{IO_HOLD}")
-        elif timing and bel.role is BelRole.IN_PASS:
+        elif timing and bel.role is BelRole.FABRIC_INPUT:
             for p in outputs:
                 if p.startswith("O") and p[1:].isdigit():
                     lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")

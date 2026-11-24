@@ -73,12 +73,16 @@ def parse_with_attributes(
     ("attributes", "role", "pinned_io"),
     [
         ({"FABulous": 1, "ROLE": "LOGIC_CELL"}, BelRole.LOGIC_CELL, False),
-        ({"FABulous": 1, "ROLE": "IN_PASS", "PINNED_IO": 1}, BelRole.IN_PASS, True),
+        (
+            {"FABulous": 1, "ROLE": "FABRIC_INPUT", "PINNED_IO": 1},
+            BelRole.FABRIC_INPUT,
+            True,
+        ),
         ({"FABulous": 1, "ROLE": "OTHER", "PINNED_IO": "TRUE"}, BelRole.OTHER, True),
         # GHDL lowercases the attribute names of some VHDL BELs.
         (
-            {"fabulous": 1, "role": "out_pass", "pinned_io": "TRUE"},
-            BelRole.OUT_PASS,
+            {"fabulous": 1, "role": "fabric_output", "pinned_io": "TRUE"},
+            BelRole.FABRIC_OUTPUT,
             True,
         ),
     ],
@@ -100,20 +104,26 @@ def test_role_and_pin_flag_are_not_belmap_features(mocker: MockerFixture) -> Non
     """Next to `BelMap`, only the numbered attributes are config features."""
     bel = parse_with_attributes(
         mocker,
-        {"FABulous": 1, "BelMap": 1, "ROLE": "IN_PASS", "PINNED_IO": 1, "I0_reg": 0},
+        {
+            "FABulous": 1,
+            "BelMap": 1,
+            "ROLE": "FABRIC_INPUT",
+            "PINNED_IO": 1,
+            "I0_reg": 0,
+        },
         config_bits=1,
     )
 
     assert list(bel.belFeatureMap) == ["I0_reg"]
-    assert bel.role is BelRole.IN_PASS
+    assert bel.role is BelRole.FABRIC_INPUT
 
 
 @pytest.mark.parametrize(
     ("name", "role", "pinned_io"),
     [
         ("LUT4c_frame_config_dffesr", BelRole.LOGIC_CELL, False),
-        ("InPass4_frame_config_mux", BelRole.IN_PASS, True),
-        ("OutPass4_frame_config", BelRole.OUT_PASS, True),
+        ("InPass4_frame_config_mux", BelRole.FABRIC_INPUT, True),
+        ("OutPass4_frame_config", BelRole.FABRIC_OUTPUT, True),
         ("IO_1_bidirectional_frame_config_pass", BelRole.OTHER, True),
         ("MULADD", BelRole.OTHER, False),
     ],

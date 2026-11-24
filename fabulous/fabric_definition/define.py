@@ -182,14 +182,16 @@ class BelRole(Enum):
 
     This enumeration includes the following values:
     - LOGIC_CELL: a LUT with an optional flip-flop and carry chain
-    - OUT_PASS: registered outputs of the fabric towards a hard block
-    - IN_PASS: registered inputs of the fabric from a hard block
+    - FABRIC_OUTPUT: where a signal leaves the fabric's routing, for example
+      towards a hard block
+    - FABRIC_INPUT: where a signal enters the fabric's routing, for example from
+      a hard block
     - OTHER: any other BEL
     """
 
     LOGIC_CELL = auto()
-    OUT_PASS = auto()
-    IN_PASS = auto()
+    FABRIC_OUTPUT = auto()
+    FABRIC_INPUT = auto()
     OTHER = auto()
 
 

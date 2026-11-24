@@ -157,9 +157,9 @@ def _legacy_bel_role(name: str) -> BelRole:
     if name in _LEGACY_LOGIC_CELLS:
         return BelRole.LOGIC_CELL
     if name.startswith(_LEGACY_OUT_PASS_PREFIX):
-        return BelRole.OUT_PASS
+        return BelRole.FABRIC_OUTPUT
     if name.startswith(_LEGACY_IN_PASS_PREFIX):
-        return BelRole.IN_PASS
+        return BelRole.FABRIC_INPUT
     return BelRole.OTHER
 
 
@@ -264,8 +264,8 @@ def parseBelFile(
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
 
     **ROLE** goes on the module next to **BelMap** and names the `BelRole`
-    that place and route gives the BEL: ``ROLE="LOGIC_CELL"``, ``"IN_PASS"``,
-    ``"OUT_PASS"`` or ``"OTHER"``. For a BEL without it, the role and the pin
+    that place and route gives the BEL: ``ROLE="LOGIC_CELL"``, ``"FABRIC_INPUT"``,
+    ``"FABRIC_OUTPUT"`` or ``"OTHER"``. For a BEL without it, the role and the pin
     flag are guessed from the BEL name, with a deprecation warning.
 
     **PINNED_IO** goes on the module and marks a BEL that a design's I/O can be

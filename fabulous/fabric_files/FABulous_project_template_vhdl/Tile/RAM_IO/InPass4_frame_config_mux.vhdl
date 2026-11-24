@@ -46,7 +46,7 @@ entity InPass4_frame_config_mux is
   attribute SHARED_PORT of UserCLK               : signal is "TRUE";
   attribute GLOBAL of ConfigBits                 : signal is "TRUE";
   attribute ROLE : string;
-  attribute ROLE of InPass4_frame_config_mux : entity is "IN_PASS";
+  attribute ROLE of InPass4_frame_config_mux : entity is "FABRIC_INPUT";
   attribute PINNED_IO : string;
   attribute PINNED_IO of InPass4_frame_config_mux : entity is "TRUE";
 end entity InPass4_frame_config_mux;
