@@ -204,10 +204,17 @@ class Tool(ABC):
         # as `6.1.0.dev0` past a `>=6.0.0` floor, while `6.0.0.dev0` still
         # sorts below it.
         if not pinned.contains(found, prereleases=True):
-            raise UnsupportedToolVersion(
+            message = (
                 f"{cls.__name__} version {found} at {cls.executable()} does not "
                 f"match {pinned}."
             )
+            release = Version(found.base_version)
+            if found.is_prerelease and pinned.contains(release):
+                message += (
+                    f" {found} is a pre-release, which sorts before {release} "
+                    f"under PEP 440. Use the {release} release or later."
+                )
+            raise UnsupportedToolVersion(message)
 
     @classmethod
     def run(
