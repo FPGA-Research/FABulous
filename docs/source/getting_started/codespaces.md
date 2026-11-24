@@ -27,7 +27,7 @@ FABulous includes tools like OpenROAD that have graphical interfaces. In Codespa
 1. In the **Ports** tab, find port **6080**, if the port does not exist click **"Add Port"** and add port **6080**.
 ![Open the port tab](../figs/dev-container/vnc-step-1.png)
 ![Locate the port](../figs/dev-container/vnc-step-2.png)
-2. Click the port entry to open it in a browser tab and you should see the following screen, click connect and should bring you to a white window.
+2. Click the port entry to open it in a browser tab and you should see the following screen, click connect and enter the VNC password `fabulous`. This should bring you to a white window.
 
 ![Enter VNC password](../figs/dev-container/vnc-step-3.png)
 
@@ -116,11 +116,23 @@ If GUI applications don't show up in the VNC viewer:
 echo $DISPLAY  # Should show :1
 ```
 
-4. Restart the VNC service if needed:
+4. Check that the VNC server (TigerVNC) and noVNC are running, and read their logs:
 
 ```bash
-sudo systemctl restart x11vnc
+pgrep -a Xtigervnc
+ss -ltn | grep -E '5901|6080'
+cat /tmp/container-init.log /tmp/Xtigervnc.log /tmp/noVNC.log
 ```
+
+5. Restart the VNC server if needed. The container has no systemd; the
+   server runs in a watchdog loop that restarts it within a few seconds:
+
+```bash
+sudo pkill -x Xtigervnc
+```
+
+If nothing is running at all, start the desktop again with
+`/usr/local/share/desktop-init.sh`.
 
 ## Advantages of Codespaces
 
