@@ -274,14 +274,7 @@ def _gen_switch_matrix_body(
         writer.addComment(
             f"switch matrix multiplexer {portName} MUX-{muxSize}", onNewLine=True
         )
-        if muxSize == 0:
-            logger.warning(
-                f"Input port {portName} of switch matrix in {name} is unused"
-            )
-            writer.addComment(
-                f"WARNING unused multiplexer MUX-{portName}", onNewLine=True
-            )
-        elif muxSize == 1:
+        if muxSize == 1:
             if connections[portName][0] == "0":
                 writer.addAssignScalar(portName, "0")
             elif connections[portName][0] == "1":

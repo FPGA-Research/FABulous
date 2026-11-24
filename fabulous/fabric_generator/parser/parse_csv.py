@@ -400,7 +400,7 @@ def parseTilesCSV(
                             "LOCAL SHARED_ Ports can only be used with JUMP ports."
                         )
                     localShared = temp[6].split("_")[1]
-                    if localShared is None or localShared == "":
+                    if localShared == "":
                         raise InvalidTileDefinition("SHARED_ cannot be empty.")
                     if localShared not in ["RESET", "ENABLE"]:
                         raise InvalidTileDefinition(
@@ -468,11 +468,6 @@ def parseTilesCSV(
                                 "CONFIGACCESS GEN_IO can only be used with OUTPUT, "
                                 f"but is {temp[2]}"
                             )
-                        if not configAccess and temp[2] != "OUTPUT":
-                            raise InvalidTileDefinition(
-                                "CONFIGACCESS GEN_IO can only be used with OUTPUT, "
-                                f"but is {temp[2]}"
-                            )
                         configAccess = True
                         configBit = int(temp[1])
                     elif param == "INVERTED":
@@ -484,7 +479,7 @@ def parseTilesCSV(
                     elif param == "CLOCKED_MUX":
                         clockedMux = True
                         configBit = int(temp[1])
-                    elif param is None or param == "":
+                    elif param == "":
                         continue
                     else:
                         raise InvalidTileDefinition(
@@ -744,10 +739,12 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     addBelsToPrim(prims_file, [bels[-1]])
                 continue
             if line[0] == "MATRIX":
-                # The supertile switch matrix is given by this line's path,
-                # resolved relative to the supertile CSV.
-                if len(line) > 1:
-                    matrix_line_path = filePath / line[1]
+                if len(line) <= 1:
+                    raise InvalidSupertileDefinition(
+                        f"The MATRIX line in supertile {name} has no path. "
+                        "Give the switch matrix path after MATRIX."
+                    )
+                matrix_line_path = filePath / line[1]
                 continue
 
             row_master = False
@@ -1105,8 +1102,18 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
                     "Valid options are custom and generic."
                 )
         elif i[0].startswith("SuperTileEnable"):
+            if i[1] not in ("TRUE", "FALSE"):
+                raise InvalidFabricParameter(
+                    f"Invalid SuperTileEnable {i[1]} in parameters. "
+                    "Valid options are TRUE and FALSE."
+                )
             superTileEnable = i[1] == "TRUE"
         elif i[0].startswith("DisableUserCLK"):
+            if i[1] not in ("TRUE", "FALSE"):
+                raise InvalidFabricParameter(
+                    f"Invalid DisableUserCLK {i[1]} in parameters. "
+                    "Valid options are TRUE and FALSE."
+                )
             disableUserCLK = i[1] == "TRUE"
         elif i[0].startswith("UserCLKDirection"):
             if i[1] not in USER_CLK_DIRECTIONS:
@@ -1116,6 +1123,11 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
                 )
             userCLKSide = USER_CLK_DIRECTIONS[i[1]]
         elif i[0].startswith("MultiClkDomains"):
+            if i[1] not in ("TRUE", "FALSE"):
+                raise InvalidFabricParameter(
+                    f"Invalid MultiClkDomains {i[1]} in parameters. "
+                    "Valid options are TRUE and FALSE."
+                )
             multiClkDomains = i[1] == "TRUE"
         elif i[0].startswith("PreserveListOrder"):
             # Consumed and validated by the pre-scan above (it must be known
@@ -1164,6 +1176,13 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
 
     height = len(fabricTiles)
     width = len(fabricTiles[0])
+    ragged = [y for y, row in enumerate(fabricTiles) if len(row) != width]
+    if ragged:
+        raise InvalidFabricDefinition(
+            f"Fabric rows {ragged} do not have {width} tiles like row 0. "
+            "Give every fabric row the same number of cells, using NULL for "
+            "empty ones."
+        )
 
     # Read after every parameter row is known. Grid cells are deep copies made
     # above, so the memory lives on the tile types.

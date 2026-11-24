@@ -62,6 +62,11 @@ def parseMatrix(
         fields = line.split(",")
         port_name, row = fields[0], fields[1:]
         if not port_name:
+            if any(v.strip() for v in row):
+                raise InvalidSwitchMatrixDefinition(
+                    f"{path}: a row has connections but no source port name. "
+                    "Put the port name in the first column."
+                )
             continue
         items: list[tuple[int, int, str]] = []
         for k, v in enumerate(row):
@@ -82,7 +87,7 @@ def parseMatrix(
                     f"{path}: row {port_name!r} column {k} has non-integer "
                     f"cell value {stripped!r}"
                 ) from exc
-            if value != 0 and k < len(dest_list):
+            if value != 0:
                 sort_value = value if preserve_list_order else 1
                 items.append((sort_value, k, dest_list[k]))
         items.sort(key=lambda x: (-x[0], x[1]))

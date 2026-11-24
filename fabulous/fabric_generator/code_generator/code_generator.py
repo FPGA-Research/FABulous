@@ -47,14 +47,13 @@ class CodeGenerator(abc.ABC):
     def writeToFile(self) -> None:
         """Write the content to the output file.
 
-        Writes all content strings to the specified output file,
-        filtering out `None` values. Clears content after writing.
+        Writes all content strings to the specified output file.
+        Clears content after writing.
         """
         if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
         with Path(self._outFileName).open("w") as f:
-            self._content = [i for i in self._content if i is not None]
             f.write("\n".join(self._content))
         self._content = []
 

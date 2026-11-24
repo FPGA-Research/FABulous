@@ -329,7 +329,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addInstantiation(
         compName=fabric.name,
         compInsName=f"{fabric.name}_inst",
-        portsPairs=list(zip(portList, signal, strict=False)),
+        portsPairs=list(zip(portList, signal, strict=True)),
     )
 
     writer.addNewLine()

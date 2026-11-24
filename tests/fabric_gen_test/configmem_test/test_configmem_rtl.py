@@ -167,6 +167,16 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     )
     memory.to_csv()
 
+    if tile_config.globalConfigBits == 0:
+        with pytest.raises(ValueError, match="maps no configuration bits"):
+            generate_config_mem(
+                writer,
+                tile_config.name,
+                memory,
+                config_bit_mode=fabric_config.configBitMode,
+            )
+        return
+
     # Generate the ConfigMem RTL
     generate_config_mem(
         writer,
@@ -174,14 +184,6 @@ def test_configmem_rtl_with_generated_configmem_simulation(
         memory,
         config_bit_mode=fabric_config.configBitMode,
     )
-
-    if tile_config.globalConfigBits == 0:
-        # `ConfigBits[-1:0]` is not a vector, so no module is generated.
-        assert not writer.outFileName.exists(), (
-            f"ConfigMem RTL file {writer.outFileName} was generated for a tile "
-            "with no configuration bits."
-        )
-        return
     assert writer.outFileName.exists(), (
         f"ConfigMem RTL file {writer.outFileName} was not generated."
     )

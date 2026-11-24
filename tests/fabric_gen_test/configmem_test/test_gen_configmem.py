@@ -270,24 +270,31 @@ class TestGeneratedConfigMemRTL:
                 )
             return
 
+        memory = ConfigMem.default(
+            tile_config.globalConfigBits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+            source=Path("ConfigMem.csv"),
+        )
+        if tile_config.globalConfigBits == 0:
+            with pytest.raises(ValueError, match="maps no configuration bits"):
+                generate_config_mem(
+                    writer,
+                    tile_config.name,
+                    memory,
+                    config_bit_mode=fabric_config.configBitMode,
+                )
+            return
+
         generate_config_mem(
             writer,
             tile_config.name,
-            ConfigMem.default(
-                tile_config.globalConfigBits,
-                frame_bits_per_row=fabric_config.frameBitsPerRow,
-                max_frames_per_col=fabric_config.maxFramesPerCol,
-                source=Path("ConfigMem.csv"),
-            ),
+            memory,
             config_bit_mode=fabric_config.configBitMode,
         )
 
-        # Verify output file was created and contains expected content
         output_file = writer.outFileName
-        if tile_config.globalConfigBits != 0:
-            assert output_file.exists(), "Output file should be created"
-        else:
-            return  # Skip further checks if no config bits are generated
+        assert output_file.exists(), "Output file should be created"
 
         # Read and verify the generated content
         content = output_file.read_text()
