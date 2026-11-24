@@ -7,15 +7,20 @@ GitHub Codespaces provides a complete, cloud-based development environment for F
 1. Navigate to the [FABulous repository](https://github.com/FPGA-Research/FABulous) on GitHub
 2. Click the green **"Code"** button
 3. Select the **"Codespaces"** tab
+4. Click **"Create codespace on main"**
 
-When creating a Codespace, make sure to select the correct dev container configuration:
+This uses the default **"Remote (codespace)"** dev container configuration. To pick a branch, region or machine type, use **"..." → "New with options..."** instead and keep the configuration set to **"Remote (codespace)"**:
 
 ![Selecting Codespace Configuration-1](../figs/dev-container/step1.png)
 ![Selecting Codespace Configuration-2](../figs/dev-container/step2.png)
 
 GitHub will automatically create and configure your development environment. The setup process will take a while.
 ```{note}
-If you don't see the configuration options, you can change them after creation by rebuilding the container.
+If `whoami` in the Codespace terminal prints `codespace` instead of `nixuser`, the
+Codespace is not using the FABulous dev container. This happens when another
+configuration was selected or when the container build failed, in which case
+GitHub starts a recovery container. Check **Codespaces: View Creation Log** in
+the command palette, then rebuild the container or create a new Codespace.
 ```
 
 ## Accessing GUI Applications
