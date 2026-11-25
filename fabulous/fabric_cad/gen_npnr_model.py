@@ -250,7 +250,7 @@ def belLines(
 
     constrain_lines = (
         [f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}"]
-        if bel.pinned_io
+        if bel.is_fabric_pin
         else []
     )
 

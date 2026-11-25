@@ -48,7 +48,6 @@ def make_bel(
         carry={},
         localShared={},
         role=BelRole.LOGIC_CELL,
-        pinned_io=False,
     )
 
 

@@ -97,7 +97,6 @@ def make_bel(
         carry={},
         localShared={},
         role=BelRole.OTHER,
-        pinned_io=False,
     )
 
 

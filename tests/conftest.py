@@ -267,7 +267,6 @@ def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -
         carry={},
         localShared={},
         role=BelRole.OTHER,
-        pinned_io=False,
     )
 
 

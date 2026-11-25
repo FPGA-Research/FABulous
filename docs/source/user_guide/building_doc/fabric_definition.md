@@ -962,43 +962,43 @@ New BEL files should use native VHDL attribute assignments instead.
 
 (bel-role-attribute)=
 
-#### ROLE and PINNED_IO attributes
+#### ROLE attribute
 
-Two module attributes tell place and route how to treat a BEL:
+The `ROLE` module attribute tells place and route how to treat a BEL:
 
-- `ROLE` names the BEL's role: `LOGIC_CELL` (a LUT with an optional flip-flop
-  and carry chain, packed by nextpnr as `FABULOUS_LC`), `FABRIC_INPUT` (a
-  signal enters the fabric's routing, for example from a hard block),
-  `FABRIC_OUTPUT` (a signal leaves the fabric's routing), or `OTHER` for any
-  other BEL. The role selects the placeholder
-  timing nextpnr gets for the BEL.
-- `PINNED_IO` marks a BEL that a design's I/O can be constrained to. These BELs
-  are listed in `template.pcf`.
+- `LOGIC_CELL`: a LUT with an optional flip-flop and carry chain, packed by
+  nextpnr as `FABULOUS_LC`.
+- `FABRIC_INPUT`: a fabric pin where a signal enters the fabric.
+- `FABRIC_OUTPUT`: a fabric pin where a signal leaves the fabric.
+- `FABRIC_INOUT`: a bidirectional fabric pin.
+- `OTHER`: any other BEL.
+
+The role selects the placeholder timing nextpnr gets for the BEL. A design's
+I/O can be constrained to the fabric pin roles, `FABRIC_INPUT`,
+`FABRIC_OUTPUT` and `FABRIC_INOUT`; these BELs are listed in `template.pcf`.
 
 :::{deprecated}
-For a BEL without `ROLE`, FABulous guesses both attributes from the BEL name
+For a BEL without `ROLE`, FABulous guesses the role from the BEL name
 (`LUT4c_frame_config*` is a logic cell, `InPass4_frame_config*` and
-`OutPass4_frame_config*` are pass BELs, and those and
-`IO_1_bidirectional_frame_config_pass` are pinned) and logs a warning. Add the
-attributes to your BEL files; the guess will be removed.
+`OutPass4_frame_config*` are input and output pins, and
+`IO_1_bidirectional_frame_config_pass` is a bidirectional pin) and logs a
+warning. Add the attribute to your BEL files; the guess will be removed.
 :::
 
-In Verilog, put them on the module, next to `BelMap` if it has one:
+In Verilog, put it on the module, next to `BelMap` if it has one:
 
 ```verilog
-(* FABulous, BelMap, ROLE="FABRIC_INPUT", PINNED_IO,
+(* FABulous, BelMap, ROLE="FABRIC_INPUT",
 I0_reg=0, I1_reg=1, I2_reg=2, I3_reg=3
 *)
 module InPass4_frame_config_mux #(parameter NoConfigBits = 4) (...);
 ```
 
-In VHDL, declare and set them as entity attributes:
+In VHDL, declare and set it as an entity attribute:
 
 ```VHDL
   attribute ROLE : string;
   attribute ROLE of InPass4_frame_config_mux : entity is "FABRIC_INPUT";
-  attribute PINNED_IO : string;
-  attribute PINNED_IO of InPass4_frame_config_mux : entity is "TRUE";
 end entity InPass4_frame_config_mux;
 ```
 

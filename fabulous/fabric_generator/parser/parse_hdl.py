@@ -50,7 +50,6 @@ def belMapProcessing(module_info: YosysModule) -> dict:
         "BelMap",
         "FABulous",
         FABulousAttribute.ROLE,
-        FABulousAttribute.PINNED_IO,
         "dynports",
         "cells_not_processed",
         "src",
@@ -123,22 +122,14 @@ def _module_attribute(module_info: YosysModule, name: str) -> str | int | None:
     return None
 
 
-# Deprecated: roles and pin flags of BELs without a ROLE attribute, from the
-# BEL names nextpnr hardcodes. Remove once BELs must carry ROLE.
+# Deprecated: roles of BELs without a ROLE attribute, from the BEL names
+# nextpnr hardcodes. Remove once BELs must carry ROLE.
 _LEGACY_LOGIC_CELLS = frozenset(
     {"FABULOUS_LC", "LUT4c_frame_config", "LUT4c_frame_config_dffesr"}
 )
 _LEGACY_OUT_PASS_PREFIX = "OutPass4_frame_config"
 _LEGACY_IN_PASS_PREFIX = "InPass4_frame_config"
-_LEGACY_PINNED_IO = frozenset(
-    {
-        "IO_1_bidirectional_frame_config_pass",
-        "InPass4_frame_config",
-        "OutPass4_frame_config",
-        "InPass4_frame_config_mux",
-        "OutPass4_frame_config_mux",
-    }
-)
+_LEGACY_INOUT = "IO_1_bidirectional_frame_config_pass"
 
 
 def _legacy_bel_role(name: str) -> BelRole:
@@ -160,15 +151,16 @@ def _legacy_bel_role(name: str) -> BelRole:
         return BelRole.FABRIC_OUTPUT
     if name.startswith(_LEGACY_IN_PASS_PREFIX):
         return BelRole.FABRIC_INPUT
+    if name == _LEGACY_INOUT:
+        return BelRole.FABRIC_INOUT
     return BelRole.OTHER
 
 
-def _parse_bel_role(module_info: YosysModule, filename: Path) -> tuple[BelRole, bool]:
-    """Return the BEL role and pin flag from the module's attributes.
+def _parse_bel_role(module_info: YosysModule, filename: Path) -> BelRole:
+    """Return the BEL role from the module's `ROLE` attribute.
 
-    `ROLE` names the role and `PINNED_IO` sets the pin flag. A BEL without
-    `ROLE` predates the attributes: both come from its name, with a deprecation
-    warning.
+    A BEL without `ROLE` predates the attribute: its role comes from its name,
+    with a deprecation warning.
 
     Parameters
     ----------
@@ -179,8 +171,8 @@ def _parse_bel_role(module_info: YosysModule, filename: Path) -> tuple[BelRole, 
 
     Returns
     -------
-    tuple[BelRole, bool]
-        The role and whether a design's I/O can be pinned to the BEL.
+    BelRole
+        The role of the BEL.
 
     Raises
     ------
@@ -190,21 +182,18 @@ def _parse_bel_role(module_info: YosysModule, filename: Path) -> tuple[BelRole, 
     value = _module_attribute(module_info, FABulousAttribute.ROLE)
     if value is None:
         role = _legacy_bel_role(filename.stem)
-        pinned_io = filename.stem in _LEGACY_PINNED_IO
         logger.warning(
             f"BEL {filename} has no ROLE attribute, so its role is guessed from its "
-            f'name as ROLE="{role.name}"{", PINNED_IO" if pinned_io else ""}. '
-            "Add the attributes to the BEL module; the guess is deprecated and "
-            "will be removed."
+            f'name as ROLE="{role.name}". Add the attribute to the BEL module; the '
+            "guess is deprecated and will be removed."
         )
-        return role, pinned_io
+        return role
     roles = [role.name for role in BelRole]
     if not isinstance(value, str) or value.upper() not in roles:
         raise InvalidBelDefinition(
             f"ROLE attribute {value!r} of BEL {filename} is not one of {roles}."
         )
-    pinned_io = _module_attribute(module_info, FABulousAttribute.PINNED_IO) is not None
-    return BelRole[value.upper()], pinned_io
+    return BelRole[value.upper()]
 
 
 def parseBelFile(
@@ -228,7 +217,6 @@ def parseBelFile(
     * **SHARED_ENABLE**
     * **SHARED_RESET**
     * **ROLE**
-    * **PINNED_IO**
 
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
@@ -265,11 +253,9 @@ def parseBelFile(
 
     **ROLE** goes on the module next to **BelMap** and names the `BelRole`
     that place and route gives the BEL: ``ROLE="LOGIC_CELL"``, ``"FABRIC_INPUT"``,
-    ``"FABRIC_OUTPUT"`` or ``"OTHER"``. For a BEL without it, the role and the pin
-    flag are guessed from the BEL name, with a deprecation warning.
-
-    **PINNED_IO** goes on the module and marks a BEL that a design's I/O can be
-    constrained to in a PCF file.
+    ``"FABRIC_OUTPUT"``, ``"FABRIC_INOUT"`` or ``"OTHER"``. A design's I/O can be
+    constrained to the fabric pin roles in a PCF file. For a BEL without it, the
+    role is guessed from the BEL name, with a deprecation warning.
 
     Example
     -------
@@ -441,7 +427,7 @@ def parseBelFile(
             "config bits"
         )
 
-    role, pinned_io = _parse_bel_role(module_info, filename)
+    role = _parse_bel_role(module_info, filename)
     return Bel(
         src=filename,
         prefix=belPrefix,
@@ -457,5 +443,4 @@ def parseBelFile(
         carry=carry,
         localShared=localSharedPorts,
         role=role,
-        pinned_io=pinned_io,
     )

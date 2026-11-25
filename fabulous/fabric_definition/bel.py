@@ -57,8 +57,6 @@ class Bel:
         Local shared ports of the BEL.
     role : BelRole
         How place and route treats the BEL.
-    pinned_io : bool
-        Whether a design's I/O can be constrained to the BEL.
 
     Attributes
     ----------
@@ -108,9 +106,6 @@ class Bel:
         The `UserCLK` clock port, or None when the BEL has none.
     role : BelRole
         How place and route treats the BEL, from its `ROLE` HDL attribute.
-    pinned_io : bool
-        Whether the BEL is a fabric pin that a design can be constrained to,
-        from its `PINNED_IO` HDL attribute.
 
     Raises
     ------
@@ -140,7 +135,6 @@ class Bel:
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
     role: BelRole = BelRole.OTHER
-    pinned_io: bool = False
 
     def __init__(
         self,
@@ -158,7 +152,6 @@ class Bel:
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
         role: BelRole,
-        pinned_io: bool,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -211,4 +204,19 @@ class Bel:
         self.carry = carry
         self.localShared = localShared
         self.role = role
-        self.pinned_io = pinned_io
+
+    @property
+    def is_fabric_pin(self) -> bool:
+        """Whether a design's I/O can be constrained to the BEL.
+
+        Returns
+        -------
+        bool
+            True for the fabric pin roles `FABRIC_INPUT`, `FABRIC_OUTPUT` and
+            `FABRIC_INOUT`.
+        """
+        return self.role in (
+            BelRole.FABRIC_INPUT,
+            BelRole.FABRIC_OUTPUT,
+            BelRole.FABRIC_INOUT,
+        )

@@ -70,47 +70,34 @@ def parse_with_attributes(
 
 
 @pytest.mark.parametrize(
-    ("attributes", "role", "pinned_io"),
+    ("attributes", "role", "is_fabric_pin"),
     [
         ({"FABulous": 1, "ROLE": "LOGIC_CELL"}, BelRole.LOGIC_CELL, False),
-        (
-            {"FABulous": 1, "ROLE": "FABRIC_INPUT", "PINNED_IO": 1},
-            BelRole.FABRIC_INPUT,
-            True,
-        ),
-        ({"FABulous": 1, "ROLE": "OTHER", "PINNED_IO": "TRUE"}, BelRole.OTHER, True),
+        ({"FABulous": 1, "ROLE": "FABRIC_INPUT"}, BelRole.FABRIC_INPUT, True),
+        ({"FABulous": 1, "ROLE": "FABRIC_INOUT"}, BelRole.FABRIC_INOUT, True),
+        ({"FABulous": 1, "ROLE": "OTHER"}, BelRole.OTHER, False),
         # GHDL lowercases the attribute names of some VHDL BELs.
-        (
-            {"fabulous": 1, "role": "fabric_output", "pinned_io": "TRUE"},
-            BelRole.FABRIC_OUTPUT,
-            True,
-        ),
+        ({"fabulous": 1, "role": "fabric_output"}, BelRole.FABRIC_OUTPUT, True),
     ],
 )
-def test_role_and_pin_flag_come_from_the_module_attributes(
+def test_role_comes_from_the_module_attribute(
     mocker: MockerFixture,
     attributes: dict[str, str | int],
     role: BelRole,
-    pinned_io: bool,
+    is_fabric_pin: bool,
 ) -> None:
-    """`ROLE` names the BEL's role and `PINNED_IO` makes it pinnable."""
+    """`ROLE` names the BEL's role; the fabric pin roles make it pinnable."""
     bel = parse_with_attributes(mocker, attributes)
 
     assert bel.role is role
-    assert bel.pinned_io is pinned_io
+    assert bel.is_fabric_pin is is_fabric_pin
 
 
-def test_role_and_pin_flag_are_not_belmap_features(mocker: MockerFixture) -> None:
+def test_role_is_not_a_belmap_feature(mocker: MockerFixture) -> None:
     """Next to `BelMap`, only the numbered attributes are config features."""
     bel = parse_with_attributes(
         mocker,
-        {
-            "FABulous": 1,
-            "BelMap": 1,
-            "ROLE": "FABRIC_INPUT",
-            "PINNED_IO": 1,
-            "I0_reg": 0,
-        },
+        {"FABulous": 1, "BelMap": 1, "ROLE": "FABRIC_INPUT", "I0_reg": 0},
         config_bits=1,
     )
 
@@ -119,13 +106,13 @@ def test_role_and_pin_flag_are_not_belmap_features(mocker: MockerFixture) -> Non
 
 
 @pytest.mark.parametrize(
-    ("name", "role", "pinned_io"),
+    ("name", "role"),
     [
-        ("LUT4c_frame_config_dffesr", BelRole.LOGIC_CELL, False),
-        ("InPass4_frame_config_mux", BelRole.FABRIC_INPUT, True),
-        ("OutPass4_frame_config", BelRole.FABRIC_OUTPUT, True),
-        ("IO_1_bidirectional_frame_config_pass", BelRole.OTHER, True),
-        ("MULADD", BelRole.OTHER, False),
+        ("LUT4c_frame_config_dffesr", BelRole.LOGIC_CELL),
+        ("InPass4_frame_config_mux", BelRole.FABRIC_INPUT),
+        ("OutPass4_frame_config", BelRole.FABRIC_OUTPUT),
+        ("IO_1_bidirectional_frame_config_pass", BelRole.FABRIC_INOUT),
+        ("MULADD", BelRole.OTHER),
     ],
 )
 def test_missing_role_is_guessed_from_the_name_with_a_warning(
@@ -133,13 +120,11 @@ def test_missing_role_is_guessed_from_the_name_with_a_warning(
     caplog: pytest.LogCaptureFixture,
     name: str,
     role: BelRole,
-    pinned_io: bool,
 ) -> None:
     """A BEL without `ROLE` keeps the role nextpnr assumed for its name."""
     bel = parse_with_attributes(mocker, {"FABulous": 1}, name=name)
 
     assert bel.role is role
-    assert bel.pinned_io is pinned_io
     assert f"{name}.v has no ROLE attribute" in caplog.text
 
 
@@ -150,7 +135,7 @@ def test_role_attribute_overrides_the_name(mocker: MockerFixture) -> None:
     )
 
     assert bel.role is BelRole.OTHER
-    assert not bel.pinned_io
+    assert not bel.is_fabric_pin
 
 
 @pytest.mark.parametrize("value", ["LUT", 1])

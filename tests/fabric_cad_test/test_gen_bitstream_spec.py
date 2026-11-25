@@ -360,7 +360,6 @@ def _build_fabric(
         carry={},
         localShared={},
         role=BelRole.OTHER,
-        pinned_io=False,
     )
 
     tile = Tile(

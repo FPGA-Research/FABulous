@@ -41,9 +41,7 @@ entity IO_1_bidirectional_frame_config_pass is
   -- (e.g. for exporting a clock to the top)
   attribute SHARED_PORT of UserCLK                           : signal is "TRUE";
   attribute ROLE : string;
-  attribute ROLE of IO_1_bidirectional_frame_config_pass : entity is "OTHER";
-  attribute PINNED_IO : string;
-  attribute PINNED_IO of IO_1_bidirectional_frame_config_pass : entity is "TRUE";
+  attribute ROLE of IO_1_bidirectional_frame_config_pass : entity is "FABRIC_INOUT";
 end entity IO_1_bidirectional_frame_config_pass;
 
 architecture Behavioral of IO_1_bidirectional_frame_config_pass is

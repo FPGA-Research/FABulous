@@ -517,7 +517,6 @@ class TestBelExternalPorts:
             carry={},
             localShared={},
             role=BelRole.OTHER,
-            pinned_io=False,
         )
         tile = Tile(
             name="BelTile",

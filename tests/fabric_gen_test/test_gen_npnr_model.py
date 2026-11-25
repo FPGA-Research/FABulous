@@ -67,7 +67,6 @@ def lut_fabric() -> Fabric:
         carry={},
         localShared={},
         role=BelRole.LOGIC_CELL,
-        pinned_io=False,
     )
     tile = make_empty_tile("LUT4AB", pinOrderConfig={})
     tile.bels = [bel]
@@ -298,7 +297,6 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
         carry={},
         localShared={},
         role=BelRole.OTHER,
-        pinned_io=False,
     )
     tile = lut_fabric.tile[0][0]
     assert tile is not None
