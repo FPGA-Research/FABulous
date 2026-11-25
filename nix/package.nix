@@ -13,17 +13,18 @@
   python3,
   fabulous-python-env,
   fabulous-python-set,
-  fab-ghdl,
-  fab-yosys,
-  fab-nextpnr,
+  ghdl-bin,
+  yosys-ghdl,
+  nextpnr,
   fabulator,
-  uv,
   which,
   git,
   fish,
   zsh,
   gtkwave,
   nvc,
+  gcc,
+  gnumake,
 }:
 
 let
@@ -38,29 +39,29 @@ let
     in
     platforms == [ ] || builtins.elem stdenv.hostPlatform.system platforms;
 
+  # Yosys comes from librelane's `includedTools`, which already carries the ghdl
+  # plugin, so FABulous and LibreLane run the same binary.
   includedTools = [
-    uv
     which
     git
     fish
     zsh
     gtkwave
     nvc
-    fab-yosys
-    fab-nextpnr
-    fab-ghdl
+    nextpnr
     fabulator
+    # Build dependencies of the models Verilator generates.
+    gcc
+    gnumake
   ]
+  # GHDL only where nix-eda builds the yosys plugin that pairs with it. Elsewhere
+  # (aarch64-linux, x86_64-darwin) nixpkgs has no GHDL or no plugin, so VHDL
+  # synthesis is unavailable there.
+  ++ lib.optional (lib.meta.availableOn stdenv.hostPlatform yosys-ghdl) ghdl-bin
   ++ lib.filter systemSupported python3.pkgs.librelane.includedTools;
 
   # Runtime environment shared by this wrapper and every shell built from it.
   env = {
-    # Tells FABulous the nix yosys binary is named fab-yosys.
-    FAB_YOSYS_PATH = "fab-yosys";
-    # libghdl, dlopen'd by the yosys ghdl plugin, can't derive its own install
-    # prefix (only the ghdl binary can), so it needs this to find the IEEE
-    # libraries.
-    GHDL_PREFIX = "${fab-ghdl}/lib/ghdl";
     # Silence known third-party import warnings (fasm, textX).
     PYTHONWARNINGS = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
   };
@@ -78,7 +79,6 @@ runCommand "fabulous-${version}"
       homepage = "https://github.com/FPGA-Research/FABulous";
       license = lib.licenses.asl20;
       mainProgram = "FABulous";
-      inherit (fab-ghdl.meta) platforms;
     };
   }
   ''
@@ -94,8 +94,6 @@ runCommand "fabulous-${version}"
     for prog in FABulous fabulous librelane; do
       makeWrapper ${fabulous-python-env}/bin/$prog $out/bin/$prog \
         --prefix PATH : ${lib.makeBinPath includedTools} \
-        --set FAB_YOSYS_PATH ${env.FAB_YOSYS_PATH} \
-        --set GHDL_PREFIX ${env.GHDL_PREFIX} \
         --set PYTHONWARNINGS "${env.PYTHONWARNINGS}"
     done
   ''

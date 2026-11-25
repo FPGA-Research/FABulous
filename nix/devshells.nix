@@ -58,7 +58,7 @@ let
   verifyTools = ''
     if [ "''${FAB_NIX_NO_CHECK:-}" != "1" ]; then
       MISSING=""
-      for entry in fab-yosys:yosys nextpnr-generic:nextpnr openroad:openroad; do
+      for entry in yosys:yosys nextpnr-generic:nextpnr openroad:openroad; do
         cmd="''${entry%%:*}"
         label="''${entry##*:}"
         path=$(command -v "$cmd" 2>/dev/null || true)

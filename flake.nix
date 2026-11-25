@@ -27,19 +27,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Prebuilt GHDL binary tarballs; no source build.
-    ghdl-bin-x86_64-linux = {
-      url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz";
-      flake = false;
-    };
-    ghdl-bin-aarch64-darwin = {
-      url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz";
-      flake = false;
-    };
-    nextpnr-src = {
-      url = "github:YosysHQ/nextpnr";
-      flake = false;
-    };
     fabulator-src = {
       url = "github:FPGA-Research/FABulator/beccd4e4c58b9fc92fafaf082883c20367dbe5ba";
       flake = false;
@@ -61,9 +48,6 @@
       nixpkgs,
       nix-eda,
       librelane,
-      ghdl-bin-x86_64-linux,
-      ghdl-bin-aarch64-darwin,
-      nextpnr-src,
       fabulator-src,
       uv2nix,
       pyproject-nix,
@@ -73,15 +57,7 @@
     let
       inherit (nixpkgs) lib;
 
-      ghdlBin = {
-        x86_64-linux = ghdl-bin-x86_64-linux;
-        aarch64-darwin = ghdl-bin-aarch64-darwin;
-      };
-
-      # Only the systems a prebuilt GHDL tarball exists for. Claiming
-      # `lib.systems.flakeExposed` would make `nix flake check` fail to evaluate
-      # on every system that has no toolchain.
-      forAllSystems = lib.genAttrs (lib.attrNames ghdlBin);
+      inherit (nix-eda) forAllSystems;
 
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
@@ -106,13 +82,7 @@
           lockedPackages
           pythonFixups
           ;
-        srcs = {
-          ghdl-bin = ghdlBin;
-          yosys = yosys-src;
-          ghdl-yosys-plugin = ghdl-yosys-plugin-src;
-          nextpnr = nextpnr-src;
-          fabulator = fabulator-src;
-        };
+        inherit fabulator-src;
       };
 
       # Applies to any nixpkgs instance on its own.
@@ -142,9 +112,6 @@
           inherit (pkgs)
             fabulous
             fabulous-shell
-            fab-yosys
-            fab-nextpnr
-            fab-ghdl
             fabulator
             ;
           default = pkgs.fabulous;

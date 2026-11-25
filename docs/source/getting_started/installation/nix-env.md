@@ -103,12 +103,11 @@ FABulous exposes `overlays.default`, which adds the following to any nixpkgs ins
 | --- | --- |
 | `fabulous` | The `FABulous`, `fabulous`, and `librelane` CLIs, wrapped with the toolchain on `PATH` |
 | `fabulous-shell` | A ready-to-use, non-editable development shell |
-| `fab-yosys` | Yosys with the `ghdl` plugin bundled, installed as `fab-yosys` |
-| `fab-nextpnr` | nextpnr, generic architecture |
-| `fab-ghdl` | GHDL (prebuilt binary) |
 | `fabulator` | The fabric visualiser |
 
 `fabulous-shell` contains the `librelane` CLI with the `librelane_plugin_fabulous` GDS plugin already discovered, the FABulous CLIs, the full EDA toolchain (Yosys, NextPNR, OpenROAD, GHDL, and the rest), and FABulous's Python environment pinned by FABulous's `uv.lock`.
+
+The shell evaluates on `x86_64-linux`, `aarch64-linux`, `x86_64-darwin` and `aarch64-darwin`. GHDL and the Yosys `ghdl` plugin come from nix-eda, which builds them for `x86_64-linux` and `aarch64-darwin` only, so VHDL projects need one of those two systems.
 
 It is overridden the same way `librelane-shell` is, with the same argument names:
 
@@ -121,7 +120,7 @@ The shell keeps your `PYTHONPATH` and puts tkinter, which the FABulous CLI impor
 
 `extra-python-packages` selects from `pkgs.fabulous-python`, described next: an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`.
 
-Every attribute above is also a flake output, so `nix build github:FPGA-Research/FABulous#fab-yosys` works without composing anything.
+Every attribute above is also a flake output, so `nix build github:FPGA-Research/FABulous#fabulator` works without composing anything.
 
 ### Example
 

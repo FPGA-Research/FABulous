@@ -1,14 +1,14 @@
-# FABulous's contribution to a nixpkgs instance: the pinned EDA tools, the
-# uv.lock-built Python environment, the wrapped application, and the shell that
-# downstream projects compose from.
+# FABulous's contribution to a nixpkgs instance: FABulator, the uv.lock-built
+# Python environment, the wrapped application, and the shell that downstream
+# projects compose from. The EDA tools come from nix-eda and librelane.
 #
 # Applied as `fabulous.overlays.default`, so everything below is built against
 # the consumer's own nixpkgs and stays reachable through the normal
 # `.override` / `.overrideAttrs` surface. The factory arguments are the flake
-# inputs that cannot be expressed inside a package file: the pinned tool sources
-# and the uv2nix plumbing that turns uv.lock into a Python environment.
+# inputs that cannot be expressed inside a package file: the FABulator source and
+# the uv2nix plumbing that turns uv.lock into a Python environment.
 {
-  srcs,
+  fabulator-src,
   workspace,
   # Names of every package uv.lock resolved. Read from the lock rather than
   # listed here, so it tracks `uv lock` with no Nix edit.
@@ -36,15 +36,6 @@ let
       d = src.lastModifiedDate;
     in
     "0-unstable-${lib.substring 0 4 d}-${lib.substring 4 2 d}-${lib.substring 6 2 d}";
-
-  # Tool sources must be commit pins. yosys stamps `rev` into its version, and
-  # an override without one would otherwise fail deep inside a build.
-  pinned =
-    name: src:
-    if src ? rev && builtins.match "[0-9a-f]{40}" src.rev != null then
-      src
-    else
-      throw "${name}: source is not pinned to a commit SHA (rev = ${src.rev or "none"}). Override it with a git or github input.";
 in
 {
   # Parameterised over the workspace rather than closed over FABulous's own:
@@ -125,33 +116,9 @@ in
     ps.tkinter
   ]);
 
-  # GHDL ships prebuilt tarballs rather than a source build, keyed by system so
-  # only the one for this platform is fetched.
-  fab-ghdl = final.callPackage ../tools/ghdl-bin.nix {
-    src =
-      srcs.ghdl-bin.${final.stdenv.hostPlatform.system}
-        or (throw "fab-ghdl: no prebuilt GHDL tarball for ${final.stdenv.hostPlatform.system}");
-  };
-
-  # Bundles the ghdl-yosys-plugin so `fab-yosys -m ghdl` works with no wrapper.
-  # Installed under a `fab-` prefix so it never collides with a system yosys.
-  fab-yosys = final.callPackage ../tools/yosys.nix {
-    src = pinned "fab-yosys" srcs.yosys;
-    version = unstableVersion srcs.yosys;
-    ghdl-bin = final.fab-ghdl;
-    ghdlYosysPluginSrc = srcs.ghdl-yosys-plugin;
-  };
-
-  # Prefixed so composing this overlay does not silently replace nixpkgs'
-  # nextpnr; the installed binary is still `nextpnr-generic`.
-  fab-nextpnr = final.callPackage ../tools/nextpnr.nix {
-    src = pinned "fab-nextpnr" srcs.nextpnr;
-    version = unstableVersion srcs.nextpnr;
-  };
-
   fabulator = final.callPackage ../tools/fabulator.nix {
-    src = pinned "fabulator" srcs.fabulator;
-    version = unstableVersion srcs.fabulator;
+    src = fabulator-src;
+    version = unstableVersion fabulator-src;
   };
 
   fabulous = final.callPackage ../package.nix { };
