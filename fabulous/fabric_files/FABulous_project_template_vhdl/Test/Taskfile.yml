@@ -178,9 +178,10 @@ tasks:
       TESTBENCH: '{{.TESTBENCH}}'
       WAVEFORM_TYPE: '{{.WAVEFORM_TYPE}}'
     cmds:
+      # One analyzer call per file, in find order; any failure stops the task.
       - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
-      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} {} \;
-      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} {} \;
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f" || exit 1; done' sh {} +
       - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - nvc {{.NVC_GLOBAL_FLAGS}} -e {{.NVC_ELAB_FLAGS}} {{.EXTRA_NVC_FLAGS}} $TESTBENCH
       - sh -c 'ulimit -s unlimited; nvc {{.NVC_GLOBAL_FLAGS}} -r {{.EXTRA_NVC_FLAGS}} $TESTBENCH -w$BUILD_DIR/$TESTBENCH.$WAVEFORM_TYPE --stats'
@@ -197,8 +198,8 @@ tasks:
       WAVEFORM_TYPE: '{{.WAVEFORM_TYPE}}'
     cmds:
       - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
-      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} {} \;
-      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} {} \;
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f" || exit 1; done' sh {} +
       - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - ghdl -e {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ELAB_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH
       - sh -c 'ulimit -s unlimited; ghdl -r {{.GHDL_GLOBAL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH --stats --ieee-asserts=disable --{{.WAVEFORM_TYPE}}=$BUILD_DIR/$TESTBENCH.{{.WAVEFORM_TYPE}}'
@@ -218,8 +219,8 @@ tasks:
       - rm -rf xsim.dir
       # A design unit must reach the library before anything instantiating it.
       - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
-      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} {} \;
-      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} {} \;
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f" || exit 1; done' sh {} +
       - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - xelab --nolog {{.EXTRA_XELAB_FLAGS}} -s {{.XSIM_SNAPSHOT}} $TESTBENCH
       - xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log -wdb {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.wdb

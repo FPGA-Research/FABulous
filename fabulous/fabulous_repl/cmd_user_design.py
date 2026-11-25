@@ -631,25 +631,26 @@ class UserDesignCommandSet(ReplCommandSet):
             )
 
         ctx = get_context()
+        design_files = " ".join(f'"{p}"' for p in paths)
         if not (pnr_only or bitgen_only):
             synth_extra_args = pre_rework_synth_compat_args(
                 repl.projectDir, ctx.yosys_path, synth_extra_args
             )
-        if repl.extension == "vhdl":
-            # The Yosys GHDL plugin takes its file arguments verbatim, quotes
-            # included, so paths relative to the task's working directory keep
-            # the project's location out of them.
-            relative_paths = [str(p.relative_to(task_dir, walk_up=True)) for p in paths]
-            spaced = [p for p in relative_paths if " " in p]
-            if spaced:
-                raise CommandError(
-                    f"The Yosys GHDL plugin cannot read {spaced}: the path relative "
-                    f"to {task_dir} contains a space. Move the files into the "
-                    "project, or to a path without spaces."
-                )
-            design_files = " ".join(relative_paths)
-        else:
-            design_files = " ".join(f'"{p}"' for p in paths)
+            if repl.extension == "vhdl":
+                # The Yosys GHDL plugin takes its file arguments verbatim, quotes
+                # included, so paths relative to the task's working directory
+                # keep the project's location out of them.
+                relative_paths = [
+                    str(p.relative_to(task_dir, walk_up=True)) for p in paths
+                ]
+                spaced = [p for p in relative_paths if " " in p]
+                if spaced:
+                    raise CommandError(
+                        f"The Yosys GHDL plugin cannot read {spaced}: the path "
+                        f"relative to {task_dir} contains a space. Move the files "
+                        "into the project, or to a path without spaces."
+                    )
+                design_files = " ".join(relative_paths)
         task_vars: dict[str, str] = {
             "YOSYS_PATH": str(ctx.yosys_path),
             "NEXTPNR_PATH": str(ctx.nextpnr_path),

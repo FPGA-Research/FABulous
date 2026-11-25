@@ -110,19 +110,21 @@ def test_compile_design_task_vars(
 
 
 @pytest.mark.parametrize(
-    ("extension", "design_dir", "expected"),
+    ("extension", "design_dir", "flags", "expected"),
     [
-        ("v", "user design", '"{project}/user design/my_design.v"'),
-        ("vhdl", "user design", None),
-        ("vhdl", "user_design", "../user_design/my_design.vhdl"),
+        ("v", "user design", "", '"{project}/user design/my_design.v"'),
+        ("vhdl", "user design", "", None),
+        ("vhdl", "user design", "--pnr-only", '"{project}/user design/my_design.vhdl"'),
+        ("vhdl", "user_design", "", "../user_design/my_design.vhdl"),
     ],
-    ids=["verilog-quoted", "vhdl-spaced-rejected", "vhdl-relative"],
+    ids=["verilog-quoted", "vhdl-spaced-rejected", "vhdl-pnr-only", "vhdl-relative"],
 )
 def test_compile_design_design_files_survive_spaces(
     compile_cli: FABulousREPL,
     mocker: MockerFixture,
     extension: str,
     design_dir: str,
+    flags: str,
     expected: str | None,
 ) -> None:
     """DESIGN_FILES keeps a path with spaces in one word for Yosys."""
@@ -141,7 +143,7 @@ def test_compile_design_design_files_survive_spaces(
         mock_run_task.assert_not_called()
         return
 
-    run_cmd(compile_cli, f'compile_design "{design_file}"')
+    run_cmd(compile_cli, f'compile_design "{design_file}" {flags}')
     task_vars = mock_run_task.call_args.args[2]
     assert task_vars["DESIGN_FILES"] == expected.format(project=compile_cli.projectDir)
 
