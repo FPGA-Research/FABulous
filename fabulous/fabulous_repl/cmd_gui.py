@@ -46,28 +46,18 @@ class GuiCommandSet(ReplCommandSet):
     DEFAULT_CATEGORY = CMD_TOOLS
 
     @with_category(CMD_GUI)
-    def do_start_fabulator(self, *_ignored: str) -> None:
+    def do_start_FABulator(self, *_ignored: str) -> None:
         """Start FABulator if an installation can be found.
 
-        Fails if no fabric is loaded or its geometry CSV does not exist. If no
-        installation can be found, a warning is produced.
+        If no installation can be found, a warning is produced.
         """
         repl = self._cmd
-        if not repl.fabric_loaded:
-            raise CommandError("Need to load fabric first")
-        geometry_file = repl.projectDir / f"{repl.fabulousAPI.fabric.name}_geometry.csv"
-        if not geometry_file.exists():
-            raise FileNotFoundError(
-                f"FABulator needs the fabric geometry, but {geometry_file} does not "
-                "exist. Run gen_geometry first."
-            )
-
         logger.info("Checking for FABulator installation")
         fabulator_root = get_context().fabulator_root
         if shutil.which("mvn") is None:
             raise FileNotFoundError(
-                "Application mvn (Java Maven) not found in PATH, "
-                "please install it to use FABulator"
+                "Application mvn (Java Maven) not found in PATH",
+                " please install it to use FABulator",
             )
 
         if fabulator_root is None:
@@ -102,18 +92,6 @@ class GuiCommandSet(ReplCommandSet):
                 "Failed to start FABulator. Please ensure that the FABULATOR_ROOT "
                 "environment variable is set correctly and that FABulator is installed."
             ) from e
-
-    @with_category(CMD_GUI)
-    def do_start_FABulator(self, *_ignored: str) -> None:
-        """Run `start_fabulator`; this name is deprecated."""
-        repl = self._cmd
-        logger.warning(
-            "The 'start_FABulator' command is deprecated. Use 'start_fabulator' "
-            "instead."
-        )
-        repl.onecmd_plus_hooks("start_fabulator")
-        if repl.exit_code != 0:
-            raise CommandError("start_fabulator failed")
 
     @with_annotated
     def do_start_openroad_gui(

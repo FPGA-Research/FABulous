@@ -55,6 +55,7 @@ from fabulous.fabulous_repl.cmd_timing import TimingCommandSet
 from fabulous.fabulous_repl.cmd_user_design import UserDesignCommandSet
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
+    CMD_GUI,
     CMD_HELPER,
     CMD_OTHER,
     CMD_SCRIPT,
@@ -290,6 +291,9 @@ class FABulousREPL(Cmd):
         self.disable_category(
             CMD_USER_DESIGN_FLOW,
             "User Design Flow commands are disabled until fabric is loaded",
+        )
+        self.disable_category(
+            CMD_GUI, "GUI commands are disabled until gen_geometry is run"
         )
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
