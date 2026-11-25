@@ -81,6 +81,9 @@ let
       dependencies = [ pyfinal.ply ];
       pythonRemoveDeps = [ "pyjson" ];
     };
+  pymoo-without-tests-where-arrow-is-broken = pyfinal.pymoo.overridePythonAttrs {
+    doCheck = !pyfinal.pkgs.arrow-cpp.meta.broken;
+  };
 in
 {
   librelane-plugin-fabulous = pyfinal.callPackage (
@@ -101,7 +104,6 @@ in
       typer,
       pyyaml,
       pick,
-      pymoo,
       numpy,
       dill,
       networkx,
@@ -142,7 +144,7 @@ in
         fabulous-bit-gen
         pyyaml
         pick
-        pymoo
+        pymoo-without-tests-where-arrow-is-broken
         numpy
         dill
         networkx
