@@ -15,7 +15,20 @@
   at-spi2-atk,
   at-spi2-core,
   libepoxy,
-  xorg,
+  libx11,
+  libxext,
+  libxrender,
+  libxi,
+  libxcursor,
+  libxrandr,
+  libxfixes,
+  libxcomposite,
+  libxdamage,
+  libxtst,
+  libxkbfile,
+  libxinerama,
+  libxshmfence,
+  libxxf86vm,
   libGL,
   libGLU,
   mesa,
@@ -29,20 +42,20 @@
 let
   # X11 and graphics libraries needed for JavaFX
   displayLibs = [
-    xorg.libX11
-    xorg.libXext
-    xorg.libXrender
-    xorg.libXi
-    xorg.libXcursor
-    xorg.libXrandr
-    xorg.libXfixes
-    xorg.libXcomposite
-    xorg.libXdamage
-    xorg.libXtst
-    xorg.libxkbfile
-    xorg.libXinerama
-    xorg.libxshmfence
-    xorg.libXxf86vm
+    libx11
+    libxext
+    libxrender
+    libxi
+    libxcursor
+    libxrandr
+    libxfixes
+    libxcomposite
+    libxdamage
+    libxtst
+    libxkbfile
+    libxinerama
+    libxshmfence
+    libxxf86vm
     gtk3
     glib
     cairo
