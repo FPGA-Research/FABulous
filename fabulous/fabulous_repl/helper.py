@@ -874,7 +874,7 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
     return False
 
 
-def install_fabulator(install_dir: Path) -> None:
+def install_fabulator(install_dir: Path) -> Path:
     """Install FABulator and set FABULATOR_ROOT environment variable.
 
     Clones FABulator into the specified directory by downloading the latest release
@@ -885,19 +885,24 @@ def install_fabulator(install_dir: Path) -> None:
     install_dir : Path
         The directory where FABulator will be installed.
 
+    Returns
+    -------
+    Path
+        The absolute path of the FABulator installation.
+
     Raises
     ------
     RuntimeError
         If the installation fails.
     """
-    fabulator_dir = install_dir / "FABulator"
+    fabulator_dir = (install_dir / "FABulator").absolute()
     repo_url = "https://github.com/FPGA-Research/FABulator.git"
 
     if not install_dir.exists():
         logger.info(f"Creating installation directory {install_dir}")
         install_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Installing FABulator in {fabulator_dir.absolute()}")
+    logger.info(f"Installing FABulator in {fabulator_dir}")
 
     # TODO: Update branch to main, when new release available
     if not clone_git_repo(repo_url, fabulator_dir, "develop"):
@@ -909,7 +914,8 @@ def install_fabulator(install_dir: Path) -> None:
             "FABulator may not work correctly."
         )
 
-    add_var_to_global_env("FAB_FABULATOR_ROOT", str(fabulator_dir.absolute()))
+    add_var_to_global_env("FAB_FABULATOR_ROOT", str(fabulator_dir))
+    return fabulator_dir
 
 
 def get_file_path(

@@ -670,6 +670,31 @@ def test_exit_code_reset_after_error(cli: FABulousREPL) -> None:
     assert cli.exit_code == 0, "Exit code should be reset after successful command"
 
 
+@pytest.mark.parametrize("installed", [True, False])
+def test_start_fabulator_without_load_fabric(
+    fabulous_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    installed: bool,
+) -> None:
+    """start_FABulator works before any other command and fails with a hint."""
+    init_context(fabulous_project)
+    use_core_only_plugins(monkeypatch)
+    cli = FABulousREPL("verilog", interactive=False)
+    if installed:
+        (fabulous_project / "pom.xml").touch()
+    get_context().fabulator_root = fabulous_project if installed else None
+    mocker.patch("fabulous.fabulous_repl.cmd_gui.shutil.which", return_value="mvn")
+    popen = mocker.patch("fabulous.fabulous_repl.cmd_gui.sp.Popen")
+
+    run_cmd(cli, "start_FABulator")
+
+    assert popen.called == installed
+    assert (cli.exit_code == 0) == installed
+    assert ("install_FABulator" in caplog.text) != installed
+
+
 @pytest.mark.parametrize(
     ("pdk", "family", "lyp", "auto_resolve_pdk_root"),
     [
