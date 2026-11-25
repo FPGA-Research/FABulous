@@ -33,7 +33,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     metafunc.parametrize("ref_project", projects, ids=[p.name for p in projects])
 
 
-def _check_rtl_equivalence(
+def check_rtl_equivalence(
     reference: Path,
     regenerated: Path,
     models_pack: Path,
@@ -131,7 +131,7 @@ def test_rtl_equivalence(
 
     models_pack = get_context().models_pack
     assert models_pack is not None, f"No models pack configured for {ref_project.name}"
-    failures = _check_rtl_equivalence(
+    failures = check_rtl_equivalence(
         reference=ref_project.path,
         regenerated=regenerated,
         models_pack=models_pack.relative_to(regenerated),
