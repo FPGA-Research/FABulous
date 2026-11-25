@@ -12,11 +12,11 @@ Install [uv](https://github.com/astral-sh/uv) (if you don't have it already), th
 # Install uv (Linux/macOS)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install FABulous
-uv tool install fabulous-fpga
+# Install FABulous (along with bundled task and bit_gen executables)
+uv tool install --with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga
 ```
 
-If you already have [pipx](https://pipx.pypa.io/) installed, `pipx install fabulous-fpga` works as well.
+If `task` or `bit_gen` is already installed globally, omit the corresponding package from `--with-executables-from`. If you use [pipx](https://pipx.pypa.io/), `pipx install --include-deps fabulous-fpga` works as well.
 
 Verify the installation:
 

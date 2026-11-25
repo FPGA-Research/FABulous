@@ -73,7 +73,7 @@ You can install FABulous either directly from the Python Package Index for stand
 ```bash
 pip install fabulous-fpga
 # or
-# uv tool install fabulous-fpga
+# uv tool install --with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga
 FABulous create-project demo
 cd demo && FABulous start
 ```

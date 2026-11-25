@@ -32,11 +32,18 @@ pip install uv
 
 ## Install FABulous
 
-Install FABulous as a tool so the `FABulous` command is available globally:
+Install FABulous as a tool along with its bundled `task` (`go-task-bin`) and
+`bit_gen` (`fabulous-bit-gen`) executables so they are available globally:
 
 ```bash
-uv tool install fabulous-fpga
+uv tool install --with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga
 ```
+
+:::{note}
+If `task` or `bit_gen` is already installed globally on your system, omit that
+package from `--with-executables-from` (or drop the flag entirely if both are
+installed) so `uv` does not conflict with or shadow your existing binaries.
+:::
 
 Verify the installation:
 
