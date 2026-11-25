@@ -392,7 +392,7 @@ class FabricGenCommandSet(ReplCommandSet):
 
         The selected backend decides which files it emits; every one of them is
         written to the directory specified by `metaDataDir` within `projectDir`.
-        For nextpnr these are `pips.txt`, `bel.txt`, `bel.v2.txt`, `bel.v3.txt`,
+        For nextpnr these are `pips.txt`, `bel.v2.txt`, `bel.v3.txt`,
         `template.pcf` and `placement_estimate.txt`.
 
         Logs output file directories.

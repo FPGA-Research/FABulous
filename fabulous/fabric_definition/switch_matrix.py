@@ -19,7 +19,23 @@ from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefini
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_definition.port import TilePort
-from fabulous.fabric_definition.timing import Ns, SwitchPip
+from fabulous.fabric_definition.timing import Ns
+
+
+@dataclass(frozen=True, slots=True)
+class SwitchPip:
+    """A switch-matrix pip, mux input to mux output.
+
+    Attributes
+    ----------
+    src : str
+        Mux input wire.
+    dst : str
+        Mux output wire.
+    """
+
+    src: str
+    dst: str
 
 
 def switch_matrix_signal_order(

@@ -7,16 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from fabulous.fabric_definition.bel import BelArcs, ClockArc, DelayArc
 from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_definition.port import BelPort
-from fabulous.fabric_definition.switch_matrix import SwitchMatrix
-from fabulous.fabric_definition.timing import (
-    BelArcs,
-    ClockArc,
-    DelayArc,
-    SwitchPip,
-    ns,
-)
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix, SwitchPip
+from fabulous.fabric_definition.timing import ns
 from fabulous.fabric_definition.wire import Wire
 from tests.conftest import make_empty_tile, make_fabric_from_grid, make_muladd_bel
 

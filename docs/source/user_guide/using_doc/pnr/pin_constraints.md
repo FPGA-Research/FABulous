@@ -64,13 +64,13 @@ the tile, `B` the second, and so on. This letter is the BEL's _Z position_ (its
 slot index inside the tile); together with the tile's `X`/`Y` coordinate it
 uniquely identifies one BEL on the whole fabric.
 
-You never have to guess the letter — it is column 4 of each `bel.txt` row, or
-the third field of each `BelBegin` line in `bel.v2.txt` (see
-[below](#finding-valid-io-locations)). For example these two `bel.txt` rows
+You never have to guess the letter — it is the third field of each `BelBegin`
+line in `bel.v2.txt` (see [below](#finding-valid-io-locations)). For example
+these two `BelBegin` lines
 
 ```text
-X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q
-X0Y1,X0,Y1,B,IO_1_bidirectional_frame_config_pass,B_I,B_T,B_O,B_Q
+BelBegin,X0Y1,A,IO_1_bidirectional_frame_config_pass,A_
+BelBegin,X0Y1,B,IO_1_bidirectional_frame_config_pass,B_
 ```
 
 describe two I/O BELs in tile `X0Y1`: the first at slot `A`, the second at slot
@@ -108,15 +108,16 @@ appear inside the fabric netlist (`Tile_X0Y1_A_...`); do not use the
 Only tiles that contain an I/O BEL can be targeted. After the fabric flow has
 run, two files in `<project-dir>/.FABulous/` list them:
 
-- `bel.txt` — every BEL in the fabric, one CSV row per BEL. I/O BELs are the ones
-  whose HDL `ROLE` is a fabric pin role (see [](#bel-role-attribute)); in
-  the shipped fabric that is `IO_1_bidirectional_frame_config_pass`,
-  `InPass4_frame_config_mux` and `OutPass4_frame_config_mux`. Each row gives
-  the tile coordinate and BEL letter you need, for example:
+- `bel.v2.txt` — every BEL in the fabric, one multi-line `BelBegin … BelEnd`
+  block per BEL. I/O BELs are the ones whose HDL `ROLE` is a fabric pin role
+  (see [](#bel-role-attribute)); in the shipped fabric that is
+  `IO_1_bidirectional_frame_config_pass`, `InPass4_frame_config_mux` and
+  `OutPass4_frame_config_mux`. The tile coordinate and BEL
+  letter are the second and third fields of the `BelBegin` line, for example:
 
   ```text
-  X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q
-  X0Y1,X0,Y1,B,IO_1_bidirectional_frame_config_pass,B_I,B_T,B_O,B_Q
+  BelBegin,X0Y1,A,IO_1_bidirectional_frame_config_pass,A_
+  BelBegin,X0Y1,B,IO_1_bidirectional_frame_config_pass,B_
   ```
 
   gives you `X0Y1/A` and `X0Y1/B`.
@@ -124,22 +125,14 @@ run, two files in `<project-dir>/.FABulous/` list them:
   :::{note}
   The letter is the slot name only for `IO_1_bidirectional_frame_config_pass`
   BELs. `InPass4_frame_config` / `OutPass4_frame_config` BELs (the BRAM-adjacent
-  data I/O) are addressed by their port prefix instead of the letter — a row
-  such as `X9Y1,X9,Y1,A,InPass4_frame_config_mux,RAM2FAB_D0_O0,...` is the
-  location `X9Y1/RAM2FAB_D0`, not `X9Y1/A`.
+  data I/O) are addressed by their port prefix instead of the letter — a line
+  such as `BelBegin,X9Y1,A,InPass4_frame_config_mux,RAM2FAB_D0_` is the location
+  `X9Y1/RAM2FAB_D0`, not `X9Y1/A`.
   :::
 
-- `bel.v2.txt` — the same BELs in the newer structured format, one multi-line
-  `BelBegin … BelEnd` block per BEL. The tile coordinate and BEL letter are the
-  second and third fields of the `BelBegin` line, so the two BELs above appear
-  as:
-
-  ```text
-  BelBegin,X0Y1,A,IO_1_bidirectional_frame_config_pass,A_
-  BelBegin,X0Y1,B,IO_1_bidirectional_frame_config_pass,B_
-  ```
-
-  also giving `X0Y1/A` and `X0Y1/B`.
+- `template.pcf` — one `set_io` line per I/O BEL, such as
+  `set_io Tile_X0Y1_A Tile_X0Y1.A`. Use it as a list of the I/O tiles and
+  letters; write your own constraints in the `X0Y1/A` form above.
 
 ## Running the flow
 
@@ -220,5 +213,5 @@ Yosys?`
 
 `Cannot find a pin named '<location>'`
 : The `X<col>Y<row>/<bel>` location does not exist or is not an I/O BEL. Confirm
-  it against `bel.txt` / `bel.v2.txt`, and use the slash form `X0Y1/A` rather
+  it against `bel.v2.txt`, and use the slash form `X0Y1/A` rather
   than `Tile_X0Y1.A`.

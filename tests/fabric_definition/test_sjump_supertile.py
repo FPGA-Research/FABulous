@@ -369,7 +369,6 @@ class TestGenNpnrModelSupertile:
 
         model = emit_nextpnr_model(fabric)
 
-        assert "X0Y1,X0,Y1,A,FABULOUS_LC" in model.bel_v1
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in model.bel_v2
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in model.bel_v3
         assert "Delay,I0,O,3.0,FF=0" in model.bel_v3

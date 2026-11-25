@@ -1,5 +1,8 @@
 {% for group in groups %}
-{% for placed in group.bels if placed.bel.is_fabric_pin %}
-set_io Tile_X{{ placed.x }}Y{{ placed.y }}_{{ placed.letter }} Tile_X{{ placed.x }}Y{{ placed.y }}.{{ placed.letter }}
+{% for bel in group.bels %}
+{% if bel.is_fabric_pin %}
+{% set letter = group.letter(loop.index0) %}
+set_io Tile_X{{ group.x }}Y{{ group.y }}_{{ letter }} Tile_X{{ group.x }}Y{{ group.y }}.{{ letter }}
+{% endif %}
 {% endfor %}
 {% endfor %}
