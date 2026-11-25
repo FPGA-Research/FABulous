@@ -33,21 +33,21 @@ tasks:
     desc: Run Yosys synthesis with full argument support
     cmds:
       - >-
-        {{.YOSYS_PATH}} {{.YOSYS_GHDL}} {{.YOSYS_EXTRA_ARGS}}
+        "{{.YOSYS_PATH}}" {{.YOSYS_GHDL}} {{.YOSYS_EXTRA_ARGS}}
         -p "{{.SYNTH_CMD}}"
-        {{.TOP_WRAPPER_FILE}}
+        {{if .TOP_WRAPPER_FILE}}"{{.TOP_WRAPPER_FILE}}"{{end}}
         {{.DESIGN_FILES}}
 
   compile-nextpnr:
     desc: Run nextpnr place and route
     cmds:
       - >-
-        FAB_ROOT={{.FAB_PROJ_ROOT}} {{.NEXTPNR_PATH}}
+        FAB_ROOT="{{.FAB_PROJ_ROOT}}" "{{.NEXTPNR_PATH}}"
         --uarch fabulous
-        --json {{.JSON_FILE}}
-        -o fasm={{.FASM_FILE}}
+        --json "{{.JSON_FILE}}"
+        -o fasm="{{.FASM_FILE}}"
         {{.NEXTPNR_VERBOSE}}
-        {{if .LOG_FILE}}--log {{.LOG_FILE}}{{end}}
+        {{if .LOG_FILE}}--log "{{.LOG_FILE}}"{{end}}
         {{.NEXTPNR_EXTRA_ARGS}}
 
   compile-bitgen:
@@ -55,8 +55,8 @@ tasks:
     cmds:
       - >-
         bit_gen -genBitstream
-        {{.FASM_FILE}}
-        {{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin
-        {{.BIN_FILE}}
+        "{{.FASM_FILE}}"
+        "{{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin"
+        "{{.BIN_FILE}}"
     vars:
       BIN_FILE: '{{.BIN_FILE | default (printf "%s.bin" (trimSuffix ".fasm" .FASM_FILE))}}'
