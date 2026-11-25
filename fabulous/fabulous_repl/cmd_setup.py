@@ -13,7 +13,6 @@ from loguru import logger
 
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
-    CMD_GUI,
     CMD_HELPER,
     CMD_SETUP,
     CMD_USER_DESIGN_FLOW,
@@ -79,8 +78,9 @@ class SetupCommandSet(ReplCommandSet):
             else get_context().user_config_dir
         )
 
-        # install_fabulator raises RuntimeError on failure; it returns nothing.
-        install_fabulator(dest_dir)
+        # The global .env is only read at startup, so update the live setting too
+        # for start_FABulator to work without restarting the shell.
+        get_context().fabulator_root = install_fabulator(dest_dir)
 
         logger.info("FABulator successfully installed")
 
@@ -133,10 +133,6 @@ class SetupCommandSet(ReplCommandSet):
                 "defined in the fabric.csv"
             )
             raise ValueError
-
-        proj_dir = get_context().proj_dir
-        if (proj_dir / f"{repl.fabulousAPI.fabric.name}_geometry.csv").exists():
-            repl.enable_category(CMD_GUI)
 
         repl.enable_category(CMD_FABRIC_FLOW)
         repl.enable_category(CMD_USER_DESIGN_FLOW)

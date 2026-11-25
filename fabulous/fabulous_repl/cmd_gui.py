@@ -46,32 +46,26 @@ class GuiCommandSet(ReplCommandSet):
 
     @with_category(CMD_GUI)
     def do_start_FABulator(self, *_ignored: str) -> None:
-        """Start FABulator if an installation can be found.
-
-        If no installation can be found, a warning is produced.
-        """
+        """Start FABulator, failing with an install hint if it is not found."""
         repl = self._cmd
-        logger.info("Checking for FABulator installation")
-        fabulator_root = get_context().fabulator_root
         if shutil.which("mvn") is None:
-            raise FileNotFoundError(
-                "Application mvn (Java Maven) not found in PATH",
-                " please install it to use FABulator",
-            )
-
-        if fabulator_root is None:
-            logger.warning("FABULATOR_ROOT environment variable not set.")
-            logger.warning(
-                "Install FABulator (https://github.com/FPGA-Research-Manchester/FABulator)"
-                " and set the FABULATOR_ROOT environment variable to the root directory"
-                " to use this feature."
-            )
-            return
-
-        if not Path(fabulator_root).exists():
             raise EnvironmentNotSet(
-                f"FABULATOR_ROOT environment variable set to {fabulator_root} "
-                "but the directory does not exist."
+                "Application mvn (Java Maven) not found in PATH, "
+                "please install it to use FABulator."
+            )
+
+        fabulator_root = get_context().fabulator_root
+        if fabulator_root is None:
+            raise EnvironmentNotSet(
+                "FABulator installation not found (FAB_FABULATOR_ROOT not set). "
+                "Run `install_FABulator` (or `FABulous install fabulator`)."
+            )
+
+        if not (fabulator_root / "pom.xml").is_file():
+            raise EnvironmentNotSet(
+                f"FAB_FABULATOR_ROOT is set to {fabulator_root} but it contains no "
+                "FABulator pom.xml. Run `install_FABulator` (or "
+                "`FABulous install fabulator`)."
             )
 
         logger.info(f"Found FABulator installation at {fabulator_root}")
