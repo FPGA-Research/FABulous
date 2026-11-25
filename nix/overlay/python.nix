@@ -104,6 +104,8 @@ let
   '';
 in
 {
+  inherit fallbackVersion dropAliasScript restoreAliasScript;
+
   patchedPackages = lib.attrNames depFixups ++ nixpkgsFixups;
 
   # nixpkgs' own buildPythonPackage bootstrap is built *from* these, so

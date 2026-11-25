@@ -68,7 +68,9 @@
       # Shared by the overlay and `checks.python-fixups`.
       pythonFixups = import ./nix/overlay/python.nix { inherit lib; };
 
-      lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
+      uvLock = lib.importTOML ./uv.lock;
+
+      lockedPackages = map (p: p.name) uvLock.package;
     in
     {
       # FABulous's own attributes. They need the nix-eda, devshell and
@@ -79,6 +81,7 @@
           uv2nix
           pyproject-nix
           pyproject-build-systems
+          uvLock
           lockedPackages
           pythonFixups
           ;

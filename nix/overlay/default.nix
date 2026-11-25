@@ -13,6 +13,7 @@
   # Names of every package uv.lock resolved. Read from the lock rather than
   # listed here, so it tracks `uv lock` with no Nix edit.
   lockedPackages,
+  uvLock,
   # Build fixups from `./python.nix`.
   pythonFixups,
   uv2nix,
@@ -122,6 +123,20 @@ in
   };
 
   fabulous = final.callPackage ../package.nix { };
+
+  # The tools FABulous runs on top of librelane's own `includedTools`. Shared by
+  # the wrapped package and the librelane plugin.
+  fabulous-tools = final.callPackage ../tools.nix { };
+
+  # `python3.pkgs.librelane-plugin-fabulous`, built against librelane's Python
+  # set so `librelane-shell` can load it as a plugin.
+  pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+    (import ./librelane-plugin.nix {
+      inherit uvLock pythonFixups;
+      inherit (final) fabulous-tools go-task;
+      src = final.fabulous-python-set.fabulous-fpga.src;
+    })
+  ];
 
   fabulous-shell = final.callPackage ../create-shell.nix { };
 }
