@@ -6,10 +6,10 @@ from typing import Literal
 from librelane.common.types import Path
 from librelane.config.variable import Variable
 from librelane.state.state import State
-from librelane.steps.common_variables import (
+from librelane.steps.odb import OdbpyStep
+from librelane.steps.openroad import (
     io_layer_variables,
 )
-from librelane.steps.odb import OdbpyStep
 from librelane.steps.step import (
     MetricsUpdate,
     ViewsUpdate,
