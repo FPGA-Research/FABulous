@@ -38,10 +38,10 @@ class YosysTool(Tool):
                 "-q",
                 (
                     "-p "
-                    f"read_verilog -sv {verilog_input}; "
+                    f'read_verilog -sv "{verilog_input}"; '
                     "hierarchy -auto-top; "
                     "proc -noopt; "
-                    f"write_json -compat-int {json_output}"
+                    f'write_json -compat-int "{json_output}"'
                 ),
             ]
         )
