@@ -1,11 +1,3 @@
-# FABulous's own development shells. All of them are `fabulous-shell` with an
-# editable virtualenv swapped in, so they share one definition of the toolchain
-# and environment with the shell downstream projects use.
-#
-# The variants differ only in which interactive shell they end in. They are
-# built by passing distinct `extra-interactive` hooks through `.override`, never
-# by merging attribute sets after the fact: `devshell.mkShell` config is nested,
-# and a shallow `//` on it silently drops `devshell.packages`.
 {
   pkgs,
   editableVenv,
@@ -15,8 +7,6 @@
 let
   inherit (pkgs) lib fabulous fabulous-shell;
 
-  # `nix develop` already puts these on PATH; the fish variant re-prepends them
-  # because fish's config files reorder PATH after we are done (nix-darwin#1607).
   nixBinPath = lib.makeBinPath ([ editableVenv ] ++ fabulous.passthru.includedTools);
 
   fishInitScript = pkgs.writeText "fab-fish-init.fish" ''
@@ -35,8 +25,6 @@ let
     args:
     fabulous-shell.override (
       {
-        # `toNixpkgs` builds from wheels, so editable development stays on the
-        # uv2nix virtualenv (see `python-env` in create-shell.nix).
         python-env = editableVenv;
         editable-root = toString repoRoot;
         materialize-plugin = true;
@@ -44,10 +32,6 @@ let
       // args
     );
 
-  # `fabulous nix-env` enters this one. It is entered from the user's ordinary
-  # shell rather than a clean `nix develop`, so it has to defuse an already
-  # active venv/conda first, and it verifies the EDA tools really resolve to the
-  # store before handing over.
   deactivateForeignEnvs = ''
     if [ -n "''${VIRTUAL_ENV:-}" ] && type deactivate &>/dev/null; then
       deactivate
@@ -76,9 +60,6 @@ let
   '';
 in
 {
-  # Default: bash. Start in fish/zsh with `nix develop .#fish` / `.#zsh`. The
-  # "zzz-" key sorts the hand-over after every other interactive hook, so the
-  # environment is fully set up before we exec.
   default = devShell { };
   fish = devShell { extra-interactive."zzz-switch-shell".text = execFish; };
   zsh = devShell {
@@ -87,7 +68,6 @@ in
 
   nix-env = devShell {
     extra-startup = {
-      # "aaa-" sorts the teardown before the other startup hooks.
       aaa-deactivate.text = deactivateForeignEnvs;
       zzz-verify.text = verifyTools;
     };

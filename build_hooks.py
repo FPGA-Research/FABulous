@@ -160,9 +160,6 @@ class BuildPyWithFabulousNix(build_py):
         "uv.lock",
     )
 
-    # The whole tree, not an enumerated list: flake.nix imports these by path,
-    # so a file missing here only surfaces as an evaluation error at
-    # `FABulous nix-env` time, long after the wheel was built.
     _ASSET_TREE: str = "nix"
 
     def run(self) -> None:
@@ -186,9 +183,6 @@ class BuildPyWithFabulousNix(build_py):
         for asset in self._ASSET_FILES:
             copy2(project_root / asset, target_root / asset)
 
-        # `nix build` leaves `result` symlinks into /nix/store. Copying them by
-        # value would pull the whole store closure into the wheel, so preserve
-        # symlinks and skip those names outright.
         copytree(
             project_root / self._ASSET_TREE,
             target_root / self._ASSET_TREE,

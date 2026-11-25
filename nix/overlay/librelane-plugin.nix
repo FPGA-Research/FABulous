@@ -36,10 +36,13 @@ let
 
   fabulous-fasm = lockedPurePythonWheel "fabulous-fasm" [ pyfinal.textx ] [ ];
 
-  fabulous-bit-gen = lockedPurePythonWheel "fabulous-bit-gen" [
-    pyfinal.loguru
-    fabulous-fasm
-  ] [ ];
+  fabulous-bit-gen =
+    lockedPurePythonWheel "fabulous-bit-gen"
+      [
+        pyfinal.loguru
+        fabulous-fasm
+      ]
+      [ ];
 
   cmd2-v4 =
     lockedPurePythonWheel "cmd2"

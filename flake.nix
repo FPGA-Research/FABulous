@@ -61,11 +61,8 @@
 
       workspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
 
-      # Resolves `fabulous` and the generated side-packages under $REPO_ROOT so
-      # source edits apply without a rebuild. Dev shells only.
       editableOverlay = workspace.mkEditablePyprojectOverlay { root = "$REPO_ROOT"; };
 
-      # Shared by the overlay and `checks.python-fixups`.
       pythonFixups = import ./nix/overlay/python.nix { inherit lib; };
 
       uvLock = lib.importTOML ./uv.lock;
@@ -73,8 +70,6 @@
       lockedPackages = map (p: p.name) uvLock.package;
     in
     {
-      # FABulous's own attributes. They need the nix-eda, devshell and
-      # librelane overlays underneath, which `default` adds.
       overlays.fabulous = import ./nix/overlay {
         inherit
           workspace
@@ -88,7 +83,6 @@
         inherit fabulator-src;
       };
 
-      # Applies to any nixpkgs instance on its own.
       overlays.default = lib.composeManyExtensions [
         nix-eda.overlays.default
         librelane.inputs.devshell.overlays.default
@@ -96,8 +90,6 @@
         self.overlays.fabulous
       ];
 
-      # A nixpkgs instance carrying the EDA toolchain, librelane, and FABulous,
-      # on the nixpkgs pin the fossi-foundation cache is built from.
       legacyPackages = forAllSystems (
         system:
         import nixpkgs {
@@ -138,11 +130,6 @@
         let
           pkgs = self.legacyPackages.${system};
 
-          # Every fixup in `nix/overlay/python.nix` must still name a package
-          # uv.lock resolves. Nix only forces an override when something depends
-          # on the package, so a renamed package otherwise leaves its fixup a
-          # silent no-op. Checked against the lock rather than the Python set,
-          # which also holds build-system-pkgs' packages.
           stale = lib.filter (name: !(builtins.elem name lockedPackages)) pythonFixups.patchedPackages;
         in
         self.packages.${system}
@@ -160,15 +147,11 @@
         }
       );
 
-      # `nix flake init -t github:FPGA-Research/FABulous` scaffolds a project
-      # that consumes FABulous through `pkgs.fabulous-shell`.
       templates.default = {
         path = ./nix/templates/downstream;
         description = "A chip or fabric project built on FABulous";
       };
 
-      # The v2.2.0 consumer API, kept so flakes written against it still
-      # evaluate. New code should use `pkgs.fabulous-shell.override`.
       lib = forAllSystems (system: {
         mkConsumerShell =
           {
