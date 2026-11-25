@@ -1,12 +1,3 @@
-# `librelane-plugin-fabulous`: FABulous built against librelane's own Python set,
-# in the shape `librelane-shell` loads plugins in. It takes `librelane` as an
-# argument, which the shell overrides with its configured build, and carries
-# `includedTools` for the shell's PATH.
-#
-# Only this one name enters the Python set. The packages it needs that nixpkgs
-# lacks, or ships too old, are built here and stay private, so they never shadow
-# a nixpkgs package or the uv.lock-converted ones in `fabulous-python`. Their
-# versions and sources come from uv.lock.
 {
   uvLock,
   pythonFixups,
@@ -28,9 +19,8 @@ let
     else
       throw "librelane-plugin-fabulous: uv.lock resolves ${toString (builtins.length matches)} entries named ${name}, expected 1.";
 
-  # Pure-Python wheels, installed as uv.lock pins them.
-  lockedWheel =
-    name: dependencies: relaxedDependencies:
+  lockedPurePythonWheel =
+    name: dependencies: boundsAboveLibrelaneClosure:
     let
       entry = locked name;
       wheel = builtins.head entry.wheels;
@@ -41,22 +31,18 @@ let
       format = "wheel";
       src = pyfinal.pkgs.fetchurl { inherit (wheel) url hash; };
       inherit dependencies;
-      pythonRelaxDeps = relaxedDependencies;
+      pythonRelaxDeps = boundsAboveLibrelaneClosure;
     };
 
-  fabulous-fasm = lockedWheel "fabulous-fasm" [ pyfinal.textx ] [ ];
+  fabulous-fasm = lockedPurePythonWheel "fabulous-fasm" [ pyfinal.textx ] [ ];
 
-  fabulous-bit-gen = lockedWheel "fabulous-bit-gen" [
+  fabulous-bit-gen = lockedPurePythonWheel "fabulous-bit-gen" [
     pyfinal.loguru
     fabulous-fasm
   ] [ ];
 
-  # FABulous needs cmd2 4. nixpkgs ships 3, which nothing in librelane's closure
-  # uses, so the newer one stays local to the plugin. Every cmd2 4 release asks
-  # for rich>=15 and a newer prompt-toolkit than librelane's closure carries,
-  # and one interpreter holds only one copy of each, so those bounds are relaxed.
-  cmd2 =
-    lockedWheel "cmd2"
+  cmd2-v4 =
+    lockedPurePythonWheel "cmd2"
       (with pyfinal; [
         prompt-toolkit
         pyperclip
@@ -87,12 +73,9 @@ let
         setuptools-scm
         wheel
       ];
-      # `vcs-versioning` is listed as a build requirement but is not in nixpkgs.
-      # The pretend version below makes setuptools-scm skip it.
       pypaBuildFlags = [ "--skip-dependency-check" ];
       env.SETUPTOOLS_SCM_PRETEND_VERSION = entry.version;
       dependencies = [ pyfinal.ply ];
-      # Declared but never imported by `sdf_timing`.
       pythonRemoveDeps = [ "pyjson" ];
     };
 in
@@ -135,8 +118,6 @@ in
         setuptools-scm
         wheel
       ];
-      # pyproject.toml asks for setuptools>=83. nixpkgs ships 80, which builds
-      # the same wheel.
       pypaBuildFlags = [ "--skip-dependency-check" ];
       env.SETUPTOOLS_SCM_PRETEND_VERSION = pythonFixups.fallbackVersion;
 
@@ -149,7 +130,7 @@ in
         python-dotenv
         loguru
         requests
-        cmd2
+        cmd2-v4
         bitarray
         pydantic
         pydantic-settings
@@ -168,17 +149,11 @@ in
         uv
         pluggy
       ];
-      # numpy and bitarray come from librelane's set, below the bounds
-      # dependabot raised in pyproject.toml. numpy cannot move without
-      # rebuilding librelane's closure. uv only drives `FABulous plugins
-      # install`, which cannot write into a store environment anyway.
       pythonRelaxDeps = [
         "numpy"
         "bitarray"
         "uv"
       ];
-      # Ships the `task` binary as a wheel. `go-task` from nixpkgs is on PATH
-      # instead, where FABulous also looks for it.
       pythonRemoveDeps = [ "go-task-bin" ];
 
       pythonImportsCheck = [
