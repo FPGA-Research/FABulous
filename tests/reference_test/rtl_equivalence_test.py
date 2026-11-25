@@ -120,7 +120,7 @@ def test_rtl_equivalence(
     """The regenerated fabric RTL of `ref_project` is equivalent to the reference."""
     regenerated = tmp_path / ref_project.path.name
     shutil.copytree(ref_project.path, regenerated, symlinks=True)
-    fabric = generate_project(
+    cli = generate_project(
         regenerated,
         ref_project.language,
         caplog,
@@ -136,7 +136,7 @@ def test_rtl_equivalence(
         regenerated=regenerated,
         models_pack=models_pack.relative_to(regenerated),
         language=ref_project.language,
-        top=f"{fabric}_top",
+        top=f"{cli.fabulousAPI.fabric.name}_top",
         work_dir=tmp_path / "equivalence",
     )
     if failures:
