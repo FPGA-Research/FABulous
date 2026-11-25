@@ -575,6 +575,15 @@ def parseTilesCSV(
                     f"Tile {tileName} has the switch matrix {matrixDir}; only a "
                     ".list file can be generated."
                 )
+            # The generated list only routes BEL ports, so SJUMP wiring would
+            # be lost; a generated supertile's subtiles come from its split.
+            if any(p.wire_direction is Direction.SJUMP for p in ports):
+                raise InvalidTileDefinition(
+                    f"Tile {tileName} has SJUMP ports, which a generated switch "
+                    "matrix list cannot route. Edit its list by hand, or for a "
+                    "generated supertile, regenerate it with "
+                    "generate_custom_tile_config."
+                )
             logger.info(f"Generating switch matrix list {matrixDir}")
             generateSwitchmatrixList(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts

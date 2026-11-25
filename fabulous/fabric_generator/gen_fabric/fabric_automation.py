@@ -4,6 +4,7 @@ import json
 import math
 import re
 import shutil
+import tempfile
 from importlib import resources
 from pathlib import Path
 
@@ -25,10 +26,10 @@ from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_settings import get_context
 
-_SUBTILE_MARKER = "# Subtile of generated supertile {}"
 
-
-def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Path:
+def generateCustomTileConfig(
+    tile_path: Path, switch_matrix: bool = True, overwrite: bool = False
+) -> Path:
     """Generate a custom tile configuration.
 
     A tile .csv file and a switch matrix .list file will be generated based on
@@ -44,6 +45,11 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
     than `<name>_switch_matrix.list` or the `<name>_generated_switch_matrix.list`
     that `MATRIX,GENERATE` used to write, is referenced instead of generating one.
 
+    Files of an earlier generation, as listed by `existing_tile_outputs`, are
+    only replaced with `overwrite`, and only once the BELs are known to be
+    valid. If generating then fails, they are put back. After a successful
+    regeneration, the BEL stubs already in `custom_prims.v` are refreshed.
+
     Parameters
     ----------
     tile_path : Path
@@ -54,6 +60,8 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
         tile CSV still references `<name>_switch_matrix.list`, which the user
         provides, and a BEL over the single-tile budget is rejected, since a
         supertile always needs its generated switch matrices.
+    overwrite : bool
+        Replace the output of an earlier generation. Default False.
 
     Returns
     -------
@@ -62,6 +70,9 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
 
     Raises
     ------
+    FileExistsError
+        If an earlier generation left output in the tile folder and `overwrite`
+        is False.
     ValueError
         If the tile path is not a valid tile path, if the tile folder does not
         exist, or if the tile needs a supertile but `switch_matrix` is False.
@@ -98,8 +109,7 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
     else:
         tile_files = tile_path.rglob("*")
 
-    # Removed only once the BELs are known to be valid, see _remove_paths calls.
-    stale = _stale_supertile_output(tile_path)
+    earlier = existing_tile_outputs(tile_path, switch_matrix)
 
     generated_lists = (
         f"{tile_name}_switch_matrix.list",
@@ -119,7 +129,20 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
                     "no switch matrix list will be generated."
                 )
             continue
-        if _is_generated_file(file) or any(file.is_relative_to(p) for p in stale):
+        # ConfigMem and switch matrix files, the `.v` BEL parsing writes next
+        # to a VHDL BEL, and an earlier generation's output are not BELs.
+        name = file.name.lower()
+        if (
+            any(
+                m in name
+                for m in ("configmem", "config_mem", "switchmatrix", "switch_matrix")
+            )
+            or (
+                file.suffix == ".v"
+                and any(file.with_suffix(e).is_file() for e in (".vhd", ".vhdl"))
+            )
+            or any(file.is_relative_to(p) for p in earlier)
+        ):
             logger.debug(
                 f"File {file} is most likely a generated file and will be ignored."
             )
@@ -129,12 +152,6 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
             logger.info(f"Found BEL file {file} for custom tile {tile_name}")
             tile_bels.append(file)
 
-        elif file.suffix.lower() == ".csv" and file.parent == tile_path:
-            logger.warning(
-                f"Found tile config CSV file {file} for custom tile {tile_name}, "
-                "nothing to do here."
-            )
-            return file
         else:
             logger.warning(
                 f"File {file} in custom tile {tile_name} is not a valid config or "
@@ -165,7 +182,8 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
         dedicated = set(_dedicated_ports(b))
         total_inputs += len({p.name for p in b.input_ports} - dedicated)
         total_outputs += len({p.name for p in b.output_ports} - dedicated)
-    if total_inputs > 32 or total_outputs > 8:
+    wide = total_inputs > 32 or total_outputs > 8
+    if wide:
         if not switch_matrix:
             raise ValueError(
                 f"The BELs of {tile_name} have {total_inputs} inputs / "
@@ -178,73 +196,82 @@ def generateCustomTileConfig(tile_path: Path, switch_matrix: bool = True) -> Pat
                 "Supertile generation currently supports exactly one wide BEL per "
                 f"tile, but {tile_name} has {len(parsed_bels)}."
             )
-        return generate_custom_supertile_config(tile_path, parsed_bels[0])
+        _check_supertile_bel(tile_path, parsed_bels[0])
 
-    # The BEL may have shrunk below the budget since an earlier supertile run.
-    if stale:
-        _remove_paths(stale)
-        _refresh_prim_stubs(parsed_bels)
-
-    # Create tile config CSV file
-    logger.info(f"Creating tile config CSV file {tile_csv}")
-    tile_csv.touch()
-
-    csv_out.append(f"TILE,{tile_name}")
-    csv_out.append("INCLUDE,./../include/Base.csv")
-    for i, carry in enumerate(tile_carrys):
-        csv_out.append(f'NORTH,Co{i},0,-1,Ci{i},1,CARRY="{carry}"')
-    if has_reset:
-        csv_out.append("JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET")
-    if has_enable:
-        csv_out.append("JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE")
-    for bel in tile_bels:
-        csv_out.append(f"BEL,./{bel.relative_to(tile_path)}")
-    csv_out.append(f"MATRIX,./{tile_switchmatrix.relative_to(tile_path).as_posix()}")
-    csv_out.append("EndTILE")
-
-    with tile_csv.open("w", encoding="utf-8") as file:
-        file.write("\n".join(csv_out))
-
-    if tile_switchmatrix.exists():
-        return tile_csv
-    if not switch_matrix:
-        logger.info(
-            f"Write the switch matrix {tile_switchmatrix} for tile {tile_name}, or "
-            "generate it with generate_switch_matrix_list."
+    # Everything that can be checked without writing is checked, so a caller
+    # only gets to confirm a regeneration that would go ahead.
+    if earlier and not overwrite:
+        raise FileExistsError(
+            f"Tile {tile_name} already has generated output: "
+            f"{', '.join(map(str, earlier))}. Pass overwrite=True (CLI: --overwrite) "
+            "to replace it."
         )
-        return tile_csv
-    # Imported here because parse_csv imports this module.
-    from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 
-    parseTilesCSV(tile_csv, generate_matrix_list=True)
+    # The earlier output is moved aside rather than deleted, so a generation
+    # that fails halfway leaves the tile as it was.
+    with tempfile.TemporaryDirectory() as backup_dir:
+        backup = Path(backup_dir)
+        for path in earlier:
+            logger.warning(f"Replacing earlier tile output {path}")
+            shutil.move(path, backup / path.name)
+        done = False
+        try:
+            if wide:
+                tile_csv = generate_custom_supertile_config(tile_path, parsed_bels[0])
+            else:
+                logger.info(f"Creating tile config CSV file {tile_csv}")
+                csv_out.append(f"TILE,{tile_name}")
+                csv_out.append("INCLUDE,./../include/Base.csv")
+                for i, carry in enumerate(tile_carrys):
+                    csv_out.append(f'NORTH,Co{i},0,-1,Ci{i},1,CARRY="{carry}"')
+                if has_reset:
+                    csv_out.append("JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET")
+                if has_enable:
+                    csv_out.append("JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE")
+                for bel in tile_bels:
+                    csv_out.append(f"BEL,./{bel.relative_to(tile_path)}")
+                matrix = tile_switchmatrix.relative_to(tile_path).as_posix()
+                csv_out.append(f"MATRIX,./{matrix}")
+                csv_out.append("EndTILE")
+                tile_csv.write_text("\n".join(csv_out), encoding="utf-8")
+                if not tile_switchmatrix.exists() and switch_matrix:
+                    # Imported here because parse_csv imports this module.
+                    from fabulous.fabric_generator.parser.parse_csv import (
+                        parseTilesCSV,
+                    )
+
+                    parseTilesCSV(tile_csv, generate_matrix_list=True)
+                elif not tile_switchmatrix.exists():
+                    logger.info(
+                        f"Write the switch matrix {tile_switchmatrix} for tile "
+                        f"{tile_name}, or generate it with "
+                        "generate_switch_matrix_list."
+                    )
+            done = True
+        finally:
+            if not done:
+                for path in existing_tile_outputs(tile_path, switch_matrix):
+                    if path.is_dir():
+                        shutil.rmtree(path)
+                    else:
+                        path.unlink()
+                for path in earlier:
+                    shutil.move(backup / path.name, path)
+
+    # A BEL interface may have changed since its stub was written. Only existing
+    # stubs are refreshed, so a regeneration adds none that a first generation
+    # would not (there are none without a generated switch matrix).
+    if earlier:
+        prims_file = get_context().proj_dir / "user_design" / "custom_prims.v"
+        prims = prims_file.read_text() if prims_file.is_file() else ""
+        stubbed = []
+        for b in parsed_bels:
+            module = rf"^\s*module\s+{re.escape(b.module_name)}\b"
+            if re.search(module, prims, re.MULTILINE):
+                stubbed.append(b)
+        if stubbed:
+            addBelsToPrim(prims_file, stubbed, overwrite=True)
     return tile_csv
-
-
-def _is_generated_file(file: Path) -> bool:
-    """Tell whether a file in a tile folder was generated rather than written.
-
-    Generated files are ConfigMem and switch matrix files, and the `.v` that
-    BEL parsing writes next to a VHDL BEL.
-
-    Parameters
-    ----------
-    file : Path
-        The file to check.
-
-    Returns
-    -------
-    bool
-        True if the file is generated output.
-    """
-    name = file.name.lower()
-    if any(
-        marker in name
-        for marker in ("configmem", "config_mem", "switchmatrix", "switch_matrix")
-    ):
-        return True
-    return file.suffix == ".v" and any(
-        file.with_suffix(ext).is_file() for ext in (".vhd", ".vhdl")
-    )
 
 
 def is_supertile_csv(csv_path: Path) -> bool:
@@ -266,129 +293,50 @@ def is_supertile_csv(csv_path: Path) -> bool:
     return text.lstrip().startswith("SuperTILE")
 
 
-def _stale_supertile_output(tile_path: Path) -> list[Path]:
-    """Collect the output of an earlier supertile generation in `tile_path`.
+def existing_tile_outputs(tile_path: Path, switch_matrix: bool = True) -> list[Path]:
+    """List what an earlier tile config generation left in `tile_path`.
 
-    A `<name>_sub<N>` folder counts as generated only if it passes
-    `is_generated_subtile`, so a user folder of that name is never touched. The
-    supertile's own RTL, switch matrix and ConfigMem files are generated as well.
-    Left in place, the BEL scan would mistake the generated RTL for BELs, and a
-    subtile folder that is no longer needed (the BEL shrank) would linger. While
-    the tile still has its config CSV, generation returns that CSV untouched, so
-    nothing is stale.
+    That is the tile CSV, the `<name>_sub<N>` subtile folders, the switch matrix
+    and ConfigMem files, the tile RTL `gen_tile` wrote, and the
+    `<name>_generated_switch_matrix.list` of the removed `MATRIX,GENERATE`
+    flow. Files are matched by name only, so a user file of such a name is
+    listed as well. Without `switch_matrix`, the user provides
+    `<name>_switch_matrix.list`, so it is not listed.
 
     Parameters
     ----------
     tile_path : Path
         The tile folder.
+    switch_matrix : bool
+        Whether generation writes the switch matrix list. Default True.
 
     Returns
     -------
     list[Path]
-        Subtile folders first, then generated files.
+        Subtile folders first, then files.
     """
     name = tile_path.name
     sub_dirs = [
         d
         for d in tile_path.iterdir()
-        if re.fullmatch(rf"{re.escape(name)}_sub\d+", d.name)
-        and is_generated_subtile(d, name)
+        if d.is_dir() and re.fullmatch(rf"{re.escape(name)}_sub\d+", d.name)
     ]
-    has_config_csv = any(not _is_generated_file(f) for f in tile_path.glob("*.csv"))
-    if not sub_dirs or has_config_csv:
-        return []
-
-    generated = [
+    files = [
+        tile_path / f"{name}.csv",
+        tile_path / f"{name}_generated_switch_matrix.list",
+    ]
+    files.extend(tile_path.glob(f"{name}_ConfigMem.*"))
+    files.extend(
         f
-        for pattern in (f"{name}_switch_matrix.*", f"{name}_ConfigMem.*")
-        for f in tile_path.glob(pattern)
-        if f.is_file()
-    ]
-    # `<name>.v` could also be a user's BEL; it is only the generated wrapper
-    # when gen_tile wrote the supertile switch matrix RTL next to it.
+        for f in tile_path.glob(f"{name}_switch_matrix.*")
+        if switch_matrix or f.suffix != ".list"
+    )
+    # `<name>.v` could also be a user's BEL; it is only the tile RTL when
+    # gen_tile wrote the switch matrix RTL next to it.
     for ext in ("v", "vhdl"):
-        wrapper = tile_path / f"{name}.{ext}"
-        if wrapper.is_file() and (tile_path / f"{name}_switch_matrix.{ext}").is_file():
-            generated.append(wrapper)
-    return sorted(sub_dirs) + sorted(generated)
-
-
-def is_generated_subtile(sub_dir: Path, supertile_name: str) -> bool:
-    """Tell whether `sub_dir` is a subtile that supertile generation wrote.
-
-    The subtile switch matrix list carries a marker naming the supertile. The
-    generic generated-list header is not enough, since every generated tile
-    has it.
-
-    Parameters
-    ----------
-    sub_dir : Path
-        The subtile folder.
-    supertile_name : str
-        Name of the supertile the folder should belong to.
-
-    Returns
-    -------
-    bool
-        True if the folder holds a subtile generated for `supertile_name`.
-    """
-    marker = _SUBTILE_MARKER.format(supertile_name)
-    list_file = sub_dir / f"{sub_dir.name}_switch_matrix.list"
-    return marker in _read_text_or_empty(list_file).splitlines()
-
-
-def _refresh_prim_stubs(bels: list[Bel]) -> None:
-    """Replace the `custom_prims.v` stubs that FABulous wrote for `bels`.
-
-    A BEL's interface may have changed since its stub was written. Definitions
-    without the FABulous warning comment are hand-written and stay untouched.
-
-    Parameters
-    ----------
-    bels : list[Bel]
-        The BELs whose generated stubs to refresh.
-    """
-    prims_file = get_context().proj_dir / "user_design" / "custom_prims.v"
-    prims = _read_text_or_empty(prims_file)
-    owned = [
-        b
-        for b in bels
-        if f"//Warning: The primitive {b.module_name} was added by FABulous" in prims
-    ]
-    if owned:
-        addBelsToPrim(prims_file, owned, overwrite=True)
-
-
-def _read_text_or_empty(path: Path) -> str:
-    """Read a text file, or return an empty string if it does not exist.
-
-    Parameters
-    ----------
-    path : Path
-        The file to read.
-
-    Returns
-    -------
-    str
-        The file content, or "" if there is no such file.
-    """
-    return path.read_text(encoding="utf-8") if path.is_file() else ""
-
-
-def _remove_paths(paths: list[Path]) -> None:
-    """Delete stale supertile output collected by `_stale_supertile_output`.
-
-    Parameters
-    ----------
-    paths : list[Path]
-        Folders and files to delete.
-    """
-    for path in paths:
-        logger.warning(f"Removing stale supertile output {path}")
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
+        if (tile_path / f"{name}_switch_matrix.{ext}").is_file():
+            files.append(tile_path / f"{name}.{ext}")
+    return sorted(sub_dirs) + sorted({f for f in files if f.is_file()})
 
 
 def _dedicated_ports(bel: Bel) -> list[str]:
@@ -432,38 +380,21 @@ def _slice_evenly(count: int, parts: int) -> list[int]:
     return [base + (1 if i < extra else 0) for i in range(parts)]
 
 
-def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
-    """Generate a supertile for a single BEL that exceeds the single-tile budget.
-
-    The BEL ports are sliced evenly across a vertical stack of subtiles (one
-    `SI` SJUMP port carrying a slice of the BEL inputs, one `SO` SJUMP port
-    carrying a slice of the BEL outputs per subtile). Each subtile gets a full
-    Base-derived switch matrix via `_switch_matrix_lines`; the supertile
-    switch matrix is a 1:1 concatenation stitching the subtile SJUMP slices back
-    onto the BEL's flat buses.
-
-    CARRY and SHARED_RESET/SHARED_ENABLE ports are not yet distributed across
-    subtiles, so a wide BEL using them is rejected.
+def _check_supertile_bel(tile_path: Path, bel: Bel) -> None:
+    """Reject a wide BEL that supertile generation cannot handle yet.
 
     Parameters
     ----------
     tile_path : Path
-        The supertile folder (under the project `Tile` directory); the BEL HDL
-        already lives here and the subtile folders are created inside it.
+        The supertile folder.
     bel : Bel
-        The wide BEL to distribute across the supertile.
-
-    Returns
-    -------
-    Path
-        Path to the generated supertile `.csv` file.
+        The wide BEL.
 
     Raises
     ------
     ValueError
         If the BEL file has the tile's name, which `gen_tile` would overwrite
-        with the supertile RTL, or if a needed subtile folder already exists
-        and was not generated.
+        with the supertile RTL.
     NotImplementedError
         If the BEL has carry chains or local shared reset/enable ports.
     """
@@ -484,6 +415,36 @@ def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
             "generation."
         )
 
+
+def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
+    """Generate a supertile for a single BEL that exceeds the single-tile budget.
+
+    The BEL ports are sliced evenly across a vertical stack of subtiles (one
+    `SI` SJUMP port carrying a slice of the BEL inputs, one `SO` SJUMP port
+    carrying a slice of the BEL outputs per subtile). Each subtile gets a full
+    Base-derived switch matrix via `_switch_matrix_lines`; the supertile
+    switch matrix is a 1:1 concatenation stitching the subtile SJUMP slices back
+    onto the BEL's flat buses.
+
+    CARRY and SHARED_RESET/SHARED_ENABLE ports are not yet distributed across
+    subtiles, so a wide BEL using them is rejected.
+
+    Parameters
+    ----------
+    tile_path : Path
+        The supertile folder (under the project `Tile` directory); the BEL HDL
+        already lives here and the subtile folders are created inside it. Files
+        of an earlier generation there are overwritten.
+    bel : Bel
+        The wide BEL to distribute across the supertile.
+
+    Returns
+    -------
+    Path
+        Path to the generated supertile `.csv` file.
+    """
+    name = tile_path.name
+
     routed_inputs = [p.name for p in bel.input_ports]
     routed_outputs = [p.name for p in bel.output_ports]
     n_sub = max(math.ceil(len(routed_inputs) / 32), math.ceil(len(routed_outputs) / 8))
@@ -498,16 +459,6 @@ def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
     )
 
     sub_names = [f"{name}_sub{i}" for i in range(n_sub)]
-    stale = _stale_supertile_output(tile_path)
-    outputs = [tile_path / s for s in sub_names]
-    outputs.append(tile_path / f"{name}_switch_matrix.list")
-    unowned = [p for p in outputs if p.exists() and p not in stale]
-    if unowned:
-        raise ValueError(
-            f"{', '.join(map(str, unowned))} already exist and were not generated. "
-            f"Move them out of the way to generate supertile {name}."
-        )
-    _remove_paths(stale)
     base_csv = (get_context().proj_dir / "Tile" / "include" / "Base.csv").absolute()
     st_matrix_lines: list[str] = []
     in_cursor = 0
@@ -522,7 +473,6 @@ def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
             [f"SI{k}" for k in range(si_w)],
             [f"SO{k}" for k in range(so_w)],
         )
-        sm_lines.insert(0, _SUBTILE_MARKER.format(name))
         (sub_dir / f"{sub_name}_switch_matrix.list").write_text("\n".join(sm_lines))
 
         include = base_csv.relative_to(sub_dir, walk_up=True).as_posix()
@@ -555,9 +505,6 @@ def generate_custom_supertile_config(tile_path: Path, bel: Bel) -> Path:
     st_csv_path = tile_path / f"{name}.csv"
     st_csv_path.write_text("\n".join(st_csv))
 
-    # On regeneration the BEL interface may have changed, so refresh its stub.
-    if stale:
-        _refresh_prim_stubs([bel])
     addBelsToPrim(get_context().proj_dir / "user_design" / "custom_prims.v", [bel])
 
     return st_csv_path

@@ -171,7 +171,7 @@ To generate the tile config, we use the `generate_custom_tile_config` command in
 
 ```console
 FABulous> generate_custom_tile_config -h
-Usage: generate_custom_tile_config [-h] [--no-switch-matrix] tile_path
+Usage: generate_custom_tile_config [-h] [--no-switch-matrix] [--overwrite] tile_path
 
 Generates a custom tile configuration for a given tile folder
 or path to BEL folder.
@@ -184,11 +184,24 @@ optional arguments:
   -h, --help            show this help message and exit
   --no-switch-matrix, -nosm
                         Do not generate a Tile Switch Matrix
+  --overwrite, -y       Replace an earlier generation without asking
 ```
 
 With `--no-switch-matrix`, the tile CSV still points at
 `<name>_switch_matrix.list`, which you then write yourself or generate later
 with `generate_switch_matrix_list`.
+
+Running the command again regenerates the tile. If an earlier run left files
+behind, the command first checks the BELs, then lists those files and asks
+before replacing them: the tile CSV, the switch matrix and ConfigMem files, the
+tile RTL `gen_tile` wrote, any `<name>_sub<N>` folders, a
+`<name>_generated_switch_matrix.list` from the removed `MATRIX,GENERATE` flow,
+and the existing BEL stubs in `custom_prims.v`. Files are matched by name only,
+so check the list before you answer. `--overwrite` skips the question. In a
+script, where nobody can answer, the command fails unless `--overwrite` is
+given. If generating fails halfway, the earlier files are put back. If the tile
+was registered in `fabric.csv`, its entries are replaced to match the new tile
+or supertile.
 
 We will now generate the tile config:
 
@@ -247,11 +260,10 @@ The `MATRIX` line points at the switch matrix list file that
 writes this file when you ask for it; loading or building the fabric never
 regenerates it, so you can edit it by hand.
 
-If the tile folder already contains a `.list` file of another name than
-`<name>_switch_matrix.list`, `generate_custom_tile_config` references it instead
-of generating one. A `<name>_generated_switch_matrix.list` left over from the
-removed `MATRIX,GENERATE` flow does not count. Running the command again while
-the tile CSV exists changes nothing.
+If the tile folder contains a `.list` file under another name than
+`<name>_switch_matrix.list` or `<name>_generated_switch_matrix.list`,
+`generate_custom_tile_config` references it instead of generating one, and
+never replaces it.
 
 After you change the tile .csv, for example to add BELs or routing, regenerate
 the switch matrix list file with the `generate_switch_matrix_list` command:
@@ -262,12 +274,15 @@ FABulous> generate_switch_matrix_list Tile/CRC5
 
 It reads the BELs, carry chains and shared ports of the tile CSV and writes the
 `.list` file its `MATRIX` line points to. The same works for a tile CSV you wrote
-yourself.
+yourself. If the list file exists, the command asks before replacing it, unless
+you pass `--overwrite`; in a script it fails without that flag.
 
 :::{warning}
-`generate_switch_matrix_list` overwrites the list file, including any changes you
-made to it by hand.
+Replacing the list file discards any changes you made to it by hand.
 :::
+
+The command only routes BEL ports, so it refuses a tile with `SJUMP` ports,
+such as the subtiles of a supertile, and a supertile CSV.
 
 :::{note}
 Older FABulous versions regenerated the list on every load from a
@@ -974,23 +989,18 @@ DSPblk_sub0_SO0,Q0
 Since the supertile occupies `N` fabric rows, place it in `fabric.csv` as
 described in the [supertile](#supertiles) section.
 
-While `<name>.csv` exists, running the command again changes nothing. To
-regenerate (for example after changing the BEL), delete `<name>.csv`. The
-command then removes the `<name>_sub<N>` folders it generated earlier (their
-switch matrix list starts with `# Subtile of generated supertile <name>`), the
-supertile RTL that `gen_tile` wrote, and their entries in `fabric.csv`, and
-refreshes the BEL's stub in `custom_prims.v` before generating again. A
-hand-written definition in `custom_prims.v` is kept. Hand edits inside the
-subtile folders are lost. `generate_switch_matrix_list` refuses a generated
-supertile and its subtiles, since their lists come from this split rather than
-from the subtile CSVs.
+To regenerate (for example after changing the BEL), run the command again and
+confirm, or pass `--overwrite`. Once the BEL is accepted, the command removes
+the earlier output as for a single tile, including every `<name>_sub<N>` folder
+and their entries in `fabric.csv`, then generates and registers the supertile
+again. Hand edits inside the subtile folders are lost. To change a subtile's
+routing, edit its list by hand; `generate_switch_matrix_list` refuses subtiles,
+since their lists come from this split rather than from the subtile CSVs.
 
 A few things stop supertile generation before anything is written:
 
 - The BEL file has the tile's name (e.g. `Tile/MULADD/MULADD.v`). `gen_tile`
   writes the supertile RTL to `<name>.v`, so rename the BEL file.
-- A `<name>_sub<N>` folder or `<name>_switch_matrix.list` exists that the
-  command did not generate.
 - `--no-switch-matrix` is given. A supertile always needs its generated
   switch matrices.
 

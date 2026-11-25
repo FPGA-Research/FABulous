@@ -28,6 +28,7 @@ from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
+    existing_tile_outputs,
     generate_custom_supertile_config,
     generateCustomTileConfig,
     generateSwitchmatrixList,
@@ -347,46 +348,35 @@ def test_custom_tile_config_existing_list(ctx_project: Path, name: str) -> None:
 
 
 @pytest.mark.usefixtures("requires_yosys")
-def test_custom_tile_config_ignores_legacy_generated_list(ctx_project: Path) -> None:
-    """The list `MATRIX,GENERATE` used to write is not taken for the user's."""
+@pytest.mark.parametrize(
+    "earlier",
+    [
+        "CustomTile.csv",
+        "CustomTile_switch_matrix.list",
+        # Written by the removed MATRIX,GENERATE flow.
+        "CustomTile_generated_switch_matrix.list",
+    ],
+    ids=["csv", "list", "legacy-list"],
+)
+def test_custom_tile_config_replaces_earlier_output_on_request(
+    ctx_project: Path, earlier: str
+) -> None:
+    """Earlier output is only replaced with `overwrite`, and is never a BEL."""
     tile_dir = _custom_tile_dir(ctx_project)
-    (tile_dir / "CustomTile_generated_switch_matrix.list").write_text("# old\n")
+    (tile_dir / earlier).write_text("# earlier\n")
 
-    csv_path = generateCustomTileConfig(tile_dir)
+    with pytest.raises(FileExistsError, match="overwrite"):
+        generateCustomTileConfig(tile_dir)
+    assert (tile_dir / earlier).read_text() == "# earlier\n"
 
-    assert "MATRIX,./CustomTile_switch_matrix.list" in csv_path.read_text()
-
-
-@pytest.mark.usefixtures("requires_yosys")
-def test_custom_tile_config_generated_file_ignored(ctx_project: Path) -> None:
-    """A ``*switch_matrix*`` file is never treated as a BEL.
-
-    It is still referenced as the tile matrix, because it matches the default
-    ``<tile>_switch_matrix.list`` name the generator looks for.
-    """
-    tile_dir = _custom_tile_dir(ctx_project)
-    (tile_dir / "CustomTile_switch_matrix.list").write_text("# stale\n")
-
-    csv_path = generateCustomTileConfig(tile_dir)
+    csv_path = generateCustomTileConfig(tile_dir, overwrite=True)
 
     lines = csv_path.read_text().splitlines()
-    bel_lines = [line for line in lines if line.startswith("BEL,")]
-    assert bel_lines == [f"BEL,./{LUT4C}"]
+    assert [line for line in lines if line.startswith("BEL,")] == [f"BEL,./{LUT4C}"]
     assert "MATRIX,./CustomTile_switch_matrix.list" in lines
-    assert (tile_dir / "CustomTile_switch_matrix.list").read_text() == "# stale\n"
-
-
-@pytest.mark.usefixtures("requires_yosys")
-def test_custom_tile_config_existing_csv_returns_early(ctx_project: Path) -> None:
-    """A pre-existing tile CSV short-circuits generation and is returned as-is."""
-    tile_dir = _custom_tile_dir(ctx_project)
-    existing = tile_dir / "CustomTile.csv"
-    existing.write_text("TILE,PreExisting\nEndTILE")
-
-    result = generateCustomTileConfig(tile_dir)
-
-    assert result == existing
-    assert existing.read_text() == "TILE,PreExisting\nEndTILE"
+    matrix = (tile_dir / "CustomTile_switch_matrix.list").read_text()
+    assert "# This is a generated list file!" in matrix
+    assert not (tile_dir / "CustomTile_generated_switch_matrix.list").exists()
 
 
 @pytest.mark.usefixtures("ctx_project")
@@ -415,6 +405,7 @@ def _wide_bel(
     inputs: int = 1,
     outputs: int = 20,
     carry: dict[str, dict[IO, str]] | None = None,
+    local: dict[str, tuple[str, IO]] | None = None,
 ) -> Bel:
     """A BEL in `src` with `inputs` inputs and `outputs` outputs."""
     return make_bel(
@@ -424,6 +415,7 @@ def _wide_bel(
         outputs=tuple(f"out{i}" for i in range(outputs)),
         src=src,
         carry=carry,
+        local=local,
     )
 
 
@@ -484,25 +476,29 @@ def test_supertile_matrix_is_one_to_one(ctx_project: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "kwargs",
+    ("carry", "local"),
     [
-        {"carry": {"ch": {IO.INPUT: "Ci", IO.OUTPUT: "Co"}}},
-        {"local": {"RESET": ("SR", IO.INPUT)}},
-        {"local": {"ENABLE": ("EN", IO.INPUT)}},
+        ({"ch": {IO.INPUT: "Ci", IO.OUTPUT: "Co"}}, None),
+        (None, {"RESET": ("SR", IO.INPUT)}),
+        (None, {"ENABLE": ("EN", IO.INPUT)}),
     ],
     ids=["carry", "shared-reset", "shared-enable"],
 )
-def test_supertile_rejects_carry_and_shared(ctx_project: Path, kwargs: dict) -> None:
+def test_supertile_rejects_carry_and_shared(
+    ctx_project: Path,
+    mocker: MockerFixture,
+    carry: dict[str, dict[IO, str]] | None,
+    local: dict[str, tuple[str, IO]] | None,
+) -> None:
     """Carry and shared reset/enable on a wide BEL are not yet supported."""
     tile_dir = _supertile_dir(ctx_project)
-    bel = make_bel(
-        inputs=tuple(f"in{i}" for i in range(33)),
-        outputs=("out0",),
-        **kwargs,
+    (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
+    mocker.patch(
+        PARSE, return_value=_wide_bel(tile_dir / "WIDE.v", 33, 1, carry, local)
     )
 
     with pytest.raises(NotImplementedError, match="not yet supported"):
-        generate_custom_supertile_config(tile_dir, bel)
+        generateCustomTileConfig(tile_dir)
 
 
 def test_supertile_bel_path_is_relative_to_tile(ctx_project: Path) -> None:
@@ -532,10 +528,8 @@ def test_regenerated_supertile_drops_stale_output(
     # A user folder that only looks like a subtile.
     (tile_dir / "WideTile_subsystem").mkdir()
 
-    # The user deletes the config CSV to regenerate a narrower BEL.
-    (tile_dir / "WideTile.csv").unlink()
     parse.return_value = _wide_bel(tile_dir / "WIDE.v", outputs=12)
-    generateCustomTileConfig(tile_dir)
+    generateCustomTileConfig(tile_dir, overwrite=True)
 
     sub_dirs = sorted(d.name for d in tile_dir.iterdir() if d.is_dir())
     assert sub_dirs == ["WideTile_sub0", "WideTile_sub1", "WideTile_subsystem"]
@@ -546,29 +540,93 @@ def test_regenerated_supertile_drops_stale_output(
 
 
 @pytest.mark.parametrize("outputs", [12, 4], ids=["supertile", "single-tile"])
-@pytest.mark.parametrize("hand_written", [False, True], ids=["generated", "hand"])
-def test_regeneration_refreshes_only_generated_prim_stub(
-    ctx_project: Path, mocker: MockerFixture, outputs: int, hand_written: bool
+def test_regeneration_refreshes_prim_stub(
+    ctx_project: Path, mocker: MockerFixture, outputs: int
 ) -> None:
-    """Regeneration updates the stub FABulous wrote, never a hand-written one."""
+    """A first generation keeps an existing stub; a regeneration replaces it."""
     prims_file = ctx_project / "user_design" / "custom_prims.v"
     hand = "module WIDE (input in0);\nendmodule\n"
-    prims_file.write_text(hand if hand_written else "")
+    prims_file.write_text(hand)
     tile_dir = _supertile_dir(ctx_project)
     (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
     parse = mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
     generateCustomTileConfig(tile_dir)
+    assert prims_file.read_text() == hand
 
-    (tile_dir / "WideTile.csv").unlink()
     parse.return_value = _wide_bel(tile_dir / "WIDE.v", outputs=outputs)
-    generateCustomTileConfig(tile_dir)
+    # The single tile's list generation parses the BEL again, through parse_csv.
+    mocker.patch(
+        "fabulous.fabric_generator.parser.parse_csv.parseBelFile",
+        return_value=parse.return_value,
+    )
+    generateCustomTileConfig(tile_dir, overwrite=True)
 
     prims = prims_file.read_text()
-    if hand_written:
-        assert prims == hand
-    else:
-        assert f"out{outputs - 1}" in prims
-        assert f"out{outputs}" not in prims
+    assert f"out{outputs - 1}" in prims
+    assert f"out{outputs}" not in prims
+
+
+def test_regeneration_adds_no_stub_without_switch_matrix(
+    ctx_project: Path, mocker: MockerFixture
+) -> None:
+    """Without a generated switch matrix, BELs get no stub, also on regeneration."""
+    prims_file = ctx_project / "user_design" / "custom_prims.v"
+    prims_file.write_text("// mine\n")
+    tile_dir = _supertile_dir(ctx_project)
+    (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
+    mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v", outputs=4))
+    generateCustomTileConfig(tile_dir, switch_matrix=False)
+    generateCustomTileConfig(tile_dir, switch_matrix=False, overwrite=True)
+
+    assert prims_file.read_text() == "// mine\n"
+
+
+def test_failed_regeneration_restores_earlier_output(
+    ctx_project: Path, mocker: MockerFixture
+) -> None:
+    """If writing the new output fails, the earlier output is put back."""
+    tile_dir = _supertile_dir(ctx_project)
+    (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
+    mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
+    generateCustomTileConfig(tile_dir)
+    before = {
+        p.relative_to(tile_dir): p.read_bytes()
+        for p in tile_dir.rglob("*")
+        if p.is_file()
+    }
+
+    def fail_halfway(path: Path, _bel: Bel) -> Path:
+        (path / "WideTile_sub0").mkdir()
+        (path / "WideTile.csv").write_text("half\n")
+        raise OSError("disk full")
+
+    mocker.patch(
+        "fabulous.fabric_generator.gen_fabric.fabric_automation."
+        "generate_custom_supertile_config",
+        side_effect=fail_halfway,
+    )
+    with pytest.raises(OSError, match="disk full"):
+        generateCustomTileConfig(tile_dir, overwrite=True)
+
+    after = {
+        p.relative_to(tile_dir): p.read_bytes()
+        for p in tile_dir.rglob("*")
+        if p.is_file()
+    }
+    assert after == before
+
+
+def test_rejected_regeneration_does_not_ask_first(
+    ctx_project: Path, mocker: MockerFixture
+) -> None:
+    """A regeneration that cannot go ahead fails as such, not as an overwrite."""
+    tile_dir = _supertile_dir(ctx_project)
+    (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
+    mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
+    generateCustomTileConfig(tile_dir)
+
+    with pytest.raises(ValueError, match="need a supertile"):
+        generateCustomTileConfig(tile_dir, switch_matrix=False)
 
 
 def test_custom_tile_config_counts_ports_per_bel(
@@ -586,42 +644,56 @@ def test_custom_tile_config_counts_ports_per_bel(
     assert not (tile_dir / "WideTile.csv").exists()
 
 
-def test_supertile_rejects_bel_named_like_tile(ctx_project: Path) -> None:
+def test_supertile_rejects_bel_named_like_tile(
+    ctx_project: Path, mocker: MockerFixture
+) -> None:
     """A BEL file named after the tile would be overwritten by the wrapper RTL."""
     tile_dir = _supertile_dir(ctx_project)
+    (tile_dir / "WideTile.v").write_text("module WIDE(); endmodule\n")
+    mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WideTile.v"))
 
     with pytest.raises(ValueError, match="Rename the BEL file"):
-        generate_custom_supertile_config(tile_dir, _wide_bel(tile_dir / "WideTile.v"))
+        generateCustomTileConfig(tile_dir)
 
-    assert not list(tile_dir.iterdir())
+    assert [f.name for f in tile_dir.iterdir()] == ["WideTile.v"]
 
 
 @pytest.mark.parametrize(
     "user_file",
-    [
-        "WideTile_sub0/notes.txt",
-        # A plain generated tile carries the generic generated-list header too.
-        "WideTile_sub0/WideTile_sub0_switch_matrix.list",
-        "WideTile_switch_matrix.list",
-    ],
-    ids=["folder", "generated-tile", "matrix-list"],
+    ["WideTile_sub0/notes.txt", "WideTile_switch_matrix.list"],
+    ids=["subtile-folder", "matrix-list"],
 )
-def test_supertile_keeps_user_output_paths(
+def test_supertile_needs_overwrite_for_existing_paths(
     ctx_project: Path, mocker: MockerFixture, user_file: str
 ) -> None:
-    """Paths the generator would write but did not are never replaced."""
+    """A path generation would replace stops it unless `overwrite` is given."""
     tile_dir = _supertile_dir(ctx_project)
     (tile_dir / "WIDE.v").write_text("module WIDE(); endmodule\n")
     mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
     user_path = tile_dir / user_file
     user_path.parent.mkdir(exist_ok=True)
-    user_path.write_text("# This is a generated list file!\nmine\n")
+    user_path.write_text("mine\n")
 
-    with pytest.raises(ValueError, match="were not generated"):
+    with pytest.raises(FileExistsError, match=user_file.split("/")[0]):
         generateCustomTileConfig(tile_dir)
 
-    assert user_path.read_text() == "# This is a generated list file!\nmine\n"
+    assert user_path.read_text() == "mine\n"
     assert not (tile_dir / "WideTile.csv").exists()
+
+
+@pytest.mark.parametrize("ext", ["v", "vhdl"])
+def test_existing_tile_outputs_lists_tile_rtl(tmp_path: Path, ext: str) -> None:
+    """`<name>.<ext>` is tile RTL only next to the switch matrix RTL gen_tile wrote."""
+    tile_dir = tmp_path / "T"
+    tile_dir.mkdir()
+    (tile_dir / f"T.{ext}").write_text("")
+    assert existing_tile_outputs(tile_dir) == []
+
+    (tile_dir / f"T_switch_matrix.{ext}").write_text("")
+    assert existing_tile_outputs(tile_dir) == [
+        tile_dir / f"T.{ext}",
+        tile_dir / f"T_switch_matrix.{ext}",
+    ]
 
 
 def test_supertile_include_follows_nested_tile_dir(ctx_project: Path) -> None:
@@ -690,7 +762,6 @@ def test_rejected_regeneration_keeps_earlier_output(
     parse = mocker.patch(PARSE, return_value=_wide_bel(tile_dir / "WIDE.v"))
     generateCustomTileConfig(tile_dir)
 
-    (tile_dir / "WideTile.csv").unlink()
     if change == "second-bel":
         (tile_dir / "WIDE2.v").write_text("module WIDE2(); endmodule\n")
     else:
@@ -698,8 +769,9 @@ def test_rejected_regeneration_keeps_earlier_output(
             tile_dir / "WIDE.v", carry={"ch": {IO.INPUT: "Ci", IO.OUTPUT: "Co"}}
         )
     with pytest.raises(NotImplementedError):
-        generateCustomTileConfig(tile_dir)
+        generateCustomTileConfig(tile_dir, overwrite=True)
 
+    assert (tile_dir / "WideTile.csv").is_file()
     sub_dirs = sorted(d.name for d in tile_dir.glob("WideTile_sub*"))
     assert sub_dirs == ["WideTile_sub0", "WideTile_sub1", "WideTile_sub2"]
 

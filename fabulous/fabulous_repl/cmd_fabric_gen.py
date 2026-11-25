@@ -5,6 +5,7 @@ Generate config memory, switch matrices, tiles, IO, and the fabric.
 
 import csv
 import pickle
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -17,8 +18,8 @@ from fabulous.fabric_definition.define import ConfigBitMode
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
+    existing_tile_outputs,
     generateCustomTileConfig,
-    is_generated_subtile,
     is_supertile_csv,
 )
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
@@ -521,6 +522,14 @@ class FabricGenCommandSet(ReplCommandSet):
                 help_text="Generate a Tile Switch Matrix (enabled by default)",
             ),
         ] = True,
+        overwrite: Annotated[
+            bool,
+            Option(
+                "--overwrite",
+                "-y",
+                help_text="Replace an earlier generation without asking",
+            ),
+        ] = False,
     ) -> None:
         """Generate a custom tile configuration for a given tile folder.
 
@@ -528,19 +537,30 @@ class FabricGenCommandSet(ReplCommandSet):
         be generated.
 
         The provided path may contain bel files, which will be included in the generated
-        tile .csv file as well as the generated switch matrix .list file. An existing
-        tile `.csv` or switch matrix `.list` is kept; use generate_switch_matrix_list
-        to regenerate the list after editing the tile `.csv`.
+        tile .csv file as well as the generated switch matrix .list file. If an earlier
+        generation left files behind, asks before replacing them, unless --overwrite
+        is given. Use generate_switch_matrix_list to regenerate only the list after
+        editing the tile `.csv`.
         """
         if not tile_path.is_dir():
             logger.error(f"{tile_path} is not a directory or does not exist")
             return
 
-        existing = set(tile_path.absolute().glob("*.csv"))
-        tile_csv = generateCustomTileConfig(tile_path, switch_matrix=switch_matrix)
-        # An existing config is returned untouched and keeps its registration.
-        if tile_csv in existing:
-            return
+        # The first try checks the BELs, so the question only comes up for a
+        # regeneration that would go ahead.
+        try:
+            tile_csv = generateCustomTileConfig(
+                tile_path, switch_matrix=switch_matrix, overwrite=overwrite
+            )
+        except FileExistsError:
+            earlier = existing_tile_outputs(tile_path.absolute(), switch_matrix)
+            items = [str(p) for p in earlier]
+            items.append("the existing BEL stubs in user_design/custom_prims.v")
+            if not self._confirm_overwrite(items, overwrite):
+                return
+            tile_csv = generateCustomTileConfig(
+                tile_path, switch_matrix=switch_matrix, overwrite=True
+            )
         # A regenerated tile may have fewer subtiles, or none, than before, or
         # have become a supertile.
         registered = unregister_tile_in_fabric_csv(self._cmd.csvFile, tile_path)
@@ -560,25 +580,70 @@ class FabricGenCommandSet(ReplCommandSet):
         tile_path: Annotated[
             Path, Argument(help_text="Path to the tile directory or tile .csv")
         ],
+        overwrite: Annotated[
+            bool,
+            Option(
+                "--overwrite",
+                "-y",
+                help_text="Replace an existing list file without asking",
+            ),
+        ] = False,
     ) -> None:
         """Generate the switch matrix `.list` file of a tile from its tile `.csv`.
 
         Reads the BELs, carry chains and shared ports of the tile `.csv` and writes
-        the `.list` file its MATRIX line points to, overwriting it. Run it after
-        editing the tile `.csv`, for example to add BELs. FABulous never regenerates
-        a list file on its own.
+        the `.list` file its MATRIX line points to. Asks before replacing an existing
+        list, unless --overwrite is given. Run it after editing the tile `.csv`, for
+        example to add BELs. FABulous never regenerates a list file on its own.
         """
         tile_csv = (
             tile_path / f"{tile_path.name}.csv" if tile_path.is_dir() else tile_path
         )
         if not tile_csv.is_file():
             raise CommandError(f"Tile config {tile_csv} does not exist")
-        tile_dir = tile_csv.parent
-        if is_supertile_csv(tile_csv) or is_generated_subtile(
-            tile_dir, tile_dir.parent.name
-        ):
+        if is_supertile_csv(tile_csv):
             raise CommandError(
-                f"{tile_csv} belongs to a generated supertile. Regenerate it with "
-                "generate_custom_tile_config after deleting the supertile .csv."
+                f"{tile_csv} is a supertile. Regenerate a generated supertile with "
+                "generate_custom_tile_config."
             )
+        text = re.sub(r"#.*", "", tile_csv.read_text(encoding="utf-8"))
+        matrices = re.findall(r"^\s*MATRIX\s*,\s*([^,\s]+)", text, re.MULTILINE)
+        paths = [tile_csv.parent / m for m in matrices]
+        existing = [str(p) for p in paths if p.exists()]
+        if not self._confirm_overwrite(existing, overwrite):
+            return
         parseTilesCSV(tile_csv, generate_matrix_list=True)
+
+    def _confirm_overwrite(self, items: list[str], overwrite: bool) -> bool:
+        """Ask whether to replace `items`, or fail when nobody can answer.
+
+        Parameters
+        ----------
+        items : list[str]
+            What would be replaced, as paths or descriptions.
+        overwrite : bool
+            Replace without asking.
+
+        Returns
+        -------
+        bool
+            True if the command may go ahead.
+
+        Raises
+        ------
+        CommandError
+            If `items` exist, `overwrite` is not given and the shell is not
+            interactive.
+        """
+        if not items or overwrite:
+            return True
+        listing = "\n".join(f"  {item}" for item in items)
+        if not self._cmd.interactive:
+            raise CommandError(
+                f"This would replace:\n{listing}\nRerun with --overwrite to do so."
+            )
+        answer = self._cmd.read_input(f"This replaces:\n{listing}\nContinue? [y/N] ")
+        if answer.strip().lower() in ("y", "yes"):
+            return True
+        logger.info("Nothing was changed.")
+        return False

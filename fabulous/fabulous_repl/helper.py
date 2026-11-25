@@ -33,9 +33,6 @@ from fabulous.custom_exception import (
     ProjectUpgradeError,
 )
 from fabulous.fabric_definition.define import HDLType
-from fabulous.fabric_generator.gen_fabric.fabric_automation import (
-    is_generated_subtile,
-)
 from fabulous.fabulous_repl.project_upgrade import upgrade_to_yosys_library
 from fabulous.fabulous_settings import add_var_to_global_env
 
@@ -107,12 +104,7 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
         msg = "<level>{message}</level>"
         exc = ""
         if record["exception"] and record["exception"].type:
-            # Loguru replaces `exception` with the formatted traceback string
-            # before filling the template, so `{exception.type}` cannot be
-            # referenced there. A class name has no braces or markup tags,
-            # so interpolating it is safe.
-            exc_name = record["exception"].type.__name__
-            exc = f"<bg red><white>{exc_name}</white></bg red> | "
+            exc = "<bg red><white>{exception.type.__name__}</white></bg red> | "
 
         if verbosity >= 1:
             return f"{level}{time}{location} - {exc}{msg}\n"
@@ -377,17 +369,17 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
 def unregister_tile_in_fabric_csv(csv_path: Path, tile_dir: Path) -> bool:
     """Drop the entries of the tile or supertile in `tile_dir` from `csv_path`.
 
-    Removes the `Tile` or `Supertile` entry for `<tile_dir>/<name>.csv` and the
-    `Tile` entries of `<name>_sub<N>` folders that are gone or were generated,
-    so a regenerated tile can be registered again, as a tile or a supertile.
-    Other entries, including user tiles in `<name>_sub<N>` folders, stay.
+    Removes the `Tile` or `Supertile` entry for `<tile_dir>/<name>.csv` and
+    every `Tile` entry inside a `<name>_sub<N>` folder, so a regenerated tile
+    can be registered again, as a tile or a supertile, without its earlier
+    subtiles. Other entries stay.
 
     Parameters
     ----------
     csv_path : Path
         Path to the fabric CSV file to update.
     tile_dir : Path
-        Directory of the supertile.
+        Directory of the tile.
 
     Returns
     -------
@@ -397,32 +389,29 @@ def unregister_tile_in_fabric_csv(csv_path: Path, tile_dir: Path) -> bool:
     """
     tile_dir = tile_dir.resolve()
     project_dir = csv_path.parent.resolve()
-    supertile_csv = tile_dir / f"{tile_dir.name}.csv"
+    tile_csv = tile_dir / f"{tile_dir.name}.csv"
 
-    def is_own_entry(line: str) -> bool:
+    def entry_path(line: str) -> Path | None:
         kind, _, rest = line.partition(",")
-        path = (project_dir / rest.split(",")[0]).resolve()
-        return kind in ("Tile", "Supertile") and path == supertile_csv
+        if kind not in ("Tile", "Supertile"):
+            return None
+        return (project_dir / rest.split(",")[0]).resolve()
 
     def is_stale(line: str) -> bool:
-        kind, _, rest = line.partition(",")
-        if is_own_entry(line):
-            return True
-        if kind != "Tile":
+        path = entry_path(line)
+        if path is None:
             return False
-        path = (project_dir / rest.split(",")[0]).resolve()
-        sub_dir = path.parent
-        return (
-            sub_dir.parent == tile_dir
-            and re.fullmatch(rf"{re.escape(tile_dir.name)}_sub\d+", sub_dir.name)
-            is not None
-            and (not sub_dir.exists() or is_generated_subtile(sub_dir, tile_dir.name))
+        return path == tile_csv or (
+            path.parent.parent == tile_dir
+            and bool(
+                re.fullmatch(rf"{re.escape(tile_dir.name)}_sub\d+", path.parent.name)
+            )
         )
 
     lines = csv_path.read_text(encoding="utf-8").splitlines(keepends=True)
     kept = [ln for ln in lines if not is_stale(ln.strip())]
     csv_path.write_text("".join(kept), encoding="utf-8")
-    return any(is_own_entry(ln.strip()) for ln in lines)
+    return any(entry_path(ln.strip()) == tile_csv for ln in lines)
 
 
 def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:

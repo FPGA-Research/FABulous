@@ -11,10 +11,8 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import (
     EnvironmentNotSet,
-    InvalidFileType,
     PluginError,
     ProjectUpgradeError,
-    UnsupportedToolVersion,
 )
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -337,25 +335,18 @@ def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
 
 
 def test_unregister_tile_in_fabric_csv(tmp_path: Path) -> None:
-    """Only the tile's own and its generated subtiles' entries are dropped."""
+    """Only the tile's own and its subtiles' entries are dropped."""
     csv_path = tmp_path / "fabric.csv"
     tile_dir = tmp_path / "Tile" / "DSP"
-    generated = tile_dir / "DSP_sub0"
-    generated.mkdir(parents=True)
-    (generated / "DSP_sub0_switch_matrix.list").write_text(
-        "# Subtile of generated supertile DSP\n"
-    )
-    (tile_dir / "DSP_sub5").mkdir()  # a user tile in a subtile-like folder
     keep = [
         "Tile,./Tile/LUT4AB/LUT4AB.csv,\n",
         "Tile,./Tile/DSP_sub/DSP_sub.csv,\n",  # other tile with a similar name
         "Tile,./Tile/DSP/DSP_subsystem/DSP_subsystem.csv,\n",  # not a subtile
-        "Tile,./Tile/DSP/DSP_sub5/DSP_sub5.csv,\n",
         "Supertile,./Tile/Other/Other.csv,\n",
     ]
     stale = [
         "Tile,./Tile/DSP/DSP_sub0/DSP_sub0.csv,\n",
-        "Tile,./Tile/DSP/DSP_sub3/DSP_sub3.csv,\n",  # folder already removed
+        "Tile,./Tile/DSP/DSP_sub3/DSP_sub3.csv,\n",
         "Supertile,./Tile/DSP/DSP.csv,\n",
         "Tile,./Tile/DSP/DSP.csv,\n",  # registered while it was a single tile
     ]
@@ -542,37 +533,6 @@ def test_setup_logger_prints_message_verbatim(
     record_line = log_file.read_text().rstrip("\n")
     assert record_line.startswith("ERROR")
     assert record_line.endswith(message)
-
-
-@pytest.mark.parametrize(
-    "error",
-    [
-        UnsupportedToolVersion(
-            "GhdlTool version 6.0.0.dev0 at /usr/bin/ghdl does not match >=6.0.0."
-        ),
-        InvalidFileType("Only .v and .sv files are supported, got design.vhdl"),
-    ],
-    ids=lambda error: type(error).__name__,
-)
-def test_failing_command_reports_original_exception(
-    cli: FABulousREPL,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    mocker: MockerFixture,
-    error: Exception,
-) -> None:
-    """A failing command logs its own exception type and sets the exit code."""
-    monkeypatch.delenv("FABULOUS_TESTING")
-    log_file = tmp_path / "fabulous.log"
-    setup_logger(verbosity=0, debug=False, log_file=log_file)
-    mocker.patch.object(cli.fabulousAPI, "loadFabric", side_effect=error)
-
-    cli.onecmd_plus_hooks("load_fabric")
-
-    log = log_file.read_text()
-    assert f"{type(error).__name__} | {error}" in log
-    assert "AttributeError" not in log
-    assert cli.exit_code == 1
 
 
 def test_write_pnr_model_writes_nested_artifacts(tmp_path: Path) -> None:

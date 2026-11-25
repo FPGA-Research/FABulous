@@ -1416,10 +1416,11 @@ def test_generate_custom_tile_config_roundtrip(
 ) -> None:
     """The REPL command builds a tile CSV and its generated switch matrix.
 
-    Drives ``generate_custom_tile_config`` end-to-end: it must write the tile
+    Drives `generate_custom_tile_config` end-to-end: it must write the tile
     CSV, emit the generated switch-matrix list, and register the BEL as a yosys
-    blackbox primitive, all without logging errors. Rerunning it keeps the list;
-    ``generate_switch_matrix_list`` rebuilds it from the edited tile CSV.
+    blackbox primitive, all without logging errors. Rerunning it in a script
+    refuses to replace that output without `--overwrite`;
+    `generate_switch_matrix_list` rebuilds the list from the edited tile CSV.
     """
     bel = "LUT4c_frame_config_dffesr.v"
     tile_dir = cli.projectDir / "Tile" / "CustomTile"
@@ -1441,11 +1442,38 @@ def test_generate_custom_tile_config_roundtrip(
             f"BEL,./{bel}", f"BEL,./{bel},A_\nBEL,./{bel},B_", 1
         )
     )
+    normalize_and_check_for_errors(caplog.text)
     run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    assert cli.exit_code != 0
+    assert "--overwrite" in caplog.text
     assert "B_I0" not in matrix.read_text()
-    run_cmd(cli, f"generate_switch_matrix_list {tile_dir}")
+    caplog.clear()
+    run_cmd(cli, f"generate_switch_matrix_list --overwrite {tile_dir}")
     assert "B_I0" in matrix.read_text()
     normalize_and_check_for_errors(caplog.text)
+
+
+@pytest.mark.parametrize(
+    ("answer", "replaced"), [("y", True), ("n", False), ("", False)]
+)
+def test_generate_switch_matrix_list_asks_before_overwriting(
+    cli: FABulousREPL, mocker: MockerFixture, answer: str, replaced: bool
+) -> None:
+    """In the interactive shell, an existing list is only replaced on a yes."""
+    bel = "LUT4c_frame_config_dffesr.v"
+    tile_dir = cli.projectDir / "Tile" / "CustomTile"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(cli.projectDir / "Tile" / "LUT4AB" / bel, tile_dir / bel)
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    matrix = tile_dir / "CustomTile_switch_matrix.list"
+    matrix.write_text("# mine\n")
+    cli.interactive = True
+    ask = mocker.patch.object(cli, "read_input", return_value=answer)
+
+    run_cmd(cli, f"generate_switch_matrix_list {tile_dir}")
+
+    assert str(matrix) in ask.call_args.args[0]
+    assert (matrix.read_text() != "# mine\n") is replaced
 
 
 @pytest.fixture(params=[HDLType.VERILOG, HDLType.VHDL], ids=["verilog", "vhdl"])
@@ -1492,16 +1520,16 @@ def test_generate_supertile_rtl(
 
     # Running twice must not register the supertile in fabric.csv twice.
     run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
-    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    run_cmd(cli, f"generate_custom_tile_config --overwrite {tile_dir}")
     fabric_csv = cli.csvFile.read_text().splitlines()
     assert "Tile,./Tile/DSPblk/DSPblk.csv" not in fabric_csv
     assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
     assert sum("DSPblk_sub0.csv" in ln for ln in fabric_csv) == 1
     run_cmd(cli, "load_fabric")
     run_cmd(cli, "gen_tile DSPblk")
-    # Regenerating from scratch after gen_tile replaces the earlier output.
-    (tile_dir / "DSPblk.csv").unlink()
-    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    # Regenerating after gen_tile replaces the earlier output, tile RTL included.
+    run_cmd(cli, f"generate_custom_tile_config --overwrite {tile_dir}")
+    assert not (tile_dir / f"DSPblk.{ext}").exists()
     fabric_csv = cli.csvFile.read_text().splitlines()
     assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
     run_cmd(cli, "load_fabric")
@@ -1519,7 +1547,7 @@ def test_generate_supertile_rtl(
     # Subtile lists come from the supertile split, not from the subtile CSV.
     sub_list = tile_dir / "DSPblk_sub0" / "DSPblk_sub0_switch_matrix.list"
     before = sub_list.read_text()
-    run_cmd(cli, f"generate_switch_matrix_list {tile_dir / 'DSPblk_sub0'}")
+    run_cmd(cli, f"generate_switch_matrix_list --overwrite {tile_dir / 'DSPblk_sub0'}")
     assert cli.exit_code != 0
     assert sub_list.read_text() == before
 
