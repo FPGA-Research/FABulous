@@ -12,13 +12,16 @@ import pytest
 
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_settings import init_context
+from tests.reference_test.reference_projects_test import (
+    load_reference_projects_config,
+)
 from tests.reference_test.rtl_equivalence_test import check_rtl_equivalence
 
 pytestmark = pytest.mark.slow
 
-PROJECTS = {
-    HDLType.VERILOG: Path("2.2/ref/demo_2.2.0_verilog"),
-    HDLType.VHDL: Path("2.2/ref/demo_2.2.0_vhdl"),
+REFERENCE_PROJECT_NAMES = {
+    HDLType.VERILOG: "diff_2.2.0_verilog_reference_demo",
+    HDLType.VHDL: "diff_2.2.0_vhdl_reference_demo",
 }
 MODELS_PACKS = {
     HDLType.VERILOG: Path("Fabric/models_pack.v"),
@@ -413,13 +416,24 @@ def apply_edits(project: Path, edits: tuple[Edit, ...]) -> None:
 @pytest.mark.parametrize("mutation", MUTATIONS, ids=lambda mutation: mutation.name)
 def test_checker_verdict(
     mutation: Mutation,
-    projects_dir: Path,
+    config_path: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The checker reports `mutation` exactly when it changes behaviour."""
     language = mutation.language
-    reference = projects_dir / PROJECTS[language]
+    project_name = REFERENCE_PROJECT_NAMES[language]
+    configured = {
+        project.name: project.path
+        for project in load_reference_projects_config(config_path)
+    }
+    if project_name not in configured:
+        raise LookupError(
+            f"Reference project {project_name} is not in {config_path}. The "
+            "mutation tests edit its RTL; use the default FABulous-demo-projects "
+            "or deselect rtl_equivalence_mutation_test.py."
+        )
+    reference = configured[project_name]
     mutated = tmp_path / reference.name
     shutil.copytree(reference, mutated, symlinks=True)
     apply_edits(mutated, mutation.edits)
