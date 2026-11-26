@@ -257,7 +257,8 @@ def _resolve_task_binary() -> Path:
         raise EnvironmentNotSet(
             "The 'task' command (go-task) was found neither in the Python "
             f"environment ({script_dir}) nor on PATH. It ships with FABulous; "
-            "reinstall with 'uv tool install FABulous-FPGA'."
+            "reinstall with 'uv tool install --with-executables-from "
+            "go-task-bin,fabulous-bit-gen FABulous-FPGA'."
         )
     return Path(on_path)
 
