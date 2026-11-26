@@ -43,7 +43,7 @@ from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile, tile_directory
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
-    generateSwitchmatrixList,
+    generate_switch_matrix_list,
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_settings import get_context
@@ -585,7 +585,7 @@ def parseTilesCSV(
                     "generate_custom_tile_config."
                 )
             logger.info(f"Generating switch matrix list {matrixDir}")
-            generateSwitchmatrixList(
+            generate_switch_matrix_list(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
 

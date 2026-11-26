@@ -344,7 +344,7 @@ def _dedicated_ports(bel: Bel) -> list[str]:
 
     Carry chain and local shared reset/enable ports get their own dedicated
     wiring, so they do not count against the 32-input / 8-output switch-matrix
-    budget (see `generateSwitchmatrixList`).
+    budget (see `generate_switch_matrix_list`).
 
     Parameters
     ----------
@@ -630,7 +630,7 @@ def _switch_matrix_lines(
     return listfile
 
 
-def generateSwitchmatrixList(
+def generate_switch_matrix_list(
     tileName: str,
     bels: list[Bel],
     outFile: Path,

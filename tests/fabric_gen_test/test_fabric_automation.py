@@ -12,7 +12,7 @@ ponytail: the NORTH-carry / JUMP-shared *CSV emission* branch of
 `generateCustomTileConfig` is not covered here — no Verilog template BEL
 carries the CARRY / SHARED_RESET / SHARED_ENABLE attributes needed to trigger
 it, and the corresponding *wiring* is already locked at the
-`generateSwitchmatrixList` level below. Add a synthetic attributed BEL if that
+`generate_switch_matrix_list` level below. Add a synthetic attributed BEL if that
 CSV branch ever gains real logic.
 """
 
@@ -30,8 +30,8 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
     existing_tile_outputs,
     generate_custom_supertile_config,
+    generate_switch_matrix_list,
     generateCustomTileConfig,
-    generateSwitchmatrixList,
     is_supertile_csv,
 )
 from fabulous.fabric_generator.parser.parse_csv import (
@@ -121,7 +121,7 @@ def requires_yosys() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# generateSwitchmatrixList
+# generate_switch_matrix_list
 # --------------------------------------------------------------------------- #
 
 
@@ -131,7 +131,7 @@ def test_switchmatrix_happy_path(ctx_project: Path) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     bel = make_bel(inputs=("in0", "in1", "in2", "in3"), outputs=("out0",))
 
-    generateSwitchmatrixList("T", [bel], out, {}, {})
+    generate_switch_matrix_list("T", [bel], out, {}, {})
 
     text = out.read_text()
     assert text.startswith("# --------------WARNING")
@@ -156,7 +156,7 @@ def test_switchmatrix_too_many_ports(
         outputs=tuple(f"out{i}" for i in range(outputs)),
     )
     with pytest.raises(ValueError, match=limit):
-        generateSwitchmatrixList("T", [bel], ctx_project / "over.list", {}, {})
+        generate_switch_matrix_list("T", [bel], ctx_project / "over.list", {}, {})
 
 
 def test_switchmatrix_carry_prefix_mismatch(ctx_project: Path) -> None:
@@ -167,7 +167,7 @@ def test_switchmatrix_carry_prefix_mismatch(ctx_project: Path) -> None:
     # The production code raises a message-less `ValueError` here, so there is
     # nothing to match on.
     with pytest.raises(ValueError):  # noqa: PT011
-        generateSwitchmatrixList("T", [bel], out, carryports_tile, {})
+        generate_switch_matrix_list("T", [bel], out, carryports_tile, {})
 
 
 def test_switchmatrix_carry_wiring(ctx_project: Path) -> None:
@@ -180,7 +180,7 @@ def test_switchmatrix_carry_wiring(ctx_project: Path) -> None:
     )
     carryports_tile = {"ch": {IO.INPUT: "Ci_t", IO.OUTPUT: "Co_t"}}
 
-    generateSwitchmatrixList("T", [bel], out, carryports_tile, {})
+    generate_switch_matrix_list("T", [bel], out, carryports_tile, {})
 
     text = out.read_text()
     assert "# Connect carry chain ch" in text
@@ -201,7 +201,7 @@ def test_switchmatrix_shared_reset_enable(ctx_project: Path) -> None:
         "ENABLE": [tile_port("LE0", IO.OUTPUT), tile_port("LE1", IO.INPUT)],
     }
 
-    generateSwitchmatrixList("T", [bel], out, {}, local_shared_tile)
+    generate_switch_matrix_list("T", [bel], out, {}, local_shared_tile)
 
     text = out.read_text()
     assert "# Connect shared reset" in text
