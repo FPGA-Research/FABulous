@@ -104,7 +104,12 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
         msg = "<level>{message}</level>"
         exc = ""
         if record["exception"] and record["exception"].type:
-            exc = "<bg red><white>{exception.type.__name__}</white></bg red> | "
+            # Loguru replaces `exception` with the formatted traceback string
+            # before filling the template, so `{exception.type}` cannot be
+            # referenced there. A class name has no braces or markup tags,
+            # so interpolating it is safe.
+            exc_name = record["exception"].type.__name__
+            exc = f"<bg red><white>{exc_name}</white></bg red> | "
 
         if verbosity >= 1:
             return f"{level}{time}{location} - {exc}{msg}\n"
