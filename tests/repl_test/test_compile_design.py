@@ -109,6 +109,45 @@ def test_compile_design_task_vars(
     assert task_vars["NEXTPNR_EXTRA_ARGS"] == ""
 
 
+@pytest.mark.parametrize(
+    ("extension", "design_dir", "flags", "expected"),
+    [
+        ("v", "user design", "", '"{project}/user design/my_design.v"'),
+        ("vhdl", "user design", "", None),
+        ("vhdl", "user design", "--pnr-only", '"{project}/user design/my_design.vhdl"'),
+        ("vhdl", "user_design", "", "../user_design/my_design.vhdl"),
+    ],
+    ids=["verilog-quoted", "vhdl-spaced-rejected", "vhdl-pnr-only", "vhdl-relative"],
+)
+def test_compile_design_design_files_survive_spaces(
+    compile_cli: FABulousREPL,
+    mocker: MockerFixture,
+    extension: str,
+    design_dir: str,
+    flags: str,
+    expected: str | None,
+) -> None:
+    """DESIGN_FILES keeps a path with spaces in one word for Yosys."""
+    compile_cli.extension = extension
+    design_file = compile_cli.projectDir / design_dir / f"my_design.{extension}"
+    design_file.parent.mkdir(exist_ok=True)
+    design_file.write_text("")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
+
+    if expected is None:
+        command_set = compile_cli.find_commandsets(UserDesignCommandSet)[0]
+        with pytest.raises(CommandError, match="contains a space"):
+            inspect.unwrap(UserDesignCommandSet.do_compile_design)(
+                command_set, files=[design_file]
+            )
+        mock_run_task.assert_not_called()
+        return
+
+    run_cmd(compile_cli, f'compile_design "{design_file}" {flags}')
+    task_vars = mock_run_task.call_args.args[2]
+    assert task_vars["DESIGN_FILES"] == expected.format(project=compile_cli.projectDir)
+
+
 def test_compile_design_default_paths_chain_from_json(
     compile_cli: FABulousREPL, mocker: MockerFixture
 ) -> None:

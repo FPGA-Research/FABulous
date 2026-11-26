@@ -66,9 +66,9 @@ def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> 
     assert task_vars["WAVEFORM_TYPE"] == "fst"
     assert task_vars["DESIGN"] == "sequential_16bit_en"
     assert task_vars["GL_SOURCES"] == (
-        "/p/Fabric/macro/final_views/eFPGA.nl.v "
-        "/p/Tile/LUT4AB/macro/final_views/nl/LUT4AB.nl.v "
-        "/pdk/sg13g2_stdcell.v"
+        '"/p/Fabric/macro/final_views/eFPGA.nl.v" '
+        '"/p/Tile/LUT4AB/macro/final_views/nl/LUT4AB.nl.v" '
+        '"/pdk/sg13g2_stdcell.v"'
     )
 
 

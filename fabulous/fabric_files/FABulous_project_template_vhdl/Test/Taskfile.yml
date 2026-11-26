@@ -62,40 +62,43 @@ tasks:
   run-fabulous-demo:
     desc: Run FABulous to generate the default fabric
     cmds:
-      - FABulous {{.FAB_PROJ_ROOT}} -fs {{.FAB_PROJ_ROOT}}/FABulous.tcl
+      - FABulous "{{.FAB_PROJ_ROOT}}" -fs "{{.FAB_PROJ_ROOT}}/FABulous.tcl"
 
   build-demo-fabric:
     desc: Build the default fabric only (no simulation)
     cmds:
       - task: mkdir-build
-      - FABulous {{.FAB_PROJ_ROOT}} -ts ./build_fabulous_fabric.tcl
+      - FABulous "{{.FAB_PROJ_ROOT}}" -ts ./build_fabulous_fabric.tcl
 
   run-yosys:
     desc: Run Yosys synthesis (GHDL plugin for VHDL, top_wrapper still Verilog)
     deps: [mkdir-build]
     vars:
       CUSTOM_PRIMS:
-        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo ''-extra-plib \"{{.USER_DESIGN_DIR}}/custom_prims.v\"'' || true'
       # TODO(3.0): drop Yosys <= 0.66 support and pass the library options
       # unconditionally. Yosys before the synth_fabulous rework bundles its own
       # FABulous library, rejects these options and inserts pads only with -iopad.
       SYNTH_LIB_ARGS:
         sh: |
           yosys='{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
-          if ! help=$($yosys -p "help synth_fabulous"); then
+          if ! help=$("$yosys" -p "help synth_fabulous"); then
             echo "ERROR: $yosys -p \"help synth_fabulous\" failed" >&2
             exit 1
           fi
           if printf '%s\n' "$help" | grep -q -- -cells-map; then
-            lib={{.FAB_PROJ_ROOT}}/yosys
-            echo "-extra-plib $lib/primitives/prims.v" \
-              "-cells-map $lib/techmap/cells_map.v" \
-              "-arith-map $lib/techmap/arith_map.v" \
-              "-extra-map $lib/techmap/ff_map.v" \
-              "-extra-map $lib/techmap/latches_map.v" \
-              "-extra-map $lib/techmap/io_map.v" \
-              "-extra-mlibmap $lib/memlib/ram_regfile.txt" \
-              "-extra-map $lib/techmap/regfile_map.v" \
+            lib="{{.FAB_PROJ_ROOT}}/yosys"
+            # The synth command sits inside shell double quotes, so the quotes
+            # that keep a path with spaces in one Yosys token are escaped.
+            q='\"'
+            echo "-extra-plib $q$lib/primitives/prims.v$q" \
+              "-cells-map $q$lib/techmap/cells_map.v$q" \
+              "-arith-map $q$lib/techmap/arith_map.v$q" \
+              "-extra-map $q$lib/techmap/ff_map.v$q" \
+              "-extra-map $q$lib/techmap/latches_map.v$q" \
+              "-extra-map $q$lib/techmap/io_map.v$q" \
+              "-extra-mlibmap $q$lib/memlib/ram_regfile.txt$q" \
+              "-extra-map $q$lib/techmap/regfile_map.v$q" \
               '-ff \$_DFF_P_ 0 -ff \$_DLATCH_?_ x -latches warn'
           else
             echo "WARNING: Yosys 0.66 and older is deprecated; support ends in FABulous 3.0." >&2
@@ -109,7 +112,11 @@ tasks:
         vars:
           YOSYS_GHDL: "-m ghdl"
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
-          SYNTH_CMD: "ghdl {{.RESOLVED_DESIGN_FILES}} -e {{.DESIGN}}; read_verilog {{.RESOLVED_TOP_WRAPPER_FILE}}; synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}};"
+          # The synth command sits inside shell double quotes, so the quotes that
+          # keep a path with spaces in one Yosys token are escaped. The GHDL
+          # plugin takes its file arguments verbatim, quotes included, so the
+          # design files stay unquoted; the CLI passes them relative to Test/.
+          SYNTH_CMD: 'ghdl {{.RESOLVED_DESIGN_FILES}} -e {{.DESIGN}}; read_verilog \"{{.RESOLVED_TOP_WRAPPER_FILE}}\"; synth_fabulous -top {{.TOP_WRAPPER}} -json \"{{.RESOLVED_JSON_FILE}}\" {{.SYNTH_LIB_ARGS}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default ""}};'
           DESIGN_FILES: ""
           TOP_WRAPPER_FILE: ""
 
@@ -140,7 +147,7 @@ tasks:
           BIN_FILE: "{{.RESOLVED_BIN_FILE}}"
       - >-
         python3 makehex.py
-        {{.RESOLVED_BIN_FILE}}
+        "{{.RESOLVED_BIN_FILE}}"
         {{.MAX_BITBYTES}}
         {{.BUILD_DIR}}/{{.DESIGN}}.hex
 
@@ -171,10 +178,11 @@ tasks:
       TESTBENCH: '{{.TESTBENCH}}'
       WAVEFORM_TYPE: '{{.WAVEFORM_TYPE}}'
     cmds:
-      - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} $FAB_PROJ_ROOT/Fabric/models_pack.vhdl
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f"; done'
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f"; done'
-      - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
+      # One analyzer call per file, in find order; any failure stops the task.
+      - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f" || exit 1; done' sh {} +
+      - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - nvc {{.NVC_GLOBAL_FLAGS}} -e {{.NVC_ELAB_FLAGS}} {{.EXTRA_NVC_FLAGS}} $TESTBENCH
       - sh -c 'ulimit -s unlimited; nvc {{.NVC_GLOBAL_FLAGS}} -r {{.EXTRA_NVC_FLAGS}} $TESTBENCH -w$BUILD_DIR/$TESTBENCH.$WAVEFORM_TYPE --stats'
 
@@ -189,10 +197,10 @@ tasks:
       TESTBENCH: '{{.TESTBENCH}}'
       WAVEFORM_TYPE: '{{.WAVEFORM_TYPE}}'
     cmds:
-      - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $FAB_PROJ_ROOT/Fabric/models_pack.vhdl
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f"; done'
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f"; done'
-      - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
+      - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - ghdl -e {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ELAB_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH
       - sh -c 'ulimit -s unlimited; ghdl -r {{.GHDL_GLOBAL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH --stats --ieee-asserts=disable --{{.WAVEFORM_TYPE}}=$BUILD_DIR/$TESTBENCH.{{.WAVEFORM_TYPE}}'
 
@@ -210,10 +218,10 @@ tasks:
       # Drop the design units a previous run left in the work library.
       - rm -rf xsim.dir
       # A design unit must reach the library before anything instantiating it.
-      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $FAB_PROJ_ROOT/Fabric/models_pack.vhdl
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
-      - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f"; done'
-      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
+      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$FAB_PROJ_ROOT/Fabric/models_pack.vhdl"
+      - find "$FAB_PROJ_ROOT/Tile/" -name '*.vhdl' -type f -exec sh -c 'for f; do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - find "$FAB_PROJ_ROOT/Fabric/" -name '*.vhdl' -type f ! -name models_pack.vhdl -exec sh -c 'for f; do xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$f" || exit 1; done' sh {} +
+      - xvhdl --nolog -2008 {{.EXTRA_XVHDL_FLAGS}} "$USER_DESIGN_DIR/$DESIGN.vhdl" $TESTBENCH.vhdl
       - xelab --nolog {{.EXTRA_XELAB_FLAGS}} -s {{.XSIM_SNAPSHOT}} $TESTBENCH
       - xsim {{.XSIM_SNAPSHOT}} -R --log {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.log -wdb {{.BUILD_DIR}}/{{.XSIM_SNAPSHOT}}.wdb
       # A mismatch is a severity error, which leaves xsim's exit status at 0.
