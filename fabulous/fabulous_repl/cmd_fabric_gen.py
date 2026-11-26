@@ -34,6 +34,7 @@ from fabulous.fabulous_repl.command_set_base import (
 )
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
+    confirm_overwrite,
     register_tile_in_fabric_csv,
     unregister_tile_in_fabric_csv,
     write_pnr_model,
@@ -556,7 +557,7 @@ class FabricGenCommandSet(ReplCommandSet):
             earlier = existing_tile_outputs(tile_path.absolute(), switch_matrix)
             items = [str(p) for p in earlier]
             items.append("the existing BEL stubs in user_design/custom_prims.v")
-            if not self._confirm_overwrite(items, overwrite):
+            if not confirm_overwrite(self._cmd, items, overwrite):
                 return
             tile_csv = generateCustomTileConfig(
                 tile_path, switch_matrix=switch_matrix, overwrite=True
@@ -610,40 +611,6 @@ class FabricGenCommandSet(ReplCommandSet):
         matrices = re.findall(r"^\s*MATRIX\s*,\s*([^,\s]+)", text, re.MULTILINE)
         paths = [tile_csv.parent / m for m in matrices]
         existing = [str(p) for p in paths if p.exists()]
-        if not self._confirm_overwrite(existing, overwrite):
+        if not confirm_overwrite(self._cmd, existing, overwrite):
             return
         parseTilesCSV(tile_csv, generate_matrix_list=True)
-
-    def _confirm_overwrite(self, items: list[str], overwrite: bool) -> bool:
-        """Ask whether to replace `items`, or fail when nobody can answer.
-
-        Parameters
-        ----------
-        items : list[str]
-            What would be replaced, as paths or descriptions.
-        overwrite : bool
-            Replace without asking.
-
-        Returns
-        -------
-        bool
-            True if the command may go ahead.
-
-        Raises
-        ------
-        CommandError
-            If `items` exist, `overwrite` is not given and the shell is not
-            interactive.
-        """
-        if not items or overwrite:
-            return True
-        listing = "\n".join(f"  {item}" for item in items)
-        if not self._cmd.interactive:
-            raise CommandError(
-                f"This would replace:\n{listing}\nRerun with --overwrite to do so."
-            )
-        answer = self._cmd.read_input(f"This replaces:\n{listing}\nContinue? [y/N] ")
-        if answer.strip().lower() in ("y", "yes"):
-            return True
-        logger.info("Nothing was changed.")
-        return False

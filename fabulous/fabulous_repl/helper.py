@@ -27,6 +27,7 @@ from packaging.version import Version
 from pick import pick
 
 from fabulous.custom_exception import (
+    CommandError,
     EnvironmentNotSet,
     PipelineCommandError,
     PluginError,
@@ -369,6 +370,43 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
     if p.is_absolute() or p.parent != Path():
         return p
     return tile_dir / arg
+
+
+def confirm_overwrite(repl: "FABulousREPL", items: list[str], overwrite: bool) -> bool:
+    """Ask whether to replace `items`, or fail when nobody can answer.
+
+    Parameters
+    ----------
+    repl : FABulousREPL
+        The REPL to ask through; a non-interactive one cannot answer.
+    items : list[str]
+        What would be replaced, as paths or descriptions.
+    overwrite : bool
+        Replace without asking.
+
+    Returns
+    -------
+    bool
+        True if the command may go ahead.
+
+    Raises
+    ------
+    CommandError
+        If `items` exist, `overwrite` is not given and the shell is not
+        interactive.
+    """
+    if not items or overwrite:
+        return True
+    listing = "\n".join(f"  {item}" for item in items)
+    if not repl.interactive:
+        raise CommandError(
+            f"This would replace:\n{listing}\nRerun with --overwrite to do so."
+        )
+    answer = repl.read_input(f"This replaces:\n{listing}\nContinue? [y/N] ")
+    if answer.strip().lower() in ("y", "yes"):
+        return True
+    logger.info("Nothing was changed.")
+    return False
 
 
 def unregister_tile_in_fabric_csv(csv_path: Path, tile_dir: Path) -> bool:
