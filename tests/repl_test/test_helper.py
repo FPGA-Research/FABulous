@@ -23,6 +23,7 @@ from fabulous.fabulous_repl.helper import (
     register_tile_in_fabric_csv,
     run_task,
     setup_logger,
+    unregister_tile_in_fabric_csv,
     update_project_version,
     write_pnr_model,
 )
@@ -326,11 +327,50 @@ def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
     dst_dir = tmp_path / "Tile" / "MY_TILE"
     dst_dir.mkdir(parents=True)
     (dst_dir / "MY_TILE.csv").touch()
+    (dst_dir / "rtl").mkdir()  # a plain folder is not a subtile
 
     register_tile_in_fabric_csv(csv_path, dst_dir)
 
     csv_text = csv_path.read_text(encoding="utf-8")
     assert f"Tile,./{Path('Tile', 'MY_TILE', 'MY_TILE.csv')!s}" in csv_text
+    assert "Supertile" not in csv_text
+
+
+def test_unregister_tile_in_fabric_csv(tmp_path: Path) -> None:
+    """Only the tile's own and its subtiles' entries are dropped."""
+    csv_path = tmp_path / "fabric.csv"
+    tile_dir = tmp_path / "Tile" / "DSP"
+    keep = [
+        "Tile,./Tile/LUT4AB/LUT4AB.csv,\n",
+        "Tile,./Tile/DSP_sub/DSP_sub.csv,\n",  # other tile with a similar name
+        "Tile,./Tile/DSP/DSP_subsystem/DSP_subsystem.csv,\n",  # not a subtile
+        "Supertile,./Tile/Other/Other.csv,\n",
+    ]
+    stale = [
+        "Tile,./Tile/DSP/DSP_sub0/DSP_sub0.csv,\n",
+        "Tile,./Tile/DSP/DSP_sub3/DSP_sub3.csv,\n",
+        "Supertile,./Tile/DSP/DSP.csv,\n",
+        "Tile,./Tile/DSP/DSP.csv,\n",  # registered while it was a single tile
+    ]
+    csv_path.write_text("".join(keep + stale) + "ParametersEnd\n")
+
+    assert unregister_tile_in_fabric_csv(csv_path, tile_dir)
+
+    assert csv_path.read_text() == "".join(keep) + "ParametersEnd\n"
+    # Nothing of the tile is left, so it no longer counts as registered.
+    assert not unregister_tile_in_fabric_csv(csv_path, tile_dir)
+
+
+def test_register_tile_needs_parameters_end(tmp_path: Path) -> None:
+    """Without a ParametersEnd line there is nowhere to register the tile."""
+    csv_path = tmp_path / "fabric.csv"
+    csv_path.write_text("FabricBegin\nFabricEnd\n")
+    (tmp_path / "Tile" / "T").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="ParametersEnd"):
+        register_tile_in_fabric_csv(csv_path, tmp_path / "Tile" / "T")
+
+    assert csv_path.read_text() == "FabricBegin\nFabricEnd\n"
 
 
 @pytest.mark.parametrize("src_kind", ["name", "absolute", "external"])

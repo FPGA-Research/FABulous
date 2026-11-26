@@ -27,6 +27,7 @@ from packaging.version import Version
 from pick import pick
 
 from fabulous.custom_exception import (
+    CommandError,
     EnvironmentNotSet,
     PipelineCommandError,
     PluginError,
@@ -372,13 +373,98 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
     return tile_dir / arg
 
 
+def confirm_overwrite(repl: "FABulousREPL", items: list[str], overwrite: bool) -> bool:
+    """Ask whether to replace `items`, or fail when nobody can answer.
+
+    Parameters
+    ----------
+    repl : FABulousREPL
+        The REPL to ask through; a non-interactive one cannot answer.
+    items : list[str]
+        What would be replaced, as paths or descriptions.
+    overwrite : bool
+        Replace without asking.
+
+    Returns
+    -------
+    bool
+        True if the command may go ahead.
+
+    Raises
+    ------
+    CommandError
+        If `items` exist, `overwrite` is not given and the shell is not
+        interactive.
+    """
+    if not items or overwrite:
+        return True
+    listing = "\n".join(f"  {item}" for item in items)
+    if not repl.interactive:
+        raise CommandError(
+            f"This would replace:\n{listing}\nRerun with --overwrite to do so."
+        )
+    answer = repl.read_input(f"This replaces:\n{listing}\nContinue? [y/N] ")
+    if answer.strip().lower() in ("y", "yes"):
+        return True
+    logger.info("Nothing was changed.")
+    return False
+
+
+def unregister_tile_in_fabric_csv(csv_path: Path, tile_dir: Path) -> bool:
+    """Drop the entries of the tile or supertile in `tile_dir` from `csv_path`.
+
+    Removes the `Tile` or `Supertile` entry for `<tile_dir>/<name>.csv` and
+    every `Tile` entry inside a `<name>_sub<N>` folder, so a regenerated tile
+    can be registered again, as a tile or a supertile, without its earlier
+    subtiles. Other entries stay.
+
+    Parameters
+    ----------
+    csv_path : Path
+        Path to the fabric CSV file to update.
+    tile_dir : Path
+        Directory of the tile.
+
+    Returns
+    -------
+    bool
+        True if a `Tile` or `Supertile` entry for `<tile_dir>/<name>.csv` was
+        removed, i.e. the tile was registered.
+    """
+    tile_dir = tile_dir.resolve()
+    project_dir = csv_path.parent.resolve()
+    tile_csv = tile_dir / f"{tile_dir.name}.csv"
+
+    def entry_path(line: str) -> Path | None:
+        kind, _, rest = line.partition(",")
+        if kind not in ("Tile", "Supertile"):
+            return None
+        return (project_dir / rest.split(",")[0]).resolve()
+
+    def is_stale(line: str) -> bool:
+        path = entry_path(line)
+        if path is None:
+            return False
+        return path == tile_csv or (
+            path.parent.parent == tile_dir
+            and bool(
+                re.fullmatch(rf"{re.escape(tile_dir.name)}_sub\d+", path.parent.name)
+            )
+        )
+
+    lines = csv_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    kept = [ln for ln in lines if not is_stale(ln.strip())]
+    csv_path.write_text("".join(kept), encoding="utf-8")
+    return any(entry_path(ln.strip()) == tile_csv for ln in lines)
+
+
 def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     """Append Tile/Supertile entries for `dst_dir` to `csv_path` before ParametersEnd.
 
     The CSV paths are written relative to the directory containing `csv_path`
     (i.e. the project root), so `dst_dir` may be anywhere on the filesystem.
-    Detects whether `dst_dir` is a supertile by checking for sub-directories
-    (excluding `macro`) inside it.
+    Detects whether `dst_dir` is a supertile by checking for subtile folders,
+    i.e. sub-directories `<sub>` that hold a `<sub>/<sub>.csv`.
 
     Parameters
     ----------
@@ -386,6 +472,11 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
         Path to the fabric CSV file to update.
     dst_dir : Path
         Directory of the cloned tile.
+
+    Raises
+    ------
+    ValueError
+        If `csv_path` has no `ParametersEnd` line to insert the entries before.
     """
     dst_dir = dst_dir.resolve()
     dst_name = dst_dir.name
@@ -393,7 +484,7 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     tile_rel = dst_dir.relative_to(project_dir, walk_up=True).as_posix()
 
     sub_tile_names = sorted(
-        f.name for f in dst_dir.iterdir() if f.is_dir() and f.name != "macro"
+        f.name for f in dst_dir.iterdir() if (f / f"{f.name}.csv").is_file()
     )
     lines = csv_path.read_text(encoding="utf-8").splitlines(keepends=True)
     ref_line = next((ln for ln in lines if ln.startswith("Tile,")), "")
@@ -411,6 +502,11 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     else:
         new_entries.append(f"Tile,./{Path(tile_rel, f'{dst_name}.csv')!s}{trailing}\n")
 
+    if not any(line.strip().startswith("ParametersEnd") for line in lines):
+        raise ValueError(
+            f"{csv_path} has no ParametersEnd line to register {dst_name} before; "
+            "add the entries by hand."
+        )
     result: list[str] = []
     for line in lines:
         if line.strip().startswith("ParametersEnd"):

@@ -37,7 +37,11 @@ one or more custom BELs with the desired functionality.
 Currently, the tile generation is based on the default FABulous fabric
 and supports only up to 32 input and 8 output internal ports per tile, cumulated
 over all provided BELs. External ports are not counted, since they don't
-connect to the switch matrix.
+connect to the switch matrix. Neither are `CARRY`, `SHARED_RESET` and
+`SHARED_ENABLE` ports, which get their own dedicated wiring.
+
+A tile with a single BEL over that budget is generated as a supertile instead,
+see [Wide BELs: automatic supertile generation](#wide-bel-supertiles).
 :::
 
 ```verilog
@@ -167,7 +171,7 @@ To generate the tile config, we use the `generate_custom_tile_config` command in
 
 ```console
 FABulous> generate_custom_tile_config -h
-Usage: generate_custom_tile_config [-h] [--no-switch-matrix] tile_path
+Usage: generate_custom_tile_config [-h] [--no-switch-matrix] [--overwrite] tile_path
 
 Generates a custom tile configuration for a given tile folder
 or path to BEL folder.
@@ -180,7 +184,24 @@ optional arguments:
   -h, --help            show this help message and exit
   --no-switch-matrix, -nosm
                         Do not generate a Tile Switch Matrix
+  --overwrite, -y       Replace an earlier generation without asking
 ```
+
+With `--no-switch-matrix`, the tile CSV still points at
+`<name>_switch_matrix.list`, which you then write yourself or generate later
+with `generate_switch_matrix_list`.
+
+Running the command again regenerates the tile. If an earlier run left files
+behind, the command first checks the BELs, then lists those files and asks
+before replacing them: the tile CSV, the switch matrix and ConfigMem files, the
+tile RTL `gen_tile` wrote, any `<name>_sub<N>` folders, a
+`<name>_generated_switch_matrix.list` from the removed `MATRIX,GENERATE` flow,
+and the existing BEL stubs in `custom_prims.v`. Files are matched by name only,
+so check the list before you answer. `--overwrite` skips the question. In a
+script, where nobody can answer, the command fails unless `--overwrite` is
+given. If generating fails halfway, the earlier files are put back. If the tile
+was registered in `fabric.csv`, its entries are replaced to match the new tile
+or supertile.
 
 We will now generate the tile config:
 
@@ -196,8 +217,7 @@ INFO | Generating custom tile config Tile/CRC5
 INFO | Found BEL file Tile/CRC5/crc5.v for custom tile CRC5
 INFO | Creating tile config CSV file Tile/CRC5/CRC5.csv
 INFO | Reading tile configuration: Tile/CRC5/CRC5.csv
-INFO | Generating switch matrix list for tile CRC5
-INFO | Generating matrix file Tile/CRC5/CRC5_generated_switch_matrix.list
+INFO | Generating switch matrix list Tile/CRC5/CRC5_switch_matrix.list
 INFO | Creating prims file user_design/custom_prims.v
 INFO | Adding BELs crc5 to yosys primitives file user_design/custom_prims.v.
 ```
@@ -208,7 +228,7 @@ In the `Tile/CRC5` folder, we now have the following files:
 ```console
 demo/Tile/CRC5
 ├── CRC5.csv
-├── CRC5_generated_switch_matrix.list
+├── CRC5_switch_matrix.list
 ├── crc5.v
 └── crc5.json
 ```
@@ -224,7 +244,7 @@ Lets take a look into the `CRC5.csv`:
 TILE,CRC5
 INCLUDE,./../include/Base.csv
 BEL,./crc5.v
-MATRIX,GENERATE
+MATRIX,./CRC5_switch_matrix.list
 EndTILE
 ```
 
@@ -235,37 +255,53 @@ routing, you can do it there, like described in the [fabric definition](#fabric-
 
 #### Switch Matrix Generation
 
-The `MATRIX,GENERATE` line tells FABulous to generate a switch matrix for the tile.
+The `MATRIX` line points at the switch matrix list file that
+`generate_custom_tile_config` generated next to the tile CSV. FABulous only
+writes this file when you ask for it; loading or building the fabric never
+regenerates it, so you can edit it by hand.
 
-This means, after you have changed the tile .csv, you have to re-run the
-`generate_custom_tile_config` in order to update the switch matrix list file,
-for example to include additional BELs or routing.
+If the tile folder contains a `.list` file under another name than
+`<name>_switch_matrix.list` or `<name>_generated_switch_matrix.list`,
+`generate_custom_tile_config` references it instead of generating one, and
+never replaces it.
 
-Alternatively, to generating a tile csv file, you can also provide an own tile csv file,
-by just placing it in the tile folder. The `generate_custom_tile_config` command
-will parse the provided csv file, when it contains a `MATRIX,GENERATE` line,
-a switch matrix list file will be generated.
+After you change the tile .csv, for example to add BELs or routing, regenerate
+the switch matrix list file with the `generate_switch_matrix_list` command:
+
+```console
+FABulous> generate_switch_matrix_list Tile/CRC5
+```
+
+It reads the BELs, carry chains and shared ports of the tile CSV and writes the
+`.list` file its `MATRIX` line points to. The same works for a tile CSV you wrote
+yourself. If the list file exists, the command asks before replacing it, unless
+you pass `--overwrite`; in a script it fails without that flag.
 
 :::{warning}
-As long as the `MATRIX,GENERATE` command is in the tile CSV config,
-the switch matrix list file for the tile gets regenerated every time,
-the fabric is regenerated with `run_fab` or
-`generate_custom_tile_config` command is called.
-If you want to make manual changes in the list file directly,
-you should remove the `GENERATE` command from the tile CSV config
-and replace it with the path to the switch matrix list file.
-`MATRIX,./CRC5_generated_switch_matrix.list`
+Replacing the list file discards any changes you made to it by hand.
 :::
 
-The generated switch matrix list file `CRC5_generated_switch_matrix.list` looks like following
+The command only routes BEL ports, so it refuses a tile with `SJUMP` ports,
+such as the subtiles of a supertile, and a supertile CSV.
+
+:::{note}
+Older FABulous versions regenerated the list on every load from a
+`MATRIX,GENERATE` tile CSV line, and generated whole tiles from a
+`Tile,<path>,GENERATE` entry in `fabric.csv`. Both keywords are no longer
+supported and stop `load_fabric` with an error. Replace `MATRIX,GENERATE` with
+the path to the list file and generate it with `generate_switch_matrix_list`.
+Replace a `Tile,<path>,GENERATE` entry with the tile CSV that
+`generate_custom_tile_config` generates.
+:::
+
+The generated switch matrix list file `CRC5_switch_matrix.list` looks like following
 (shortened for clarity):
 
 ```console
 # --------------WARNING-----------------
 # This is a generated list file!
-# Your changes will be overwritten!
-# If you want to keep your changes,
-# please make a copy of this file and edit your tile csv.
+# FABulous does not regenerate it on its own, so you can edit it.
+# Running generate_switch_matrix_list overwrites your changes.
 # --------------WARNING-----------------
 N2BEGb0,N2MID0
 N2BEGb1,N2MID1
@@ -783,7 +819,7 @@ This will generate a custom tile config file in the `Tile/LUT4_TEST` folder:
 ```console
 LUT_TEST
 ├── LUT4_TEST.csv
-├── LUT4_TEST_generated_switch_matrix.list
+├── LUT4_TEST_switch_matrix.list
 ├── LUT4_test.json
 └── LUT4_test.v
 ```
@@ -797,7 +833,7 @@ NORTH,Co0,0,-1,Ci0,1,CARRY="C0"
 JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET
 JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE
 BEL,./LUT4_test.v
-MATRIX,GENERATE
+MATRIX,./LUT4_TEST_switch_matrix.list
 EndTILE
 ```
 
@@ -832,7 +868,7 @@ BEL,./LUT4_test.v,LT_E_
 BEL,./LUT4_test.v,LT_F_
 BEL,./LUT4_test.v,LT_G_
 BEL,./LUT4_test.v,LT_H_
-MATRIX,GENERATE
+MATRIX,./LUT4_TEST_switch_matrix.list
 EndTILE
 ```
 
@@ -843,9 +879,19 @@ We can add 8 of our `LUT4_test` BELs to the custom tile, since we have
 prefixes `LT_A_` to `LT_H_` to the BEL entries. This is needed that the BELs
 can be identified as individual BELs.
 
-Afterward, we can generate our custom tile with the `generate_custom_tile_config` command
-again. This will generate our generate the switch matrix and the custom prims
-file. We can now use the custom tile like any other tile in the `fabric.csv`.
+Going over that budget with multiple BELs is an error — the automatic supertile
+split described in [Wide BELs](#wide-bel-supertiles) only applies to a tile
+folder with a single wide BEL.
+
+Afterward, we regenerate the switch matrix list for the edited tile CSV with the
+`generate_switch_matrix_list` command, which also adds the BELs to the custom prims
+file:
+
+```console
+FABulous> generate_switch_matrix_list Tile/LUT4_test
+```
+
+We can now use the custom tile like any other tile in the `fabric.csv`.
 
 :::{note}
 This example is shows how to work with multiple BELs in a custom tile, based on
@@ -856,6 +902,114 @@ techmap scripts for Yosys!
 
 Alternatively, you can use [absolute placement constraints] (<https://github.com/YosysHQ/nextpnr/blob/master/docs/constraints.md#absolute-placement-constraints>)
 to exactly specify which BELs should be instantiated.
+:::
+
+(wide-bel-supertiles)=
+
+### Wide BELs: automatic supertile generation
+
+A single tile switch matrix can only route 32 inputs and 8 outputs. If your BEL
+exceeds that budget — a DSP block or a wide multiplier easily does —
+`generate_custom_tile_config` does not fail: it automatically generates a
+[supertile](#supertiles) instead of a tile, splitting the BEL ports across a
+vertical stack of subtiles.
+
+As an example, take the `MULADD` DSP BEL, which has 37 internal inputs and 20
+internal outputs. Drop it into a tile folder and generate as usual:
+
+```console
+FABulous> generate_custom_tile_config Tile/DSPblk
+```
+
+```console
+INFO | Generating custom tile config Tile/DSPblk
+INFO | Found BEL file Tile/DSPblk/MULADD.v for custom tile DSPblk
+INFO | BEL MULADD has 37 inputs / 20 outputs, exceeding the single-tile budget; generating supertile DSPblk with 3 subtiles
+```
+
+The number of subtiles is the smallest `N` that keeps every subtile within the
+32-input / 8-output budget, i.e. `N = max(ceil(inputs / 32), ceil(outputs / 8))`.
+The ports are distributed as evenly as possible over the `N` subtiles.
+This gives the following folder layout:
+
+```console
+demo/Tile/DSPblk
+├── DSPblk.csv
+├── DSPblk_switch_matrix.list
+├── DSPblk_sub0
+│   ├── DSPblk_sub0.csv
+│   └── DSPblk_sub0_switch_matrix.list
+├── DSPblk_sub1
+│   └── ...
+├── DSPblk_sub2
+│   └── ...
+├── MULADD.json
+└── MULADD.v
+```
+
+The supertile csv `DSPblk.csv` places the subtiles in a 1-wide, `N`-tall stack
+and holds the BEL itself:
+
+```console
+SuperTILE,DSPblk
+DSPblk_sub0
+DSPblk_sub1
+DSPblk_sub2
+BEL,./MULADD.v
+MATRIX,./DSPblk_switch_matrix.list
+EndSuperTILE
+```
+
+Each subtile is an ordinary generated tile. Instead of the BEL ports, it exposes
+its slice of the BEL ports as `SJUMP` ports (`SI` for the BEL inputs, `SO` for
+the BEL outputs), which the switch matrix generator wires into the fabric just
+like normal BEL ports:
+
+```console
+TILE,DSPblk_sub0
+INCLUDE,../../include/Base.csv
+SJUMP,SI,0,0,NULL,13,
+SJUMP,NULL,0,0,SO,7,
+MATRIX,./DSPblk_sub0_switch_matrix.list
+EndTILE
+```
+
+The supertile switch matrix `DSPblk_switch_matrix.list` is a plain 1:1
+concatenation that stitches the subtile slices back onto the flat BEL buses.
+It contains no multiplexers and therefore no configuration bits — all
+configuration belongs to the BEL itself:
+
+```console
+A0,DSPblk_sub0_SI0
+A1,DSPblk_sub0_SI1
+...
+DSPblk_sub0_SO0,Q0
+```
+
+Since the supertile occupies `N` fabric rows, place it in `fabric.csv` as
+described in the [supertile](#supertiles) section.
+
+To regenerate (for example after changing the BEL), run the command again and
+confirm, or pass `--overwrite`. Once the BEL is accepted, the command removes
+the earlier output as for a single tile, including every `<name>_sub<N>` folder
+and their entries in `fabric.csv`, then generates and registers the supertile
+again. Hand edits inside the subtile folders are lost. To change a subtile's
+routing, edit its list by hand; `generate_switch_matrix_list` refuses subtiles,
+since their lists come from this split rather than from the subtile CSVs.
+
+A few things stop supertile generation before anything is written:
+
+- The BEL file has the tile's name (e.g. `Tile/MULADD/MULADD.v`). `gen_tile`
+  writes the supertile RTL to `<name>.v`, so rename the BEL file.
+- `--no-switch-matrix` is given. A supertile always needs its generated
+  switch matrices.
+
+:::{warning}
+`CARRY`, `SHARED_RESET` and `SHARED_ENABLE` ports of a wide BEL are not yet
+distributed across the subtiles. They do not count towards the 32/8 budget, but
+a BEL that needs a supertile and has them is rejected with a
+`NotImplementedError`. Build such a supertile by hand as described in the
+[supertile](#supertiles) section.
 :::
 
 (gen-io)=

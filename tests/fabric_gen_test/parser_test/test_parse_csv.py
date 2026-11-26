@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidFabricParameter, InvalidPortType
+from fabulous.custom_exception import (
+    InvalidFabricDefinition,
+    InvalidFabricParameter,
+    InvalidPortType,
+    InvalidTileDefinition,
+)
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.parser.parse_csv import (
@@ -334,3 +339,39 @@ def test_a_chain_tile_parsed_from_its_directory_ignores_a_stale_mapping(
 
     assert isinstance(tile, Tile)
     assert tile.config_mem.config_bits == 0
+
+
+@pytest.mark.parametrize(
+    ("matrix", "generate", "match"),
+    [
+        ("MATRIX,GENERATE", False, "generate_switch_matrix_list"),
+        ("MATRIX,./LUT4AB_switch_matrix.csv", True, "only a .list"),
+    ],
+    ids=["generate-keyword", "non-list"],
+)
+def test_matrix_list_generation_is_explicit(
+    project: Path, matrix: str, generate: bool, match: str
+) -> None:
+    """`MATRIX,GENERATE` is gone, and only a `.list` matrix can be generated."""
+    init_context(project)
+    csv = project / "Tile" / "LUT4AB" / "LUT4AB.csv"
+    csv.write_text(
+        csv.read_text().replace("MATRIX,./LUT4AB_switch_matrix.list", matrix, 1)
+    )
+
+    with pytest.raises(InvalidTileDefinition, match=match):
+        parseTilesCSV(csv, generate_matrix_list=generate)
+
+
+def test_fabric_tile_generate_entry_is_rejected(project: Path) -> None:
+    """A `Tile,<path>,GENERATE` entry points to generate_custom_tile_config."""
+    init_context(project)
+    fabric_csv = project / "fabric.csv"
+    fabric_csv.write_text(
+        fabric_csv.read_text().replace(
+            "ParametersEnd", "Tile,./Tile/LUT4AB,GENERATE\nParametersEnd", 1
+        )
+    )
+
+    with pytest.raises(InvalidFabricDefinition, match="generate_custom_tile_config"):
+        parseFabricCSV(str(fabric_csv))

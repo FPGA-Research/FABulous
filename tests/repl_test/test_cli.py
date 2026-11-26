@@ -5,8 +5,11 @@ generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 import os
+import shutil
+import subprocess
 import sys
 import tkinter as tk
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -17,7 +20,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import CommandError
 from fabulous.fabric_definition.configmem import empty_config_mem
-from fabulous.fabric_definition.define import ConfigBitMode
+from fabulous.fabric_definition.define import ConfigBitMode, HDLType
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
@@ -32,6 +35,7 @@ from tests.conftest import (
     run_cmd,
     use_core_only_plugins,
 )
+from tests.fabric_gen_test.test_fabric_automation import MULADD_SRC, MULADD_VHDL_SRC
 from tests.repl_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 
 SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
@@ -1405,3 +1409,191 @@ def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
         add_prim("does_not_exist.v")
 
     assert custom_prims_file(cli) == before
+
+
+def test_generate_custom_tile_config_roundtrip(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The REPL command builds a tile CSV and its generated switch matrix.
+
+    Drives `generate_custom_tile_config` end-to-end: it must write the tile
+    CSV, emit the generated switch-matrix list, and register the BEL as a yosys
+    blackbox primitive, all without logging errors. Rerunning it in a script
+    refuses to replace that output without `--overwrite`;
+    `generate_switch_matrix_list` rebuilds the list from the edited tile CSV.
+    """
+    bel = "LUT4c_frame_config_dffesr.v"
+    tile_dir = cli.projectDir / "Tile" / "CustomTile"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(cli.projectDir / "Tile" / "LUT4AB" / bel, tile_dir / bel)
+
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+
+    normalize_and_check_for_errors(caplog.text)
+    tile_csv = tile_dir / "CustomTile.csv"
+    matrix = tile_dir / "CustomTile_switch_matrix.list"
+    assert matrix.is_file()
+    prims = (cli.projectDir / "user_design" / "custom_prims.v").read_text()
+    assert "LUT4c_frame_config_dffesr" in prims
+
+    # A second, prefixed BEL only reaches the list on request.
+    tile_csv.write_text(
+        tile_csv.read_text().replace(
+            f"BEL,./{bel}", f"BEL,./{bel},A_\nBEL,./{bel},B_", 1
+        )
+    )
+    normalize_and_check_for_errors(caplog.text)
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    assert cli.exit_code != 0
+    assert "--overwrite" in caplog.text
+    assert "B_I0" not in matrix.read_text()
+    caplog.clear()
+    run_cmd(cli, f"generate_switch_matrix_list --overwrite {tile_dir}")
+    assert "B_I0" in matrix.read_text()
+    normalize_and_check_for_errors(caplog.text)
+
+
+@pytest.mark.parametrize(
+    ("answer", "replaced"), [("y", True), ("n", False), ("", False)]
+)
+def test_generate_switch_matrix_list_asks_before_overwriting(
+    cli: FABulousREPL, mocker: MockerFixture, answer: str, replaced: bool
+) -> None:
+    """In the interactive shell, an existing list is only replaced on a yes."""
+    bel = "LUT4c_frame_config_dffesr.v"
+    tile_dir = cli.projectDir / "Tile" / "CustomTile"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(cli.projectDir / "Tile" / "LUT4AB" / bel, tile_dir / bel)
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    matrix = tile_dir / "CustomTile_switch_matrix.list"
+    matrix.write_text("# mine\n")
+    cli.interactive = True
+    ask = mocker.patch.object(cli, "read_input", return_value=answer)
+
+    run_cmd(cli, f"generate_switch_matrix_list {tile_dir}")
+
+    assert str(matrix) in ask.call_args.args[0]
+    assert (matrix.read_text() != "# mine\n") is replaced
+
+
+@pytest.fixture(params=[HDLType.VERILOG, HDLType.VHDL], ids=["verilog", "vhdl"])
+def dsp_cli(
+    request: pytest.FixtureRequest,
+    project_factory: Callable[..., Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> FABulousREPL:
+    """A REPL on a project in each HDL, with the wide MULADD BEL in Tile/DSPblk."""
+    lang: HDLType = request.param
+    # Loading a VHDL fabric already needs GHDL to parse the BELs.
+    if lang is HDLType.VHDL and shutil.which("ghdl") is None:
+        pytest.skip("ghdl not on PATH")
+    project = project_factory(lang=lang)
+    init_context(project)
+    use_core_only_plugins(monkeypatch)
+    cli = FABulousREPL(lang, force=False, interactive=False, verbose=False, debug=True)
+    run_cmd(cli, "load_fabric")
+    bel = MULADD_VHDL_SRC if lang is HDLType.VHDL else MULADD_SRC
+    tile_dir = project / "Tile" / "DSPblk"
+    tile_dir.mkdir(parents=True)
+    shutil.copy(bel, tile_dir / bel.name)
+    return cli
+
+
+def test_generate_supertile_rtl(
+    dsp_cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A BEL over the tile budget generates a supertile whose RTL builds.
+
+    Drives the full path: `generate_custom_tile_config` on a wide BEL emits a
+    supertile and registers it in fabric.csv, then `load_fabric` + `gen_tile`
+    generate every subtile and supertile RTL artefact without logging errors.
+    `gen_tile` (not `gen_fabric`) is used because the supertile is registered
+    as a tile definition but not placed in the fabric grid.
+    """
+    cli, ext = dsp_cli, dsp_cli.extension
+    tile_dir = cli.projectDir / "Tile" / "DSPblk"
+    # An entry from when the tile was a single tile cannot load a supertile, so
+    # registration replaces it.
+    text = cli.csvFile.read_text()
+    entry = "Tile,./Tile/DSPblk/DSPblk.csv\n"
+    cli.csvFile.write_text(text.replace("ParametersEnd", f"{entry}ParametersEnd", 1))
+
+    # Running twice must not register the supertile in fabric.csv twice.
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    run_cmd(cli, f"generate_custom_tile_config --overwrite {tile_dir}")
+    fabric_csv = cli.csvFile.read_text().splitlines()
+    assert "Tile,./Tile/DSPblk/DSPblk.csv" not in fabric_csv
+    assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
+    assert sum("DSPblk_sub0.csv" in ln for ln in fabric_csv) == 1
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+    # Regenerating after gen_tile replaces the earlier output, tile RTL included.
+    run_cmd(cli, f"generate_custom_tile_config --overwrite {tile_dir}")
+    assert not (tile_dir / f"DSPblk.{ext}").exists()
+    fabric_csv = cli.csvFile.read_text().splitlines()
+    assert sum("DSPblk/DSPblk.csv" in ln for ln in fabric_csv) == 1
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+
+    normalize_and_check_for_errors(caplog.text)
+    # Supertile + all three subtiles produced RTL.
+    assert (tile_dir / f"DSPblk.{ext}").is_file()
+    assert (tile_dir / f"DSPblk_switch_matrix.{ext}").is_file()
+    for i in range(3):
+        sub = tile_dir / f"DSPblk_sub{i}"
+        assert (sub / f"DSPblk_sub{i}.{ext}").is_file()
+        assert (sub / f"DSPblk_sub{i}_switch_matrix.{ext}").is_file()
+
+    # Subtile lists come from the supertile split, not from the subtile CSV.
+    sub_list = tile_dir / "DSPblk_sub0" / "DSPblk_sub0_switch_matrix.list"
+    before = sub_list.read_text()
+    run_cmd(cli, f"generate_switch_matrix_list --overwrite {tile_dir / 'DSPblk_sub0'}")
+    assert cli.exit_code != 0
+    assert sub_list.read_text() == before
+
+
+@pytest.mark.slow
+def test_generated_supertile_elaborates(
+    dsp_cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The generated supertile RTL stack elaborates in a simulator.
+
+    Generates the supertile, then compiles the whole stack (supertile wrapper +
+    switch matrix + ConfigMem, all subtiles, the MULADD BEL and the fabric model
+    primitives) with iverilog or GHDL. A clean elaboration proves the generated
+    modules link with no undeclared modules, port mismatches or width errors.
+    """
+    cli, ext = dsp_cli, dsp_cli.extension
+    tool = shutil.which("iverilog" if ext == "v" else "ghdl")
+    if tool is None:
+        pytest.skip(f"no simulator for .{ext} on PATH")
+    tile_dir = cli.projectDir / "Tile" / "DSPblk"
+
+    run_cmd(cli, f"generate_custom_tile_config {tile_dir}")
+    run_cmd(cli, "load_fabric")
+    run_cmd(cli, "gen_tile DSPblk")
+    normalize_and_check_for_errors(caplog.text)
+
+    sources = [
+        cli.projectDir / "Fabric" / f"models_pack.{ext}",
+        tile_dir / f"MULADD.{ext}",
+        tile_dir / f"DSPblk_ConfigMem.{ext}",
+        tile_dir / f"DSPblk_switch_matrix.{ext}",
+        *sorted(tile_dir.glob(f"DSPblk_sub*/*.{ext}")),
+        tile_dir / f"DSPblk.{ext}",
+    ]
+    srcs = [str(s) for s in sources]
+    if ext == "v":
+        out = str(tile_dir / "dspblk.out")
+        steps = [[tool, "-g2012", "-s", "DSPblk", "-o", out, *srcs]]
+    else:
+        work = ["--std=08", f"--workdir={tile_dir}"]
+        # --elab-run fully elaborates also on GHDL's mcode backend, where -e
+        # does not, and --warn-error fails on unbound components.
+        elab = [tool, "--elab-run", *work, "--warn-error", "DSPblk", "--no-run"]
+        steps = [[tool, "-a", *work, *srcs], elab]
+    for cmd in steps:
+        result = subprocess.run(
+            cmd, check=False, capture_output=True, text=True, cwd=tile_dir
+        )
+        assert result.returncode == 0, f"{cmd[1]} failed:\n{result.stderr}"
