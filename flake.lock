@@ -77,32 +77,6 @@
         "type": "github"
       }
     },
-    "ghdl-bin-aarch64-darwin": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1772908613,
-        "narHash": "sha256-2qfMjiGlOxRLoDuMNBwBefABuE61i9ZtPYw4tOhaDFI=",
-        "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz"
-      }
-    },
-    "ghdl-bin-x86_64-linux": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1772908664,
-        "narHash": "sha256-KwP6SEPS4tssAJIW46GmJpWe41zEyRQFGWv6/0eFTwQ=",
-        "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz"
-      },
-      "original": {
-        "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz"
-      }
-    },
     "librelane": {
       "inputs": {
         "ciel": "ciel",
@@ -122,22 +96,6 @@
         "owner": "librelane",
         "ref": "dev",
         "repo": "librelane",
-        "type": "github"
-      }
-    },
-    "nextpnr-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793021199,
-        "narHash": "sha256-bs/mACIAswqONvnb3h+WzivwAWkElaXjfNUAn1ZANv4=",
-        "owner": "YosysHQ",
-        "repo": "nextpnr",
-        "rev": "9691ce8c43fa49cfa38c68778fdeb14bf7e4ca82",
-        "type": "github"
-      },
-      "original": {
-        "owner": "YosysHQ",
-        "repo": "nextpnr",
         "type": "github"
       }
     },
@@ -225,10 +183,7 @@
     "root": {
       "inputs": {
         "fabulator-src": "fabulator-src",
-        "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
-        "ghdl-bin-x86_64-linux": "ghdl-bin-x86_64-linux",
         "librelane": "librelane",
-        "nextpnr-src": "nextpnr-src",
         "nix-eda": [
           "librelane",
           "nix-eda"

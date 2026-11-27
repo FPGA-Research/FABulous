@@ -11,7 +11,6 @@ on:
       - ".github/workflows/nix-env.yml"
   # PR / merge_group runs come through ci.yml.
   workflow_call:
-  # warm `nix-*` cache existing on `main` to fall back to
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
@@ -47,6 +46,9 @@ jobs:
           # Only the main base cache prunes its old generations
           purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Python fixups still match uv.lock
+        run: nix eval --raw ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).python-fixups.drvPath"
+
       - name: DevShell smoke test
         run: |
           nix develop --command bash -c "FABulous --version"
@@ -58,3 +60,103 @@ jobs:
         # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
         # different Python and ABI-incompatible with the devshell packages).
         run: nix develop --command task smoke-test FABULOUS=FABulous
+
+  downstream-template:
+    name: Downstream template (Nix ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Build the uv.lock-matched Python environment
+        run: |
+          nix build ".#fabulous-python-env"
+          ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
+
+      - name: Build the downstream template shell
+        run: |
+          set -euo pipefail
+          TEMPLATE="$RUNNER_TEMP/downstream"
+          cp -r nix/templates/downstream "$TEMPLATE"
+          cd "$TEMPLATE"
+          git init -q . && git add -A
+          nix develop \
+            --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
+            --command python -c "import fabulous, librelane, cocotb, pytest; print('imports OK')"
+
+  nix-wsl:
+    name: WSL2 (Nix Ubuntu-24.04)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - name: Keep the checkout at LF
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up WSL2
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: curl xz-utils git ca-certificates
+          wsl-shell-user: nixuser
+
+      - name: Hand the store to that user
+        shell: wsl-bash -u root {0}
+        run: install -d -o nixuser -g nixuser /nix
+
+      - name: Install Nix
+        run: |
+          curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+          mkdir -p ~/.config/nix
+          cat > ~/.config/nix/nix.conf <<'EOF'
+          experimental-features = nix-command flakes
+          sandbox = false
+          substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+          EOF
+
+      - name: Copy the checkout onto the Linux filesystem
+        run: |
+          test -f flake.nix
+          if grep -rIl $'\r' flake.nix pyproject.toml nix/; then
+            echo "::error::checkout has CRLF line endings; core.eol=lf did not take effect"
+            exit 1
+          fi
+          rm -rf ~/FABulous
+          mkdir ~/FABulous
+          cp -r ./. ~/FABulous/
+
+      - name: Build the uv.lock-matched Python environment
+        run: |
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix build --no-link --print-out-paths "$HOME/FABulous#fabulous-python-env" > ~/fabulous-env
+          pyenv=$(cat ~/fabulous-env)
+          "$pyenv/bin/python" -c "import fabulous, librelane; print('imports OK')"
+          "$pyenv/bin/FABulous" --version
+          "$pyenv/bin/fabulous" --version
+
+      - name: Create a project under WSL
+        run: |
+          fab=$(cat ~/fabulous-env)/bin/FABulous
+          project=~/fabulous-wsl
+          rm -rf "$project"
+          mkdir -p "$project"
+          cd "$project"
+          "$fab" c demo
+          test -s demo/fabric.csv
+          test -d demo/Tile/LUT4AB
+          test -d demo/.FABulous

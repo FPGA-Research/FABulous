@@ -3,7 +3,6 @@
 {
   lib,
   stdenvNoCC,
-  fetchFromGitHub,
   maven,
   jdk17,
   makeWrapper,
@@ -16,45 +15,47 @@
   at-spi2-atk,
   at-spi2-core,
   libepoxy,
-  xorg,
+  libx11,
+  libxext,
+  libxrender,
+  libxi,
+  libxcursor,
+  libxrandr,
+  libxfixes,
+  libxcomposite,
+  libxdamage,
+  libxtst,
+  libxkbfile,
+  libxinerama,
+  libxshmfence,
+  libxxf86vm,
   libGL,
   libGLU,
   mesa,
   fontconfig,
   freetype,
   dbus,
-  prefetchedSrc ? null,
+  src,
+  version,
 }:
 
 let
-  # Use prefetched source if available, otherwise fetch from GitHub
-  src =
-    if prefetchedSrc != null then
-      prefetchedSrc
-    else
-      fetchFromGitHub {
-        owner = "FPGA-Research";
-        repo = "FABulator";
-        rev = "develop";
-        hash = "sha256-ASM3lgvdH+6t4rkTixATETVGcibPVWhsFFD2sWfRDCc=";
-      };
-
   # X11 and graphics libraries needed for JavaFX
   displayLibs = [
-    xorg.libX11
-    xorg.libXext
-    xorg.libXrender
-    xorg.libXi
-    xorg.libXcursor
-    xorg.libXrandr
-    xorg.libXfixes
-    xorg.libXcomposite
-    xorg.libXdamage
-    xorg.libXtst
-    xorg.libxkbfile
-    xorg.libXinerama
-    xorg.libxshmfence
-    xorg.libXxf86vm
+    libx11
+    libxext
+    libxrender
+    libxi
+    libxcursor
+    libxrandr
+    libxfixes
+    libxcomposite
+    libxdamage
+    libxtst
+    libxkbfile
+    libxinerama
+    libxshmfence
+    libxxf86vm
     gtk3
     glib
     cairo
@@ -75,8 +76,7 @@ let
 in
 stdenvNoCC.mkDerivation {
   pname = "fabulator";
-  version = "unstable";
-  inherit src;
+  inherit src version;
 
   nativeBuildInputs = [ makeWrapper ];
 
@@ -104,11 +104,11 @@ stdenvNoCC.mkDerivation {
     runHook postInstall
   '';
 
-  meta = with lib; {
+  meta = {
     description = "FABulator - FPGA Fabric Visualization Tool";
     homepage = "https://github.com/FPGA-Research/FABulator";
-    license = licenses.asl20;
-    platforms = platforms.all;
+    license = lib.licenses.asl20;
+    platforms = lib.platforms.all;
     mainProgram = "FABulator";
   };
 }

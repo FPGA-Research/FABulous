@@ -10,7 +10,7 @@ from librelane.flows.classic import Classic
 from librelane.flows.flow import FlowException
 from librelane.logging.logger import err, info
 from librelane.state.state import State
-from librelane.steps.common_variables import io_layer_variables
+from librelane.steps.openroad import io_layer_variables
 from librelane.steps.step import Step
 
 from fabulous.fabric_definition.fabric import Fabric

@@ -2,8 +2,8 @@
 
 from importlib import resources
 
-from librelane.steps.common_variables import pdn_variables
 from librelane.steps.odb import OdbpyStep
+from librelane.steps.openroad import pdn_variables
 
 from fabulous.fabric_generator.gds_generator.helper import get_supply_nets
 from fabulous.fabric_generator.gds_generator.registry import register_step

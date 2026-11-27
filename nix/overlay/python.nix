@@ -1,77 +1,102 @@
-final: prev:
+{ lib }:
+
 let
+  addBuildSystem =
+    buildSystems: final: drv:
+    drv.overrideAttrs (old: {
+      nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ final.resolveBuildSystem buildSystems;
+    });
+
+  setuptoolsBuild = addBuildSystem {
+    setuptools = [ ];
+    wheel = [ ];
+  };
+
+  dropTopLevelLicense =
+    _final: drv:
+    drv.overrideAttrs (old: {
+      postInstall = (old.postInstall or "") + ''
+        rm -f $out/LICENSE
+      '';
+    });
+
+  setuptoolsScmBuild =
+    final: drv:
+    (addBuildSystem {
+      setuptools = [ ];
+      setuptools-scm = [ ];
+      wheel = [ ];
+    } final drv).overrideAttrs
+      (old: {
+        env = (old.env or { }) // {
+          SETUPTOOLS_SCM_PRETEND_VERSION = old.version;
+        };
+      });
+
+  depFixups = {
+    about-time = dropTopLevelLicense;
+    alive-progress = dropTopLevelLicense;
+    librelane = addBuildSystem {
+      setuptools = [ ];
+      wheel = [ ];
+      poetry-core = [ ];
+    };
+    pyperclip = setuptoolsBuild;
+    sdf-timing = setuptoolsScmBuild;
+  };
+
+  nixpkgsFixups = [
+    "about-time"
+    "alive-progress"
+  ];
+
   fallbackVersion =
     (builtins.fromTOML (builtins.readFile ../../pyproject.toml)).tool.setuptools_scm.fallback_version;
+
+  dropAliasScript = ''
+    grep -q '^fabulous = "fabulous.fabulous:main"$' pyproject.toml
+    sed -i '/^fabulous = "fabulous.fabulous:main"$/d' pyproject.toml
+  '';
+
+  restoreAliasScript = ''
+    [ -e "$out/bin/fabulous" ] || ln -s FABulous "$out/bin/fabulous"
+  '';
 in
 {
-  # Override fasm to use GitHub source instead of PyPI and add missing build deps
-  fasm = prev.fasm.overrideAttrs (old: {
-    src = final.pkgs.fetchFromGitHub {
-      owner = "chipsalliance";
-      repo = "fasm";
-      rev = "v0.0.2";
-      sha256 = "sha256-AMG4+qMk2+40GllhE8UShagN/jxSVN+RNtJCW3vFLBU=";
+  inherit fallbackVersion dropAliasScript restoreAliasScript;
+
+  patchedPackages = lib.attrNames depFixups ++ nixpkgsFixups;
+
+  bootstrapPackages = [
+    "wheel"
+    "packaging"
+    "tomli"
+  ];
+
+  deps =
+    final: prev:
+    lib.mapAttrs (name: fixup: fixup final prev.${name}) (
+      lib.filterAttrs (name: _: prev ? ${name}) depFixups
+    );
+
+  nixpkgs =
+    final: prev:
+    lib.genAttrs nixpkgsFixups (name: dropTopLevelLicense final prev.${name})
+    // {
+      fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + restoreAliasScript;
+      });
     };
-    nativeBuildInputs =
-      (old.nativeBuildInputs or [ ])
-      ++ final.resolveBuildSystem {
-        setuptools = [ ];
-        wheel = [ ];
-        cython = [ ];
+
+  source = _final: prev: {
+    fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
+      version = fallbackVersion;
+      __intentionallyOverridingVersion = true;
+      env = (old.env or { }) // {
+        SETUPTOOLS_SCM_PRETEND_VERSION = fallbackVersion;
       };
-    propagatedBuildInputs = (old.propagatedBuildInputs or [ ]) ++ [ prev.textx ];
-  });
-
-  pyperclip = prev.pyperclip.overrideAttrs (old: {
-    nativeBuildInputs =
-      (old.nativeBuildInputs or [ ])
-      ++ final.resolveBuildSystem {
-        setuptools = [ ];
-        wheel = [ ];
-      };
-  });
-  # The PyPI sdist builds with setuptools, the pinned git source poetry-core.
-  librelane = prev.librelane.overrideAttrs (old: {
-    nativeBuildInputs =
-      (old.nativeBuildInputs or [ ])
-      ++ final.resolveBuildSystem {
-        setuptools = [ ];
-        wheel = [ ];
-        poetry-core = [ ];
-      };
-  });
-
-  # Fix file collision between alive-progress and about-time (both provide LICENSE files)
-  alive-progress = prev.alive-progress.overrideAttrs (old: {
-    postInstall = (old.postInstall or "") + ''
-      rm -f $out/LICENSE
-    '';
-  });
-
-  # Build dependencies for sdf-timing and set a fixed version for
-  # setuptools-scm to avoid build failures.
-  sdf-timing = prev.sdf-timing.overrideAttrs (oldAttrs: {
-    nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
-      final.setuptools
-      final.setuptools-scm
-      final.wheel
-    ];
-    SETUPTOOLS_SCM_PRETEND_VERSION = "0.0.post134";
-  });
-
-  about-time = prev.about-time.overrideAttrs (old: {
-    postInstall = (old.postInstall or "") + ''
-      rm -f $out/LICENSE
-    '';
-  });
-
-  fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
-    # Relabel to match the version setuptools_scm will stamp (below); we are
-    # not changing src, so opt out of nixpkgs' version/src mismatch warning.
-    version = fallbackVersion;
-    __intentionallyOverridingVersion = true;
-    env = (old.env or { }) // {
-      SETUPTOOLS_SCM_PRETEND_VERSION = fallbackVersion;
-    };
-  });
+      postPatch = (old.postPatch or "") + dropAliasScript;
+      postInstall = (old.postInstall or "") + restoreAliasScript;
+    });
+  };
 }

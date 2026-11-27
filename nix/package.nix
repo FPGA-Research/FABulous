@@ -1,34 +1,50 @@
-# Consumable FABulous package: the project's console-script entrypoints
-# (FABulous, fabulous) wrapped so the EDA toolchain is on PATH and the runtime
-# environment is preset. This is the non-editable counterpart to the dev shell.
 {
   lib,
-  pkgs,
-  virtualenv,
-  toolchain,
+  stdenv,
+  runCommand,
+  makeWrapper,
+  python3,
+  fabulous-python-env,
+  fabulous-python-set,
+  fabulous-tools,
 }:
-pkgs.runCommand "fabulous"
+
+let
+  version = fabulous-python-set.fabulous-fpga.version;
+
+  systemSupported =
+    tool:
+    let
+      platforms = tool.meta.platforms or [ ];
+    in
+    platforms == [ ] || builtins.elem stdenv.hostPlatform.system platforms;
+
+  includedTools = fabulous-tools ++ lib.filter systemSupported python3.pkgs.librelane.includedTools;
+
+  env = {
+    PYTHONWARNINGS = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
+  };
+
+in
+
+runCommand "fabulous-${version}"
   {
-    nativeBuildInputs = [ pkgs.makeWrapper ];
+    inherit version;
+    pname = "fabulous";
+    nativeBuildInputs = [ makeWrapper ];
+    passthru = { inherit includedTools env; };
     meta = {
       description = "FABulous FPGA fabric generator (wrapped with its EDA toolchain)";
+      homepage = "https://github.com/FPGA-Research/FABulous";
+      license = lib.licenses.asl20;
       mainProgram = "FABulous";
     };
   }
   ''
     mkdir -p $out/bin
-    # librelane is wrapped too so downstream chip projects get a ready-to-run
-    # front-end CLI (with the FABulous plugin discovered and the EDA tools on
-    # PATH) without re-deriving the environment themselves.
     for prog in FABulous fabulous librelane; do
-      # tkinter is missing from the uv-built venv's interpreter, so add it from
-      # nixpkgs. librelane is intentionally NOT added: it comes from the venv
-      # (pinned by uv.lock), so its version is controlled on the Python side
-      # rather than forced to the flake input. librelane finds the EDA tools via
-      # PATH (shutil.which), so the venv's librelane works with them as-is.
-      makeWrapper ${virtualenv}/bin/$prog $out/bin/$prog \
-        --prefix PATH : ${lib.makeBinPath toolchain.toolPackages} \
-        --prefix PYTHONPATH : "${toolchain.tkinter-python-path}" \
-        --set PYTHONWARNINGS "${toolchain.envVars.PYTHONWARNINGS}"
+      makeWrapper ${fabulous-python-env}/bin/$prog $out/bin/$prog \
+        --prefix PATH : ${lib.makeBinPath includedTools} \
+        --set PYTHONWARNINGS "${env.PYTHONWARNINGS}"
     done
   ''

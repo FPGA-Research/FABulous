@@ -4,11 +4,11 @@ from importlib import resources
 
 from librelane.config.variable import Variable
 from librelane.state.state import State
-from librelane.steps.common_variables import (
+from librelane.steps.openroad import (
+    OpenROADStep,
     grt_variables,
     rsz_variables,
 )
-from librelane.steps.openroad import OpenROADStep
 from librelane.steps.step import (
     MetricsUpdate,
     ViewsUpdate,
