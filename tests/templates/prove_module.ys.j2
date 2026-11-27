@@ -1,0 +1,24 @@
+{% for tag, rtlil in sides %}
+read_rtlil "{{ rtlil }}"
+hierarchy -top {{ module }}
+{% if children %}
+setattr -mod -set keep_hierarchy 1 {{ children | join(" ") }}
+flatten {{ module }}
+blackbox * {{ module }} %d
+expose -evert {{ module }}/c:* {{ module }}/t:$* %d
+{% else %}
+flatten
+{% endif %}
+memory
+clk2fflogic
+opt_clean
+rename {{ module }} {{ tag }}
+design -stash {{ tag }}
+{% endfor %}
+design -copy-from gold -as gold gold
+design -copy-from gate -as gate gate
+equiv_make gold gate equiv
+hierarchy -top equiv
+equiv_simple
+equiv_induct
+equiv_status -assert
