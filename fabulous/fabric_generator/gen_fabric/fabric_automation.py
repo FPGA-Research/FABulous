@@ -1160,6 +1160,8 @@ def genIOBel(
 
     # gen_io assignments
     writer.addNewLine()
+    # Each CLOCKED_MUX declaration uses the config bits after the previous ones.
+    config_bit_offset = 0
     for gio in gen_ios:
         if gio.pins <= 0:
             logger.warning(f"Generative IO {gio.prefix} has no pins, skipping")
@@ -1225,6 +1227,7 @@ def genIOBel(
                         source = f"{gio.prefix}_top{j}"
 
                     reg = f"{gio.prefix}_Q{j}"
+                    select = f"ConfigBits[{config_bit_offset + i}]"
 
                     writer.addConnectionScalar(reg, True)
                     writer.addRegister(
@@ -1237,7 +1240,7 @@ def genIOBel(
                         portsPairs = [
                             ("A0", source),
                             ("A1", reg),
-                            ("S", f"ConfigBits[{i}]"),
+                            ("S", select),
                             ("X", sink),
                         ]
                         writer.addInstantiation(
@@ -1250,28 +1253,28 @@ def genIOBel(
                         if language == "vhdl":
                             writer.addAssignScalar(
                                 sink,
-                                f"{source} when (ConfigBits[{i}] = '0') else {reg}",
+                                f"{source} when ({select} = '0') else {reg}",
                             )
                         else:  # Verilog
-                            writer.addAssignScalar(
-                                sink, f"ConfigBits[{i}] ? {reg} : {source}"
-                            )
+                            writer.addAssignScalar(sink, f"{select} ? {reg} : {source}")
 
-            for i in range(gio.pins):
-                # for single pins we kick out the index
-                j = "" if gio.pins == 1 else f"{i}"
-                if gio.IO == IO.INPUT:
-                    writer.addAssignScalar(
-                        f"{gio.prefix}_top{j}",
-                        f"{gio.prefix}{j}",
-                        inverted=gio.inverted,
-                    )
-                elif gio.IO == IO.OUTPUT:
-                    writer.addAssignScalar(
-                        f"{gio.prefix}{j}",
-                        f"{gio.prefix}_top{j}",
-                        inverted=gio.inverted,
-                    )
+                config_bit_offset += gio.configBit
+            else:
+                for i in range(gio.pins):
+                    # for single pins we kick out the index
+                    j = "" if gio.pins == 1 else f"{i}"
+                    if gio.IO == IO.INPUT:
+                        writer.addAssignScalar(
+                            f"{gio.prefix}_top{j}",
+                            f"{gio.prefix}{j}",
+                            inverted=gio.inverted,
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        writer.addAssignScalar(
+                            f"{gio.prefix}{j}",
+                            f"{gio.prefix}_top{j}",
+                            inverted=gio.inverted,
+                        )
 
     writer.addNewLine()
     writer.addDesignDescriptionEnd()
