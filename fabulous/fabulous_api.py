@@ -613,14 +613,10 @@ class FABulous_API:
 
         if gios:
             bel_path = tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
-            bel = genIOBel(gios, bel_path, True)
-            if bel:
-                bels.append(bel)
+            bels.append(genIOBel(gios, bel_path, True))
         if gio_config_access:
             bel_path = tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
-            bel = genIOBel(gio_config_access, bel_path, True)
-            if bel:
-                bels.append(bel)
+            bels.append(genIOBel(gio_config_access, bel_path, True))
 
         # update fabric tileDic with generated IO BELs
         if self.fabric.tileDic.get(tile_name):

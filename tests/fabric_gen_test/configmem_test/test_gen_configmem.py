@@ -270,24 +270,31 @@ class TestGeneratedConfigMemRTL:
                 )
             return
 
+        memory = ConfigMem.default(
+            tile_config.globalConfigBits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frames_per_col=fabric_config.maxFramesPerCol,
+            source=Path("ConfigMem.csv"),
+        )
+        if tile_config.globalConfigBits == 0:
+            with pytest.raises(ValueError, match="maps no configuration bits"):
+                generate_config_mem(
+                    writer,
+                    tile_config.name,
+                    memory,
+                    config_bit_mode=fabric_config.configBitMode,
+                )
+            return
+
         generate_config_mem(
             writer,
             tile_config.name,
-            ConfigMem.default(
-                tile_config.globalConfigBits,
-                frame_bits_per_row=fabric_config.frameBitsPerRow,
-                max_frames_per_col=fabric_config.maxFramesPerCol,
-                source=Path("ConfigMem.csv"),
-            ),
+            memory,
             config_bit_mode=fabric_config.configBitMode,
         )
 
-        # Verify output file was created and contains expected content
         output_file = writer.outFileName
-        if tile_config.globalConfigBits != 0:
-            assert output_file.exists(), "Output file should be created"
-        else:
-            return  # Skip further checks if no config bits are generated
+        assert output_file.exists(), "Output file should be created"
 
         # Read and verify the generated content
         content = output_file.read_text()
@@ -719,6 +726,31 @@ class TestGenerateTileConfigMem:
         )
         tile.config_mem = replace(memory, source=tmp_path / "T_ConfigMem.csv")
         return tile
+
+    def test_a_tile_without_config_bits_gets_no_config_mem(
+        self, tmp_path: Path, code_generator_factory: Callable[..., CodeGenerator]
+    ) -> None:
+        """A tile of only pass-through wires gets neither a mapping nor a module."""
+        tile = make_empty_tile(
+            "T",
+            config_bits=0,
+            tileDir=tmp_path / "T.csv",
+            matrixDir=tmp_path / "T_switch_matrix.csv",
+        )
+        tile.config_mem = ConfigMem.default(
+            0,
+            frame_bits_per_row=32,
+            max_frames_per_col=20,
+            source=tmp_path / "T_ConfigMem.csv",
+        )
+
+        generate_tile_config_mem(
+            code_generator_factory(".v"),
+            tile,
+            config_bit_mode=ConfigBitMode.FRAME_BASED,
+        )
+
+        assert list(tmp_path.glob("T_ConfigMem.*")) == []
 
     def test_an_unwritten_mapping_is_generated_and_saved(
         self, tmp_path: Path, code_generator_factory: Callable[..., CodeGenerator]

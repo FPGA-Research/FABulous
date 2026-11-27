@@ -467,7 +467,7 @@ def generateTile(
         for portname, ports in port_dict.items():
             if len(ports) > 1:
                 # Sort ports based on bit significance.
-                ports.sort(key=lambda x: int(x[1]) if x[1].isdigit() else -1)
+                ports.sort(key=lambda x: int(x[1]))
                 # Concatenate the ports in the correct order.
                 concatenated_ports = ", ".join(port for port, _ in ports[::-1])
                 ports_pairs.append((portname, f"{{{concatenated_ports}}}"))
@@ -506,7 +506,7 @@ def generateTile(
                 zip(
                     i.expand_port_info_by_name(),
                     i.expand_port_info_by_name(indexed=True),
-                    strict=False,
+                    strict=True,
                 )
             )
     # bel input wire (bel output is input to switch matrix)
@@ -522,7 +522,7 @@ def generateTile(
         if i.wire_direction == Direction.JUMP and i.is_output:
             signal += i.expand_port_info_by_name(indexed=True)
 
-    ports_pairs += list(zip(port, signal, strict=False))
+    ports_pairs += list(zip(port, signal, strict=True))
 
     # normal output wire (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
@@ -531,7 +531,7 @@ def generateTile(
                 zip(
                     i.expand_port_info_by_name(),
                     i.expand_port_info_by_name_top(indexed=True),
-                    strict=False,
+                    strict=True,
                 )
             )
 
@@ -1160,7 +1160,7 @@ def generateSuperTile(
                         ]
         for portname, ports in port_dict.items():
             if len(ports) > 1:
-                ports.sort(key=lambda x: int(x[1]) if x[1].isdigit() else -1)
+                ports.sort(key=lambda x: int(x[1]))
                 concatenated = ", ".join(p for p, _ in ports[::-1])
                 bel_ports_pairs.append((portname, f"{{{concatenated}}}"))
             else:

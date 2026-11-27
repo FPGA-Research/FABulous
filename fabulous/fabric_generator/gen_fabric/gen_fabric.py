@@ -301,7 +301,11 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             for i, j in tileLocationOffset:
                 here = fabric.tile[base_y + j][base_x + i]
                 if here is None:
-                    continue
+                    raise InvalidFabricDefinition(
+                        f"Supertile containing {tile.name} at X{x}Y{y} expects a "
+                        f"tile at X{base_x + i}Y{base_y + j}, but the fabric "
+                        "cell is NULL."
+                    )
                 in_super = here.partOfSuperTile
 
                 local_prefix = f"Tile_X{i}Y{j}_" if in_super else ""
@@ -376,7 +380,11 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             for i, j in tileLocationOffset:
                 offset_tile = fabric.tile[base_y + j][base_x + i]
                 if offset_tile is None:
-                    continue
+                    raise InvalidFabricDefinition(
+                        f"Supertile containing {tile.name} at X{x}Y{y} expects a "
+                        f"tile at X{base_x + i}Y{base_y + j}, but the fabric "
+                        "cell is NULL."
+                    )
                 for b in offset_tile.bels:
                     for p in b.external_input_ports + b.external_output_ports:
                         portsPairs.append(

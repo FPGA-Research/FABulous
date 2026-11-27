@@ -226,6 +226,11 @@ def _gen_switch_matrix_body(
         Per-mux delay (ps) emitted on assign statements.
     switch_matrix_debug_signal : bool
         Whether to generate debug signals.
+
+    Raises
+    ------
+    ValueError
+        If an output has no sources.
     """
     # constant declaration - provides '0'/'1' as padding inputs to muxes
     vhdl = isinstance(writer, VHDLCodeGenerator)
@@ -271,17 +276,15 @@ def _gen_switch_matrix_body(
     configBitstreamPosition = 0
     for portName in connections:
         muxSize = len(connections[portName])
+        if muxSize == 0:
+            raise ValueError(
+                f"Switch matrix output {portName} in {name} has no sources. "
+                "Connect it to GND0 or VCC0."
+            )
         writer.addComment(
             f"switch matrix multiplexer {portName} MUX-{muxSize}", onNewLine=True
         )
-        if muxSize == 0:
-            logger.warning(
-                f"Input port {portName} of switch matrix in {name} is unused"
-            )
-            writer.addComment(
-                f"WARNING unused multiplexer MUX-{portName}", onNewLine=True
-            )
-        elif muxSize == 1:
+        if muxSize == 1:
             if connections[portName][0] == "0":
                 writer.addAssignScalar(portName, "0")
             elif connections[portName][0] == "1":

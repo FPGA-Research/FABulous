@@ -531,7 +531,7 @@ end process;
                 rhs = signal or "open"
                 connectPair.append(f"{port} => {rhs}")
             else:
-                for idx, sn in zip(reversed(range(len(split))), split, strict=False):
+                for idx, sn in zip(reversed(range(len(split))), split, strict=True):
                     connectPair.append(
                         f"{port}({idx}) => {sn.replace('(', '').replace(')', '')}"
                     )

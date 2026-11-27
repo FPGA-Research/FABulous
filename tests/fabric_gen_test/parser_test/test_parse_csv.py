@@ -1,5 +1,6 @@
 """Tests for parsing tile port lines from CSV fabric definitions."""
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ from fabulous.custom_exception import (
     InvalidFabricDefinition,
     InvalidFabricParameter,
     InvalidPortType,
+    InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
@@ -201,10 +203,8 @@ def test_supertile_bel_add_as_custom_prim(project: Path, prefix: str) -> None:
     assert "module MULADD" in prims.read_text()
 
 
-def test_tile_prefix_add_as_custom_prim_warns(
-    project: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """`ADD_AS_CUSTOM_PRIM` in a tile BEL's prefix field warns and still applies."""
+def test_tile_prefix_add_as_custom_prim_raises(project: Path) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a tile BEL's prefix field raises."""
     init_context(project)
     prims = project / "user_design" / "custom_prims.v"
     prims.unlink(missing_ok=True)
@@ -215,17 +215,13 @@ def test_tile_prefix_add_as_custom_prim_warns(
         )
     )
 
-    (tile,) = parseTilesCSV(csv)[0]
-
-    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
-    assert tile.bels[0].prefix == ""
-    assert "module MULADD" in prims.read_text()
+    with pytest.raises(InvalidTileDefinition, match="ADD_AS_CUSTOM_PRIM is in the"):
+        parseTilesCSV(csv)
+    assert not prims.exists()
 
 
-def test_supertile_prefix_add_as_custom_prim_warns(
-    project: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """`ADD_AS_CUSTOM_PRIM` in a supertile BEL's prefix field warns and applies."""
+def test_supertile_prefix_add_as_custom_prim_raises(project: Path) -> None:
+    """`ADD_AS_CUSTOM_PRIM` in a supertile BEL's prefix field raises."""
     init_context(project)
     prims = project / "user_design" / "custom_prims.v"
     prims.unlink(missing_ok=True)
@@ -234,11 +230,79 @@ def test_supertile_prefix_add_as_custom_prim_warns(
         "SuperTILE,ST\nT\nBEL,./DSP_bot/MULADD.v,ADD_AS_CUSTOM_PRIM\nEndSuperTILE\n"
     )
 
-    (supertile,) = parseSupertilesCSV(csv, {"T": make_empty_tile("T")})
+    with pytest.raises(
+        InvalidSupertileDefinition, match="ADD_AS_CUSTOM_PRIM is in the"
+    ):
+        parseSupertilesCSV(csv, {"T": make_empty_tile("T")})
+    assert not prims.exists()
 
-    assert "ADD_AS_CUSTOM_PRIM in the prefix field" in caplog.text
-    assert supertile.bels[0].prefix == ""
-    assert "module MULADD" in prims.read_text()
+
+@pytest.mark.parametrize(
+    ("old", "new", "copies", "match"),
+    [
+        pytest.param(
+            ",DSP_top,",
+            ",LUT4AB,",
+            {},
+            "Supertile DSP is only partly placed",
+            id="partly-placed-supertile",
+        ),
+        pytest.param(
+            "Tile,./Tile/LUT4AB/LUT4AB.csv,",
+            "Tile,./Tile/LUT4AB/LUT4AB.csv,\nTile,./Tile/COPY/LUT4AB.csv,",
+            {"Tile/COPY": "Tile/LUT4AB"},
+            "Tile LUT4AB is defined in both",
+            id="duplicate-tile",
+        ),
+        pytest.param(
+            "Supertile,./Tile/DSP/DSP.csv,",
+            "Supertile,./Tile/DSP/DSP.csv,\nSupertile,./Tile/DSP/DSP_copy.csv,",
+            {"Tile/DSP/DSP_copy.csv": "Tile/DSP/DSP.csv"},
+            "Supertile DSP is defined in both",
+            id="duplicate-supertile",
+        ),
+        pytest.param(
+            "Tile,./Tile/LUT4AB/LUT4AB.csv,",
+            "Tile,./Tile/LUT4AB/LUT4AB.csv,\nTile,./Tile/include/Base.csv,",
+            {},
+            "defines no TILE",
+            id="tile-csv-without-tile",
+        ),
+    ],
+)
+def test_invalid_fabric_raises(
+    project: Path, old: str, new: str, copies: dict[str, str], match: str
+) -> None:
+    """A fabric CSV with conflicting or empty tile definitions raises."""
+    for copy, original in copies.items():
+        if (project / original).is_dir():
+            shutil.copytree(project / original, project / copy)
+        else:
+            shutil.copy(project / original, project / copy)
+    fabric_csv = project / "fabric.csv"
+    text = fabric_csv.read_text()
+    assert old in text
+    fabric_csv.write_text(text.replace(old, new))
+
+    init_context(project)
+    with pytest.raises(InvalidFabricDefinition, match=match):
+        parseFabricCSV(fabric_csv)
+
+
+def test_fully_unused_supertile_is_allowed(project: Path) -> None:
+    """A supertile with none of its subtiles placed parses as unused."""
+    fabric_csv = project / "fabric.csv"
+    fabric_csv.write_text(
+        fabric_csv.read_text()
+        .replace(",DSP_top,", ",LUT4AB,")
+        .replace(",DSP_bot,", ",LUT4AB,")
+    )
+
+    init_context(project)
+    fabric = parseFabricCSV(fabric_csv)
+
+    assert "DSP" in fabric.unusedSuperTileDic
+    assert "DSP" not in fabric.superTileDic
 
 
 class TestConfigMemLocation:

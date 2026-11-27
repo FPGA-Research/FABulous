@@ -44,14 +44,19 @@ def generate_config_mem(
     name : str
         The tile the memory belongs to.
     memory : ConfigMem
-        The mapping the module implements. A mapping holding no bits gets no
-        module, since `ConfigBits[-1:0]` is not a vector.
+        The mapping the module implements.
     config_bit_mode : ConfigBitMode
         The storage the module instantiates.
+
+    Raises
+    ------
+    ValueError
+        If the mapping holds no bits, since `ConfigBits[-1:0]` is not a vector.
     """
     if memory.config_bits == 0:
-        logger.info(f"{name} maps no configuration bits, so it gets no module")
-        return
+        raise ValueError(
+            f"{name} maps no configuration bits, so it cannot have a module."
+        )
     logger.info(
         f"{name} maps {memory.config_bits} configuration bits over "
         f"{len(memory.used_frames)} frames"

@@ -74,8 +74,10 @@ def generateCustomTileConfig(
         If an earlier generation left output in the tile folder and `overwrite`
         is False.
     ValueError
-        If the tile path is not a valid tile path, if the tile folder does not
-        exist, or if the tile needs a supertile but `switch_matrix` is False.
+        If the tile path is not inside the project `Tile` folder, or if the tile
+        needs a supertile but `switch_matrix` is False.
+    FileNotFoundError
+        If the tile folder does not exist.
     NotImplementedError
         If the tile is over the single-tile budget but has more than one BEL, which
         is not yet supported for supertile generation.
@@ -83,7 +85,6 @@ def generateCustomTileConfig(
     tile_name: str = ""
     project_tile_dir: Path = get_context().proj_dir / "Tile"
 
-    tile_files = {}
     tile_csv: Path
     tile_bels: list[Path] = []
     tile_carrys = []
@@ -104,10 +105,12 @@ def generateCustomTileConfig(
     if not tile_path.is_relative_to(project_tile_dir.absolute()):
         raise ValueError(f"Path {tile_path} is not a valid tile path")
 
-    if not tile_path.exists():
-        tile_path.mkdir()
-    else:
-        tile_files = tile_path.rglob("*")
+    if not tile_path.is_dir():
+        raise FileNotFoundError(
+            f"Tile folder {tile_path} does not exist. Create it with the tile's "
+            "BEL and switch matrix files first."
+        )
+    tile_files = tile_path.rglob("*")
 
     earlier = existing_tile_outputs(tile_path, switch_matrix)
 
@@ -727,7 +730,7 @@ def generate_switch_matrix_list(
             for cin, cout in zip(
                 carryports[prefix][IO.INPUT],
                 carryports[prefix][IO.OUTPUT],
-                strict=False,
+                strict=True,
             ):
                 listfile.append(f"{cin},{cout}")
 
@@ -971,7 +974,7 @@ def genIOBel(
     bel_path: Path,
     overwrite: bool = True,
     multiplexerStyle: MultiplexerStyle = MultiplexerStyle.CUSTOM,
-) -> Bel | None:
+) -> Bel:
     """Generate the IO BELs for a list of generative IOs.
 
     Parameters
@@ -991,8 +994,8 @@ def genIOBel(
 
     Returns
     -------
-    Bel | None
-        The generated Bel object or None if no generative IOs are present.
+    Bel
+        The generated Bel object.
 
     Raises
     ------
@@ -1003,11 +1006,11 @@ def genIOBel(
     SpecMissMatch
         If the multiplexer style is not supported for generative IOs.
     ValueError
-        If the number of config access ports does not match the number of config bits.
+        If `gen_ios` is empty, or if the number of config access ports does not
+        match the number of config bits.
     """
     if len(gen_ios) == 0:
-        logger.info(f"No generative IOs for {bel_path}, skipping genIOBel generation")
-        return None
+        raise ValueError(f"No generative IOs given for {bel_path}.")
 
     bel_name = bel_path.stem
     language = bel_path.suffix.lower().replace(".", "")
@@ -1068,9 +1071,6 @@ def genIOBel(
     for gio in gen_ios:
         if gio.clocked or gio.clockedComb or gio.clockedMux:
             clocked = True
-        if gio.pins <= 0:
-            logger.warning(f"Generative IO {gio.prefix} has no pins, skipping")
-            continue
         for i in range(gio.pins):
             # for single pins we kick out the index
             j = "" if gio.pins == 1 else f"{i}"
@@ -1161,9 +1161,6 @@ def genIOBel(
     # gen_io assignments
     writer.addNewLine()
     for gio in gen_ios:
-        if gio.pins <= 0:
-            logger.warning(f"Generative IO {gio.prefix} has no pins, skipping")
-            continue
         if gio.configAccess:
             continue
 
