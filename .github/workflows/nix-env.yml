@@ -79,17 +79,16 @@ jobs:
           nix build ".#fabulous-python-env"
           ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
 
-      - name: Evaluate the downstream template
+      - name: Build the downstream template shell
         run: |
           set -euo pipefail
           TEMPLATE="$RUNNER_TEMP/downstream"
           cp -r nix/templates/downstream "$TEMPLATE"
           cd "$TEMPLATE"
           git init -q . && git add -A
-          system=$(nix eval --raw --impure --expr builtins.currentSystem)
-          nix eval --raw \
+          nix develop \
             --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
-            ".#devShells.$system.default.drvPath"
+            --command python -c "import fabulous, librelane, cocotb, pytest; print('imports OK')"
 
   nix-wsl:
     name: WSL2 (Nix Ubuntu-24.04)
