@@ -367,27 +367,41 @@ def test_user_clk_chains_from_side(
     assert ".UserCLK(UserCLK)" in edge[: edge.index(".UserCLKo(")]
 
 
-def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
-    """Child offsets count from the placement base, not the anchor at (1, 0)."""
-    a, b, c = (
-        make_empty_tile(name, tileDir=tmp_path, pinOrderConfig={})
-        for name in ("A", "B", "C")
-    )
-    for tile in (a, b, c):
+@pytest.mark.parametrize(
+    "layout",
+    [
+        pytest.param([".#", "##"], id="L-hole-at-anchor-row"),
+        pytest.param(["###", "#.#", "###"], id="O-ring"),
+    ],
+)
+def test_holed_supertile_wires_the_cells_it_occupies(
+    tmp_path: Path, layout: list[str]
+) -> None:
+    """A NULL fabric cell in a supertile hole is skipped, not an error."""
+    tileMap: list[list[Tile | None]] = [
+        [
+            make_empty_tile(f"T{x}{y}", tileDir=tmp_path, pinOrderConfig={})
+            if cell == "#"
+            else None
+            for x, cell in enumerate(row)
+        ]
+        for y, row in enumerate(layout)
+    ]
+    tiles = [tile for row in tileMap for tile in row if tile is not None]
+    for tile in tiles:
         tile.partOfSuperTile = True
-    tileMap: list[list[Tile | None]] = [[None, a], [b, c]]
     supertile = SuperTile(
         name="Holed",
         tileDir=tmp_path,
-        tiles=[a, b, c],
+        tiles=tiles,
         tileMap=tileMap,
         config_mem=empty_config_mem(Path("ConfigMem.csv")),
     )
     fabric = Fabric(
         fabric_dir=tmp_path,
         tile=tileMap,
-        numberOfRows=2,
-        numberOfColumns=2,
+        numberOfRows=len(layout),
+        numberOfColumns=len(layout[0]),
         superTileDic={"Holed": supertile},
         configBitMode=ConfigBitMode.FRAME_BASED,
     )
@@ -397,14 +411,20 @@ def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
     generateFabric(writer, fabric)
 
     instantiation = re.search(
-        r"Holed Tile_X\dY\d_Holed \(.*?\n\);", writer.outFileName.read_text(), re.DOTALL
+        r"Tile_X\dY\d_Holed\s*\(.*?\n\);", writer.outFileName.read_text(), re.DOTALL
     )
     assert instantiation is not None, "supertile wrapper not instantiated"
     named = {
         (int(x), int(y))
         for x, y in re.findall(r"Tile_X(\d+)Y(\d+)_", instantiation.group(0))
     }
-    assert named == {(1, 0), (0, 1), (1, 1)}
+    occupied = {
+        (x, y)
+        for y, row in enumerate(layout)
+        for x, cell in enumerate(row)
+        if cell == "#"
+    }
+    assert named == occupied
 
 
 def _tile_from_rows(name: str, rows: list[str]) -> Tile:
