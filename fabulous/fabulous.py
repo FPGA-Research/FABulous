@@ -949,7 +949,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "--metaDataDir",
         default=".FABulous",
         nargs=1,
-        help="Set the output directory for the meta data files eg. pip.txt, bel.txt",
+        help="Set the output directory for the meta data files eg. pips.txt",
     )
 
     parser.add_argument(

@@ -1,9 +1,26 @@
 """Wire class for managing connections between tiles."""
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fabulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.timing import Ns
+
+
+@dataclass(frozen=True, slots=True)
+class WirePip:
+    """A tile wire from `src` in this tile to `dst` in the tile at its offset.
+
+    Attributes
+    ----------
+    src : str
+        Wire source in this tile.
+    dst : str
+        Wire destination in the tile at the wire offset.
+    """
+
+    src: str
+    dst: str
 
 
 @dataclass(frozen=True, eq=True)
@@ -31,6 +48,10 @@ class Wire:
         The source tile name of the wire
     destinationTile : str
         The destination tile name of the wire
+    delay : Ns | None
+        Delay of the wire, set by the placeholder timing or by characterisation
+        through `dataclasses.replace`. None until one of them ran. Not part of
+        equality or the hash, which de-duplicates a tile's wires.
     """
 
     direction: Direction
@@ -40,6 +61,35 @@ class Wire:
     destination: str
     sourceTile: str
     destinationTile: str
+    delay: Ns | None = field(default=None, compare=False)
+
+    @property
+    def pip(self) -> WirePip:
+        """The pip of the wire, which keys its delay.
+
+        Returns
+        -------
+        WirePip
+            The pip from `source` to `destination`.
+        """
+        return WirePip(src=self.source, dst=self.destination)
+
+    def get_delay(self) -> Ns:
+        """Return the delay of the wire.
+
+        Returns
+        -------
+        Ns
+            The wire delay.
+
+        Raises
+        ------
+        ValueError
+            If no timing is set on the wire.
+        """
+        if self.delay is None:
+            raise ValueError(f"Wire {self} of tile {self.sourceTile!r} has no delay.")
+        return self.delay
 
     def __repr__(self) -> str:
         """Return string representation of the wire.

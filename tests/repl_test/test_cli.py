@@ -366,13 +366,13 @@ def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) 
     meta_data_dir = cli.projectDir / META_DATA_DIR
     for name in (
         "pips.txt",
-        "bel.txt",
         "bel.v2.txt",
         "bel.v3.txt",
         "template.pcf",
         "placement_estimate.txt",
     ):
         assert (meta_data_dir / name).exists()
+    assert not (meta_data_dir / "bel.txt").exists()
 
 
 def test_gen_model_npnr_is_deprecated_alias(

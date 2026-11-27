@@ -1,0 +1,26 @@
+{# bel.v2.txt and bel.v3.txt; only bel.v3.txt (`timed`) carries timing. #}
+{% import "nextpnr/arcs.j2" as timing %}
+{{ header }}
+{% for group in groups %}
+{{ group.title }}
+{% for bel in group.bels %}
+BelBegin,X{{ group.x }}Y{{ group.y }},{{ group.letter(loop.index0) }},{{ bel.cell_type }},{{ bel.prefix }}
+{% for port in bel.input_ports %}
+I,{{ port.pin_name }},X{{ group.x }}Y{{ group.y }}.{{ port.name }}
+{% endfor %}
+{% for port in bel.output_ports %}
+O,{{ port.pin_name }},X{{ group.x }}Y{{ group.y }}.{{ port.name }}
+{% endfor %}
+{% for feature in bel.belFeatureMap | sort(case_sensitive=true) %}
+CFG,{{ feature }}
+{% endfor %}
+{% if timed %}
+{{ timing.lines(bel.get_arcs(), bel.is_logic_cell) -}}
+{% endif %}
+{% if bel.withUserCLK %}
+{# Without an arrival time nextpnr uses its default. #}
+GlobalClk{{ "," ~ clock_arrival if timed else "" }}
+{% endif %}
+BelEnd
+{% endfor %}
+{% endfor %}
