@@ -203,6 +203,21 @@ class PinSortMode(StrEnum):
     CUSTOM = "custom"
 
 
+class ExpandMode(StrEnum):
+    """Wire range and naming that `Port.expand_port_info` produces."""
+
+    ALL = "all"
+    ALL_INDEXED = "allIndexed"
+    TOP = "Top"
+    TOP_INDEXED = "TopIndexed"
+    AUTO_TOP = "AutoTop"
+    AUTO_TOP_INDEXED = "AutoTopIndexed"
+    SWITCH_MATRIX = "SwitchMatrix"
+    SWITCH_MATRIX_INDEXED = "SwitchMatrixIndexed"
+    AUTO_SWITCH_MATRIX = "AutoSwitchMatrix"
+    AUTO_SWITCH_MATRIX_INDEXED = "AutoSwitchMatrixIndexed"
+
+
 @dataclass
 class PinOrderConfig:
     """Container describing pin ordering constraints for a segment."""
@@ -220,7 +235,7 @@ class PinOrderConfig:
 
     def to_dict(self) -> dict:
         """Return a serialisable dictionary representation."""
-        pins = list(getattr(self, "pins", []) or [])
+        pins = list(self.pins)
         return {
             "min_distance": self.min_distance,
             "max_distance": self.max_distance,

@@ -9,6 +9,7 @@ from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.define import (
     IO,
     Direction,
+    ExpandMode,
     PinOrderConfig,
     PinSortMode,
     Side,
@@ -401,7 +402,7 @@ class Tile:
         for p in self.portsInfo:
             if p.side_of_tile != side or p.name_is_null:
                 continue
-            inputs, outputs = p.expand_port_info("all")
+            inputs, outputs = p.expand_port_info(ExpandMode.ALL)
             if p.name == p.source_name:
                 total += len(inputs)
             elif p.name == p.destination_name:

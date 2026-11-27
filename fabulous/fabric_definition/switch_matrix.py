@@ -16,7 +16,7 @@ from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.define import Direction, ExpandMode
 from fabulous.fabric_definition.port import TilePort
 
 
@@ -48,7 +48,9 @@ def switch_matrix_signal_order(
     dests: list[str] = []
     for port in ports:
         if port.wire_direction != Direction.JUMP:
-            port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")
+            port_inputs, port_outputs = port.expand_port_info(
+                ExpandMode.AUTO_SWITCH_MATRIX
+            )
             sources += port_inputs
             dests += port_outputs
     for bel in bels:
@@ -56,7 +58,9 @@ def switch_matrix_signal_order(
         dests.extend(p.name for p in bel.output_ports + bel.external_output_ports)
     for port in ports:
         if port.wire_direction == Direction.JUMP:
-            port_inputs, port_outputs = port.expand_port_info("AutoSwitchMatrix")
+            port_inputs, port_outputs = port.expand_port_info(
+                ExpandMode.AUTO_SWITCH_MATRIX
+            )
             sources += port_inputs
             dests += port_outputs
     return list(dict.fromkeys(sources)), list(dict.fromkeys(dests))
@@ -426,13 +430,17 @@ class SwitchMatrix:
         Returns
         -------
         int
-            The declared config-bit count, or 0 if none is found (a warning is
-            logged in that case).
+            The declared config-bit count.
+
+        Raises
+        ------
+        InvalidSwitchMatrixDefinition
+            If the file has no `NumberOfConfigBits: N` header.
         """
         content = path.read_text(encoding="utf-8")
         if m := re.search(r"NumberOfConfigBits:\s*(\d+)", content):
             return int(m.group(1))
-        logger.warning(
-            f"Cannot find NumberOfConfigBits in {path}, assuming 0 config bits."
+        raise InvalidSwitchMatrixDefinition(
+            f"{path} has no `NumberOfConfigBits: N` header. Add one, with 0 if "
+            "the matrix has no configuration bits."
         )
-        return 0

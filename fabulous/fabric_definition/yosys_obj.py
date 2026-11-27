@@ -204,21 +204,15 @@ class YosysModule:
             The module with each raw entry converted to its details object.
         """
         return cls(
-            attributes=module.get("attributes", {}),
+            attributes=module["attributes"],
             parameter_default_values=module.get("parameter_default_values", {}),
-            ports={
-                k: YosysPortDetails(**v) for k, v in module.get("ports", {}).items()
-            },
-            cells={
-                k: YosysCellDetails(**v) for k, v in module.get("cells", {}).items()
-            },
+            ports={k: YosysPortDetails(**v) for k, v in module["ports"].items()},
+            cells={k: YosysCellDetails(**v) for k, v in module["cells"].items()},
             memories={
                 k: YosysMemoryDetails(**v)
                 for k, v in module.get("memories", {}).items()
             },
-            netnames={
-                k: YosysNetDetails(**v) for k, v in module.get("netnames", {}).items()
-            },
+            netnames={k: YosysNetDetails(**v) for k, v in module["netnames"].items()},
         )
 
 
@@ -292,11 +286,9 @@ class YosysJson:
         YosysTool.convert_to_json(yosys_src, json_file)
         with json_file.open() as f:
             o = json.load(f)
-        self.creator = o.get("creator", "")  # Use .get() for safety
-        self.modules = {
-            k: YosysModule.from_json(v) for k, v in o.get("modules", {}).items()
-        }
-        self.models = o.get("models", {})  # Use .get() for safety
+        self.creator = o["creator"]
+        self.modules = {k: YosysModule.from_json(v) for k, v in o["modules"].items()}
+        self.models = o.get("models", {})
 
         # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
         if self.srcPath.suffix in [".vhd", ".vhdl"]:

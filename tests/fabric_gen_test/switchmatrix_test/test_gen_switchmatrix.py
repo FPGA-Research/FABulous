@@ -188,10 +188,11 @@ class TestHdlSwitchMatrix:
         assert sm.connections == {}
         assert sm.no_config_bits == 7
 
-    def test_missing_config_bits_defaults_to_zero(self, tmp_path: Path) -> None:
+    def test_missing_config_bits_header_raises(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.vhdl"
         v.write_text("entity T is end T;\n")
-        assert SwitchMatrix.from_file(v, "T").no_config_bits == 0
+        with pytest.raises(InvalidSwitchMatrixDefinition, match="NumberOfConfigBits"):
+            SwitchMatrix.from_file(v, "T")
 
     def test_generation_skips_hdl_matrix(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.v"

@@ -43,10 +43,10 @@ def test_bit_at_reads_the_mask_from_the_highest_data_line() -> None:
 @pytest.mark.parametrize(
     ("ranges", "bits"),
     [
-        pytest.param("6:4", [6, 5, 4], id="descending_run"),
-        pytest.param("4:6", [4, 5, 6], id="ascending_run"),
-        pytest.param("6;4;5", [6, 4, 5], id="list"),
-        pytest.param(" 6 : 4 ", [6, 5, 4], id="whitespace"),
+        pytest.param("2:0", [2, 1, 0], id="descending_run"),
+        pytest.param("0:2", [0, 1, 2], id="ascending_run"),
+        pytest.param("2;0;1", [2, 0, 1], id="list"),
+        pytest.param(" 2 : 0 ", [2, 1, 0], id="whitespace"),
     ],
 )
 def test_from_csv_reads_every_range_form(

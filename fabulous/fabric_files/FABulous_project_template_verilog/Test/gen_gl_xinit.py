@@ -249,7 +249,7 @@ def main() -> None:
     reset_flops: list[tuple[str, str]] = []  # (Q net ref, reset net ref)
     deposit_flops: list[str] = []  # Q net ref
     for ttype, inst in instances:
-        for qnet, rnet in flops.get(ttype, []):
+        for qnet, rnet in flops[ttype]:
             qref = hier_ref(args.top_inst, inst, qnet)
             if rnet is not None:
                 reset_flops.append((qref, hier_ref(args.top_inst, inst, rnet)))

@@ -98,9 +98,7 @@ class TileGeometry:
     southMiddleX: int = 0
     westMiddleY: int = 0
 
-    def generateGeometry(
-        self, tile: Tile, padding: int, extra_bels: list[Bel] | None = None
-    ) -> None:
+    def generateGeometry(self, tile: Tile, padding: int, extra_bels: list[Bel]) -> None:
         """Generate the geometry for a tile.
 
         Creates geometric representations for all BELs and the switch matrix,
@@ -113,13 +111,13 @@ class TileGeometry:
             The `Tile` object to generate geometry for
         padding : int
             The padding space to add around components
-        extra_bels : list[Bel] | None
+        extra_bels : list[Bel]
             Additional BELs to draw in this tile (e.g. a supertile-level BEL
             hosted in this tile when it is the supertile's master tile).
         """
         self.name = tile.name
 
-        for bel in list(tile.bels) + list(extra_bels or []):
+        for bel in [*tile.bels, *extra_bels]:
             belGeom = BelGeometry()
             belGeom.generateGeometry(bel, padding)
             self.belGeomList.append(belGeom)

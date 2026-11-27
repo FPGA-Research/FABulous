@@ -63,7 +63,8 @@ def setup_mocks(
             # One extra call: GHDL is asked for a version, unpinned Yosys is not.
             ".vhdl",
             {"FAB_PROJ_LANG": "VHDL"},
-            '{"modules": {"test": {}}}',
+            '{"creator": "Yosys", "modules": {"test": {"attributes": {}, '
+            '"ports": {}, "cells": {}, "netnames": {}}}}',
             "entity test is end entity;",
             3,
             [(0, "ghdl"), (1, "--synth"), (2, "read_verilog")],
@@ -71,7 +72,7 @@ def setup_mocks(
         (
             ".sv",
             {},
-            "{}",
+            '{"creator": "Yosys", "modules": {}}',
             None,
             1,
             [(None, "read_verilog -sv")],
@@ -79,7 +80,7 @@ def setup_mocks(
         (
             ".v",
             {},
-            "{}",
+            '{"creator": "Yosys", "modules": {}}',
             None,
             1,
             [(None, "read_verilog")],
