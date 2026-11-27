@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.1](https://github.com/FPGA-Research/FABulous/compare/v2.3.0...v2.3.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* runtime follow-ups to the type checker ([#1194](https://github.com/FPGA-Research/FABulous/issues/1194)) ([602af98](https://github.com/FPGA-Research/FABulous/commit/602af9816fdd6b99cdd8defbf1105dcd40e9797c))
+
 ## [2.3.0](https://github.com/FPGA-Research/FABulous/compare/v2.2.0...v2.3.0) (2026-11-27)
 
 
