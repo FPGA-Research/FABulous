@@ -230,7 +230,8 @@ def _gen_switch_matrix_body(
     Raises
     ------
     ValueError
-        If an output has no sources.
+        If an output has no sources, or a number of sources that is not a power of
+        two.
     """
     # constant declaration - provides '0'/'1' as padding inputs to muxes
     vhdl = isinstance(writer, VHDLCodeGenerator)
@@ -281,6 +282,13 @@ def _gen_switch_matrix_body(
                 f"Switch matrix output {portName} in {name} has no sources. "
                 "Connect it to GND0 or VCC0."
             )
+        if muxSize & (muxSize - 1):
+            padded = 2 ** (muxSize - 1).bit_length()
+            raise ValueError(
+                f"Switch matrix output {portName} in {name} has {muxSize} sources, "
+                f"so a MUX-{padded} would leave {padded - muxSize} inputs unused. "
+                f"Pad its sources in the .list file with GND0 or VCC0 to {padded}."
+            )
         writer.addComment(
             f"switch matrix multiplexer {portName} MUX-{muxSize}", onNewLine=True
         )
@@ -301,11 +309,8 @@ def _gen_switch_matrix_body(
             muxComponentName = f"cus_mux{paddedMuxSize}1"
 
             portsPairs = []
-            start = 0
             for start in range(muxSize):
                 portsPairs.append((f"A{start}", f"{portName}_input[{start}]"))
-            for end in range(start + 1, paddedMuxSize):
-                portsPairs.append((f"A{end}", "GND0"))
 
             if multiplexer_style == MultiplexerStyle.CUSTOM:
                 if paddedMuxSize == 2:

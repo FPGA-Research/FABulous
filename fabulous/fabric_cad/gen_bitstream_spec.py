@@ -168,10 +168,14 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
             result = tile.switch_matrix.connections
             for source, sinks in result.items():
                 control_width = 0
+                encoded: set[str] = set()
                 for i, sink in enumerate(reversed(sinks)):
                     control_width = (len(sinks) - 1).bit_length()
                     control_value = f"{len(sinks) - 1 - i:0{control_width}b}"
                     pip = f"{sink}.{source}"
+                    if pip in encoded:
+                        continue
+                    encoded.add(pip)
                     if len(sinks) < 2:
                         tile_specs[pip] = {}
                         tile_specs_no_mask[pip] = {}
@@ -263,8 +267,12 @@ def generate_bitstream_spec(fabric: Fabric) -> dict[str, dict]:
                         for t in (tile_specs, tile_specs_no_mask):
                             t[f"{sink}.{source}"] = {}
                     continue
+                encoded: set[str] = set()
                 for i, sink in enumerate(reversed(sinks)):
                     pip = f"{sink}.{source}"
+                    if pip in encoded:
+                        continue
+                    encoded.add(pip)
                     if len(sinks) < 2:
                         for t in (tile_specs, tile_specs_no_mask):
                             t[pip] = {}
