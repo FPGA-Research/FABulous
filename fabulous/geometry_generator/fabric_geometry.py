@@ -108,6 +108,7 @@ class FabricGeometry:
                         queried.neighbourConstraints = self.tileGeomMap[
                             searchedTileName
                         ].wireConstraints
+                        queried.neighbour_name = searchedTileName
 
     def generateGeometry(self) -> None:
         """Generate the geometric information from the given fabric object.
