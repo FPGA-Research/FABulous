@@ -1,0 +1,5 @@
+ghdl {{ flags | join(" ") }} {{ sources | join(" ") }} -e {{ top }}
+hierarchy -check
+proc
+opt_clean
+write_json "{{ netlist }}"
