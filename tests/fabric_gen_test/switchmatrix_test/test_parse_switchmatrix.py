@@ -198,6 +198,13 @@ def test_parse_matrix_legacy_column_order(tmp_path: Path) -> None:
             id="duplicates_removed",
         ),
         pytest.param(
+            {"test.list": "{3}A,[B|GND0|GND0]\nA,B\nC,VCC0\nC,VCC0\n"},
+            "pair",
+            [("A", "B"), ("A", "GND0"), ("A", "GND0"), ("C", "VCC0"), ("C", "VCC0")],
+            None,
+            id="repeated_constants_kept",
+        ),
+        pytest.param(
             {"test.list": "[X|Y]BEG,[X|Y]END\n"},
             "pair",
             [("XBEG", "XEND"), ("YBEG", "YEND")],

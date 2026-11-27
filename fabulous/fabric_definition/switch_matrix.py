@@ -320,7 +320,18 @@ class SwitchMatrix:
             Destination `.csv` file. Created (or overwritten) by this call.
         tile_name : str
             Tile name written to the top-left cell of the CSV header.
+
+        Raises
+        ------
+        InvalidSwitchMatrixDefinition
+            If a mux repeats an input, which a `.csv` matrix cannot encode.
         """
+        for mux_output, mux_inputs in self.connections.items():
+            if len(set(mux_inputs)) != len(mux_inputs):
+                raise InvalidSwitchMatrixDefinition(
+                    f"Switch matrix output {mux_output!r} repeats an input, and a "
+                    ".csv matrix has one cell per input. Keep the .list file."
+                )
         # Column headers = unique mux-input signals, in first-seen order.
         mux_inputs_ordered: list[str] = []
         seen: set[str] = set()

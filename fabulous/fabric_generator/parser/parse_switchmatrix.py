@@ -16,6 +16,7 @@ from fabulous.custom_exception import (
     InvalidListFileDefinition,
     InvalidSwitchMatrixDefinition,
 )
+from fabulous.fabric_definition.define import SWITCH_MATRIX_CONSTANTS
 
 
 def parseMatrix(
@@ -172,6 +173,9 @@ def parseList(
 ) -> list[tuple[str, str]] | dict[str, list[str]]:
     """Parse a list file and expand the list file information into a list of tuples.
 
+    A repeated pair is dropped with a warning. A repeated constant input such as
+    `GND0` is kept, because it pads a mux to a power of two.
+
     Parameters
     ----------
     filePath : Path
@@ -225,7 +229,14 @@ def parseList(
             )
         pairs.extend(zip(expanded_sources, expanded_sinks, strict=True))
 
-    unique_pairs = list(dict.fromkeys(pairs))
+    unique_pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for pair in pairs:
+        if pair[1] in SWITCH_MATRIX_CONSTANTS:
+            unique_pairs.append(pair)
+        elif pair not in seen:
+            seen.add(pair)
+            unique_pairs.append(pair)
     if len(unique_pairs) != len(pairs):
         logger.warning(
             f"{path.name}: ignoring {len(pairs) - len(unique_pairs)} duplicate "

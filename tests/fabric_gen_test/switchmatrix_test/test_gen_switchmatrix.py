@@ -143,6 +143,14 @@ class TestCsvExportReaderDecides:
             "B": ["Y", "X"],
         }
 
+    def test_a_repeated_input_cannot_be_written(self, tmp_path: Path) -> None:
+        """A `.csv` matrix has one cell per input, so a repeated input raises."""
+        sm = SwitchMatrix(
+            matrix_file=Path("x.csv"), connections={"A": ["B", "GND0", "GND0", "C"]}
+        )
+        with pytest.raises(InvalidSwitchMatrixDefinition, match="Keep the .list file"):
+            sm.to_csv_file(tmp_path / "m.csv", "T")
+
 
 class TestSwitchMatrixValidation:
     """from_file validates connections against tile signals when ports are given."""
@@ -389,6 +397,36 @@ class TestSuperTileSwitchMatrixConstants:
         )
         assert "SUPER_B0_input = {DSP_bot_x0,VCC0}" in rtl
         assert "cus_mux21 inst_cus_mux21_SUPER_B0" in rtl
+
+    @pytest.mark.parametrize(
+        ("sources", "raises"),
+        [
+            pytest.param(["VCC0", "DSP_bot_x0"], False, id="mux2"),
+            pytest.param(["VCC0", "GND0", "DSP_bot_x0"], True, id="mux3"),
+            pytest.param(["VCC0", "GND0", "VDD0", "DSP_bot_x0"], False, id="mux4"),
+            pytest.param(
+                ["VCC0", "GND0", "GND0", "DSP_bot_x0"], False, id="mux4-repeated-gnd"
+            ),
+        ],
+    )
+    def test_sources_must_fill_the_mux(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+        sources: list[str],
+        *,
+        raises: bool,
+    ) -> None:
+        """An output whose sources leave mux inputs unused asks for padding."""
+        connections = [(f"SUPER_B0{{{len(sources)}}}", f"[{'|'.join(sources)}]")]
+        if raises:
+            with pytest.raises(
+                ValueError, match="Pad its sources in the .list file with GND0 or VCC0"
+            ):
+                self._gen(tmp_path, code_generator_factory, connections)
+            return
+        rtl = self._gen(tmp_path, code_generator_factory, connections)
+        assert f"cus_mux{len(sources)}1 inst_cus_mux{len(sources)}1_SUPER_B0" in rtl
 
 
 class TestUnconnectedPortDiagnostic:

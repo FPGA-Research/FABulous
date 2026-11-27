@@ -443,3 +443,29 @@ def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
     # Immutable wires emit empty bit maps.
     assert tile_spec["W_A.W_B"] == {}
     assert tile_spec["W_C.W_D"] == {}
+
+
+def test_bitstream_spec_selects_one_input_of_a_repeated_constant(
+    tmp_path: Path,
+) -> None:
+    """A mux padded with repeated `GND0` gets one select code for `GND0`.
+
+    The 4-input mux takes offsets 4..5, physical positions 27 (LSB) and 26.
+    Code 2 selects input 2, which is `GND0`.
+    """
+    fabric = _build_fabric(
+        tmp_path,
+        "padded",
+        feature_map=_FEATURE_MAP,
+        sources=_SOURCES,
+        wires=[],
+    )
+    fabric.tileDic[_TILE_NAME].switch_matrix = SwitchMatrix(
+        matrix_file=Path(), connections={"S0": ["D0", "GND0", "GND0", "D1"]}
+    )
+
+    tile_spec = generate_bitstream_spec(fabric)["TileSpecs"]["X0Y0"]
+
+    assert tile_spec["D0.S0"] == {27: "0", 26: "0"}
+    assert tile_spec["GND0.S0"] == {27: "0", 26: "1"}
+    assert tile_spec["D1.S0"] == {27: "1", 26: "1"}

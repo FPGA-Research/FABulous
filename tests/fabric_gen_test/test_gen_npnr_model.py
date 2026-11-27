@@ -359,3 +359,19 @@ def test_generate_nextpnr_model_forwards_target(
     assert tuple(artifacts) == NEXTPNR_ARTIFACTS
     assert bool(fake_model.pip_delay.call_count) is expect_pips
     assert bool(fake_model.bel_timing.call_count) is expect_bels
+
+
+def test_genNextpnrModel_emits_a_repeated_constant_input_once(
+    lut_fabric: Fabric,
+) -> None:
+    """A mux padded with repeated `GND0` inputs has one pip per input name."""
+    tile = lut_fabric.tileDic["LUT4AB"]
+    tile.switch_matrix = SwitchMatrix(
+        matrix_file=Path(), connections={"J_BEG": ["LA_O", "GND0", "GND0", "VCC0"]}
+    )
+    pips = genNextpnrModel(lut_fabric)[0].splitlines()
+    assert [p.rsplit(",", 1)[1] for p in pips if not p.startswith("#")] == [
+        "LA_O.J_BEG",
+        "GND0.J_BEG",
+        "VCC0.J_BEG",
+    ]

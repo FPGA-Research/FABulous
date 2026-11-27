@@ -326,7 +326,7 @@ def genNextpnrModel(
                 continue
             pipStr.append(f"#Tile-internal pips on tile X{x}Y{y}:")
             for source, sinkList in tile.switch_matrix.connections.items():
-                for sink in sinkList:
+                for sink in dict.fromkeys(sinkList):
                     delay: float = DUMMY_PIP_DELAY
                     if delay_model is not None and target in (
                         TimingModelTarget.PIPS,
@@ -426,7 +426,7 @@ def genNextpnrModel(
 
         if super_tile.switch_matrix is not None:
             for sink, sources in super_tile.switch_matrix.connections.items():
-                for src in sources:
+                for src in dict.fromkeys(sources):
                     delay: float = DUMMY_PIP_DELAY
                     if delay_model is not None and target in (
                         TimingModelTarget.PIPS,
