@@ -7,15 +7,20 @@ GitHub Codespaces provides a complete, cloud-based development environment for F
 1. Navigate to the [FABulous repository](https://github.com/FPGA-Research/FABulous) on GitHub
 2. Click the green **"Code"** button
 3. Select the **"Codespaces"** tab
+4. Click **"Create codespace on main"**
 
-When creating a Codespace, make sure to select the correct dev container configuration:
+This uses the default **"Remote (codespace)"** dev container configuration. To pick a branch, region or machine type, use **"..." → "New with options..."** instead and keep the configuration set to **"Remote (codespace)"**:
 
 ![Selecting Codespace Configuration-1](../figs/dev-container/step1.png)
 ![Selecting Codespace Configuration-2](../figs/dev-container/step2.png)
 
 GitHub will automatically create and configure your development environment. The setup process will take a while.
 ```{note}
-If you don't see the configuration options, you can change them after creation by rebuilding the container.
+If `whoami` in the Codespace terminal prints `codespace` instead of `nixuser`, the
+Codespace is not using the FABulous dev container. This happens when another
+configuration was selected or when the container build failed, in which case
+GitHub starts a recovery container. Check **Codespaces: View Creation Log** in
+the command palette, then rebuild the container or create a new Codespace.
 ```
 
 ## Accessing GUI Applications
@@ -27,7 +32,7 @@ FABulous includes tools like OpenROAD that have graphical interfaces. In Codespa
 1. In the **Ports** tab, find port **6080**, if the port does not exist click **"Add Port"** and add port **6080**.
 ![Open the port tab](../figs/dev-container/vnc-step-1.png)
 ![Locate the port](../figs/dev-container/vnc-step-2.png)
-2. Click the port entry to open it in a browser tab and you should see the following screen, click connect and should bring you to a white window.
+2. Click the port entry to open it in a browser tab and you should see the following screen, click connect and enter the VNC password `fabulous`. This should bring you to a white window.
 
 ![Enter VNC password](../figs/dev-container/vnc-step-3.png)
 
@@ -116,11 +121,23 @@ If GUI applications don't show up in the VNC viewer:
 echo $DISPLAY  # Should show :1
 ```
 
-4. Restart the VNC service if needed:
+4. Check that the VNC server (TigerVNC) and noVNC are running, and read their logs:
 
 ```bash
-sudo systemctl restart x11vnc
+pgrep -a Xtigervnc
+ss -ltn | grep -E '5901|6080'
+cat /tmp/container-init.log /tmp/Xtigervnc.log /tmp/noVNC.log
 ```
+
+5. Restart the VNC server if needed. The container has no systemd; the
+   server runs in a watchdog loop that restarts it within a few seconds:
+
+```bash
+sudo pkill -x Xtigervnc
+```
+
+If nothing is running at all, start the desktop again with
+`/usr/local/share/desktop-init.sh`.
 
 ## Advantages of Codespaces
 
