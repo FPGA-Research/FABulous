@@ -26,10 +26,20 @@ exception handling, exit, and script execution -- stays on this class.
 
 import os
 import sys
-import tkinter as tk
 import traceback
 from pathlib import Path
 from typing import Annotated
+
+try:
+    import tkinter as tk
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError(
+        f"FABulous needs a Python with tkinter, and {sys.executable} has none. "
+        "Reinstall FABulous on a uv-managed Python with "
+        "`uv tool install --reinstall --managed-python --with-executables-from "
+        "go-task-bin,fabulous-bit-gen fabulous-fpga`, or "
+        "install your distribution's tkinter package (e.g. `python3-tk`)."
+    ) from e
 
 from cmd2 import (
     Cmd,

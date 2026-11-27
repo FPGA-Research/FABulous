@@ -134,13 +134,20 @@ def test_update_project_version_major_mismatch(
 # --- run_task tests ---
 
 
-def test_run_task_basic(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Test run_task calls subprocess.run with correct arguments."""
+def test_run_task_basic(
+    tmp_path: Path, mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test run_task calls subprocess.run with correct arguments.
+
+    The interpreter's script directory goes last on PATH, so the Taskfiles find
+    `bit_gen` without it shadowing the user's own tools.
+    """
     mocker.patch("sys.executable", str(tmp_path / "python"))
     mocker.patch(
         "shutil.which",
         side_effect=lambda _, path=None: None if path else "/usr/bin/task",
     )
+    monkeypatch.setenv("PATH", "/usr/bin")
     m = mocker.patch("subprocess.run")
 
     run_task("run-simulation", task_dir=tmp_path)
@@ -149,7 +156,9 @@ def test_run_task_basic(tmp_path: Path, mocker: MockerFixture) -> None:
         ["/usr/bin/task", "run-simulation"],
         cwd=tmp_path,
         check=True,
+        env=mocker.ANY,
     )
+    assert m.call_args.kwargs["env"]["PATH"] == f"/usr/bin:{tmp_path}"
 
 
 def test_run_task_with_vars(tmp_path: Path, mocker: MockerFixture) -> None:
