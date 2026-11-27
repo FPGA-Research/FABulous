@@ -724,7 +724,7 @@ class FABulous_API:
         flow = self.tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
-            OptMode(optimisation),
+            optimisation,
             pdk=pdk,
             pdk_root=pdk_root,
             base_config_path=base_config_path,

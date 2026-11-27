@@ -10,6 +10,7 @@ from fabulous.custom_exception import (
     InvalidPortType,
     InvalidSwitchMatrixDefinition,
 )
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.parser.parse_csv import (
@@ -326,6 +327,7 @@ class TestSuperTileMatrixValidation:
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],
+            config_mem=empty_config_mem(Path("ConfigMem.csv")),
         )
 
     def test_port_name_sets(self) -> None:
