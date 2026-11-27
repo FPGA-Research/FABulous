@@ -23,7 +23,13 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    BelRole,
+    ConfigBitMode,
+    Direction,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
@@ -90,6 +96,7 @@ def make_bel(
         ports_vectors={},
         carry=carry or {},
         localShared=local or {},
+        role=BelRole.OTHER,
     )
 
 

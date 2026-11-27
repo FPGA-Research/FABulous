@@ -9,7 +9,7 @@ such as LUTs, flip-flops, and other logic elements.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.define import IO, BelRole, HDLType
 from fabulous.fabric_definition.port import BelPort
 
 
@@ -55,6 +55,8 @@ class Bel:
         Carry chains by name.
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
+    role : BelRole
+        How place and route treats the BEL.
 
     Attributes
     ----------
@@ -102,6 +104,8 @@ class Bel:
         The external output ports of the BEL. Each port's `name` includes `prefix`.
     user_clk_port : BelPort | None
         The `UserCLK` clock port, or None when the BEL has none.
+    role : BelRole
+        How place and route treats the BEL, from its `ROLE` HDL attribute.
 
     Raises
     ------
@@ -130,6 +134,7 @@ class Bel:
     external_input_ports: list[BelPort] = field(default_factory=list, compare=False)
     external_output_ports: list[BelPort] = field(default_factory=list, compare=False)
     user_clk_port: BelPort | None = field(default=None, compare=False)
+    role: BelRole = BelRole.OTHER
 
     def __init__(
         self,
@@ -146,6 +151,7 @@ class Bel:
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
+        role: BelRole,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -197,3 +203,20 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.role = role
+
+    @property
+    def is_fabric_pin(self) -> bool:
+        """Whether a design's I/O can be constrained to the BEL.
+
+        Returns
+        -------
+        bool
+            True for the fabric pin roles `FABRIC_INPUT`, `FABRIC_OUTPUT` and
+            `FABRIC_INOUT`.
+        """
+        return self.role in (
+            BelRole.FABRIC_INPUT,
+            BelRole.FABRIC_OUTPUT,
+            BelRole.FABRIC_INOUT,
+        )

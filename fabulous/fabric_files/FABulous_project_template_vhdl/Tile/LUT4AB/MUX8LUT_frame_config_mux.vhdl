@@ -43,6 +43,8 @@ entity MUX8LUT_frame_config_mux is
   attribute C0 of MUX8LUT_frame_config_mux       : entity is 0;
   attribute C1 of MUX8LUT_frame_config_mux       : entity is 1;
   attribute GLOBAL of ConfigBits                 : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of MUX8LUT_frame_config_mux : entity is "OTHER";
 end entity MUX8LUT_frame_config_mux;
 
 architecture Behavioral of MUX8LUT_frame_config_mux is

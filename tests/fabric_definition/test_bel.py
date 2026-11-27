@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, BelRole
 
 
 def make_bel(
@@ -47,6 +47,7 @@ def make_bel(
         ports_vectors={},
         carry={},
         localShared={},
+        role=BelRole.LOGIC_CELL,
     )
 
 

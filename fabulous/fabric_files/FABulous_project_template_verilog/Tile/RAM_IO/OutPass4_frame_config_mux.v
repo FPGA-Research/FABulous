@@ -15,7 +15,7 @@
 
 `default_nettype none
 
-(* FABulous, BelMap,
+(* FABulous, BelMap, ROLE="FABRIC_OUTPUT",
     I0_reg=0,
     I1_reg=1,
     I2_reg=2,

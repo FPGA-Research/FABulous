@@ -24,6 +24,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelTarget,
 )
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import BelRole
 from fabulous.fabric_definition.fabric import Fabric
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
@@ -111,16 +112,6 @@ PLACEMENT_ESTIMATE_TEXT: str = (
     + "\n"
 )
 
-# BEL types whose ports are exposed as fabric pins in the per-tile
-# loop; a matching BEL gets a `set_io` constraint line.
-IO_BEL_TYPES = (
-    "IO_1_bidirectional_frame_config_pass",
-    "InPass4_frame_config",
-    "OutPass4_frame_config",
-    "InPass4_frame_config_mux",
-    "OutPass4_frame_config_mux",
-)
-
 
 def _bel_timing_lines(timing: BelTiming) -> list[str]:
     """Serialize characterized BEL timing arcs into `bel.v3` lines.
@@ -191,9 +182,7 @@ def belLines(
         `(v1_line, v2_lines, v3_lines, constrain_lines)` - the legacy bel.txt
         line, the bel.v2/bel.v3 block lines, and zero or one `set_io` line.
     """
-    cType = bel.name
-    if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
-        cType = "FABULOUS_LC"
+    cType = "FABULOUS_LC" if bel.role is BelRole.LOGIC_CELL else bel.name
     bel_inputs = [p.name for p in bel.input_ports]
     bel_outputs = [p.name for p in bel.output_ports]
     v1_line = (
@@ -224,7 +213,7 @@ def belLines(
             lines.append(f"CFG,{feat}")
         if timing and bel_timing is not None:
             lines.extend(_bel_timing_lines(bel_timing))
-        elif timing and cType == "FABULOUS_LC":
+        elif timing and bel.role is BelRole.LOGIC_CELL:
             lutInputs = [p for p in inputs if p.startswith("I") and p[1:].isdigit()]
             lines.append("Clock,CLK,FF=1")
             # Combinational (LUT) mode: active when the FF is disabled.
@@ -242,11 +231,11 @@ def belLines(
             # Q is the cell's renamed FF output (pack.cc renames O -> Q when
             # used); clock-to-Q is BEL-internal, not derivable from pip delay.
             lines.append(f"ClkToOut,Q,CLK,{FF_CLK_TO_Q},FF=1")
-        elif timing and cType.startswith("OutPass4_frame_config"):
+        elif timing and bel.role is BelRole.FABRIC_OUTPUT:
             for p in inputs:
                 if p.startswith("I") and p[1:].isdigit():
                     lines.append(f"SetupHold,{p},CLK,{IO_SETUP},{IO_HOLD}")
-        elif timing and cType.startswith("InPass4_frame_config"):
+        elif timing and bel.role is BelRole.FABRIC_INPUT:
             for p in outputs:
                 if p.startswith("O") and p[1:].isdigit():
                     lines.append(f"ClkToOut,{p},CLK,{IO_CLK_TO_OUT}")
@@ -261,7 +250,7 @@ def belLines(
 
     constrain_lines = (
         [f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}"]
-        if bel.name in IO_BEL_TYPES
+        if bel.is_fabric_pin
         else []
     )
 

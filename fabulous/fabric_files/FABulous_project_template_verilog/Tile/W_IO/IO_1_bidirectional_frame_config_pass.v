@@ -15,6 +15,7 @@
 `default_nettype none
 
 
+(* FABulous, ROLE="FABRIC_INOUT" *)
 module IO_1_bidirectional_frame_config_pass (
     input wire I,  // from fabric to external pin
     input wire T,  // tristate control

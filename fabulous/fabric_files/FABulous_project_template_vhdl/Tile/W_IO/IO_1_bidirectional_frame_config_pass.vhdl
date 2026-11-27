@@ -40,6 +40,8 @@ entity IO_1_bidirectional_frame_config_pass is
   -- SHARED_PORT allows multiple BELs using the same port
   -- (e.g. for exporting a clock to the top)
   attribute SHARED_PORT of UserCLK                           : signal is "TRUE";
+  attribute ROLE : string;
+  attribute ROLE of IO_1_bidirectional_frame_config_pass : entity is "FABRIC_INOUT";
 end entity IO_1_bidirectional_frame_config_pass;
 
 architecture Behavioral of IO_1_bidirectional_frame_config_pass is

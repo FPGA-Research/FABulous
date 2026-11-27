@@ -14,7 +14,7 @@ import pytest
 from fabulous.fabric_cad.gen_bitstream_spec import generate_bitstream_spec
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
 from fabulous.fabric_definition.configmem import ConfigMem, empty_config_mem
-from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.define import IO, BelRole, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
@@ -340,7 +340,7 @@ class TestGenNpnrModelSupertile:
             [("LA_I0", IO.INPUT), ("LA_I1", IO.INPUT), ("LA_O", IO.OUTPUT)],
             prefix="LA_",
         )
-        bel.name = "LUT4c_frame_config"
+        bel.role = BelRole.LOGIC_CELL
 
         top_mat = tmp_path / "DSP_top_switch_matrix.list"
         bot_mat = tmp_path / "DSP_bot_switch_matrix.list"

@@ -17,7 +17,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelTarget,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, BelRole
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -66,6 +66,7 @@ def lut_fabric() -> Fabric:
         ports_vectors={},
         carry={},
         localShared={},
+        role=BelRole.LOGIC_CELL,
     )
     tile = make_empty_tile("LUT4AB", pinOrderConfig={})
     tile.bels = [bel]
@@ -295,6 +296,7 @@ def test_genNextpnrModel_dispatches_custom_bels_to_timing_model(
         ports_vectors={},
         carry={},
         localShared={},
+        role=BelRole.OTHER,
     )
     tile = lut_fabric.tile[0][0]
     assert tile is not None

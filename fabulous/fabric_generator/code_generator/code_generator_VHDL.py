@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Never
 
-from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.define import IO, BelRole, HDLType
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
@@ -712,3 +712,20 @@ end process;
         template += " *)\n"
 
         self._add(template, indentLevel)
+
+    def addBelRoleAttribute(
+        self, name: str, role: BelRole, indentLevel: int = 0
+    ) -> None:
+        """Add the `ROLE` attribute of the BEL entity `name`.
+
+        Parameters
+        ----------
+        name : str
+            The BEL entity name.
+        role : BelRole
+            The place-and-route role of the BEL.
+        indentLevel : int
+            The indentation Level. Defaults to 0.
+        """
+        self._add("attribute ROLE : string;", indentLevel)
+        self._add(f'attribute ROLE of {name} : entity is "{role.name}";', indentLevel)

@@ -3,12 +3,14 @@
 import re
 from pathlib import Path
 
+from loguru import logger
+
 from fabulous.custom_exception import (
     FabricParsingError,
     InvalidBelDefinition,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, FABulousAttribute
+from fabulous.fabric_definition.define import IO, BelRole, FABulousAttribute
 from fabulous.fabric_definition.yosys_obj import YosysJson, YosysModule
 
 
@@ -47,6 +49,7 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     exclude_attributes = {
         "BelMap",
         "FABulous",
+        FABulousAttribute.ROLE,
         "dynports",
         "cells_not_processed",
         "src",
@@ -96,6 +99,103 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     return belMapDic
 
 
+def _module_attribute(module_info: YosysModule, name: str) -> str | int | None:
+    """Return the module attribute `name`, matched ignoring case.
+
+    GHDL lowercases the attribute names of some VHDL BELs.
+
+    Parameters
+    ----------
+    module_info : YosysModule
+        The BEL module.
+    name : str
+        The attribute name.
+
+    Returns
+    -------
+    str | int | None
+        The attribute value, or None if the module has no such attribute.
+    """
+    for key, value in module_info.attributes.items():
+        if key.casefold() == name.casefold():
+            return value
+    return None
+
+
+# Deprecated: roles of BELs without a ROLE attribute, from the BEL names
+# nextpnr hardcodes. Remove once BELs must carry ROLE.
+_LEGACY_LOGIC_CELLS = frozenset(
+    {"FABULOUS_LC", "LUT4c_frame_config", "LUT4c_frame_config_dffesr"}
+)
+_LEGACY_OUT_PASS_PREFIX = "OutPass4_frame_config"
+_LEGACY_IN_PASS_PREFIX = "InPass4_frame_config"
+_LEGACY_INOUT = "IO_1_bidirectional_frame_config_pass"
+
+
+def _legacy_bel_role(name: str) -> BelRole:
+    """Return the role nextpnr historically assumed for the BEL type `name`.
+
+    Parameters
+    ----------
+    name : str
+        The BEL type name.
+
+    Returns
+    -------
+    BelRole
+        The role of the BEL type.
+    """
+    if name in _LEGACY_LOGIC_CELLS:
+        return BelRole.LOGIC_CELL
+    if name.startswith(_LEGACY_OUT_PASS_PREFIX):
+        return BelRole.FABRIC_OUTPUT
+    if name.startswith(_LEGACY_IN_PASS_PREFIX):
+        return BelRole.FABRIC_INPUT
+    if name == _LEGACY_INOUT:
+        return BelRole.FABRIC_INOUT
+    return BelRole.OTHER
+
+
+def _parse_bel_role(module_info: YosysModule, filename: Path) -> BelRole:
+    """Return the BEL role from the module's `ROLE` attribute.
+
+    A BEL without `ROLE` predates the attribute: its role comes from its name,
+    with a deprecation warning.
+
+    Parameters
+    ----------
+    module_info : YosysModule
+        The BEL module.
+    filename : Path
+        The BEL file; its stem is the BEL type name.
+
+    Returns
+    -------
+    BelRole
+        The role of the BEL.
+
+    Raises
+    ------
+    InvalidBelDefinition
+        If the `ROLE` attribute does not name a `BelRole`.
+    """
+    value = _module_attribute(module_info, FABulousAttribute.ROLE)
+    if value is None:
+        role = _legacy_bel_role(filename.stem)
+        logger.warning(
+            f"BEL {filename} has no ROLE attribute, so its role is guessed from its "
+            f'name as ROLE="{role.name}". Add the attribute to the BEL module; the '
+            "guess is deprecated and will be removed."
+        )
+        return role
+    roles = [role.name for role in BelRole]
+    if not isinstance(value, str) or value.upper() not in roles:
+        raise InvalidBelDefinition(
+            f"ROLE attribute {value!r} of BEL {filename} is not one of {roles}."
+        )
+    return BelRole[value.upper()]
+
+
 def parseBelFile(
     filename: Path,
     belPrefix: str = "",
@@ -116,6 +216,7 @@ def parseBelFile(
     * **CONFIG_PORT**
     * **SHARED_ENABLE**
     * **SHARED_RESET**
+    * **ROLE**
 
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
@@ -150,12 +251,18 @@ def parseBelFile(
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
 
+    **ROLE** goes on the module next to **BelMap** and names the `BelRole`
+    that place and route gives the BEL: ``ROLE="LOGIC_CELL"``, ``"FABRIC_INPUT"``,
+    ``"FABRIC_OUTPUT"``, ``"FABRIC_INOUT"`` or ``"OTHER"``. A design's I/O can be
+    constrained to the fabric pin roles in a PCF file. For a BEL without it, the
+    role is guessed from the BEL name, with a deprecation warning.
+
     Example
     -------
     Verilog
     ::
 
-        (* FABulous, BelMap,
+        (* FABulous, BelMap, ROLE="OTHER",
         single_bit_feature=0, //single bit feature, single_bit_feature=0
         multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
         multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
@@ -320,6 +427,7 @@ def parseBelFile(
             "config bits"
         )
 
+    role = _parse_bel_role(module_info, filename)
     return Bel(
         src=filename,
         prefix=belPrefix,
@@ -334,4 +442,5 @@ def parseBelFile(
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,
+        role=role,
     )
