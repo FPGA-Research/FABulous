@@ -258,8 +258,8 @@ def _resolve_task_binary() -> Path:
         raise EnvironmentNotSet(
             "The 'task' command (go-task) was found neither in the Python "
             f"environment ({script_dir}) nor on PATH. It ships with FABulous; "
-            "reinstall with 'uv tool install --with-executables-from "
-            "go-task-bin,fabulous-bit-gen FABulous-FPGA'."
+            "reinstall with 'uv tool install --reinstall --managed-python "
+            "--with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga'."
         )
     return Path(on_path)
 
@@ -296,7 +296,14 @@ def run_task(
         cmd.extend(f"{key}={value}" for key, value in task_vars.items())
 
     logger.info(f"Running: {' '.join(cmd)} (in {task_dir})")
-    subprocess.run(cmd, cwd=task_dir, check=True)
+    # The Taskfiles run `bit_gen`, which sits beside the interpreter and is not
+    # on PATH after a `uv tool install` without `--with-executables-from`.
+    # Appending keeps the user's own tools, such as `python3`, ahead of the
+    # environment's.
+    script_dir = Path(sys.executable).parent
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join([env.get("PATH", ""), str(script_dir)])
+    subprocess.run(cmd, cwd=task_dir, check=True, env=env)
 
 
 _TEXT_CLONE_EXTENSIONS = {

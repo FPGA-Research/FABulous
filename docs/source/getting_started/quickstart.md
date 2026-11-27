@@ -13,10 +13,11 @@ Install [uv](https://github.com/astral-sh/uv) (if you don't have it already), th
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install FABulous (along with bundled task and bit_gen executables)
-uv tool install --with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga
+uv tool install --managed-python \
+  --with-executables-from go-task-bin,fabulous-bit-gen fabulous-fpga
 ```
 
-If `task` or `bit_gen` is already installed globally, omit the corresponding package from `--with-executables-from`. If you use [pipx](https://pipx.pypa.io/), `pipx install --include-deps fabulous-fpga` works as well.
+`--managed-python` makes uv use its own Python build, which includes the tkinter module FABulous needs, rather than a system Python that may lack it. If `task` or `bit_gen` is already installed globally, omit the corresponding package from `--with-executables-from`.
 
 Verify the installation:
 
