@@ -422,12 +422,10 @@ def parseTilesCSV(
                 belFilePath = filePathParent.joinpath(temp[1])
                 bel_prefix = temp[2] if len(temp) > 2 else ""
                 if bel_prefix == "ADD_AS_CUSTOM_PRIM":
-                    logger.warning(
-                        f"BEL {temp[1]} in tile {tileName} has ADD_AS_CUSTOM_PRIM in "
-                        "the prefix field, treating it as an empty prefix. Write "
-                        "BEL,FILE,,ADD_AS_CUSTOM_PRIM instead."
+                    raise InvalidTileDefinition(
+                        f"BEL {temp[1]} in tile {tileName}: ADD_AS_CUSTOM_PRIM is in "
+                        f"the prefix field; write BEL,{temp[1]},,ADD_AS_CUSTOM_PRIM."
                     )
-                    bel_prefix = ""
                 if (
                     temp[1].endswith(".vhdl")
                     or temp[1].endswith(".v")
@@ -440,8 +438,7 @@ def parseTilesCSV(
                         "Please check the BEL file."
                     )
 
-                # temp[2:] also catches the flag written in the prefix field.
-                if "ADD_AS_CUSTOM_PRIM" in temp[2:]:
+                if "ADD_AS_CUSTOM_PRIM" in temp[3:]:
                     primsFile = proj_dir.joinpath("user_design/custom_prims.v")
                     logger.info(f"Adding bels to custom prims file: {primsFile}")
                     addBelsToPrim(primsFile, [bels[-1]])
@@ -725,15 +722,13 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 belFilePath = filePath.joinpath(bel_fields[1])
                 bel_prefix = bel_fields[2] if len(bel_fields) > 2 else ""
                 if bel_prefix == "ADD_AS_CUSTOM_PRIM":
-                    logger.warning(
-                        f"BEL {bel_fields[1]} in supertile {name} has "
-                        "ADD_AS_CUSTOM_PRIM in the prefix field, treating it as an "
-                        "empty prefix. Write BEL,FILE,,ADD_AS_CUSTOM_PRIM instead."
+                    raise InvalidSupertileDefinition(
+                        f"BEL {bel_fields[1]} in supertile {name}: "
+                        "ADD_AS_CUSTOM_PRIM is in the prefix field; write "
+                        f"BEL,{bel_fields[1]},,ADD_AS_CUSTOM_PRIM."
                     )
-                    bel_prefix = ""
                 bels.append(parseBelFile(belFilePath, bel_prefix))
-                # bel_fields[2:] also catches the flag written in the prefix field.
-                if "ADD_AS_CUSTOM_PRIM" in bel_fields[2:]:
+                if "ADD_AS_CUSTOM_PRIM" in bel_fields[3:]:
                     prims_file = get_context().proj_dir / "user_design/custom_prims.v"
                     logger.info(f"Adding bels to custom prims file: {prims_file}")
                     addBelsToPrim(prims_file, [bels[-1]])
@@ -934,6 +929,32 @@ def parse_tile_from_dir(
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
 
+def _add_unique_tiles(tile_dic: dict[str, Tile], new_tiles: list[Tile]) -> None:
+    """Add `new_tiles` to `tile_dic`, raising on a name that is already there."""
+    for new_tile in new_tiles:
+        if new_tile.name in tile_dic:
+            raise InvalidFabricDefinition(
+                f"Tile {new_tile.name} is defined in both "
+                f"{tile_dic[new_tile.name].tileDir} and {new_tile.tileDir}; "
+                "rename one or remove a Tile line."
+            )
+        tile_dic[new_tile.name] = new_tile
+
+
+def _add_unique_supertiles(
+    super_tile_dic: dict[str, SuperTile], new_supertiles: list[SuperTile]
+) -> None:
+    """Add `new_supertiles` to `super_tile_dic`, raising on a repeated name."""
+    for new_supertile in new_supertiles:
+        if new_supertile.name in super_tile_dic:
+            raise InvalidFabricDefinition(
+                f"Supertile {new_supertile.name} is defined in both "
+                f"{super_tile_dic[new_supertile.name].tileDir} and "
+                f"{new_supertile.tileDir}; rename one or remove a Supertile line."
+            )
+        super_tile_dic[new_supertile.name] = new_supertile
+
+
 def parseFabricCSV(fileName: str | Path) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 
@@ -993,16 +1014,12 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
     fabricDescription = fabricDescription.split("\n")
     parameters = parameters.split("\n")
 
-    # Lists for tiles
-    tileTypes = []
-    tileDefs = []
     common_wire_pair: list[tuple[str, str]] = []
     fabricTiles = []
-    tileDic = {}
+    tileDic: dict[str, Tile] = {}
     unusedTileDic = {}
 
-    # list for supertiles
-    superTileDic = {}
+    superTileDic: dict[str, SuperTile] = {}
     unusedSuperTileDic = {}
 
     # PreserveListOrder controls the canonical .list mux-input ordering, so it
@@ -1019,14 +1036,11 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
 
     # For backwards compatibility parse tiles in fabric config
     new_tiles, new_common_wire_pair = parseTilesCSV(csv_file, preserveListOrder)
-    tileTypes += [new_tile.name for new_tile in new_tiles]
-    tileDefs += new_tiles
+    _add_unique_tiles(tileDic, new_tiles)
     common_wire_pair += new_common_wire_pair
-    tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
     new_supertiles = parseSupertilesCSV(csv_file, tileDic)
-    for new_supertile in new_supertiles:
-        superTileDic[new_supertile.name] = new_supertile
+    _add_unique_supertiles(superTileDic, new_supertiles)
 
     if new_tiles or new_supertiles:
         logger.warning(
@@ -1062,17 +1076,19 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
                     "automatically)."
                 )
 
-            new_tiles, new_common_wire_pair = parseTilesCSV(
-                filePath.joinpath(i[1]), preserveListOrder
-            )
-            tileTypes += [new_tile.name for new_tile in new_tiles]
-            tileDefs += new_tiles
+            tile_csv = filePath.joinpath(i[1])
+            new_tiles, new_common_wire_pair = parseTilesCSV(tile_csv, preserveListOrder)
+            if not new_tiles:
+                raise InvalidFabricDefinition(
+                    f"Tile CSV {tile_csv} defines no TILE…EndTILE block; add one or "
+                    "remove the Tile line."
+                )
+            _add_unique_tiles(tileDic, new_tiles)
             common_wire_pair += new_common_wire_pair
-            tileDic = dict(zip(tileTypes, tileDefs, strict=False))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
-            for new_supertile in new_supertiles:
-                superTileDic[new_supertile.name] = new_supertile
+            _add_unique_supertiles(
+                superTileDic, parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
+            )
         elif i[0].startswith("ConfigBitMode"):
             if i[1] == "frame_based":
                 configBitMode = ConfigBitMode.FRAME_BASED
@@ -1166,7 +1182,15 @@ def parseFabricCSV(fileName: str | Path) -> Fabric:
             unusedTileDic[i] = tileDic[i]
             del tileDic[i]
     for i in list(superTileDic.keys()):
-        if any(j.name not in usedTile for j in superTileDic[i].tiles):
+        subtile_names = [j.name for j in superTileDic[i].tiles]
+        placed = [name for name in subtile_names if name in usedTile]
+        missing = [name for name in subtile_names if name not in usedTile]
+        if placed and missing:
+            raise InvalidFabricDefinition(
+                f"Supertile {i} is only partly placed (missing {missing}); place all "
+                f"its subtiles or remove {placed} from the fabric."
+            )
+        if missing:
             logger.info(
                 f"Supertile {i} is not used in the fabric. "
                 "Removing from tile dictionary."
