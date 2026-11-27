@@ -194,7 +194,7 @@ def get_routing_obstructions(
 
 def merge_layered_substitutions(
     config_sources: list[Any],
-) -> SubstitutionsObject | None:
+) -> SubstitutionsObject:
     """Merge `meta.substituting_steps` across layered config sources.
 
     `Config.load()` overwrites `Config.meta` wholesale for each source in its
@@ -227,7 +227,7 @@ def merge_layered_substitutions(
             else meta.substituting_steps
         )
         merged.extend(items)
-    return merged or None
+    return merged
 
 
 def _substitute_one(

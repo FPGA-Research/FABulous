@@ -24,6 +24,7 @@ from fabulous.fabric_cad.timing_model.tools.specification import (  # noqa: TC00
     StaTool,
     SynthTool,
 )
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -88,7 +89,13 @@ def make_super_tile(name: str, tile_names: list[str]) -> SuperTile:
     """Build a real SuperTile so production isinstance checks apply."""
     tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
     tile_map: list[list[Tile | None]] = [list(tiles)]
-    return SuperTile(name=name, tileDir=Path(), tiles=tiles, tileMap=tile_map)
+    return SuperTile(
+        name=name,
+        tileDir=Path(),
+        tiles=tiles,
+        tileMap=tile_map,
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
+    )
 
 
 class DummySynthTool:

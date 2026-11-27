@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import InvalidFabricDefinition
+from fabulous.fabric_definition.configmem import empty_config_mem
 from fabulous.fabric_definition.define import (
     IO,
     USER_CLK_PREDECESSOR,
@@ -84,6 +85,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
         tileMap=[[top], [bot]],
         bels=[bel],
         switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
     )
 
 
@@ -154,6 +156,7 @@ def _vhdl_supertile(tmp_path: Path) -> SuperTile:
         tileMap=[[top], [bot]],
         bels=[bel],
         switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
     )
 
 
@@ -374,7 +377,11 @@ def test_holed_supertile_wires_the_cells_it_occupies(tmp_path: Path) -> None:
         tile.partOfSuperTile = True
     tileMap: list[list[Tile | None]] = [[None, a], [b, c]]
     supertile = SuperTile(
-        name="Holed", tileDir=tmp_path, tiles=[a, b, c], tileMap=tileMap
+        name="Holed",
+        tileDir=tmp_path,
+        tiles=[a, b, c],
+        tileMap=tileMap,
+        config_mem=empty_config_mem(Path("ConfigMem.csv")),
     )
     fabric = Fabric(
         fabric_dir=tmp_path,

@@ -363,9 +363,9 @@ class RawSegmentData:
     """Raw data for one YAML-defined segment on a side."""
 
     segment: PinOrderConfig
-    tile_index: int | None = None
-    tile_x: int | None = None
-    tile_y: int | None = None
+    tile_index: int
+    tile_x: int
+    tile_y: int
 
 
 class PinPlacementPlan:
