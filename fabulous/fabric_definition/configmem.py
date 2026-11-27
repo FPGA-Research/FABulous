@@ -153,8 +153,8 @@ class ConfigMem:
         ------
         ValueError
             If there are not `max_frames_per_col` frames indexed 0 .. n-1 in
-            order, if one is not `frame_bits_per_row` wide, or if a
-            configuration bit is allocated twice.
+            order, if one is not `frame_bits_per_row` wide, if a configuration
+            bit is allocated twice, or if the bits are not `0 .. n-1`.
         """
         if len(self.frames) != self.max_frames_per_col:
             raise ValueError(
@@ -180,6 +180,12 @@ class ConfigMem:
         if twice:
             raise ValueError(
                 f"Configuration bit index {twice} allocated more than once in {self}."
+            )
+        missing = sorted(set(range(len(allocations))) - allocations.keys())
+        if missing:
+            raise ValueError(
+                f"{self} maps {len(allocations)} bits but leaves bit indices "
+                f"{missing} unmapped. The bits must be 0 .. n-1."
             )
 
     def __str__(self) -> str:

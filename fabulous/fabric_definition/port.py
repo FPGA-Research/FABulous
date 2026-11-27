@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from fabulous.fabric_definition.define import (
     IO,
     Direction,
+    ExpandMode,
     FeatureType,
     FeatureValue,
     Side,
@@ -461,39 +462,50 @@ class TilePort(Port):
         ]
 
     def expand_port_info(
-        self, mode: str = "SwitchMatrix"
+        self, mode: ExpandMode = ExpandMode.SWITCH_MATRIX
     ) -> tuple[list[str], list[str]]:
         """Expand the port information to the individual bit signal.
 
-        If 'Indexed' is in the mode, then brackets are added to the signal name.
+        An `*_INDEXED` mode puts the wire index in brackets.
 
         Parameters
         ----------
-        mode : str
-            Mode for expansion. Defaults to "SwitchMatrix".
-            Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
-            'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
-            'AutoSwitchMatrixIndexed'
+        mode : ExpandMode
+            Mode for expansion. Defaults to `ExpandMode.SWITCH_MATRIX`.
 
         Returns
         -------
         tuple[list[str], list[str]]
             A tuple of two lists. The first list contains the source names of the ports
             and the second list contains the destination names of the ports.
+
+        Raises
+        ------
+        ValueError
+            If `mode` is not an `ExpandMode`.
         """
         inputs, outputs = [], []
         thisRange = 0
         openIndex = ""
         closeIndex = ""
 
-        if "Indexed" in mode:
+        if mode in (
+            ExpandMode.ALL_INDEXED,
+            ExpandMode.TOP_INDEXED,
+            ExpandMode.AUTO_TOP_INDEXED,
+            ExpandMode.SWITCH_MATRIX_INDEXED,
+            ExpandMode.AUTO_SWITCH_MATRIX_INDEXED,
+        ):
             openIndex = "("
             closeIndex = ")"
 
         # range (wires-1 downto 0) as connected to the switch matrix
-        if mode == "SwitchMatrix" or mode == "SwitchMatrixIndexed":
+        if mode in (ExpandMode.SWITCH_MATRIX, ExpandMode.SWITCH_MATRIX_INDEXED):
             thisRange = self.wire_count
-        elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
+        elif mode in (
+            ExpandMode.AUTO_SWITCH_MATRIX,
+            ExpandMode.AUTO_SWITCH_MATRIX_INDEXED,
+        ):
             if self.wire_direction == Direction.SJUMP:
                 thisRange = self.wire_count
             elif self.source_name == "NULL" or self.destination_name == "NULL":
@@ -505,25 +517,27 @@ class TilePort(Port):
                 # the case begin and end ports are used
                 thisRange = self.wire_count
         # range ((wires*distance)-1 downto 0) as connected to the tile top
-        elif mode in [
-            "all",
-            "allIndexed",
-            "Top",
-            "TopIndexed",
-            "AutoTop",
-            "AutoTopIndexed",
-        ]:
+        elif mode in (
+            ExpandMode.ALL,
+            ExpandMode.ALL_INDEXED,
+            ExpandMode.TOP,
+            ExpandMode.TOP_INDEXED,
+            ExpandMode.AUTO_TOP,
+            ExpandMode.AUTO_TOP_INDEXED,
+        ):
             thisRange = (abs(self.x_offset) + abs(self.y_offset)) * self.wire_count
+        else:
+            raise ValueError(f"Unknown port expansion mode {mode!r}.")
 
         # the following three lines are needed to get the top line[wires] that
         # are actually the connection from a switch matrix to the routing fabric
         startIndex = 0
-        if mode in ["Top", "TopIndexed"]:
+        if mode in (ExpandMode.TOP, ExpandMode.TOP_INDEXED):
             startIndex = (
                 (abs(self.x_offset) + abs(self.y_offset)) - 1
             ) * self.wire_count
 
-        elif mode in ["AutoTop", "AutoTopIndexed"]:
+        elif mode in (ExpandMode.AUTO_TOP, ExpandMode.AUTO_TOP_INDEXED):
             if self.source_name == "NULL" or self.destination_name == "NULL":
                 # in case one port is NULL, then the all the other port wires get
                 # connected to the switch matrix.

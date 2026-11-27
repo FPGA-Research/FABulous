@@ -174,6 +174,7 @@ def _read(csv_file: Path, test_case: ParseConfigTestCase) -> tuple:
                 frame_bits=4,
                 global_bits=2,
                 expected_result_len=1,
+                expected_error="unmapped",
             ),
             id="non_consecutive_semicolon",
         ),

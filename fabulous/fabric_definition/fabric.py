@@ -9,6 +9,7 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from fabulous.custom_exception import InvalidState
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
     DEFAULT_CONFIG_BIT_MODE,
@@ -237,11 +238,8 @@ class Fabric:
         # together must fit in 26 letters.
         for superTile in self.superTileDic.values():
             mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tileMap[my][mx]
-            if (
-                master_tile is not None
-                and len(master_tile.bels) + len(superTile.bels) > 26
-            ):
+            master_tile = superTile.tile_at(mx, my)
+            if len(master_tile.bels) + len(superTile.bels) > 26:
                 raise ValueError(
                     "Due to naming limitations, supertile "
                     f"{superTile.name} and its master tile {master_tile.name} "
@@ -431,7 +429,10 @@ class Fabric:
             fty = base_fy + ty_local
             master_tile = self.tile[fty][ftx]
             if master_tile is None:
-                continue
+                raise InvalidState(
+                    f"Supertile {superTile.name} placed at X{base_fx}Y{base_fy} has "
+                    f"its master tile at X{ftx}Y{fty}, but that fabric cell is NULL."
+                )
 
             for ly, st_row in enumerate(superTile.tileMap):
                 for lx, st_tile in enumerate(st_row):
@@ -441,7 +442,11 @@ class Fabric:
                     fx = base_fx + lx
                     grid_tile = self.tile[fy][fx]
                     if grid_tile is None:
-                        continue
+                        raise InvalidState(
+                            f"Supertile {superTile.name} placed at "
+                            f"X{base_fx}Y{base_fy} expects {st_tile.name} at "
+                            f"X{fx}Y{fy}, but that fabric cell is NULL."
+                        )
 
                     for p in grid_tile.get_sjump_ports():
                         if not p.is_output:
@@ -483,7 +488,9 @@ class Fabric:
         for fx, fy in touched:
             tile = self.tile[fy][fx]
             if tile is None:
-                continue
+                raise InvalidState(
+                    f"Fabric cell X{fx}Y{fy} got SJUMP wires but is NULL."
+                )
             tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def iter_super_tile_placements(

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.geometry_generator.geometry_obj import Border, Location
@@ -107,6 +108,7 @@ class FabricGeometry:
                         queried.neighbourConstraints = self.tileGeomMap[
                             searchedTileName
                         ].wireConstraints
+                        queried.neighbour_name = searchedTileName
 
     def generateGeometry(self) -> None:
         """Generate the geometric information from the given fabric object.
@@ -175,12 +177,11 @@ class FabricGeometry:
 
         # A supertile-level BEL is drawn in the supertile's master tile, so map
         # each master tile name to the supertile BELs it hosts.
-        master_bels: dict[str, list] = {}
+        master_bels: dict[str, list[Bel]] = {}
         for superTile in self.fabric.superTileDic.values():
             mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tileMap[my][mx]
-            if master_tile is not None:
-                master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
+            master_tile = superTile.tile_at(mx, my)
+            master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
 
         for tileName in self.tileNames:
             named_tile = self.fabric.getTileByName(tileName)
@@ -188,7 +189,7 @@ class FabricGeometry:
                 raise TypeError(f"{tileName!r} is a supertile, not a tile.")
             tileGeom = self.tileGeomMap[tileName]
             tileGeom.generateGeometry(
-                named_tile, self.padding, extra_bels=master_bels.get(tileName)
+                named_tile, self.padding, extra_bels=master_bels.get(tileName, [])
             )
 
         # This step is for figuring out, which tile

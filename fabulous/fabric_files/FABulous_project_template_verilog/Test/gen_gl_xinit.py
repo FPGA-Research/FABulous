@@ -106,6 +106,8 @@ def collect_efpga_nets(efpga_text: str) -> list[str]:
 # to the first ``);``.
 _INST_RE = re.compile(r"\b\w+\s+\S+\s*\((.*?)\)\s*;", re.DOTALL)
 
+_TILE_NETLIST_GLOB = "*/macro/final_views/nl/*.nl.v"
+
 
 def collect_flops(
     tile_dir: Path, reset_pin: str
@@ -140,7 +142,7 @@ def collect_flops(
     qpin = re.compile(r"\.Q\(\s*(.*?)\s*\)")
     has_clk = re.compile(r"\.CLK\(")
     out: dict[str, list[tuple[str, str | None]]] = {}
-    for nl in sorted(tile_dir.glob("*/macro/final_views/nl/*.nl.v")):
+    for nl in sorted(tile_dir.glob(_TILE_NETLIST_GLOB)):
         ttype = nl.parents[3].name
         pairs: list[tuple[str, str | None]] = []
         for body in _INST_RE.findall(nl.read_text()):
@@ -239,17 +241,29 @@ def main() -> None:
 
     reset_pin = _RESET_PIN_BY_PDK[args.pdk]
 
+    if not any(args.tile_dir.glob(_TILE_NETLIST_GLOB)):
+        sys.exit(
+            f"No hardened tile netlists under {args.tile_dir}/{_TILE_NETLIST_GLOB}; "
+            "run the GDS flow first."
+        )
+
     efpga_text = args.efpga.read_text()
     nets = collect_efpga_nets(efpga_text)
     flops = collect_flops(args.tile_dir, reset_pin)
     instances = collect_flop_tile_instances(efpga_text, sorted(flops))
+    if not instances:
+        sys.exit(
+            f"No flop-bearing tile instance in {args.efpga} matches the tile "
+            f"netlists under {args.tile_dir}; check that --efpga and --tile-dir "
+            "come from the same hardened fabric."
+        )
 
     # Split flops by how their state X is cleared: a reset pulse where the mapped
     # cell has an async reset pin, a Q deposit where it does not.
     reset_flops: list[tuple[str, str]] = []  # (Q net ref, reset net ref)
     deposit_flops: list[str] = []  # Q net ref
     for ttype, inst in instances:
-        for qnet, rnet in flops.get(ttype, []):
+        for qnet, rnet in flops[ttype]:
             qref = hier_ref(args.top_inst, inst, qnet)
             if rnet is not None:
                 reset_flops.append((qref, hier_ref(args.top_inst, inst, rnet)))

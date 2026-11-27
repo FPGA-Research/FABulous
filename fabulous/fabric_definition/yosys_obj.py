@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from loguru import logger
 
@@ -143,7 +143,7 @@ class YosysNetDetails:
     signed: int = 0
 
 
-@dataclass
+@dataclass(kw_only=True)
 class YosysModule:
     """Represents a module in a Yosys design.
 
@@ -157,14 +157,14 @@ class YosysModule:
         Module attributes dictionary.
     parameter_default_values : KeyValue
         Parameter defaults dictionary.
-    ports : dict[str, dict[str, Any]]
-        Raw port entries, converted to `YosysPortDetails` objects.
-    cells : dict[str, dict[str, Any]]
-        Raw cell entries, converted to `YosysCellDetails` objects.
-    memories : dict[str, dict[str, Any]]
-        Raw memory entries, converted to `YosysMemoryDetails` objects.
-    netnames : dict[str, dict[str, Any]]
-        Raw net entries, converted to `YosysNetDetails` objects.
+    ports : dict[str, YosysPortDetails]
+        Port details by port name.
+    cells : dict[str, YosysCellDetails]
+        Cell details by cell name.
+    memories : dict[str, YosysMemoryDetails]
+        Memory details by memory name.
+    netnames : dict[str, YosysNetDetails]
+        Net details by net name.
 
     Attributes
     ----------
@@ -189,22 +189,31 @@ class YosysModule:
     memories: dict[str, YosysMemoryDetails]
     netnames: dict[str, YosysNetDetails]
 
-    def __init__(
-        self,
-        *,
-        attributes: KeyValue,
-        parameter_default_values: KeyValue,
-        ports: dict[str, dict[str, Any]],
-        cells: dict[str, dict[str, Any]],
-        memories: dict[str, dict[str, Any]],
-        netnames: dict[str, dict[str, Any]],
-    ) -> None:
-        self.attributes = attributes
-        self.parameter_default_values = parameter_default_values
-        self.ports = {k: YosysPortDetails(**v) for k, v in ports.items()}
-        self.cells = {k: YosysCellDetails(**v) for k, v in cells.items()}
-        self.memories = {k: YosysMemoryDetails(**v) for k, v in memories.items()}
-        self.netnames = {k: YosysNetDetails(**v) for k, v in netnames.items()}
+    @classmethod
+    def from_json(cls, module: dict[str, Any]) -> Self:
+        """Build a module from one entry of the `modules` map in Yosys JSON.
+
+        Parameters
+        ----------
+        module : dict[str, Any]
+            The raw module entry. A missing section reads as empty.
+
+        Returns
+        -------
+        Self
+            The module with each raw entry converted to its details object.
+        """
+        return cls(
+            attributes=module["attributes"],
+            parameter_default_values=module.get("parameter_default_values", {}),
+            ports={k: YosysPortDetails(**v) for k, v in module["ports"].items()},
+            cells={k: YosysCellDetails(**v) for k, v in module["cells"].items()},
+            memories={
+                k: YosysMemoryDetails(**v)
+                for k, v in module.get("memories", {}).items()
+            },
+            netnames={k: YosysNetDetails(**v) for k, v in module["netnames"].items()},
+        )
 
 
 @dataclass
@@ -277,20 +286,9 @@ class YosysJson:
         YosysTool.convert_to_json(yosys_src, json_file)
         with json_file.open() as f:
             o = json.load(f)
-        self.creator = o.get("creator", "")  # Use .get() for safety
-        # Provide default empty dicts for potentially missing keys in module data
-        self.modules = {
-            k: YosysModule(
-                attributes=v.get("attributes", {}),
-                parameter_default_values=v.get("parameter_default_values", {}),
-                ports=v.get("ports", {}),
-                cells=v.get("cells", {}),
-                memories=v.get("memories", {}),  # Provide default for memories
-                netnames=v.get("netnames", {}),  # Provide default for netnames
-            )
-            for k, v in o.get("modules", {}).items()  # Use .get() for safety
-        }
-        self.models = o.get("models", {})  # Use .get() for safety
+        self.creator = o["creator"]
+        self.modules = {k: YosysModule.from_json(v) for k, v in o["modules"].items()}
+        self.models = o.get("models", {})
 
         # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
         if self.srcPath.suffix in [".vhd", ".vhdl"]:

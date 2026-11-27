@@ -7,6 +7,7 @@ for longer-distance connections.
 """
 
 from _csv import Writer
+from collections import Counter
 from dataclasses import dataclass, field
 
 from fabulous.custom_exception import InvalidPortType
@@ -45,6 +46,8 @@ class TileGeometry:
         Wire constraints of the tile
     neighbourConstraints : WireConstraints | None
         Wire constraints of neighbouring tiles
+    neighbour_name : str | None
+        Name of the tile whose constraints `neighbourConstraints` holds
     smGeometry : SmGeometry
         Geometry of the tiles switch matrix
     belGeomList : list[BelGeometry]
@@ -83,6 +86,7 @@ class TileGeometry:
     border: Border = Border.NONE
     wireConstraints: WireConstraints = field(default_factory=WireConstraints)
     neighbourConstraints: WireConstraints | None = None
+    neighbour_name: str | None = None
     smGeometry: SmGeometry = field(default_factory=SmGeometry)
     belGeomList: list[BelGeometry] = field(default_factory=list)
     wireGeomList: list[WireGeometry] = field(default_factory=list)
@@ -98,9 +102,7 @@ class TileGeometry:
     southMiddleX: int = 0
     westMiddleY: int = 0
 
-    def generateGeometry(
-        self, tile: Tile, padding: int, extra_bels: list[Bel] | None = None
-    ) -> None:
+    def generateGeometry(self, tile: Tile, padding: int, extra_bels: list[Bel]) -> None:
         """Generate the geometry for a tile.
 
         Creates geometric representations for all BELs and the switch matrix,
@@ -113,13 +115,13 @@ class TileGeometry:
             The `Tile` object to generate geometry for
         padding : int
             The padding space to add around components
-        extra_bels : list[Bel] | None
+        extra_bels : list[Bel]
             Additional BELs to draw in this tile (e.g. a supertile-level BEL
             hosted in this tile when it is the supertile's master tile).
         """
         self.name = tile.name
 
-        for bel in list(tile.bels) + list(extra_bels or []):
+        for bel in [*tile.bels, *extra_bels]:
             belGeom = BelGeometry()
             belGeom.generateGeometry(bel, padding)
             self.belGeomList.append(belGeom)
@@ -261,6 +263,8 @@ class TileGeometry:
         ------
         InvalidPortType
             If a port with offset 1 has no tile side defined
+        ValueError
+            If a side has more direct wires than the neighbour has positions
         """
         self.northMiddleX = self.smGeometry.relX - padding
         self.southMiddleX = self.smGeometry.relX - padding
@@ -273,6 +277,12 @@ class TileGeometry:
         alignEastWest = (
             self.border == Border.EASTWEST and self.neighbourConstraints is not None
         )
+        direct_wire_counts = Counter(
+            portGeom.side_of_tile
+            for portGeom in self.smGeometry.portGeoms
+            if abs(portGeom.offset) == 1
+        )
+        aligned_positions: list[tuple[Side, list[int]]] = []
 
         if alignNorthSouth:
             wireNorthPositions = sorted(
@@ -281,6 +291,10 @@ class TileGeometry:
             wireSouthPositions = sorted(
                 self.neighbourConstraints.northPositions, reverse=True
             )
+            aligned_positions += [
+                (Side.NORTH, wireNorthPositions),
+                (Side.SOUTH, wireSouthPositions),
+            ]
             northIter = iter(wireNorthPositions)
             southIter = iter(wireSouthPositions)
             self.northMiddleX = next(northIter, self.northMiddleX)
@@ -292,6 +306,10 @@ class TileGeometry:
         if alignEastWest:
             wireEastPositions = sorted(self.neighbourConstraints.westPositions)
             wireWestPositions = sorted(self.neighbourConstraints.eastPositions)
+            aligned_positions += [
+                (Side.EAST, wireEastPositions),
+                (Side.WEST, wireWestPositions),
+            ]
             eastIter = iter(wireEastPositions)
             westIter = iter(wireWestPositions)
             self.eastMiddleY = next(eastIter, self.eastMiddleY)
@@ -299,6 +317,14 @@ class TileGeometry:
         else:
             eastIter = iter(())
             westIter = iter(())
+
+        for side, positions in aligned_positions:
+            if direct_wire_counts[side] > len(positions):
+                raise ValueError(
+                    f"{self.name} has more {side.name} direct wires than its "
+                    f"neighbour {self.neighbour_name} provides positions; geometry "
+                    "cannot align them."
+                )
 
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) != 1:
